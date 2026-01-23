@@ -1,4 +1,4 @@
-import { Task, Resource, Project, BasicScenarioInput, ComplexScenarioInput, CompositeScenarioInput } from '@/types/schedule';
+import { Task, Resource, Project, BasicScenarioInput, ComplexScenarioInput, CompositeScenarioInput, WorkingHoursConfig } from '@/types/schedule';
 
 // 示例资源
 export const sampleResources: Resource[] = [
@@ -7,36 +7,48 @@ export const sampleResources: Resource[] = [
     name: '张三',
     type: 'human',
     skills: ['frontend', 'react', 'typescript'],
-    availability: 0.9
+    availability: 0.9,
+    color: '#3b82f6' // blue-500
   },
   {
     id: 'res-2',
     name: '李四',
     type: 'human',
     skills: ['backend', 'java', 'spring'],
-    availability: 1.0
+    availability: 1.0,
+    color: '#10b981' // green-500
   },
   {
     id: 'res-3',
     name: '王五',
     type: 'human',
     skills: ['design', 'ui', 'ux'],
-    availability: 0.8
+    availability: 0.8,
+    color: '#f59e0b' // orange-500
   },
   {
     id: 'res-4',
     name: '赵六',
     type: 'human',
     skills: ['testing', 'qa', 'automation'],
-    availability: 0.85
+    availability: 0.85,
+    color: '#8b5cf6' // purple-500
   },
   {
     id: 'res-5',
     name: '测试服务器',
     type: 'equipment',
-    availability: 1.0
+    availability: 1.0,
+    color: '#ef4444' // red-500
   }
 ];
+
+// 默认工作时间配置
+export const defaultWorkingHours: WorkingHoursConfig = {
+  startHour: 9.5, // 9:30
+  endHour: 19, // 19:00
+  workDays: [1, 2, 3, 4, 5] // 周一到周五
+};
 
 // 基础场景示例 - 电商网站开发
 export const basicScenarioSample: BasicScenarioInput = {
@@ -49,7 +61,8 @@ export const basicScenarioSample: BasicScenarioInput = {
       assignedResources: ['res-3'],
       deadline: new Date('2024-02-15'),
       priority: 'urgent',
-      status: 'pending'
+      status: 'pending',
+      dependencies: []
     },
     {
       id: 'task-2',
@@ -59,7 +72,8 @@ export const basicScenarioSample: BasicScenarioInput = {
       assignedResources: ['res-1'],
       deadline: new Date('2024-03-01'),
       priority: 'high',
-      status: 'pending'
+      status: 'pending',
+      dependencies: ['task-1']
     },
     {
       id: 'task-3',
@@ -69,7 +83,8 @@ export const basicScenarioSample: BasicScenarioInput = {
       assignedResources: ['res-2'],
       deadline: new Date('2024-03-05'),
       priority: 'high',
-      status: 'pending'
+      status: 'pending',
+      dependencies: ['task-1']
     },
     {
       id: 'task-4',
@@ -79,7 +94,8 @@ export const basicScenarioSample: BasicScenarioInput = {
       assignedResources: ['res-2'],
       deadline: new Date('2024-02-28'),
       priority: 'high',
-      status: 'pending'
+      status: 'pending',
+      dependencies: ['task-1']
     },
     {
       id: 'task-5',
@@ -89,7 +105,8 @@ export const basicScenarioSample: BasicScenarioInput = {
       assignedResources: ['res-4'],
       deadline: new Date('2024-03-15'),
       priority: 'high',
-      status: 'pending'
+      status: 'pending',
+      dependencies: ['task-2', 'task-3', 'task-4']
     }
   ],
   resources: sampleResources,
@@ -105,7 +122,8 @@ export const complexScenarioSample: ComplexScenarioInput = {
       description: '电商平台性能优化和功能升级',
       priority: 9,
       deadline: new Date('2024-04-30'),
-      resourcePool: ['res-1', 'res-2', 'res-3', 'res-4']
+      resourcePool: ['res-1', 'res-2', 'res-3', 'res-4'],
+      color: '#3b82f6' // blue
     },
     {
       id: 'proj-2',
@@ -113,7 +131,8 @@ export const complexScenarioSample: ComplexScenarioInput = {
       description: 'iOS和Android客户端开发',
       priority: 8,
       deadline: new Date('2024-05-15'),
-      resourcePool: ['res-1', 'res-3']
+      resourcePool: ['res-1', 'res-3'],
+      color: '#10b981' // green
     },
     {
       id: 'proj-3',
@@ -121,7 +140,8 @@ export const complexScenarioSample: ComplexScenarioInput = {
       description: '数据仓库和BI系统建设',
       priority: 7,
       deadline: new Date('2024-06-01'),
-      resourcePool: ['res-2', 'res-5']
+      resourcePool: ['res-2', 'res-5'],
+      color: '#f59e0b' // orange
     }
   ],
   tasks: [

@@ -10,9 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, Plus, Trash2, AlertCircle, CheckCircle, TrendingUp } from 'lucide-react';
+import { Play, Plus, Trash2, AlertCircle, CheckCircle, TrendingUp, GitBranch } from 'lucide-react';
 import { generateSchedule } from '@/lib/schedule-algorithms';
-import { basicScenarioSample } from '@/lib/sample-data';
+import { basicScenarioSample, defaultWorkingHours } from '@/lib/sample-data';
 import { Task, Resource, ScheduleResult } from '@/types/schedule';
 
 export default function BasicScenario() {
@@ -24,7 +24,7 @@ export default function BasicScenario() {
   const handleGenerateSchedule = () => {
     setIsComputing(true);
     setTimeout(() => {
-      const result = generateSchedule(tasks, resources, new Date());
+      const result = generateSchedule(tasks, resources, new Date(), defaultWorkingHours);
       setScheduleResult(result);
       setIsComputing(false);
     }, 500);
@@ -100,6 +100,7 @@ export default function BasicScenario() {
                   <TableHead>负责人</TableHead>
                   <TableHead>优先级</TableHead>
                   <TableHead>截止日期</TableHead>
+                  <TableHead className="w-[180px]">依赖任务</TableHead>
                   <TableHead className="w-[100px]">操作</TableHead>
                 </TableRow>
               </TableHeader>
@@ -163,6 +164,24 @@ export default function BasicScenario() {
                       />
                     </TableCell>
                     <TableCell>
+                      <Select
+                        value={task.dependencies && task.dependencies.length > 0 ? task.dependencies[0] : ''}
+                        onValueChange={(value) => handleTaskChange(task.id, 'dependencies', value ? [value] : [])}
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue placeholder="无依赖" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">无依赖</SelectItem>
+                          {tasks.filter(t => t.id !== task.id).map(dependencyTask => (
+                            <SelectItem key={dependencyTask.id} value={dependencyTask.id}>
+                              {dependencyTask.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -183,11 +202,17 @@ export default function BasicScenario() {
       {scheduleResult && (
         <>
           {/* Summary Cards */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-4">
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription>总工期</CardDescription>
                 <CardTitle className="text-2xl">{scheduleResult.totalDuration} 天</CardTitle>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardDescription>总工时</CardDescription>
+                <CardTitle className="text-2xl">{scheduleResult.totalHours} 小时</CardTitle>
               </CardHeader>
             </Card>
             <Card>
@@ -213,7 +238,9 @@ export default function BasicScenario() {
                 <TrendingUp className="h-5 w-5 text-blue-500" />
                 甘特图排期
               </CardTitle>
-              <CardDescription>任务时间线可视化</CardDescription>
+              <CardDescription>
+                任务时间线可视化（工作时间：9:30 - 19:00）
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -221,31 +248,52 @@ export default function BasicScenario() {
                   const isCritical = scheduleResult.criticalPath.includes(task.id);
                   const startDate = task.startDate || new Date();
                   const endDate = task.endDate || new Date();
-                  const duration = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+                  const resource = resources.find(r => r.id === task.assignedResources[0]);
+                  const barColor = resource?.color || '#3b82f6';
+                  
+                  // 格式化时间显示精确到小时
+                  const formatDateTime = (date: Date) => {
+                    const hours = date.getHours();
+                    const minutes = date.getMinutes();
+                    const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                    return `${date.toLocaleDateString()} ${timeStr}`;
+                  };
                   
                   return (
                     <div key={task.id} className="space-y-2">
                       <div className="flex items-center gap-4">
-                        <div className="w-48 font-medium text-sm">{task.name}</div>
+                        <div className="w-48">
+                          <div className="text-sm font-medium">{task.name}</div>
+                          {resource && (
+                            <div className="text-xs text-slate-600 dark:text-slate-400">
+                              {resource.name}
+                            </div>
+                          )}
+                        </div>
                         <div className="flex-1 relative">
                           <div className="absolute left-0 top-0 h-6 rounded bg-slate-100 dark:bg-slate-800">
                             <div
-                              className={`absolute top-0 h-6 rounded ${
-                                isCritical ? 'bg-red-500' : 'bg-blue-500'
-                              }`}
+                              className="absolute top-0 h-6 rounded"
                               style={{
-                                left: `${((startDate.getTime() - scheduleResult.tasks[0].startDate!.getTime()) / (1000 * 60 * 60 * 24)) * 3}%`,
-                                width: `${Math.max(duration * 3, 2)}%`
+                                backgroundColor: isCritical ? '#ef4444' : barColor,
+                                left: `${((startDate.getTime() - scheduleResult.tasks[0].startDate!.getTime()) / (1000 * 60 * 60 * 24)) * 2}%`,
+                                width: `${Math.max(((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) * 2, 1)}%`
                               }}
                             />
                           </div>
                         </div>
-                        <div className="w-32 text-xs text-slate-600 dark:text-slate-400">
-                          {startDate.toLocaleDateString()} - {endDate.toLocaleDateString()}
+                        <div className="w-56 text-xs text-slate-600 dark:text-slate-400">
+                          {formatDateTime(startDate)} - {formatDateTime(endDate)}
                         </div>
                         {isCritical && (
                           <Badge variant="destructive" className="text-xs">
                             关键路径
+                          </Badge>
+                        )}
+                        {task.dependencies && task.dependencies.length > 0 && (
+                          <Badge variant="outline" className="text-xs gap-1">
+                            <GitBranch className="h-3 w-3" />
+                            {task.dependencies.length}
                           </Badge>
                         )}
                       </div>

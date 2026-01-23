@@ -5,6 +5,14 @@ export interface Resource {
   type: 'human' | 'material' | 'equipment';
   skills?: string[];
   availability: number; // 0-1, 可用性系数
+  color?: string; // 资源在甘特图中的显示颜色
+}
+
+// 工作时间配置
+export interface WorkingHoursConfig {
+  startHour: number; // 开始小时，如 9.5 表示 9:30
+  endHour: number; // 结束小时，如 19 表示 19:00
+  workDays: number[]; // 工作日，0-6 表示周日到周六
 }
 
 export interface Task {
@@ -30,9 +38,11 @@ export interface Task {
     leadTime?: number; // 采购周期（天）
   }[];
   
-  // 排期结果
+  // 排期结果（精确到小时）
   startDate?: Date;
   endDate?: Date;
+  startHour?: number; // 开始小时，如 9.5 表示 9:30
+  endHour?: number; // 结束小时
   isCritical?: boolean; // 是否在关键路径上
 }
 
@@ -44,6 +54,8 @@ export interface Project {
   deadline?: Date;
   tasks: Task[];
   resourcePool: string[]; // Resource IDs
+  color?: string; // 项目在甘特图中的显示颜色
+  startDate?: Date; // 项目开始时间
 }
 
 // 排期算法结果
@@ -54,7 +66,9 @@ export interface ScheduleResult {
   criticalChain: string[]; // Task IDs on critical chain
   resourceConflicts: ResourceConflict[];
   resourceUtilization: Record<string, number>; // Resource ID -> utilization rate
-  totalDuration: number; // Days
+  totalDuration: number; // 总工期（天）
+  totalHours: number; // 总工时
+  workingHoursConfig?: WorkingHoursConfig; // 工作时间配置
   warnings: string[];
   recommendations: string[];
 }
@@ -108,7 +122,7 @@ export type ScenarioType = 'basic' | 'complex' | 'composite';
 
 // 输入数据类型
 export interface BasicScenarioInput {
-  tasks: Omit<Task, 'projectId' | 'dependencies' | 'tags' | 'riskFactor' | 'materialRequirements'>[];
+  tasks: Omit<Task, 'projectId' | 'tags' | 'riskFactor' | 'materialRequirements'>[];
   resources: Resource[];
   projectDeadline: Date;
 }

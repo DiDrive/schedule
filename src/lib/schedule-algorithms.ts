@@ -1,4 +1,102 @@
-import { Task, Resource, ScheduleResult, ResourceConflict } from '@/types/schedule';
+import { Task, Resource, ScheduleResult, ResourceConflict, WorkingHoursConfig } from '@/types/schedule';
+
+// 默认工作时间配置
+const DEFAULT_WORKING_HOURS: WorkingHoursConfig = {
+  startHour: 9.5, // 9:30
+  endHour: 19, // 19:00
+  workDays: [1, 2, 3, 4, 5] // 周一到周五
+};
+
+/**
+ * 计算两个日期之间的工作小时数
+ */
+export function calculateWorkHours(startDate: Date, endDate: Date, config: WorkingHoursConfig = DEFAULT_WORKING_HOURS): number {
+  let current = new Date(startDate);
+  let totalHours = 0;
+  const end = new Date(endDate);
+
+  while (current < end) {
+    const dayOfWeek = current.getDay();
+    
+    // 检查是否是工作日
+    if (config.workDays.includes(dayOfWeek)) {
+      const startOfDay = new Date(current);
+      startOfDay.setHours(Math.floor(config.startHour), (config.startHour % 1) * 60, 0, 0);
+      
+      const endOfDay = new Date(current);
+      endOfDay.setHours(Math.floor(config.endHour), (config.endHour % 1) * 60, 0, 0);
+      
+      // 计算当天的工作小时数
+      let workStart = current > startOfDay ? current : startOfDay;
+      let workEnd = end < endOfDay ? end : endOfDay;
+      
+      if (workStart < workEnd) {
+        const hours = (workEnd.getTime() - workStart.getTime()) / (1000 * 60 * 60);
+        totalHours += hours;
+      }
+    }
+    
+    // 移动到下一天的开始
+    current.setDate(current.getDate() + 1);
+    current.setHours(0, 0, 0, 0);
+  }
+
+  return totalHours;
+}
+
+/**
+ * 计算从开始日期起经过指定工作小时数后的结束日期
+ */
+export function calculateEndDate(startDate: Date, workHours: number, config: WorkingHoursConfig = DEFAULT_WORKING_HOURS): Date {
+  const result = new Date(startDate);
+  let remainingHours = workHours;
+
+  // 先调整到第一个工作日的工作时间开始
+  while (remainingHours > 0) {
+    const dayOfWeek = result.getDay();
+    
+    if (!config.workDays.includes(dayOfWeek)) {
+      // 非工作日，跳到下一天 0:00
+      result.setDate(result.getDate() + 1);
+      result.setHours(0, 0, 0, 0);
+      continue;
+    }
+
+    const startOfDay = new Date(result);
+    startOfDay.setHours(Math.floor(config.startHour), (config.startHour % 1) * 60, 0, 0);
+    
+    const endOfDay = new Date(result);
+    endOfDay.setHours(Math.floor(config.endHour), (config.endHour % 1) * 60, 0, 0);
+
+    // 如果当前时间在工作日之前，从工作日开始
+    if (result < startOfDay) {
+      result.setTime(startOfDay.getTime());
+      continue;
+    }
+
+    // 如果当前时间在工作日之后，跳到下一个工作日
+    if (result >= endOfDay) {
+      result.setDate(result.getDate() + 1);
+      result.setHours(0, 0, 0, 0);
+      continue;
+    }
+
+    // 计算当天剩余工作时间
+    const availableHours = (endOfDay.getTime() - result.getTime()) / (1000 * 60 * 60);
+    const hoursToUse = Math.min(remainingHours, availableHours);
+
+    result.setTime(result.getTime() + hoursToUse * 60 * 60 * 1000);
+    remainingHours -= hoursToUse;
+
+    // 如果还有剩余工作时间，移到下一天
+    if (remainingHours > 0) {
+      result.setDate(result.getDate() + 1);
+      result.setHours(0, 0, 0, 0);
+    }
+  }
+
+  return result;
+}
 
 /**
  * 计算关键路径 (Critical Path Method - CPM)
@@ -287,7 +385,8 @@ export function getResourceBalancingRecommendations(
 export function generateSchedule(
   tasks: Task[],
   resources: Resource[],
-  startDate: Date = new Date()
+  startDate: Date = new Date(),
+  workingHoursConfig: WorkingHoursConfig = DEFAULT_WORKING_HOURS
 ): ScheduleResult {
   // 1. 计算关键路径
   const criticalPath = calculateCriticalPath(tasks);
@@ -296,7 +395,7 @@ export function generateSchedule(
   const scheduledTasks = tasks.map(task => {
     const isCritical = criticalPath.includes(task.id);
     
-    // 简化排期：根据依赖关系和关键路径计算开始和结束时间
+    // 根据依赖关系计算开始时间
     let taskStart = new Date(startDate);
     
     // 考虑前置任务
@@ -309,15 +408,19 @@ export function generateSchedule(
       taskStart = latestDep;
     }
     
-    // 计算结束时间（假设每天8小时工作）
-    const workDays = Math.ceil(task.estimatedHours / 8);
-    const taskEnd = new Date(taskStart);
-    taskEnd.setDate(taskEnd.getDate() + workDays);
+    // 使用自定义工作时间计算结束时间（精确到小时）
+    const taskEnd = calculateEndDate(taskStart, task.estimatedHours, workingHoursConfig);
+    
+    // 计算开始和结束的小时数
+    const startHour = taskStart.getHours() + taskStart.getMinutes() / 60;
+    const endHour = taskEnd.getHours() + taskEnd.getMinutes() / 60;
     
     return {
       ...task,
       startDate: taskStart,
       endDate: taskEnd,
+      startHour,
+      endHour,
       isCritical
     };
   });
@@ -342,13 +445,14 @@ export function generateSchedule(
   const balancingRecs = getResourceBalancingRecommendations(scheduledTasks, resources);
   recommendations.push(...balancingRecs);
   
-  // 6. 计算总工期
+  // 6. 计算总工期和总工时
   const latestEndDate = scheduledTasks.reduce((latest, task) => {
     const end = task.endDate || startDate;
     return end > latest ? end : latest;
   }, startDate);
   
   const totalDuration = Math.ceil((latestEndDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  const totalHours = scheduledTasks.reduce((sum, task) => sum + task.estimatedHours, 0);
 
   return {
     tasks: scheduledTasks,
@@ -358,6 +462,8 @@ export function generateSchedule(
     resourceConflicts: conflicts,
     resourceUtilization: utilization,
     totalDuration,
+    totalHours,
+    workingHoursConfig,
     warnings,
     recommendations
   };

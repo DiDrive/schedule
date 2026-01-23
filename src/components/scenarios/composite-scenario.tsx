@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Play, Brain, Shield, Zap, AlertTriangle, TrendingUp, Clock } from 'lucide-react';
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import { generateIntelligentAnalysis } from '@/lib/intelligent-analysis';
-import { compositeScenarioSample } from '@/lib/sample-data';
+import { compositeScenarioSample, defaultWorkingHours } from '@/lib/sample-data';
 import { Task, Resource, ScheduleResult, IntelligentAnalysis } from '@/types/schedule';
 import AISuggestion from '@/components/ai-suggestion';
 
@@ -24,7 +24,7 @@ export default function CompositeScenario() {
     setIsComputing(true);
     setTimeout(() => {
       // 生成基础排期
-      const schedule = generateSchedule(tasks, resources, new Date());
+      const schedule = generateSchedule(tasks, resources, new Date(), defaultWorkingHours);
       setScheduleResult(schedule);
       
       // 生成智能分析
@@ -131,11 +131,17 @@ export default function CompositeScenario() {
 
           {/* Schedule Results */}
           <TabsContent value="schedule" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-4">
               <Card>
                 <CardHeader className="pb-3">
                   <CardDescription>总工期</CardDescription>
                   <CardTitle className="text-2xl">{scheduleResult.totalDuration} 天</CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardDescription>总工时</CardDescription>
+                  <CardTitle className="text-2xl">{scheduleResult.totalHours} 小时</CardTitle>
                 </CardHeader>
               </Card>
               <Card>
@@ -156,35 +162,50 @@ export default function CompositeScenario() {
 
             <Card>
               <CardHeader>
-                <CardTitle>排期甘特图</CardTitle>
+                <CardTitle>排期甘特图（工作时间：9:30 - 19:00）</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {scheduleResult.tasks.map(task => {
                     const isCritical = scheduleResult.criticalPath.includes(task.id);
+                    const resource = resources.find(r => r.id === task.assignedResources[0]);
                     const startDate = task.startDate || new Date();
                     const endDate = task.endDate || new Date();
-                    const duration = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+                    const barColor = resource?.color || '#3b82f6';
+                    
+                    // 格式化时间显示精确到小时
+                    const formatDateTime = (date: Date) => {
+                      const hours = date.getHours();
+                      const minutes = date.getMinutes();
+                      const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                      return `${date.toLocaleDateString()} ${timeStr}`;
+                    };
                     
                     return (
                       <div key={task.id} className="space-y-1">
                         <div className="flex items-center gap-4">
-                          <div className="w-48 font-medium text-sm">{task.name}</div>
+                          <div className="w-48">
+                            <div className="text-sm font-medium">{task.name}</div>
+                            {resource && (
+                              <div className="text-xs text-slate-600 dark:text-slate-400">
+                                {resource.name}
+                              </div>
+                            )}
+                          </div>
                           <div className="flex-1 relative">
                             <div className="absolute left-0 top-0 h-5 rounded bg-slate-100 dark:bg-slate-800">
                               <div
-                                className={`absolute top-0 h-5 rounded ${
-                                  isCritical ? 'bg-red-500' : 'bg-blue-500'
-                                }`}
+                                className="absolute top-0 h-5 rounded"
                                 style={{
+                                  backgroundColor: isCritical ? '#ef4444' : barColor,
                                   left: `${((startDate.getTime() - scheduleResult.tasks[0].startDate!.getTime()) / (1000 * 60 * 60 * 24)) * 2}%`,
-                                  width: `${Math.max(duration * 2, 2)}%`
+                                  width: `${Math.max(((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) * 2, 1)}%`
                                 }}
                               />
                             </div>
                           </div>
-                          <div className="w-32 text-xs text-slate-600 dark:text-slate-400">
-                            {duration.toFixed(1)} 天
+                          <div className="w-48 text-xs text-slate-600 dark:text-slate-400">
+                            {formatDateTime(startDate)} - {formatDateTime(endDate)}
                           </div>
                           {task.tags && task.tags.length > 0 && (
                             <div className="flex gap-1">
