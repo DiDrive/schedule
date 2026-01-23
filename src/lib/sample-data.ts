@@ -7,39 +7,34 @@ export const sampleResources: Resource[] = [
     name: '张三',
     type: 'human',
     skills: ['frontend', 'react', 'typescript'],
-    availability: 0.9,
-    hourlyRate: 150
+    availability: 0.9
   },
   {
     id: 'res-2',
     name: '李四',
     type: 'human',
     skills: ['backend', 'java', 'spring'],
-    availability: 1.0,
-    hourlyRate: 180
+    availability: 1.0
   },
   {
     id: 'res-3',
     name: '王五',
     type: 'human',
     skills: ['design', 'ui', 'ux'],
-    availability: 0.8,
-    hourlyRate: 140
+    availability: 0.8
   },
   {
     id: 'res-4',
     name: '赵六',
     type: 'human',
     skills: ['testing', 'qa', 'automation'],
-    availability: 0.85,
-    hourlyRate: 130
+    availability: 0.85
   },
   {
     id: 'res-5',
     name: '测试服务器',
     type: 'equipment',
-    availability: 1.0,
-    hourlyRate: 50
+    availability: 1.0
   }
 ];
 
@@ -313,7 +308,6 @@ export const compositeScenarioSample: CompositeScenarioInput = {
   resources: sampleResources,
   constraints: {
     maxConcurrentTasks: 3,
-    budgetLimit: 500000,
     riskTolerance: 0.6
   },
   procurementData: [

@@ -11,7 +11,6 @@ interface ScheduleAIRequest {
   scheduleResult: ScheduleResult;
   constraints?: {
     maxConcurrentTasks?: number;
-    budgetLimit?: number;
     riskTolerance?: number;
   };
 }
@@ -28,7 +27,6 @@ export async function POST(req: NextRequest) {
 - 任务总数: ${tasks.length}
 - 资源总数: ${resources.length}
 - 项目总工期: ${scheduleResult.totalDuration} 天
-- 预估总成本: ¥${scheduleResult.totalCost?.toLocaleString() || 'N/A'}
 - 关键路径任务数: ${scheduleResult.criticalPath.length}
 - 资源冲突数: ${scheduleResult.resourceConflicts.length}
 
@@ -51,12 +49,10 @@ ${resources.map(resource => `
 - 类型: ${resource.type}
 - 可用性: ${(resource.availability * 100).toFixed(0)}%
 ${resource.skills ? `- 技能: ${resource.skills.join(', ')}` : ''}
-${resource.hourlyRate ? `- 时薪: ¥${resource.hourlyRate}` : ''}
 `).join('\n')}
 
 ${constraints ? `## 约束条件
 ${constraints.maxConcurrentTasks ? `- 最大并发任务: ${constraints.maxConcurrentTasks}` : ''}
-${constraints.budgetLimit ? `- 预算限制: ¥${constraints.budgetLimit.toLocaleString()}` : ''}
 ${constraints.riskTolerance ? `- 风险容忍度: ${(constraints.riskTolerance * 100).toFixed(0)}%` : ''}
 ` : ''}
 
@@ -74,11 +70,11 @@ ${scheduleResult.recommendations.map(rec => `- ${rec}`).join('\n')}
 
 请基于以上信息，从以下几个维度提供详细的智能排期建议：
 
-1. **排期优化策略**: 如何优化任务顺序和资源分配以缩短工期或降低成本
+1. **排期优化策略**: 如何优化任务顺序和资源分配以缩短工期
 2. **关键路径分析**: 关键路径上的关键节点，以及如何管理这些节点
 3. **资源优化建议**: 如何提高资源利用率，解决资源冲突
 4. **风险缓解措施**: 识别潜在风险并提供缓解策略
-5. **权衡分析**: 在工期、成本、质量之间如何做出最优权衡
+5. **权衡分析**: 在工期、质量之间如何做出最优权衡
 
 请用清晰、专业的语言提供建议，每条建议都应该具体、可操作。
 `;

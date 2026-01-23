@@ -342,22 +342,13 @@ export function generateSchedule(
   const balancingRecs = getResourceBalancingRecommendations(scheduledTasks, resources);
   recommendations.push(...balancingRecs);
   
-  // 6. 计算总工期和成本
+  // 6. 计算总工期
   const latestEndDate = scheduledTasks.reduce((latest, task) => {
     const end = task.endDate || startDate;
     return end > latest ? end : latest;
   }, startDate);
   
   const totalDuration = Math.ceil((latestEndDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-  
-  // 简化成本计算
-  const totalCost = scheduledTasks.reduce((sum, task) => {
-    const taskCost = task.assignedResources.reduce((taskSum, resourceId) => {
-      const resource = resources.find(r => r.id === resourceId);
-      return taskSum + (resource?.hourlyRate || 0) * task.estimatedHours;
-    }, 0);
-    return sum + taskCost;
-  }, 0);
 
   return {
     tasks: scheduledTasks,
@@ -367,7 +358,6 @@ export function generateSchedule(
     resourceConflicts: conflicts,
     resourceUtilization: utilization,
     totalDuration,
-    totalCost,
     warnings,
     recommendations
   };

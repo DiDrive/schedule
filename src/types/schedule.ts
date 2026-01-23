@@ -5,7 +5,6 @@ export interface Resource {
   type: 'human' | 'material' | 'equipment';
   skills?: string[];
   availability: number; // 0-1, 可用性系数
-  hourlyRate?: number;
 }
 
 export interface Task {
@@ -56,7 +55,6 @@ export interface ScheduleResult {
   resourceConflicts: ResourceConflict[];
   resourceUtilization: Record<string, number>; // Resource ID -> utilization rate
   totalDuration: number; // Days
-  totalCost?: number;
   warnings: string[];
   recommendations: string[];
 }
@@ -101,7 +99,6 @@ export interface Tradeoff {
   cons: string[];
   impact: {
     duration: number;
-    cost: number;
     quality: number;
   };
 }
@@ -128,7 +125,6 @@ export interface CompositeScenarioInput {
   resources: Resource[];
   constraints: {
     maxConcurrentTasks?: number;
-    budgetLimit?: number;
     riskTolerance?: number; // 0-1
   };
   procurementData?: {

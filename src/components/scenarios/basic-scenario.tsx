@@ -183,17 +183,11 @@ export default function BasicScenario() {
       {scheduleResult && (
         <>
           {/* Summary Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription>总工期</CardDescription>
                 <CardTitle className="text-2xl">{scheduleResult.totalDuration} 天</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>总成本</CardDescription>
-                <CardTitle className="text-2xl">¥{scheduleResult.totalCost?.toLocaleString()}</CardTitle>
               </CardHeader>
             </Card>
             <Card>

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Play, Brain, Shield, Zap, AlertTriangle, TrendingUp, Clock, DollarSign } from 'lucide-react';
+import { Play, Brain, Shield, Zap, AlertTriangle, TrendingUp, Clock } from 'lucide-react';
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import { generateIntelligentAnalysis } from '@/lib/intelligent-analysis';
 import { compositeScenarioSample } from '@/lib/sample-data';
@@ -58,7 +58,7 @@ export default function CompositeScenario() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-lg border p-4">
               <div className="mb-2 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                 <Clock className="h-4 w-4" />
@@ -66,15 +66,6 @@ export default function CompositeScenario() {
               </div>
               <div className="text-2xl font-bold">
                 {constraints.maxConcurrentTasks || '无限制'}
-              </div>
-            </div>
-            <div className="rounded-lg border p-4">
-              <div className="mb-2 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                <DollarSign className="h-4 w-4" />
-                预算限制
-              </div>
-              <div className="text-2xl font-bold">
-                {constraints.budgetLimit ? `¥${(constraints.budgetLimit / 10000).toFixed(0)}万` : '无限制'}
               </div>
             </div>
             <div className="rounded-lg border p-4">
@@ -140,17 +131,11 @@ export default function CompositeScenario() {
 
           {/* Schedule Results */}
           <TabsContent value="schedule" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-3">
               <Card>
                 <CardHeader className="pb-3">
                   <CardDescription>总工期</CardDescription>
                   <CardTitle className="text-2xl">{scheduleResult.totalDuration} 天</CardTitle>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardDescription>预估成本</CardDescription>
-                  <CardTitle className="text-2xl">¥{scheduleResult.totalCost?.toLocaleString()}</CardTitle>
                 </CardHeader>
               </Card>
               <Card>
@@ -442,15 +427,6 @@ export default function CompositeScenario() {
                             tradeoff.impact.duration > 0 ? 'text-red-500' : 'text-slate-600'
                           }`}>
                             {tradeoff.impact.duration > 0 ? '+' : ''}{tradeoff.impact.duration}%
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-slate-600 dark:text-slate-400">成本影响</span>
-                          <span className={`font-medium ${
-                            tradeoff.impact.cost < 0 ? 'text-green-500' : 
-                            tradeoff.impact.cost > 0 ? 'text-red-500' : 'text-slate-600'
-                          }`}>
-                            {tradeoff.impact.cost > 0 ? '+' : ''}{tradeoff.impact.cost}%
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-sm">

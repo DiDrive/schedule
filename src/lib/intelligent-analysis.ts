@@ -208,13 +208,12 @@ export function analyzeTradeoffs(
   resources: Resource[],
   constraints: {
     maxConcurrentTasks?: number;
-    budgetLimit?: number;
     riskTolerance?: number;
   }
 ): Tradeoff[] {
   const tradeoffs: Tradeoff[] = [];
   
-  // 场景1：速度优先 vs 资源成本
+  // 场景1：速度优先
   tradeoffs.push({
     scenario: '速度优先',
     description: '增加资源投入，缩短项目周期',
@@ -224,39 +223,34 @@ export function analyzeTradeoffs(
       '减少延期风险'
     ],
     cons: [
-      '显著增加人力成本',
       '资源协调难度增大',
       '可能降低单个任务质量'
     ],
     impact: {
       duration: -30, // 缩短30%
-      cost: 50, // 增加50%
       quality: -10
     }
   });
   
-  // 场景2：成本优先 vs 项目周期
+  // 场景2：资源效率优先
   tradeoffs.push({
-    scenario: '成本优先',
-    description: '优化资源利用，控制项目成本',
+    scenario: '资源效率优先',
+    description: '优化资源利用，提高资源利用率',
     pros: [
-      '显著降低人力成本',
       '提高资源利用率',
       '优化团队协作效率'
     ],
     cons: [
       '项目周期可能延长',
-      '风险缓冲减少',
       '资源调度更严格'
     ],
     impact: {
       duration: 25, // 延长25%
-      cost: -40, // 降低40%
       quality: 0
     }
   });
   
-  // 场景3：质量优先 vs 交付时间
+  // 场景3：质量优先
   tradeoffs.push({
     scenario: '质量优先',
     description: '增加测试和验证环节，确保交付质量',
@@ -267,17 +261,16 @@ export function analyzeTradeoffs(
     ],
     cons: [
       '延长项目周期',
-      '增加开发和测试成本',
+      '增加开发和测试时间',
       '可能影响市场时机'
     ],
     impact: {
       duration: 20, // 延长20%
-      cost: 25, // 增加25%
       quality: 40 // 质量显著提升
     }
   });
   
-  // 场景4：风险缓解 vs 资源效率
+  // 场景4：风险缓解
   tradeoffs.push({
     scenario: '风险缓解',
     description: '增加备选方案和缓冲时间，降低项目风险',
@@ -293,7 +286,6 @@ export function analyzeTradeoffs(
     ],
     impact: {
       duration: 15,
-      cost: 20,
       quality: 10
     }
   });
