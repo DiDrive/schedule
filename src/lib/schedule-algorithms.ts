@@ -24,7 +24,7 @@ const PRIORITY_WEIGHT: Record<string, number> = {
 
 /**
  * 根据任务特征自动分配资源
- * 考虑因素：预估工时、优先级、资源效率、资源可用性
+ * 考虑因素：预估工时、优先级、资源效率、资源可用性、工作类型匹配
  */
 export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[] {
   // 只有人类资源可以分配
@@ -47,17 +47,32 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
       return task;
     }
 
-    // 计算任务需要的资源能力
-    const taskComplexity = task.estimatedHours;
+    // 根据任务类型筛选匹配的资源
+    const taskType = task.taskType;
+    const matchingResources = taskType
+      ? humanResources.filter(r => r.workType === taskType)
+      : humanResources;
+
+    // 如果没有匹配的资源，使用所有资源（降级处理）
+    const resourcesToScore = matchingResources.length > 0 ? matchingResources : humanResources;
+
+    if (resourcesToScore.length === 0) {
+      return task;
+    }
 
     // 评分每个资源
-    const scoredResources = humanResources
+    const scoredResources = resourcesToScore
       .map(resource => {
         const efficiency = resource.efficiency || LEVEL_EFFICIENCY[resource.level as ResourceLevel] || 1.0;
         const currentLoad = resourceLoad.get(resource.id) || 0;
 
         // 基础分：效率越高分数越高
         let score = efficiency * 100;
+
+        // 工作类型匹配分：类型完全匹配加分
+        if (taskType && resource.workType === taskType) {
+          score *= 1.5;
+        }
 
         // 负载分：负载越低分数越高
         const loadPenalty = currentLoad / (8 * 5 * 4 * resource.availability); // 假设4周容量

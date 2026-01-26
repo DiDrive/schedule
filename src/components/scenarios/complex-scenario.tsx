@@ -21,12 +21,22 @@ const formatDateToInputValue = (date: Date | string | undefined): string => {
   return d.toISOString().split('T')[0];
 };
 
+// 辅助函数：格式化日期时间
+const formatDateTime = (date: Date | string): string => {
+  const d = date instanceof Date ? date : new Date(date);
+  const hours = d.getHours().toString().padStart(2, '0');
+  const minutes = d.getMinutes().toString().padStart(2, '0');
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  return `${month}/${day} ${hours}:${minutes}`;
+};
+
 // 默认项目数据
 const defaultProjects: Project[] = [
   {
     id: 'proj-1',
-    name: '电商平台升级',
-    description: '电商平台性能优化和功能升级',
+    name: '宣传片项目',
+    description: '企业宣传视频制作',
     priority: 9,
     deadline: new Date('2024-04-30'),
     resourcePool: ['res-1', 'res-2', 'res-3', 'res-4'],
@@ -35,8 +45,8 @@ const defaultProjects: Project[] = [
   },
   {
     id: 'proj-2',
-    name: '移动APP开发',
-    description: 'iOS和Android客户端开发',
+    name: '广告片项目',
+    description: '产品广告视频制作',
     priority: 8,
     deadline: new Date('2024-05-15'),
     resourcePool: ['res-1', 'res-3'],
@@ -45,8 +55,8 @@ const defaultProjects: Project[] = [
   },
   {
     id: 'proj-3',
-    name: '数据中台建设',
-    description: '数据仓库和BI系统建设',
+    name: '纪录片项目',
+    description: '企业纪录片制作',
     priority: 7,
     deadline: new Date('2024-06-01'),
     resourcePool: ['res-2', 'res-5'],
@@ -59,90 +69,110 @@ const defaultProjects: Project[] = [
 const defaultTasks: Task[] = [
   {
     id: 'task-p1-1',
-    name: '性能分析',
-    description: '分析当前系统性能瓶颈',
+    name: '概念设计',
+    description: '设计视频整体风格和创意',
     estimatedHours: 16,
     assignedResources: [], // 自动分配
     projectId: 'proj-1',
     priority: 'high',
     status: 'pending',
+    taskType: '平面',
     dependencies: []
   },
   {
     id: 'task-p1-2',
-    name: '缓存优化',
-    description: '实现Redis缓存策略',
+    name: '分镜设计',
+    description: '绘制详细的分镜脚本',
     estimatedHours: 40,
     assignedResources: [], // 自动分配
     projectId: 'proj-1',
     priority: 'high',
     status: 'pending',
+    taskType: '平面',
     dependencies: ['task-p1-1']
   },
   {
     id: 'task-p1-3',
-    name: 'UI重构',
-    description: '重构前端UI组件',
+    name: '视频剪辑',
+    description: '完成视频剪辑和拼接',
     estimatedHours: 64,
     assignedResources: [], // 自动分配
     projectId: 'proj-1',
     priority: 'normal',
     status: 'pending',
-    dependencies: ['task-p1-1']
+    taskType: '后期',
+    dependencies: ['task-p1-2']
   },
   {
     id: 'task-p2-1',
-    name: '原型设计',
-    description: '完成APP交互原型',
+    name: '品牌VI设计',
+    description: '设计品牌视觉识别',
     estimatedHours: 24,
     assignedResources: [], // 自动分配
     projectId: 'proj-2',
     priority: 'urgent',
     status: 'pending',
+    taskType: '平面',
     dependencies: []
   },
   {
     id: 'task-p2-2',
-    name: 'iOS开发',
-    description: '完成iOS版本开发',
-    estimatedHours: 120,
+    name: '产品包装设计',
+    description: '完成产品包装设计',
+    estimatedHours: 40,
     assignedResources: [], // 自动分配
     projectId: 'proj-2',
     priority: 'high',
     status: 'pending',
+    taskType: '平面',
     dependencies: ['task-p2-1']
   },
   {
+    id: 'task-p2-3',
+    name: '特效制作',
+    description: '制作视频特效和动画',
+    estimatedHours: 80,
+    assignedResources: [], // 自动分配
+    projectId: 'proj-2',
+    priority: 'high',
+    status: 'pending',
+    taskType: '后期',
+    dependencies: ['task-p2-2']
+  },
+  {
     id: 'task-p3-1',
-    name: '需求调研',
-    description: '调研各业务线数据需求',
+    name: '采访拍摄',
+    description: '进行人物采访拍摄',
     estimatedHours: 32,
     assignedResources: [], // 自动分配
     projectId: 'proj-3',
     priority: 'high',
     status: 'pending',
+    taskType: '后期',
     dependencies: []
   },
   {
     id: 'task-p3-2',
-    name: '数据建模',
-    description: '设计数据仓库模型',
+    name: '字幕制作',
+    description: '制作视频字幕和图示',
     estimatedHours: 48,
     assignedResources: [], // 自动分配
     projectId: 'proj-3',
     priority: 'high',
     status: 'pending',
+    taskType: '后期',
     dependencies: ['task-p3-1']
   },
   {
     id: 'task-p3-3',
-    name: 'ETL开发',
-    description: '开发数据抽取转换加载',
-    estimatedHours: 80,
+    name: '调色和音频处理',
+    description: '完成画面调色和音频处理',
+    estimatedHours: 56,
     assignedResources: [], // 自动分配
     projectId: 'proj-3',
     priority: 'normal',
     status: 'pending',
+    taskType: '后期',
     dependencies: ['task-p3-2']
   }
 ];
@@ -151,51 +181,56 @@ const defaultTasks: Task[] = [
 const defaultResources: Resource[] = [
   {
     id: 'res-1',
-    name: '张三',
+    name: '张设计师',
     type: 'human',
+    workType: '平面',
     level: 'senior',
     efficiency: 1.5,
-    skills: ['frontend', 'react', 'typescript'],
+    skills: ['平面设计', '品牌VI', 'UI设计'],
     availability: 0.9,
     color: '#3b82f6'
   },
   {
     id: 'res-2',
-    name: '李四',
+    name: '李后期',
     type: 'human',
+    workType: '后期',
     level: 'senior',
     efficiency: 1.5,
-    skills: ['backend', 'java', 'spring'],
+    skills: ['视频剪辑', '特效制作', '调色'],
     availability: 1.0,
     color: '#10b981'
   },
   {
     id: 'res-3',
-    name: '王五',
+    name: '王平面',
     type: 'human',
+    workType: '平面',
     level: 'junior',
     efficiency: 1.0,
-    skills: ['design', 'ui', 'ux'],
+    skills: ['插画设计', '分镜设计', '排版'],
     availability: 0.8,
     color: '#f59e0b'
   },
   {
     id: 'res-4',
-    name: '赵六',
+    name: '赵后期',
     type: 'human',
+    workType: '后期',
     level: 'junior',
     efficiency: 1.0,
-    skills: ['testing', 'qa', 'automation'],
+    skills: ['字幕制作', '音频处理', '剪辑'],
     availability: 0.85,
     color: '#8b5cf6'
   },
   {
     id: 'res-5',
-    name: '小七',
+    name: '小助理',
     type: 'human',
+    workType: '后期',
     level: 'assistant',
     efficiency: 0.7,
-    skills: ['documentation', 'support'],
+    skills: ['基础剪辑', '素材整理', '字幕制作'],
     availability: 0.9,
     color: '#ec4899'
   },
@@ -221,6 +256,7 @@ export default function ComplexScenario() {
     const savedProjects = localStorage.getItem('complex-scenario-projects');
     const savedTasks = localStorage.getItem('complex-scenario-tasks');
     const savedResources = localStorage.getItem('complex-scenario-resources');
+    const savedScheduleResult = localStorage.getItem('complex-scenario-schedule-result');
 
     if (savedProjects) {
       const parsed = JSON.parse(savedProjects);
@@ -246,13 +282,40 @@ export default function ComplexScenario() {
     if (savedResources) {
       setSharedResources(JSON.parse(savedResources));
     }
+    if (savedScheduleResult) {
+      const parsed = JSON.parse(savedScheduleResult);
+      // 将日期字符串转换回 Date 对象
+      const scheduleResultWithDates = {
+        ...parsed,
+        tasks: parsed.tasks.map((t: Task) => ({
+          ...t,
+          deadline: t.deadline ? new Date(t.deadline) : undefined,
+          startDate: t.startDate ? new Date(t.startDate) : undefined,
+          endDate: t.endDate ? new Date(t.endDate) : undefined
+        })),
+        resourceConflicts: parsed.resourceConflicts.map((rc: any) => ({
+          ...rc,
+          timeRange: {
+            start: new Date(rc.timeRange.start),
+            end: new Date(rc.timeRange.end)
+          }
+        })),
+        projects: parsed.projects.map((p: Project) => ({
+          ...p,
+          deadline: p.deadline ? new Date(p.deadline) : undefined,
+          startDate: p.startDate ? new Date(p.startDate) : undefined
+        }))
+      };
+      setScheduleResult(scheduleResultWithDates);
+    }
   }, []);
 
   useEffect(() => {
     if (projects.length > 0) localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
     if (tasks.length > 0) localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
     if (sharedResources.length > 0) localStorage.setItem('complex-scenario-resources', JSON.stringify(sharedResources));
-  }, [projects, tasks, sharedResources]);
+    if (scheduleResult) localStorage.setItem('complex-scenario-schedule-result', JSON.stringify(scheduleResult));
+  }, [projects, tasks, sharedResources, scheduleResult]);
 
   const handleGenerateSchedule = () => {
     setIsComputing(true);
@@ -286,7 +349,8 @@ export default function ComplexScenario() {
       priority: 'normal',
       status: 'pending',
       projectId: activeProject === 'all' ? projects[0]?.id : activeProject,
-      dependencies: []
+      dependencies: [],
+      taskType: '平面' // 默认为平面
     };
     setTasks([...tasks, newTask]);
   };
@@ -337,6 +401,7 @@ export default function ComplexScenario() {
       id: `res-${Date.now()}`,
       name: '新成员',
       type: 'human',
+      workType: '平面', // 默认为平面
       level: 'junior',
       efficiency: 1.0,
       availability: 1.0,
@@ -400,6 +465,21 @@ export default function ComplexScenario() {
                     >
                       <Trash2 className="h-3 w-3 text-red-500" />
                     </Button>
+                  </div>
+                  <div className="mb-3">
+                    <Select
+                      value={resource.workType || 'none'}
+                      onValueChange={(value) => handleResourceChange(resource.id, 'workType', value !== 'none' ? value : '')}
+                    >
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue placeholder="选择类型" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">未指定</SelectItem>
+                        <SelectItem value="平面">平面</SelectItem>
+                        <SelectItem value="后期">后期</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="mb-3">
                     <Select
@@ -611,6 +691,7 @@ export default function ComplexScenario() {
                 <TableRow>
                   <TableHead className="w-[200px]">任务名称</TableHead>
                   <TableHead>项目</TableHead>
+                  <TableHead>任务类型</TableHead>
                   <TableHead>预估工时</TableHead>
                   <TableHead>优先级</TableHead>
                   <TableHead>依赖任务</TableHead>
@@ -645,6 +726,21 @@ export default function ComplexScenario() {
                                 {proj.name}
                               </SelectItem>
                             ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={task.taskType || 'none'}
+                          onValueChange={(value) => handleTaskChange(task.id, 'taskType', value !== 'none' ? value : '')}
+                        >
+                          <SelectTrigger className="h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">未指定</SelectItem>
+                            <SelectItem value="平面">平面</SelectItem>
+                            <SelectItem value="后期">后期</SelectItem>
                           </SelectContent>
                         </Select>
                       </TableCell>
@@ -762,11 +858,81 @@ export default function ComplexScenario() {
               <CardContent>
                 <GanttChart
                   scheduleResult={scheduleResult}
+                  resources={sharedResources}
                   projects={projects.map(p => ({
                     id: p.id,
-                    color: p.color || '#3b82f6'
+                    color: p.color || '#3b82f6',
+                    name: p.name
                   }))}
                 />
+              </CardContent>
+            </Card>
+
+            {/* Task Table View */}
+            <Card>
+              <CardHeader>
+                <CardTitle>排期结果表格</CardTitle>
+                <CardDescription>
+                  详细展示任务、负责人、时间段等信息
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>任务名称</TableHead>
+                        <TableHead>所属项目</TableHead>
+                        <TableHead>任务类型</TableHead>
+                        <TableHead>负责人</TableHead>
+                        <TableHead>开始时间</TableHead>
+                        <TableHead>结束时间</TableHead>
+                        <TableHead>工时</TableHead>
+                        <TableHead>状态</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredTasks.map(task => {
+                        const project = getProjectById(task.projectId || '');
+                        const resourceNames = task.assignedResources
+                          .map(id => sharedResources.find(r => r.id === id)?.name)
+                          .filter(Boolean)
+                          .join(', ');
+                        const isCritical = scheduleResult.criticalPath.includes(task.id);
+
+                        return (
+                          <TableRow key={task.id}>
+                            <TableCell className="font-medium">
+                              {task.name}
+                              {isCritical && (
+                                <Badge variant="destructive" className="ml-2 text-xs">关键</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>{project?.name || '-'}</TableCell>
+                            <TableCell>
+                              <Badge variant={task.taskType === '平面' ? 'default' : 'secondary'}>
+                                {task.taskType || '-'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{resourceNames || '-'}</TableCell>
+                            <TableCell>
+                              {task.startDate ? formatDateTime(task.startDate) : '-'}
+                            </TableCell>
+                            <TableCell>
+                              {task.endDate ? formatDateTime(task.endDate) : '-'}
+                            </TableCell>
+                            <TableCell>{task.estimatedHours}h</TableCell>
+                            <TableCell>
+                              <Badge variant={task.status === 'completed' ? 'default' : 'outline'}>
+                                {task.status}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
 

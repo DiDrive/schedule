@@ -101,6 +101,15 @@ export default function GanttChart({
     };
   };
 
+  // 获取资源名称
+  const getResourceNames = (task: Task): string => {
+    if (!resources || task.assignedResources.length === 0) return '';
+    const names = task.assignedResources
+      .map(id => resources.find(r => r.id === id)?.name)
+      .filter(Boolean) as string[];
+    return names.join(', ');
+  };
+
   // 计算每列的宽度（根据总天数动态调整）
   const columnWidth = Math.max(60, Math.min(120, 800 / totalDays));
 
@@ -243,6 +252,11 @@ export default function GanttChart({
                               <Badge variant="destructive" className="text-xs ml-4 mt-1">
                                 关键路径
                               </Badge>
+                            )}
+                            {resources && (
+                              <div className="text-xs text-slate-600 dark:text-slate-400 mt-1 pl-4 truncate">
+                                负责人: {getResourceNames(task)}
+                              </div>
                             )}
                           </div>
 

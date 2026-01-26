@@ -1,11 +1,16 @@
 // 资源等级
 export type ResourceLevel = 'assistant' | 'junior' | 'senior';
 
+// 资源类型
+export type ResourceType = 'human' | 'material' | 'equipment';
+export type ResourceWorkType = '平面' | '后期';
+
 // 基础数据类型
 export interface Resource {
   id: string;
   name: string;
-  type: 'human' | 'material' | 'equipment';
+  type: ResourceType;
+  workType?: ResourceWorkType; // 工作类型：平面/后期
   level?: ResourceLevel; // 资源等级
   efficiency?: number; // 效率系数，0.5-2.0，1.0为标准效率
   skills?: string[];
@@ -29,6 +34,7 @@ export interface Task {
   deadline?: Date;
   priority: 'urgent' | 'high' | 'normal' | 'low';
   status: 'pending' | 'in-progress' | 'completed' | 'blocked';
+  taskType?: ResourceWorkType; // 任务类型：平面/后期
   
   // 复杂场景扩展
   projectId?: string;
