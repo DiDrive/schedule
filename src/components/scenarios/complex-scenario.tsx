@@ -998,14 +998,15 @@ export default function ComplexScenario() {
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              <div className="flex items-center gap-2 min-w-[180px]">
+                              <div className="flex items-center gap-2 min-w-[200px]">
                                 <Select
+                                  key={`select-${task.id}-${task.assignedResources[0] || 'none'}`}
                                   value={task.assignedResources[0] || 'none'}
                                   onValueChange={(value) => handleUpdateTaskResource(task.id, value !== 'none' ? value : '')}
                                 >
-                                  <SelectTrigger className="h-8 w-full">
+                                  <SelectTrigger className="h-8 w-full [&>span]:truncate">
                                     {resource ? (
-                                      <div className="flex items-center gap-2 flex-1">
+                                      <div className="flex items-center gap-2 flex-1 overflow-hidden">
                                         <div
                                           className="w-3 h-3 rounded-full flex-shrink-0"
                                           style={{ backgroundColor: resource.color }}
@@ -1035,7 +1036,7 @@ export default function ComplexScenario() {
                                   </SelectContent>
                                 </Select>
                                 {resource && (
-                                  <Badge className={getLevelBadgeColor(resource.level || 'junior')} variant="secondary" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                                  <Badge className={getLevelBadgeColor(resource.level || 'junior')} variant="secondary" style={{ fontSize: '10px', padding: '2px 6px' }} title={resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}>
                                     {resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}
                                   </Badge>
                                 )}
