@@ -176,14 +176,12 @@ export function calculateWorkHours(startDate: Date, endDate: Date, config: Worki
 
 /**
  * 计算从开始日期起经过指定工作小时数后的结束日期
- * 考虑资源效率和午休时间
+ * 考虑午休时间
+ * 注意：效率系数不影响工作时间，仅用于资源评估
  */
-export function calculateEndDate(startDate: Date, workHours: number, config: WorkingHoursConfig = DEFAULT_WORKING_HOURS, resourceEfficiency: number = 1.0): Date {
-  // 根据资源效率调整实际需要的工作时间
-  const adjustedHours = workHours / resourceEfficiency;
-
+export function calculateEndDate(startDate: Date, workHours: number, config: WorkingHoursConfig = DEFAULT_WORKING_HOURS): Date {
   const result = new Date(startDate);
-  let remainingHours = adjustedHours;
+  let remainingHours = workHours;
 
   // 定义午休时间段
   const getLunchBreak = (date: Date) => {
@@ -665,8 +663,8 @@ export function generateSchedule(
     const resource = resources.find(r => r.id === resourceId);
     const efficiency = resource?.efficiency || LEVEL_EFFICIENCY[resource?.level as ResourceLevel] || 1.0;
 
-    // 使用自定义工作时间计算结束时间（精确到小时，考虑效率）
-    const taskEnd = calculateEndDate(taskStart, task.estimatedHours, workingHoursConfig, efficiency);
+    // 使用自定义工作时间计算结束时间（精确到小时，不考虑效率系数）
+    const taskEnd = calculateEndDate(taskStart, task.estimatedHours, workingHoursConfig);
 
     // 计算开始和结束的小时数
     const startHour = taskStart.getHours() + taskStart.getMinutes() / 60;
