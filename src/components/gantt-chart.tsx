@@ -30,22 +30,26 @@ export default function GanttChart({
     );
   }
 
-  // 计算时间范围 - 将起始时间标准化到当天的0点，确保日期标签和任务条对齐
+  // 计算时间范围
   const firstTaskStart = scheduleResult.tasks[0].startDate || new Date();
-  const startDate = new Date(firstTaskStart);
-  startDate.setHours(0, 0, 0, 0); // 设置为当天0点
-
   const endDate = scheduleResult.tasks.reduce(
     (max, task) => (task.endDate && task.endDate > max ? task.endDate : max),
     firstTaskStart
   );
 
-  // 计算总天数 - 使用整天计算
-  const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  // 标准化到整天0点，作为时间轴基准
+  const startDayTime = new Date(firstTaskStart);
+  startDayTime.setHours(0, 0, 0, 0);
 
-  // 生成日期刻度 - 基于当天的0点
+  const endDayTime = new Date(endDate);
+  endDayTime.setHours(23, 59, 59, 999);
+
+  // 计算总天数
+  const totalDays = Math.ceil((endDayTime.getTime() - startDayTime.getTime()) / (1000 * 60 * 60 * 24));
+
+  // 生成日期刻度 - 从 startDayTime 开始
   const dateLabels = Array.from({ length: totalDays + 1 }, (_, i) => {
-    const date = new Date(startDate);
+    const date = new Date(startDayTime);
     date.setDate(date.getDate() + i);
     return date;
   });
@@ -92,14 +96,19 @@ export default function GanttChart({
 
   // 计算任务在甘特图上的位置
   const getTaskPosition = (task: Task) => {
-    const taskStart = task.startDate || startDate;
-    const taskEnd = task.endDate || startDate;
+    const taskStart = task.startDate || startDayTime;
+    const taskEnd = task.endDate || startDayTime;
 
-    const startOffset = (taskStart.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+    // 基于整天0点计算偏移
+    const taskStartDay = new Date(taskStart);
+    taskStartDay.setHours(0, 0, 0, 0);
+
+    const dayOffset = (taskStartDay.getTime() - startDayTime.getTime()) / (1000 * 60 * 60 * 24);
+    const startOffset = (taskStart.getTime() - taskStartDay.getTime()) / (1000 * 60 * 60 * 24);
     const duration = (taskEnd.getTime() - taskStart.getTime()) / (1000 * 60 * 60 * 24);
 
     return {
-      left: (startOffset / totalDays) * 100,
+      left: ((dayOffset + startOffset) / totalDays) * 100,
       width: (duration / totalDays) * 100
     };
   };
@@ -155,16 +164,23 @@ export default function GanttChart({
 
             const projectStart = projectTasks.reduce(
               (min, task) => (task.startDate && task.startDate < min ? task.startDate : min),
-              projectTasks[0].startDate || startDate
+              projectTasks[0].startDate || startDayTime
             );
             const projectEnd = projectTasks.reduce(
               (max, task) => (task.endDate && task.endDate > max ? task.endDate : max),
-              projectTasks[0].endDate || startDate
+              projectTasks[0].endDate || startDayTime
             );
 
+            const projectStartDay = new Date(projectStart);
+            projectStartDay.setHours(0, 0, 0, 0);
+
+            const startOffset = (projectStart.getTime() - projectStartDay.getTime()) / (1000 * 60 * 60 * 24);
+            const dayOffset = (projectStartDay.getTime() - startDayTime.getTime()) / (1000 * 60 * 60 * 24);
+            const duration = (projectEnd.getTime() - projectStart.getTime()) / (1000 * 60 * 60 * 24);
+
             const projectPosition = {
-              left: ((projectStart.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24) / totalDays) * 100,
-              width: ((projectEnd.getTime() - projectStart.getTime()) / (1000 * 60 * 60 * 24) / totalDays) * 100
+              left: ((dayOffset + startOffset) / totalDays) * 100,
+              width: (duration / totalDays) * 100
             };
 
             const projectColor = project ? project.color : '#3b82f6';
@@ -249,7 +265,7 @@ export default function GanttChart({
                               </div>
                             </div>
                             <div className="text-xs text-slate-500 mt-1 pl-4">
-                              {showHour ? formatDateTime(task.startDate || startDate) : (task.startDate || startDate).toLocaleDateString()}
+                              {showHour ? formatDateTime(task.startDate || startDayTime) : (task.startDate || startDayTime).toLocaleDateString()}
                             </div>
                             {isCritical && (
                               <Badge variant="destructive" className="text-xs ml-4 mt-1">
@@ -282,7 +298,7 @@ export default function GanttChart({
                                 width: `${Math.max(position.width, 0.3)}%`,
                                 backgroundColor: taskColor
                               }}
-                              title={`${task.name}: ${formatDateTime(task.startDate || startDate)} - ${formatDateTime(task.endDate || endDate)}`}
+                              title={`${task.name}: ${formatDateTime(task.startDate || startDayTime)} - ${formatDateTime(task.endDate || endDayTime)}`}
                             />
 
                             {/* 工时标记 */}
