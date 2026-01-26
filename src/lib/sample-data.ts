@@ -65,7 +65,9 @@ export const sampleResources: Resource[] = [
 export const defaultWorkingHours: WorkingHoursConfig = {
   startHour: 9.5, // 9:30
   endHour: 19, // 19:00
-  workDays: [1, 2, 3, 4, 5] // 周一到周五
+  workDays: [1, 2, 3, 4, 5], // 周一到周五
+  lunchBreakStart: 12, // 12:00 午休开始
+  lunchBreakEnd: 13.5 // 13:30 午休结束
 };
 
 // 基础场景示例 - 电商网站开发（自动分配资源）
