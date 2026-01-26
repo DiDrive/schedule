@@ -26,7 +26,8 @@ const PRIORITY_WEIGHT: Record<string, number> = {
 
 /**
  * 根据任务特征自动分配资源
- * 考虑因素：预估工时、优先级、资源效率、资源可用性、工作类型匹配
+ * 策略：在满足工作类型匹配的前提下，优先选择负载最低的资源
+ * 这样可以实现负载均衡，让所有人都有活干
  */
 export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[] {
   // 只有人类资源可以分配
@@ -62,31 +63,43 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
       return task;
     }
 
-    // 评分每个资源
+    // 计算当前平均负载
+    const totalLoad = Array.from(resourceLoad.values()).reduce((sum, load) => sum + load, 0);
+    const avgLoad = totalLoad / humanResources.length;
+
+    // 评分每个资源：负载优先，效率次之
     const scoredResources = resourcesToScore
       .map(resource => {
         const efficiency = resource.efficiency || LEVEL_EFFICIENCY[resource.level as ResourceLevel] || 1.0;
         const currentLoad = resourceLoad.get(resource.id) || 0;
 
-        // 基础分：效率越高分数越高
-        let score = efficiency * 100;
+        // 核心策略：负载是主要因素
+        // 1. 基础分：1000（确保负载优先级高于效率）
+        let score = 1000;
 
-        // 工作类型匹配分：类型完全匹配加分
-        if (taskType && resource.workType === taskType) {
-          score *= 1.5;
+        // 2. 负载惩罚：负载越高，分数越低
+        // 使用指数函数放大负载差异
+        const loadRatio = currentLoad / Math.max(avgLoad, 1); // 防止除以0
+        if (loadRatio > 0) {
+          score /= (loadRatio * loadRatio); // 平方惩罚
         }
 
-        // 负载分：负载越低分数越高
-        const loadPenalty = currentLoad / (8 * 5 * 4 * resource.availability); // 假设4周容量
-        score *= (1 - loadPenalty);
+        // 3. 工作类型匹配分：类型完全匹配加分
+        if (taskType && resource.workType === taskType) {
+          score *= 2.0;
+        }
 
-        // 可用性分
+        // 4. 效率分：效率高略加分，但不能凌驾于负载之上
+        score *= (1 + (efficiency - 1) * 0.2); // 最多20%的加成
+
+        // 5. 可用性分
         score *= resource.availability;
 
         return {
           resource,
           score,
-          efficiency
+          efficiency,
+          load: currentLoad
         };
       })
       .sort((a, b) => b.score - a.score);
