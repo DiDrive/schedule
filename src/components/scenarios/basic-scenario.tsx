@@ -719,7 +719,9 @@ export default function BasicScenario() {
                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="none">未分配</SelectItem>
-                                      {resources.filter(r => r.type === 'human').map(r => (
+                                      {resources
+                                        .filter(r => r.type === 'human' && (!task.taskType || r.workType === task.taskType))
+                                        .map(r => (
                                         <SelectItem key={r.id} value={r.id}>
                                           <div className="flex items-center gap-2">
                                             <div
