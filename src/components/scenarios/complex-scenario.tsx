@@ -998,25 +998,26 @@ export default function ComplexScenario() {
                                   {task.taskType || '-'}
                                 </Badge>
                               </td>
-                              <td className="p-2 align-middle whitespace-nowrap">
-                                <div className="flex items-center gap-2 min-w-[220px]" onClick={(e) => e.stopPropagation()}>
+                              <td className="p-2 align-middle whitespace-nowrap min-w-[250px]">
+                                <div className="flex items-center gap-2">
                                   <Select
-                                    key={`select-${task.id}-${task.assignedResources[0] || 'none'}`}
                                     value={task.assignedResources[0] || 'none'}
                                     onValueChange={(value) => handleUpdateTaskResource(task.id, value !== 'none' ? value : '')}
                                   >
-                                    <SelectTrigger className="h-8 w-full">
-                                      {resource ? (
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                                          <div
-                                            className="w-3 h-3 rounded-full flex-shrink-0"
-                                            style={{ backgroundColor: resource.color }}
-                                          />
-                                          <span className="text-sm truncate">{resource.name}</span>
-                                        </div>
-                                      ) : (
-                                        <span className="text-slate-400 text-sm">未分配</span>
-                                      )}
+                                    <SelectTrigger className="h-8 min-w-[160px]">
+                                      <SelectValue>
+                                        {resource ? (
+                                          <div className="flex items-center gap-2">
+                                            <div
+                                              className="w-3 h-3 rounded-full flex-shrink-0"
+                                              style={{ backgroundColor: resource.color }}
+                                            />
+                                            <span className="text-sm">{resource.name}</span>
+                                          </div>
+                                        ) : (
+                                          <span className="text-slate-400 text-sm">未分配</span>
+                                        )}
+                                      </SelectValue>
                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="none">未分配</SelectItem>
