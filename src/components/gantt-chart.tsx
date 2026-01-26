@@ -30,17 +30,20 @@ export default function GanttChart({
     );
   }
 
-  // 计算时间范围
-  const startDate = scheduleResult.tasks[0].startDate || new Date();
+  // 计算时间范围 - 将起始时间标准化到当天的0点，确保日期标签和任务条对齐
+  const firstTaskStart = scheduleResult.tasks[0].startDate || new Date();
+  const startDate = new Date(firstTaskStart);
+  startDate.setHours(0, 0, 0, 0); // 设置为当天0点
+
   const endDate = scheduleResult.tasks.reduce(
     (max, task) => (task.endDate && task.endDate > max ? task.endDate : max),
-    startDate
+    firstTaskStart
   );
 
-  // 计算总天数
+  // 计算总天数 - 使用整天计算
   const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
-  // 生成日期刻度
+  // 生成日期刻度 - 基于当天的0点
   const dateLabels = Array.from({ length: totalDays + 1 }, (_, i) => {
     const date = new Date(startDate);
     date.setDate(date.getDate() + i);
