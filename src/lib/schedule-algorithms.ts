@@ -634,9 +634,15 @@ export function generateSchedule(
   // 2. 拓扑排序，确保依赖顺序
   const sortedTasks = topologicalSort(tasksWithResources);
 
-  // 3. 按依赖顺序生成任务时间表
+  // 3. 按依赖顺序生成任务时间表（考虑资源冲突）
   const taskMap = new Map<string, Task>();
   const scheduledTasks: Task[] = [];
+
+  // 为每个资源记录已安排的任务时间
+  const resourceSchedules = new Map<string, Array<{ start: Date; end: Date }>>();
+  resources.forEach(resource => {
+    resourceSchedules.set(resource.id, []);
+  });
 
   for (const task of sortedTasks) {
     // 根据依赖关系计算开始时间
@@ -658,8 +664,35 @@ export function generateSchedule(
       taskStart = latestDepEnd;
     }
 
-    // 获取分配的资源效率
+    // 获取分配的资源
     const resourceId = task.assignedResources[0];
+    const resourceSchedule = resourceSchedules.get(resourceId) || [];
+
+    // 检查资源冲突并调整开始时间
+    let hasConflict = true;
+    let maxIterations = 100; // 防止无限循环
+    let iteration = 0;
+
+    while (hasConflict && iteration < maxIterations) {
+      hasConflict = false;
+      iteration++;
+
+      // 计算当前安排的任务结束时间
+      const taskEnd = calculateEndDate(taskStart, task.estimatedHours, workingHoursConfig);
+
+      // 检查是否与该资源的其他任务冲突
+      for (const scheduled of resourceSchedule) {
+        // 检查时间重叠：任务开始 < 已安排任务结束 且 任务结束 > 已安排任务开始
+        if (taskStart < scheduled.end && taskEnd > scheduled.start) {
+          hasConflict = true;
+          // 从冲突任务的结束时间开始
+          taskStart = new Date(scheduled.end);
+          break;
+        }
+      }
+    }
+
+    // 获取分配的资源效率（仅用于显示，不影响实际时长）
     const resource = resources.find(r => r.id === resourceId);
     const efficiency = resource?.efficiency || LEVEL_EFFICIENCY[resource?.level as ResourceLevel] || 1.0;
 
@@ -678,6 +711,14 @@ export function generateSchedule(
       endHour,
       isCritical: false
     };
+
+    // 记录到资源时间表
+    if (resourceSchedule) {
+      resourceSchedule.push({
+        start: taskStart,
+        end: taskEnd
+      });
+    }
 
     taskMap.set(task.id, scheduledTask);
     scheduledTasks.push(scheduledTask);
