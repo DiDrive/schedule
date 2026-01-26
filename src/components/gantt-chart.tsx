@@ -147,7 +147,7 @@ export default function GanttChart({
     // 计算当天实际工作时间（减去午休）
     const dailyWorkHours = (WORK_END_HOUR - WORK_START_HOUR) - (LUNCH_BREAK_END - LUNCH_BREAK_START);
 
-    // 使用预估工时而不是自然时间差（这是关键修复！）
+    // 使用预估工时而不是自然时间差
     let remainingDuration = task.estimatedHours;
     let totalWidthDays = 0;
 
@@ -155,18 +155,11 @@ export default function GanttChart({
     let currentDate = new Date(taskStart);
     let isFirstDay = true;
 
-    console.log(`=== 任务: ${task.name} ===`);
-    console.log(`任务开始: ${formatDateTime(taskStart)}`);
-    console.log(`预估工时: ${task.estimatedHours}h`);
-    console.log(`每日工作时长: ${dailyWorkHours}h`);
-    console.log(`开始日期索引: ${dayIndex}, startOffset=${startHourOffset.toFixed(2)}h`);
-
     while (remainingDuration > 0.001) { // 使用小阈值避免浮点数误差
       const currentDayStr = currentDate.toDateString();
 
       // 检查是否是工作日
       if (!WORK_DAYS.includes(currentDate.getDay())) {
-        console.log(`  ${formatDateShort(currentDate)} 非工作日，跳过`);
         // 跳过非工作日
         currentDate.setDate(currentDate.getDate() + 1);
         currentDate.setHours(0, 0, 0, 0);
@@ -179,10 +172,7 @@ export default function GanttChart({
       // 如果是第一天，从任务开始时间计算
       if (isFirstDay) {
         availableHours = dailyWorkHours - startHourOffset;
-        console.log(`  第一天 ${formatDateShort(currentDate)}: 可用=${availableHours.toFixed(2)}h`);
         isFirstDay = false;
-      } else {
-        console.log(`  其他天 ${formatDateShort(currentDate)}: 可用=${availableHours.toFixed(2)}h`);
       }
 
       // 计算当天可以使用的小时数
@@ -190,7 +180,6 @@ export default function GanttChart({
 
       // 累加天数（每天都用实际工作时间占比）
       totalWidthDays += hoursUsed / dailyWorkHours;
-      console.log(`    使用=${hoursUsed.toFixed(2)}h, 累计宽度=${totalWidthDays.toFixed(2)}天`);
 
       remainingDuration -= hoursUsed;
 
@@ -204,9 +193,6 @@ export default function GanttChart({
     // 计算left位置（使用初始的startHourOffset）
     const left = ((dayIndex + startHourOffset / dailyWorkHours) / totalWorkDays) * 100;
     const width = (totalWidthDays / totalWorkDays) * 100;
-
-    console.log(`最终结果: left=${left.toFixed(2)}%, width=${width.toFixed(2)}%`);
-    console.log(`总工作日: ${totalWorkDays}\n`);
 
     return {
       left,
@@ -272,11 +258,19 @@ export default function GanttChart({
               projectTasks[0].endDate || startDayTime
             );
 
-            // 使用与任务条相同的计算逻辑
+            // 计算项目的预估总工时（所有任务工时之和），用于位置计算
+            const projectEstimatedHours = projectTasks.reduce(
+              (sum, task) => sum + task.estimatedHours,
+              0
+            );
+
+            // 使用与任务条相同的计算逻辑，传入正确的 estimatedHours
             const projectPosition = getTaskPosition({
               ...projectTasks[0],
+              name: project?.name || '项目',
               startDate: projectStart,
-              endDate: projectEnd
+              endDate: projectEnd,
+              estimatedHours: projectEstimatedHours
             } as Task);
 
             const projectColor = project ? project.color : '#3b82f6';
