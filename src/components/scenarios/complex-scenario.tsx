@@ -48,14 +48,14 @@ const defaultProjects: Project[] = [
   }
 ];
 
-// 默认任务数据
+// 默认任务数据（自动分配资源）
 const defaultTasks: Task[] = [
   {
     id: 'task-p1-1',
     name: '性能分析',
     description: '分析当前系统性能瓶颈',
     estimatedHours: 16,
-    assignedResources: ['res-2'],
+    assignedResources: [], // 自动分配
     projectId: 'proj-1',
     priority: 'high',
     status: 'pending',
@@ -66,7 +66,7 @@ const defaultTasks: Task[] = [
     name: '缓存优化',
     description: '实现Redis缓存策略',
     estimatedHours: 40,
-    assignedResources: ['res-2'],
+    assignedResources: [], // 自动分配
     projectId: 'proj-1',
     priority: 'high',
     status: 'pending',
@@ -77,7 +77,7 @@ const defaultTasks: Task[] = [
     name: 'UI重构',
     description: '重构前端UI组件',
     estimatedHours: 64,
-    assignedResources: ['res-1', 'res-3'],
+    assignedResources: [], // 自动分配
     projectId: 'proj-1',
     priority: 'normal',
     status: 'pending',
@@ -88,7 +88,7 @@ const defaultTasks: Task[] = [
     name: '原型设计',
     description: '完成APP交互原型',
     estimatedHours: 24,
-    assignedResources: ['res-3'],
+    assignedResources: [], // 自动分配
     projectId: 'proj-2',
     priority: 'urgent',
     status: 'pending',
@@ -99,7 +99,7 @@ const defaultTasks: Task[] = [
     name: 'iOS开发',
     description: '完成iOS版本开发',
     estimatedHours: 120,
-    assignedResources: ['res-1'],
+    assignedResources: [], // 自动分配
     projectId: 'proj-2',
     priority: 'high',
     status: 'pending',
@@ -110,7 +110,7 @@ const defaultTasks: Task[] = [
     name: '需求调研',
     description: '调研各业务线数据需求',
     estimatedHours: 32,
-    assignedResources: ['res-2'],
+    assignedResources: [], // 自动分配
     projectId: 'proj-3',
     priority: 'high',
     status: 'pending',
@@ -121,7 +121,7 @@ const defaultTasks: Task[] = [
     name: '数据建模',
     description: '设计数据仓库模型',
     estimatedHours: 48,
-    assignedResources: ['res-2'],
+    assignedResources: [], // 自动分配
     projectId: 'proj-3',
     priority: 'high',
     status: 'pending',
@@ -132,7 +132,7 @@ const defaultTasks: Task[] = [
     name: 'ETL开发',
     description: '开发数据抽取转换加载',
     estimatedHours: 80,
-    assignedResources: ['res-2'],
+    assignedResources: [], // 自动分配
     projectId: 'proj-3',
     priority: 'normal',
     status: 'pending',
@@ -140,12 +140,14 @@ const defaultTasks: Task[] = [
   }
 ];
 
-// 默认共享资源
+// 默认共享资源（带等级和效率）
 const defaultResources: Resource[] = [
   {
     id: 'res-1',
     name: '张三',
     type: 'human',
+    level: 'senior',
+    efficiency: 1.5,
     skills: ['frontend', 'react', 'typescript'],
     availability: 0.9,
     color: '#3b82f6'
@@ -154,6 +156,8 @@ const defaultResources: Resource[] = [
     id: 'res-2',
     name: '李四',
     type: 'human',
+    level: 'senior',
+    efficiency: 1.5,
     skills: ['backend', 'java', 'spring'],
     availability: 1.0,
     color: '#10b981'
@@ -162,6 +166,8 @@ const defaultResources: Resource[] = [
     id: 'res-3',
     name: '王五',
     type: 'human',
+    level: 'junior',
+    efficiency: 1.0,
     skills: ['design', 'ui', 'ux'],
     availability: 0.8,
     color: '#f59e0b'
@@ -170,12 +176,24 @@ const defaultResources: Resource[] = [
     id: 'res-4',
     name: '赵六',
     type: 'human',
+    level: 'junior',
+    efficiency: 1.0,
     skills: ['testing', 'qa', 'automation'],
     availability: 0.85,
     color: '#8b5cf6'
   },
   {
     id: 'res-5',
+    name: '小七',
+    type: 'human',
+    level: 'assistant',
+    efficiency: 0.7,
+    skills: ['documentation', 'support'],
+    availability: 0.9,
+    color: '#ec4899'
+  },
+  {
+    id: 'res-6',
     name: '测试服务器',
     type: 'equipment',
     availability: 1.0,
@@ -219,7 +237,7 @@ export default function ComplexScenario() {
       name: `新任务 ${tasks.length + 1}`,
       description: '',
       estimatedHours: 8,
-      assignedResources: [sharedResources[0]?.id || ''],
+      assignedResources: [], // 自动分配
       priority: 'normal',
       status: 'pending',
       projectId: activeProject === 'all' ? projects[0]?.id : activeProject,
@@ -259,8 +277,60 @@ export default function ComplexScenario() {
     return projects.find(p => p.id === projectId);
   };
 
+  const getLevelBadgeColor = (level: string) => {
+    switch (level) {
+      case 'senior': return 'bg-purple-500 text-white';
+      case 'junior': return 'bg-blue-500 text-white';
+      case 'assistant': return 'bg-slate-500 text-white';
+      default: return 'bg-slate-500 text-white';
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Shared Resource Pool */}
+      <Card>
+        <CardHeader>
+          <CardTitle>共享资源池</CardTitle>
+          <CardDescription>
+            所有项目共享的资源，系统会根据效率、优先级和工时自动分配
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
+            {sharedResources.filter(r => r.type === 'human').map(resource => {
+              const efficiency = resource.efficiency || 1.0;
+              return (
+                <div key={resource.id} className="rounded-lg border p-4 bg-slate-50 dark:bg-slate-900">
+                  <div className="mb-2 flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: resource.color }}
+                    />
+                    <div className="font-semibold text-sm">{resource.name}</div>
+                  </div>
+                  <div className="mb-2">
+                    <Badge className={getLevelBadgeColor(resource.level || 'junior')}>
+                      {resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-slate-500 space-y-1">
+                    <div className="flex justify-between">
+                      <span>效率:</span>
+                      <span className="font-medium">{efficiency.toFixed(1)}x</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>可用性:</span>
+                      <span className="font-medium">{Math.round(resource.availability * 100)}%</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Projects Overview */}
       <Card>
         <CardHeader>
@@ -269,8 +339,8 @@ export default function ComplexScenario() {
               <Network className="h-5 w-5 text-purple-500" />
               项目管理
             </div>
-            <Button 
-              onClick={handleAddProject} 
+            <Button
+              onClick={handleAddProject}
               variant="outline"
               size="sm"
               className="gap-2"
@@ -418,7 +488,6 @@ export default function ComplexScenario() {
                   <TableHead className="w-[200px]">任务名称</TableHead>
                   <TableHead>项目</TableHead>
                   <TableHead>预估工时</TableHead>
-                  <TableHead>负责人</TableHead>
                   <TableHead>优先级</TableHead>
                   <TableHead>依赖任务</TableHead>
                   <TableHead className="w-[100px]">操作</TableHead>
@@ -427,7 +496,6 @@ export default function ComplexScenario() {
               <TableBody>
                 {tasks.map(task => {
                   const project = getProjectById(task.projectId || '');
-                  const resource = sharedResources.find(r => r.id === task.assignedResources[0]);
                   
                   return (
                     <TableRow key={task.id}>
@@ -463,24 +531,6 @@ export default function ComplexScenario() {
                           onChange={(e) => handleTaskChange(task.id, 'estimatedHours', parseInt(e.target.value))}
                           className="w-24 h-8"
                         />
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={task.assignedResources[0] || 'none'}
-                          onValueChange={(value) => handleTaskChange(task.id, 'assignedResources', value !== 'none' ? [value] : [])}
-                        >
-                          <SelectTrigger className="h-8">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">未分配</SelectItem>
-                            {sharedResources.map(res => (
-                              <SelectItem key={res.id} value={res.id}>
-                                {res.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
                       </TableCell>
                       <TableCell>
                         <Select

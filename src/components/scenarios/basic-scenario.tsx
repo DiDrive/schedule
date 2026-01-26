@@ -37,7 +37,7 @@ export default function BasicScenario() {
       name: `新任务 ${tasks.length + 1}`,
       description: '',
       estimatedHours: 8,
-      assignedResources: [resources[0].id],
+      assignedResources: [], // 自动分配
       priority: 'normal',
       status: 'pending'
     };
@@ -66,14 +66,66 @@ export default function BasicScenario() {
     }
   };
 
+  const getLevelBadgeColor = (level: string) => {
+    switch (level) {
+      case 'senior': return 'bg-purple-500 text-white';
+      case 'junior': return 'bg-blue-500 text-white';
+      case 'assistant': return 'bg-slate-500 text-white';
+      default: return 'bg-slate-500 text-white';
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Resource Pool */}
+      <Card>
+        <CardHeader>
+          <CardTitle>可用资源池</CardTitle>
+          <CardDescription>
+            系统会根据预估工时、优先级和资源效率自动分配任务负责人
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
+            {resources.filter(r => r.type === 'human').map(resource => {
+              const efficiency = resource.efficiency || 1.0;
+              return (
+                <div key={resource.id} className="rounded-lg border p-4 bg-slate-50 dark:bg-slate-900">
+                  <div className="mb-2 flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: resource.color }}
+                    />
+                    <div className="font-semibold text-sm">{resource.name}</div>
+                  </div>
+                  <div className="mb-2">
+                    <Badge className={getLevelBadgeColor(resource.level || 'junior')}>
+                      {resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-slate-500 space-y-1">
+                    <div className="flex justify-between">
+                      <span>效率:</span>
+                      <span className="font-medium">{efficiency.toFixed(1)}x</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>可用性:</span>
+                      <span className="font-medium">{Math.round(resource.availability * 100)}%</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Control Panel */}
       <Card>
         <CardHeader>
           <CardTitle>任务管理</CardTitle>
           <CardDescription>
-            定义项目任务、预估工时、分配资源和设置优先级
+            定义项目任务、预估工时、设置优先级和依赖关系
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -98,7 +150,6 @@ export default function BasicScenario() {
                 <TableRow>
                   <TableHead className="w-[200px]">任务名称</TableHead>
                   <TableHead>预估工时</TableHead>
-                  <TableHead>负责人</TableHead>
                   <TableHead>优先级</TableHead>
                   <TableHead>截止日期</TableHead>
                   <TableHead className="w-[180px]">依赖任务</TableHead>
@@ -122,23 +173,6 @@ export default function BasicScenario() {
                         onChange={(e) => handleTaskChange(task.id, 'estimatedHours', parseInt(e.target.value))}
                         className="w-24 h-8"
                       />
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={task.assignedResources[0] || 'none'}
-                        onValueChange={(value) => handleTaskChange(task.id, 'assignedResources', value !== 'none' ? [value] : [])}
-                      >
-                        <SelectTrigger className="h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {resources.map(resource => (
-                            <SelectItem key={resource.id} value={resource.id}>
-                              {resource.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
                     </TableCell>
                     <TableCell>
                       <Select

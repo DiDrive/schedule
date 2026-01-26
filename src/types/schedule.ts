@@ -1,8 +1,13 @@
+// 资源等级
+export type ResourceLevel = 'assistant' | 'junior' | 'senior';
+
 // 基础数据类型
 export interface Resource {
   id: string;
   name: string;
   type: 'human' | 'material' | 'equipment';
+  level?: ResourceLevel; // 资源等级
+  efficiency?: number; // 效率系数，0.5-2.0，1.0为标准效率
   skills?: string[];
   availability: number; // 0-1, 可用性系数
   color?: string; // 资源在甘特图中的显示颜色
