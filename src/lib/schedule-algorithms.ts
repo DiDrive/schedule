@@ -4,7 +4,9 @@ import { Task, Resource, ScheduleResult, ResourceConflict, WorkingHoursConfig, R
 const DEFAULT_WORKING_HOURS: WorkingHoursConfig = {
   startHour: 9.5, // 9:30
   endHour: 19, // 19:00
-  workDays: [1, 2, 3, 4, 5] // 周一到周五
+  workDays: [1, 2, 3, 4, 5], // 周一到周五
+  lunchBreakStart: 12, // 12:00 午休开始
+  lunchBreakEnd: 13.5 // 13:30 午休结束
 };
 
 // 资源等级对应的效率系数
@@ -126,13 +128,41 @@ export function calculateWorkHours(startDate: Date, endDate: Date, config: Worki
       const endOfDay = new Date(current);
       endOfDay.setHours(Math.floor(config.endHour), (config.endHour % 1) * 60, 0, 0);
 
+      // 午休时间段
+      let lunchBreakStart: Date | null = null;
+      let lunchBreakEnd: Date | null = null;
+      if (config.lunchBreakStart !== undefined && config.lunchBreakEnd !== undefined) {
+        lunchBreakStart = new Date(current);
+        lunchBreakStart.setHours(Math.floor(config.lunchBreakStart), (config.lunchBreakStart % 1) * 60, 0, 0);
+
+        lunchBreakEnd = new Date(current);
+        lunchBreakEnd.setHours(Math.floor(config.lunchBreakEnd), (config.lunchBreakEnd % 1) * 60, 0, 0);
+      }
+
       // 计算当天的工作小时数
       let workStart = current > startOfDay ? current : startOfDay;
       let workEnd = end < endOfDay ? end : endOfDay;
 
       if (workStart < workEnd) {
-        const hours = (workEnd.getTime() - workStart.getTime()) / (1000 * 60 * 60);
-        totalHours += hours;
+        // 如果有午休时间，需要排除
+        if (lunchBreakStart && lunchBreakEnd && lunchBreakStart < lunchBreakEnd) {
+          // 分段计算：上午 + 下午
+          // 上午工作时间
+          const morningEnd = workEnd < lunchBreakStart ? workEnd : lunchBreakStart;
+          if (workStart < morningEnd) {
+            totalHours += (morningEnd.getTime() - workStart.getTime()) / (1000 * 60 * 60);
+          }
+
+          // 下午工作时间
+          const afternoonStart = workStart > lunchBreakEnd ? workStart : lunchBreakEnd;
+          if (afternoonStart < workEnd) {
+            totalHours += (workEnd.getTime() - afternoonStart.getTime()) / (1000 * 60 * 60);
+          }
+        } else {
+          // 没有午休时间，直接计算
+          const hours = (workEnd.getTime() - workStart.getTime()) / (1000 * 60 * 60);
+          totalHours += hours;
+        }
       }
     }
 
@@ -146,7 +176,7 @@ export function calculateWorkHours(startDate: Date, endDate: Date, config: Worki
 
 /**
  * 计算从开始日期起经过指定工作小时数后的结束日期
- * 考虑资源效率
+ * 考虑资源效率和午休时间
  */
 export function calculateEndDate(startDate: Date, workHours: number, config: WorkingHoursConfig = DEFAULT_WORKING_HOURS, resourceEfficiency: number = 1.0): Date {
   // 根据资源效率调整实际需要的工作时间
@@ -154,6 +184,20 @@ export function calculateEndDate(startDate: Date, workHours: number, config: Wor
 
   const result = new Date(startDate);
   let remainingHours = adjustedHours;
+
+  // 定义午休时间段
+  const getLunchBreak = (date: Date) => {
+    if (config.lunchBreakStart !== undefined && config.lunchBreakEnd !== undefined) {
+      const lunchStart = new Date(date);
+      lunchStart.setHours(Math.floor(config.lunchBreakStart), (config.lunchBreakStart % 1) * 60, 0, 0);
+
+      const lunchEnd = new Date(date);
+      lunchEnd.setHours(Math.floor(config.lunchBreakEnd), (config.lunchBreakEnd % 1) * 60, 0, 0);
+
+      return { start: lunchStart, end: lunchEnd };
+    }
+    return null;
+  };
 
   // 先调整到第一个工作日的工作时间开始
   while (remainingHours > 0) {
@@ -172,6 +216,9 @@ export function calculateEndDate(startDate: Date, workHours: number, config: Wor
     const endOfDay = new Date(result);
     endOfDay.setHours(Math.floor(config.endHour), (config.endHour % 1) * 60, 0, 0);
 
+    // 获取午休时间段
+    const lunchBreak = getLunchBreak(result);
+
     // 如果当前时间在工作日之前，从工作日开始
     if (result < startOfDay) {
       result.setTime(startOfDay.getTime());
@@ -185,8 +232,30 @@ export function calculateEndDate(startDate: Date, workHours: number, config: Wor
       continue;
     }
 
-    // 计算当天剩余工作时间
-    const availableHours = (endOfDay.getTime() - result.getTime()) / (1000 * 60 * 60);
+    // 检查是否在午休时间
+    if (lunchBreak && result >= lunchBreak.start && result < lunchBreak.end) {
+      // 跳到午休结束
+      result.setTime(lunchBreak.end.getTime());
+      continue;
+    }
+
+    // 计算当天剩余工作时间（考虑午休）
+    let availableHours: number;
+
+    if (lunchBreak && lunchBreak.start < lunchBreak.end) {
+      // 有午休时间，分段计算
+      if (result < lunchBreak.start) {
+        // 在午休前，最多工作到午休开始
+        availableHours = (lunchBreak.start.getTime() - result.getTime()) / (1000 * 60 * 60);
+      } else {
+        // 在午休后，最多工作到下班
+        availableHours = (endOfDay.getTime() - result.getTime()) / (1000 * 60 * 60);
+      }
+    } else {
+      // 没有午休时间
+      availableHours = (endOfDay.getTime() - result.getTime()) / (1000 * 60 * 60);
+    }
+
     const hoursToUse = Math.min(remainingHours, availableHours);
 
     result.setTime(result.getTime() + hoursToUse * 60 * 60 * 1000);

@@ -23,6 +23,8 @@ export interface WorkingHoursConfig {
   startHour: number; // 开始小时，如 9.5 表示 9:30
   endHour: number; // 结束小时，如 19 表示 19:00
   workDays: number[]; // 工作日，0-6 表示周日到周六
+  lunchBreakStart?: number; // 午休开始小时，如 12 表示 12:00
+  lunchBreakEnd?: number; // 午休结束小时，如 13.5 表示 13:30
 }
 
 export interface Task {
