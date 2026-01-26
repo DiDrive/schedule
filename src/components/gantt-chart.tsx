@@ -30,6 +30,13 @@ export default function GanttChart({
     );
   }
 
+  // 工作时间配置
+  const WORK_START_HOUR = 9.5; // 9:30
+  const WORK_END_HOUR = 19; // 19:00
+  const LUNCH_BREAK_START = 12; // 12:00
+  const LUNCH_BREAK_END = 13.5; // 13:30
+  const WORK_DAYS = [1, 2, 3, 4, 5]; // 周一到周五
+
   // 计算时间范围
   const firstTaskStart = scheduleResult.tasks[0].startDate || new Date();
   const lastTaskEnd = scheduleResult.tasks.reduce(
@@ -37,22 +44,31 @@ export default function GanttChart({
     firstTaskStart
   );
 
-  // 标准化到整天0点，作为时间轴基准
+  // 标准化到整天0点
   const startDayTime = new Date(firstTaskStart);
   startDayTime.setHours(0, 0, 0, 0);
 
-  // 计算结束日期（不包括多余的整天）
   const endDayTime = new Date(lastTaskEnd);
-  endDayTime.setHours(0, 0, 0, 0); // 先设为当天的0点
+  endDayTime.setHours(0, 0, 0, 0);
 
-  // 计算天数差（用实际结束时间计算，而不是23:59:59）
-  const totalDays = Math.floor((lastTaskEnd.getTime() - startDayTime.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  // 生成所有日期（包含非工作日），用于计算工作日
+  const totalCalendarDays = Math.floor((endDayTime.getTime() - startDayTime.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-  // 生成日期刻度 - 只生成实际需要的天数
-  const dateLabels = Array.from({ length: totalDays }, (_, i) => {
+  // 生成所有工作日（排除周末）
+  const allCalendarDates = Array.from({ length: totalCalendarDays }, (_, i) => {
     const date = new Date(startDayTime);
     date.setDate(date.getDate() + i);
     return date;
+  });
+
+  const workDaysList = allCalendarDates.filter(date => WORK_DAYS.includes(date.getDay()));
+
+  const totalWorkDays = workDaysList.length;
+
+  // 工作日映射：日期 -> 索引
+  const workDayIndexMap = new Map<string, number>();
+  workDaysList.forEach((date, index) => {
+    workDayIndexMap.set(date.toDateString(), index);
   });
 
   // 格式化时间显示
@@ -95,22 +111,94 @@ export default function GanttChart({
     return '#3b82f6'; // 默认蓝色
   };
 
-  // 计算任务在甘特图上的位置
+  // 计算任务在甘特图上的位置（基于工作日和时间段）
   const getTaskPosition = (task: Task) => {
     const taskStart = task.startDate || startDayTime;
     const taskEnd = task.endDate || startDayTime;
 
-    // 基于整天0点计算偏移
-    const taskStartDay = new Date(taskStart);
-    taskStartDay.setHours(0, 0, 0, 0);
+    // 找到任务开始日期在工作日列表中的索引
+    const taskStartDayStr = taskStart.toDateString();
+    const dayIndex = workDayIndexMap.get(taskStartDayStr) ?? 0;
 
-    const dayOffset = (taskStartDay.getTime() - startDayTime.getTime()) / (1000 * 60 * 60 * 24);
-    const startOffset = (taskStart.getTime() - taskStartDay.getTime()) / (1000 * 60 * 60 * 24);
-    const duration = (taskEnd.getTime() - taskStart.getTime()) / (1000 * 60 * 60 * 24);
+    // 计算当天的工作开始时间
+    const taskWorkStart = new Date(taskStart);
+    taskWorkStart.setHours(Math.floor(WORK_START_HOUR), (WORK_START_HOUR % 1) * 60, 0, 0);
+
+    // 计算午休时间段
+    const lunchStart = new Date(taskStart);
+    lunchStart.setHours(Math.floor(LUNCH_BREAK_START), (LUNCH_BREAK_START % 1) * 60, 0, 0);
+
+    const lunchEnd = new Date(taskStart);
+    lunchEnd.setHours(Math.floor(LUNCH_BREAK_END), (LUNCH_BREAK_END % 1) * 60, 0, 0);
+
+    // 计算任务开始时间相对于工作开始时间的偏移（排除午休）
+    let startHourOffset = (taskStart.getTime() - taskWorkStart.getTime()) / (1000 * 60 * 60);
+
+    // 如果任务开始时间在午休后，需要减去午休时间
+    if (taskStart >= lunchEnd) {
+      startHourOffset -= (LUNCH_BREAK_END - LUNCH_BREAK_START);
+    }
+
+    // 计算当天实际工作时间（减去午休）
+    const dailyWorkHours = (WORK_END_HOUR - WORK_START_HOUR) - (LUNCH_BREAK_END - LUNCH_BREAK_START);
+
+    // 计算任务的持续时间（考虑午休和跨天）
+    let remainingDuration = (taskEnd.getTime() - taskStart.getTime()) / (1000 * 60 * 60);
+    let totalWidthDays = 0;
+    let currentStartOffset = startHourOffset;
+
+    // 从任务开始日期开始计算
+    let currentDate = new Date(taskStart);
+    let isFirstDay = true;
+
+    while (remainingDuration > 0) {
+      const currentDayStr = currentDate.toDateString();
+
+      // 检查是否是工作日
+      if (!WORK_DAYS.includes(currentDate.getDay())) {
+        // 跳过非工作日
+        currentDate.setDate(currentDate.getDate() + 1);
+        currentDate.setHours(0, 0, 0, 0);
+        continue;
+      }
+
+      // 当天的可用工作时间
+      let availableHours = dailyWorkHours;
+
+      // 如果是第一天，从任务开始时间计算
+      if (isFirstDay) {
+        availableHours = dailyWorkHours - startHourOffset;
+        isFirstDay = false;
+      }
+
+      // 计算当天可以使用的小时数
+      const hoursUsed = Math.min(remainingDuration, availableHours);
+
+      // 累加天数
+      if (currentDayStr === taskStartDayStr) {
+        // 第一天，只有偏移
+        totalWidthDays += hoursUsed / dailyWorkHours;
+      } else {
+        // 其他整天
+        totalWidthDays += 1;
+      }
+
+      remainingDuration -= hoursUsed;
+
+      // 移动到下一天
+      if (remainingDuration > 0) {
+        currentDate.setDate(currentDate.getDate() + 1);
+        currentDate.setHours(0, 0, 0, 0);
+      }
+    }
+
+    // 计算left位置
+    const left = ((dayIndex + currentStartOffset / dailyWorkHours) / totalWorkDays) * 100;
+    const width = (totalWidthDays / totalWorkDays) * 100;
 
     return {
-      left: ((dayOffset + startOffset) / totalDays) * 100,
-      width: (duration / totalDays) * 100
+      left,
+      width
     };
   };
 
@@ -123,8 +211,8 @@ export default function GanttChart({
     return names.join(', ');
   };
 
-  // 计算每列的宽度（使用百分比，确保与任务条对齐）
-  const columnPercent = 100 / totalDays;
+  // 计算每列的宽度（使用百分比，基于工作日数量）
+  const columnPercent = 100 / totalWorkDays;
 
   // 按项目分组任务
   const tasksByProject = projects
@@ -145,7 +233,7 @@ export default function GanttChart({
           </div>
           {/* 日期刻度 */}
           <div className="flex flex-1">
-            {dateLabels.map((date, index) => (
+            {workDaysList.map((date, index) => (
               <div
                 key={index}
                 className="text-xs text-center border-r dark:border-slate-700 py-2 px-1 flex-shrink-0"
@@ -172,17 +260,12 @@ export default function GanttChart({
               projectTasks[0].endDate || startDayTime
             );
 
-            const projectStartDay = new Date(projectStart);
-            projectStartDay.setHours(0, 0, 0, 0);
-
-            const startOffset = (projectStart.getTime() - projectStartDay.getTime()) / (1000 * 60 * 60 * 24);
-            const dayOffset = (projectStartDay.getTime() - startDayTime.getTime()) / (1000 * 60 * 60 * 24);
-            const duration = (projectEnd.getTime() - projectStart.getTime()) / (1000 * 60 * 60 * 24);
-
-            const projectPosition = {
-              left: ((dayOffset + startOffset) / totalDays) * 100,
-              width: (duration / totalDays) * 100
-            };
+            // 使用与任务条相同的计算逻辑
+            const projectPosition = getTaskPosition({
+              ...projectTasks[0],
+              startDate: projectStart,
+              endDate: projectEnd
+            } as Task);
 
             const projectColor = project ? project.color : '#3b82f6';
 
@@ -208,11 +291,11 @@ export default function GanttChart({
                     {/* 项目甘特图条 */}
                     <div className="flex flex-1 relative" style={{ minHeight: '48px' }}>
                       {/* 网格线 */}
-                      {dateLabels.map((_, index) => (
+                      {workDaysList.map((_, index) => (
                         <div
                           key={index}
                           className="absolute top-0 bottom-0 border-r border-slate-100 dark:border-slate-800"
-                          style={{ left: `${(index + 1) / totalDays * 100}%`, width: '1px' }}
+                          style={{ left: `${(index + 1) / totalWorkDays * 100}%`, width: '1px' }}
                         />
                       ))}
 
@@ -283,11 +366,11 @@ export default function GanttChart({
                           {/* 任务甘特图条 */}
                           <div className="flex flex-1 relative" style={{ minHeight: '36px' }}>
                             {/* 网格线 */}
-                            {dateLabels.map((_, index) => (
+                            {workDaysList.map((_, index) => (
                               <div
                                 key={index}
                                 className="absolute top-0 bottom-0 border-r border-slate-100 dark:border-slate-800"
-                                style={{ left: `${(index + 1) / totalDays * 100}%`, width: '1px' }}
+                                style={{ left: `${(index + 1) / totalWorkDays * 100}%`, width: '1px' }}
                               />
                             ))}
 
