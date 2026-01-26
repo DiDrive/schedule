@@ -14,6 +14,13 @@ import { defaultWorkingHours } from '@/lib/sample-data';
 import { Task, ScheduleResult, Project, Resource, ResourceLevel } from '@/types/schedule';
 import GanttChart from '@/components/gantt-chart';
 
+// 辅助函数：将 Date 或字符串转换为 YYYY-MM-DD 格式
+const formatDateToInputValue = (date: Date | string | undefined): string => {
+  if (!date) return '';
+  const d = date instanceof Date ? date : new Date(date);
+  return d.toISOString().split('T')[0];
+};
+
 // 默认项目数据
 const defaultProjects: Project[] = [
   {
@@ -215,9 +222,30 @@ export default function ComplexScenario() {
     const savedTasks = localStorage.getItem('complex-scenario-tasks');
     const savedResources = localStorage.getItem('complex-scenario-resources');
 
-    if (savedProjects) setProjects(JSON.parse(savedProjects));
-    if (savedTasks) setTasks(JSON.parse(savedTasks));
-    if (savedResources) setSharedResources(JSON.parse(savedResources));
+    if (savedProjects) {
+      const parsed = JSON.parse(savedProjects);
+      // 将日期字符串转换回 Date 对象
+      const projectsWithDates = parsed.map((p: Project) => ({
+        ...p,
+        deadline: p.deadline ? new Date(p.deadline) : undefined,
+        startDate: p.startDate ? new Date(p.startDate) : undefined
+      }));
+      setProjects(projectsWithDates);
+    }
+    if (savedTasks) {
+      const parsed = JSON.parse(savedTasks);
+      // 将日期字符串转换回 Date 对象
+      const tasksWithDates = parsed.map((t: Task) => ({
+        ...t,
+        deadline: t.deadline ? new Date(t.deadline) : undefined,
+        startDate: t.startDate ? new Date(t.startDate) : undefined,
+        endDate: t.endDate ? new Date(t.endDate) : undefined
+      }));
+      setTasks(tasksWithDates);
+    }
+    if (savedResources) {
+      setSharedResources(JSON.parse(savedResources));
+    }
   }, []);
 
   useEffect(() => {
@@ -494,7 +522,7 @@ export default function ComplexScenario() {
                     <TableCell>
                       <Input
                         type="date"
-                        value={project.deadline ? project.deadline.toISOString().split('T')[0] : ''}
+                        value={formatDateToInputValue(project.deadline)}
                         onChange={(e) => handleProjectChange(project.id, 'deadline', new Date(e.target.value))}
                         className="w-36 h-8"
                       />

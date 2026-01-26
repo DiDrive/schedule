@@ -14,6 +14,13 @@ import { defaultWorkingHours } from '@/lib/sample-data';
 import { Task, Resource, ScheduleResult, ResourceLevel } from '@/types/schedule';
 import GanttChart from '@/components/gantt-chart';
 
+// 辅助函数：将 Date 或字符串转换为 YYYY-MM-DD 格式
+const formatDateToInputValue = (date: Date | string | undefined): string => {
+  if (!date) return '';
+  const d = date instanceof Date ? date : new Date(date);
+  return d.toISOString().split('T')[0];
+};
+
 const defaultResources: Resource[] = [
   {
     id: 'res-1',
@@ -79,7 +86,15 @@ export default function BasicScenario() {
     const savedResources = localStorage.getItem('basic-scenario-resources');
 
     if (savedTasks) {
-      setTasks(JSON.parse(savedTasks));
+      const parsed = JSON.parse(savedTasks);
+      // 将日期字符串转换回 Date 对象
+      const tasksWithDates = parsed.map((t: Task) => ({
+        ...t,
+        deadline: t.deadline ? new Date(t.deadline) : undefined,
+        startDate: t.startDate ? new Date(t.startDate) : undefined,
+        endDate: t.endDate ? new Date(t.endDate) : undefined
+      }));
+      setTasks(tasksWithDates);
     }
     if (savedResources) {
       setResources(JSON.parse(savedResources));
@@ -337,7 +352,7 @@ export default function BasicScenario() {
                     <TableCell>
                       <Input
                         type="date"
-                        value={task.deadline ? task.deadline.toISOString().split('T')[0] : ''}
+                        value={formatDateToInputValue(task.deadline)}
                         onChange={(e) => handleTaskChange(task.id, 'deadline', new Date(e.target.value))}
                         className="w-36 h-8"
                       />
