@@ -21,6 +21,18 @@ const formatDateToInputValue = (date: Date | string | undefined): string => {
   return d.toISOString().split('T')[0];
 };
 
+// 辅助函数：将 Date 或字符串转换为 YYYY-MM-DDTHH:mm 格式（用于datetime-local）
+const formatDateTimeToInputValue = (date: Date | string | undefined): string => {
+  if (!date) return '';
+  const d = date instanceof Date ? date : new Date(date);
+  const year = d.getFullYear();
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  const hours = d.getHours().toString().padStart(2, '0');
+  const minutes = d.getMinutes().toString().padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 const defaultResources: Resource[] = [
   {
     id: 'res-1',
@@ -85,10 +97,13 @@ export default function BasicScenario() {
   const [scheduleResult, setScheduleResult] = useState<ScheduleResult | null>(null);
   const [isComputing, setIsComputing] = useState(false);
   const [activeView, setActiveView] = useState<'gantt' | 'table'>('gantt');
+  const [startDate, setStartDate] = useState<Date>(new Date());
 
   useEffect(() => {
     const savedTasks = localStorage.getItem('basic-scenario-tasks');
     const savedResources = localStorage.getItem('basic-scenario-resources');
+    const savedScheduleResult = localStorage.getItem('basic-scenario-schedule-result');
+    const savedStartDate = localStorage.getItem('basic-scenario-start-date');
 
     if (savedTasks) {
       const parsed = JSON.parse(savedTasks);
@@ -106,6 +121,20 @@ export default function BasicScenario() {
     } else {
       setResources(defaultResources);
     }
+    if (savedScheduleResult) {
+      const parsed = JSON.parse(savedScheduleResult);
+      // 将日期字符串转换回 Date 对象
+      const tasksWithDates = parsed.tasks.map((t: Task) => ({
+        ...t,
+        deadline: t.deadline ? new Date(t.deadline) : undefined,
+        startDate: t.startDate ? new Date(t.startDate) : undefined,
+        endDate: t.endDate ? new Date(t.endDate) : undefined
+      }));
+      setScheduleResult({ ...parsed, tasks: tasksWithDates });
+    }
+    if (savedStartDate) {
+      setStartDate(new Date(savedStartDate));
+    }
   }, []);
 
   useEffect(() => {
@@ -115,12 +144,16 @@ export default function BasicScenario() {
     if (resources.length > 0) {
       localStorage.setItem('basic-scenario-resources', JSON.stringify(resources));
     }
-  }, [tasks, resources]);
+    if (scheduleResult) {
+      localStorage.setItem('basic-scenario-schedule-result', JSON.stringify(scheduleResult));
+    }
+    localStorage.setItem('basic-scenario-start-date', startDate.toISOString());
+  }, [tasks, resources, scheduleResult, startDate]);
 
   const handleGenerateSchedule = () => {
     setIsComputing(true);
     setTimeout(() => {
-      const result = generateSchedule(tasks, resources, new Date(), defaultWorkingHours);
+      const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours);
       setScheduleResult(result);
       setIsComputing(false);
     }, 500);
@@ -315,6 +348,15 @@ export default function BasicScenario() {
               <Plus className="h-4 w-4" />
               添加任务
             </Button>
+            <div className="flex items-center gap-2 ml-auto">
+              <label className="text-sm font-medium">开始时间:</label>
+              <Input
+                type="datetime-local"
+                value={formatDateTimeToInputValue(startDate)}
+                onChange={(e) => setStartDate(new Date(e.target.value))}
+                className="w-48 h-9"
+              />
+            </div>
             <Button
               onClick={handleGenerateSchedule}
               disabled={isComputing || tasks.length === 0}

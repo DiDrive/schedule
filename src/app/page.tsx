@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, GitBranch, BarChart3, Clock, Users, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Calendar, GitBranch, BarChart3 } from 'lucide-react';
 import BasicScenario from '@/components/scenarios/basic-scenario';
 import ComplexScenario from '@/components/scenarios/complex-scenario';
 import { generateSchedule } from '@/lib/schedule-algorithms';
@@ -14,7 +14,7 @@ import { basicScenarioSample, complexScenarioSample } from '@/lib/sample-data';
 import { Task, Resource, ScheduleResult } from '@/types/schedule';
 
 export default function ProjectScheduleSystem() {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('basic');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950">
@@ -28,7 +28,7 @@ export default function ProjectScheduleSystem() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  项目排期优化系统
+                  唯变项目排期系统
                 </h1>
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   智能排期 · 资源优化 · 风险管控
@@ -42,11 +42,7 @@ export default function ProjectScheduleSystem() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:w-auto">
-            <TabsTrigger value="overview" className="gap-2">
-              <BarChart3 className="h-4 w-4" />
-              概览
-            </TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 lg:w-auto">
             <TabsTrigger value="basic" className="gap-2">
               <Calendar className="h-4 w-4" />
               基础场景
@@ -56,114 +52,6 @@ export default function ProjectScheduleSystem() {
               复杂场景
             </TabsTrigger>
           </TabsList>
-
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-3">
-              <Card className="border-l-4 border-l-blue-500">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-blue-500" />
-                    基础场景
-                  </CardTitle>
-                  <CardDescription>
-                    单项目、明确DDL、简单资源分配
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      甘特图排期可视化
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      关键路径自动识别
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      资源负载平衡建议
-                    </li>
-                  </ul>
-                </CardContent>
-              </Card>
-
-              <Card className="border-l-4 border-l-purple-500">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <GitBranch className="h-5 w-5 text-purple-500" />
-                    复杂场景
-                  </CardTitle>
-                  <CardDescription>
-                    多项目并行、依赖关系、共享资源池
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      多项目综合排期
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      资源冲突智能预警
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      关键链识别与可视化
-                    </li>
-                  </ul>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* System Features */}
-            <Card>
-              <CardHeader>
-                <CardTitle>核心功能特性</CardTitle>
-                <CardDescription>基于智能算法和数据分析的全方位项目排期解决方案</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="flex gap-3 rounded-lg border p-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
-                      <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">关键路径算法</h4>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">
-                        CPM 算法自动识别项目关键路径，精确计算最早/最晚开始时间
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-3 rounded-lg border p-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900">
-                      <Users className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">资源冲突检测</h4>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">
-                        实时检测资源分配冲突，提供优化建议和解决方案
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-3 rounded-lg border p-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900">
-                      <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">风险评估模型</h4>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">
-                        多维度风险评估，自动生成缓解策略和备选方案
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           {/* Basic Scenario Tab */}
           <TabsContent value="basic">
