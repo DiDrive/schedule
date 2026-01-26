@@ -24,51 +24,56 @@ const formatDateToInputValue = (date: Date | string | undefined): string => {
 const defaultResources: Resource[] = [
   {
     id: 'res-1',
-    name: '张三',
+    name: '张设计师',
     type: 'human',
+    workType: '平面',
     level: 'senior',
     efficiency: 1.5,
-    skills: ['frontend', 'react', 'typescript'],
+    skills: ['平面设计', '品牌VI', 'UI设计'],
     availability: 0.9,
     color: '#3b82f6'
   },
   {
     id: 'res-2',
-    name: '李四',
+    name: '李后期',
     type: 'human',
+    workType: '后期',
     level: 'senior',
     efficiency: 1.5,
-    skills: ['backend', 'java', 'spring'],
+    skills: ['视频剪辑', '特效制作', '调色'],
     availability: 1.0,
     color: '#10b981'
   },
   {
     id: 'res-3',
-    name: '王五',
+    name: '王平面',
     type: 'human',
+    workType: '平面',
     level: 'junior',
     efficiency: 1.0,
-    skills: ['design', 'ui', 'ux'],
+    skills: ['插画设计', '分镜设计', '排版'],
     availability: 0.8,
     color: '#f59e0b'
   },
   {
     id: 'res-4',
-    name: '赵六',
+    name: '赵后期',
     type: 'human',
+    workType: '后期',
     level: 'junior',
     efficiency: 1.0,
-    skills: ['testing', 'qa', 'automation'],
+    skills: ['字幕制作', '音频处理', '剪辑'],
     availability: 0.85,
     color: '#8b5cf6'
   },
   {
     id: 'res-5',
-    name: '小七',
+    name: '小助理',
     type: 'human',
+    workType: '后期',
     level: 'assistant',
     efficiency: 0.7,
-    skills: ['documentation', 'support'],
+    skills: ['基础剪辑', '素材整理', '字幕制作'],
     availability: 0.9,
     color: '#ec4899'
   }
@@ -129,7 +134,8 @@ export default function BasicScenario() {
       estimatedHours: 8,
       assignedResources: [],
       priority: 'normal',
-      status: 'pending'
+      status: 'pending',
+      taskType: '平面' // 默认为平面
     };
     setTasks([...tasks, newTask]);
   };
@@ -147,6 +153,7 @@ export default function BasicScenario() {
       id: `res-${Date.now()}`,
       name: '新成员',
       type: 'human',
+      workType: '平面', // 默认为平面
       level: 'junior',
       efficiency: 1.0,
       availability: 1.0,
@@ -225,6 +232,21 @@ export default function BasicScenario() {
                     >
                       <Trash2 className="h-3 w-3 text-red-500" />
                     </Button>
+                  </div>
+                  <div className="mb-3">
+                    <Select
+                      value={resource.workType || 'none'}
+                      onValueChange={(value) => handleResourceChange(resource.id, 'workType', value !== 'none' ? value : '')}
+                    >
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue placeholder="选择类型" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">未指定</SelectItem>
+                        <SelectItem value="平面">平面</SelectItem>
+                        <SelectItem value="后期">后期</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="mb-3">
                     <Select
@@ -308,6 +330,7 @@ export default function BasicScenario() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[200px]">任务名称</TableHead>
+                  <TableHead>任务类型</TableHead>
                   <TableHead>预估工时</TableHead>
                   <TableHead>优先级</TableHead>
                   <TableHead>截止日期</TableHead>
@@ -324,6 +347,21 @@ export default function BasicScenario() {
                         onChange={(e) => handleTaskChange(task.id, 'name', e.target.value)}
                         className="h-8"
                       />
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={task.taskType || 'none'}
+                        onValueChange={(value) => handleTaskChange(task.id, 'taskType', value !== 'none' ? value : '')}
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue placeholder="未指定" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">未指定</SelectItem>
+                          <SelectItem value="平面">平面</SelectItem>
+                          <SelectItem value="后期">后期</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                     <TableCell>
                       <Input

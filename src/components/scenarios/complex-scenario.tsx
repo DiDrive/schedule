@@ -892,7 +892,9 @@ export default function ComplexScenario() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredTasks.map(task => {
+                      {scheduleResult.tasks
+                        .filter(task => activeProject === 'all' || task.projectId === activeProject)
+                        .map(task => {
                         const project = getProjectById(task.projectId || '');
                         const resourceNames = task.assignedResources
                           .map(id => sharedResources.find(r => r.id === id)?.name)
