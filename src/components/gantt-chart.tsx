@@ -32,7 +32,7 @@ export default function GanttChart({
 
   // 计算时间范围
   const firstTaskStart = scheduleResult.tasks[0].startDate || new Date();
-  const endDate = scheduleResult.tasks.reduce(
+  const lastTaskEnd = scheduleResult.tasks.reduce(
     (max, task) => (task.endDate && task.endDate > max ? task.endDate : max),
     firstTaskStart
   );
@@ -41,14 +41,15 @@ export default function GanttChart({
   const startDayTime = new Date(firstTaskStart);
   startDayTime.setHours(0, 0, 0, 0);
 
-  const endDayTime = new Date(endDate);
-  endDayTime.setHours(23, 59, 59, 999);
+  // 计算结束日期（不包括多余的整天）
+  const endDayTime = new Date(lastTaskEnd);
+  endDayTime.setHours(0, 0, 0, 0); // 先设为当天的0点
 
-  // 计算总天数
-  const totalDays = Math.ceil((endDayTime.getTime() - startDayTime.getTime()) / (1000 * 60 * 60 * 24));
+  // 计算天数差（用实际结束时间计算，而不是23:59:59）
+  const totalDays = Math.floor((lastTaskEnd.getTime() - startDayTime.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-  // 生成日期刻度 - 从 startDayTime 开始
-  const dateLabels = Array.from({ length: totalDays + 1 }, (_, i) => {
+  // 生成日期刻度 - 只生成实际需要的天数
+  const dateLabels = Array.from({ length: totalDays }, (_, i) => {
     const date = new Date(startDayTime);
     date.setDate(date.getDate() + i);
     return date;
@@ -122,8 +123,8 @@ export default function GanttChart({
     return names.join(', ');
   };
 
-  // 计算每列的宽度（根据总天数动态调整）
-  const columnWidth = Math.max(60, Math.min(120, 800 / totalDays));
+  // 计算每列的宽度（使用百分比，确保与任务条对齐）
+  const columnPercent = 100 / totalDays;
 
   // 按项目分组任务
   const tasksByProject = projects
@@ -148,7 +149,7 @@ export default function GanttChart({
               <div
                 key={index}
                 className="text-xs text-center border-r dark:border-slate-700 py-2 px-1 flex-shrink-0"
-                style={{ width: columnWidth }}
+                style={{ width: `${columnPercent}%` }}
                 title={formatDateLong(date)}
               >
                 {formatDateShort(date)}
@@ -211,7 +212,7 @@ export default function GanttChart({
                         <div
                           key={index}
                           className="absolute top-0 bottom-0 border-r border-slate-100 dark:border-slate-800"
-                          style={{ left: (index / totalDays) * 100 + '%', width: `${100 / totalDays}%` }}
+                          style={{ left: `${(index + 1) / totalDays * 100}%`, width: '1px' }}
                         />
                       ))}
 
@@ -286,7 +287,7 @@ export default function GanttChart({
                               <div
                                 key={index}
                                 className="absolute top-0 bottom-0 border-r border-slate-100 dark:border-slate-800"
-                                style={{ left: (index / totalDays) * 100 + '%', width: `${100 / totalDays}%` }}
+                                style={{ left: `${(index + 1) / totalDays * 100}%`, width: '1px' }}
                               />
                             ))}
 
