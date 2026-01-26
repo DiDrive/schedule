@@ -145,7 +145,6 @@ export default function GanttChart({
     // 计算任务的持续时间（考虑午休和跨天）
     let remainingDuration = (taskEnd.getTime() - taskStart.getTime()) / (1000 * 60 * 60);
     let totalWidthDays = 0;
-    let currentStartOffset = startHourOffset;
 
     // 从任务开始日期开始计算
     let currentDate = new Date(taskStart);
@@ -174,14 +173,8 @@ export default function GanttChart({
       // 计算当天可以使用的小时数
       const hoursUsed = Math.min(remainingDuration, availableHours);
 
-      // 累加天数
-      if (currentDayStr === taskStartDayStr) {
-        // 第一天，只有偏移
-        totalWidthDays += hoursUsed / dailyWorkHours;
-      } else {
-        // 其他整天
-        totalWidthDays += 1;
-      }
+      // 累加天数（每天都用实际工作时间占比）
+      totalWidthDays += hoursUsed / dailyWorkHours;
 
       remainingDuration -= hoursUsed;
 
@@ -192,8 +185,8 @@ export default function GanttChart({
       }
     }
 
-    // 计算left位置
-    const left = ((dayIndex + currentStartOffset / dailyWorkHours) / totalWorkDays) * 100;
+    // 计算left位置（使用初始的startHourOffset）
+    const left = ((dayIndex + startHourOffset / dailyWorkHours) / totalWorkDays) * 100;
     const width = (totalWidthDays / totalWorkDays) * 100;
 
     return {
