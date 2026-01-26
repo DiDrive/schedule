@@ -8,8 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, Plus, Trash2, CheckCircle, TrendingUp, Settings, Calendar } from 'lucide-react';
+import { Play, Plus, Trash2, CheckCircle, TrendingUp, Settings, Calendar, Download } from 'lucide-react';
 import { generateSchedule } from '@/lib/schedule-algorithms';
+import * as XLSX from 'xlsx';
 import { defaultWorkingHours } from '@/lib/sample-data';
 import { Task, Resource, ScheduleResult, ResourceLevel } from '@/types/schedule';
 import GanttChart from '@/components/gantt-chart';
@@ -201,6 +202,78 @@ export default function BasicScenario() {
 
   const handleResourceChange = (resourceId: string, field: keyof Resource, value: any) => {
     setResources(resources.map(r => r.id === resourceId ? { ...r, [field]: value } : r));
+  };
+
+  // 手动调整任务负责人
+  const handleUpdateTaskResource = (taskId: string, newResourceId: string) => {
+    if (!scheduleResult) return;
+
+    const updatedTasks = scheduleResult.tasks.map(task => {
+      if (task.id === taskId) {
+        return {
+          ...task,
+          assignedResources: newResourceId ? [newResourceId] : []
+        };
+      }
+      return task;
+    });
+
+    setScheduleResult({
+      ...scheduleResult,
+      tasks: updatedTasks
+    });
+
+    // 同步更新原始任务列表
+    setTasks(tasks.map(t => t.id === taskId ? { ...t, assignedResources: newResourceId ? [newResourceId] : [] } : t));
+  };
+
+  // 导出Excel
+  const handleExportToExcel = () => {
+    if (!scheduleResult) return;
+
+    // 准备导出数据
+    const exportData = scheduleResult.tasks.map(task => {
+      const resource = resources.find(r => r.id === task.assignedResources[0]);
+      return {
+        '任务名称': task.name,
+        '任务类型': task.taskType || '未指定',
+        '负责人': resource ? resource.name : '未分配',
+        '负责人等级': resource ? (resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理') : '-',
+        '负责人类型': resource ? resource.workType || '-' : '-',
+        '预估工时(小时)': task.estimatedHours,
+        '优先级': task.priority,
+        '开始时间': task.startDate ? formatDateTime(task.startDate) : '-',
+        '结束时间': task.endDate ? formatDateTime(task.endDate) : '-',
+        '状态': task.isCritical ? '关键路径' : '普通',
+        '截止日期': task.deadline ? formatDateToInputValue(task.deadline) : '-'
+      };
+    });
+
+    // 创建工作簿
+    const ws = XLSX.utils.json_to_sheet(exportData);
+
+    // 设置列宽
+    const colWidths = [
+      { wch: 20 }, // 任务名称
+      { wch: 10 }, // 任务类型
+      { wch: 12 }, // 负责人
+      { wch: 10 }, // 负责人等级
+      { wch: 10 }, // 负责人类型
+      { wch: 12 }, // 预估工时
+      { wch: 8 },  // 优先级
+      { wch: 18 }, // 开始时间
+      { wch: 18 }, // 结束时间
+      { wch: 10 }, // 状态
+      { wch: 12 }  // 截止日期
+    ];
+    ws['!cols'] = colWidths;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '排期表');
+
+    // 下载文件
+    const fileName = `项目排期_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`;
+    XLSX.writeFile(wb, fileName);
   };
 
   const getLevelBadgeColor = (level: string) => {
@@ -568,18 +641,24 @@ export default function BasicScenario() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>排期结果</CardTitle>
-                <Tabs value={activeView} onValueChange={(v: any) => setActiveView(v)}>
-                  <TabsList>
-                    <TabsTrigger value="gantt">
-                      <TrendingUp className="h-4 w-4 mr-2" />
-                      甘特图
-                    </TabsTrigger>
-                    <TabsTrigger value="table">
-                      <Calendar className="h-4 w-4 mr-2" />
-                      列表视图
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
+                <div className="flex items-center gap-3">
+                  <Tabs value={activeView} onValueChange={(v: any) => setActiveView(v)}>
+                    <TabsList>
+                      <TabsTrigger value="gantt">
+                        <TrendingUp className="h-4 w-4 mr-2" />
+                        甘特图
+                      </TabsTrigger>
+                      <TabsTrigger value="table">
+                        <Calendar className="h-4 w-4 mr-2" />
+                        列表视图
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                  <Button onClick={handleExportToExcel} size="sm" variant="outline" className="gap-2">
+                    <Download className="h-4 w-4" />
+                    导出Excel
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -617,20 +696,48 @@ export default function BasicScenario() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              {resource ? (
-                                <div className="flex items-center gap-2">
-                                  <div
-                                    className="w-3 h-3 rounded-full"
-                                    style={{ backgroundColor: resource.color }}
-                                  />
-                                  <span className="text-sm">{resource.name}</span>
-                                  <Badge className={getLevelBadgeColor(resource.level || 'junior')} variant="secondary">
+                              <div className="flex items-center gap-2 min-w-[180px]">
+                                <Select
+                                  value={task.assignedResources[0] || 'none'}
+                                  onValueChange={(value) => handleUpdateTaskResource(task.id, value !== 'none' ? value : '')}
+                                >
+                                  <SelectTrigger className="h-8 w-full">
+                                    {resource ? (
+                                      <div className="flex items-center gap-2 flex-1">
+                                        <div
+                                          className="w-3 h-3 rounded-full flex-shrink-0"
+                                          style={{ backgroundColor: resource.color }}
+                                        />
+                                        <span className="text-sm truncate">{resource.name}</span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-slate-400 text-sm">未分配</span>
+                                    )}
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">未分配</SelectItem>
+                                    {resources.filter(r => r.type === 'human').map(r => (
+                                      <SelectItem key={r.id} value={r.id}>
+                                        <div className="flex items-center gap-2">
+                                          <div
+                                            className="w-3 h-3 rounded-full"
+                                            style={{ backgroundColor: r.color }}
+                                          />
+                                          <span>{r.name}</span>
+                                          <span className="text-xs text-slate-500">
+                                            ({r.level === 'senior' ? '高级' : r.level === 'junior' ? '初级' : '助理'})
+                                          </span>
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {resource && (
+                                  <Badge className={getLevelBadgeColor(resource.level || 'junior')} variant="secondary" style={{ fontSize: '10px', padding: '2px 6px' }}>
                                     {resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}
                                   </Badge>
-                                </div>
-                              ) : (
-                                <span className="text-slate-400">未分配</span>
-                              )}
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="text-sm">
                               {task.startDate && formatDateTime(task.startDate)}
