@@ -335,6 +335,36 @@ export default function BasicScenario() {
         </CardContent>
       </Card>
 
+      {/* 资源属性说明 */}
+      <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+        <CardContent className="pt-6">
+          <h4 className="font-semibold mb-3 text-blue-900 dark:text-blue-100">📖 资源属性说明</h4>
+          <div className="grid gap-3 md:grid-cols-3 text-sm">
+            <div>
+              <div className="font-medium text-blue-800 dark:text-blue-200 mb-1">效率系数</div>
+              <div className="text-blue-700 dark:text-blue-300">
+                表示员工的工作效率，用于资源分配评分。例如：效率1.5的员工完成任务速度是效率1.0员工的1.5倍。数值越高，效率越高。
+              </div>
+            </div>
+            <div>
+              <div className="font-medium text-blue-800 dark:text-blue-200 mb-1">可用性</div>
+              <div className="text-blue-700 dark:text-blue-300">
+                表示员工的工作时间占比。例如：可用性0.9表示员工每天有90%的时间可用于项目任务，其余10%可能用于其他事务。数值范围为0.1-1.0。
+              </div>
+            </div>
+            <div>
+              <div className="font-medium text-blue-800 dark:text-blue-200 mb-1">等级</div>
+              <div className="text-blue-700 dark:text-blue-300">
+                表示员工的专业水平和经验。分为：
+                <br />• <span className="text-purple-600 font-medium">高级</span>：经验丰富，效率1.5倍
+                <br />• <span className="text-blue-600 font-medium">初级</span>：基础水平，效率1.0倍
+                <br />• <span className="text-slate-600 font-medium">助理</span>：协助角色，效率0.7倍
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>任务管理</CardTitle>
@@ -468,6 +498,37 @@ export default function BasicScenario() {
                 ))}
               </TableBody>
             </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 任务优先级说明 */}
+      <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+        <CardContent className="pt-6">
+          <h4 className="font-semibold mb-3 text-green-900 dark:text-green-100">📖 任务优先级说明</h4>
+          <div className="text-sm text-green-700 dark:text-green-300">
+            <div className="font-medium mb-2">优先级用于资源分配时的任务排序和权重计算：</div>
+            <div className="grid gap-2 md:grid-cols-2">
+              <div className="flex items-start gap-2">
+                <span className="text-red-500 font-bold min-w-[60px]">紧急</span>
+                <span>权重3，最高优先级，优先分配资源，适用于关键路径上的任务</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-orange-500 font-bold min-w-[60px]">高</span>
+                <span>权重2，高优先级，适用于重要任务</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-blue-500 font-bold min-w-[60px]">普通</span>
+                <span>权重1，标准优先级，适用于常规任务</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-slate-500 font-bold min-w-[60px]">低</span>
+                <span>权重0.5，最低优先级，适用于次要任务</span>
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-800">
+              <strong>分配策略：</strong>系统会综合计算每个任务的"优先级权重 × 预估工时"，按得分高低自动分配资源。
+            </div>
           </div>
         </CardContent>
       </Card>
