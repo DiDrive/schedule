@@ -261,10 +261,19 @@ export function calculateEndDate(startDate: Date, workHours: number, config: Wor
     result.setTime(result.getTime() + hoursToUse * 60 * 60 * 1000);
     remainingHours -= hoursToUse;
 
-    // 如果还有剩余工作时间，移到下一天
+    // 如果还有剩余工作时间
     if (remainingHours > 0) {
-      result.setDate(result.getDate() + 1);
-      result.setHours(0, 0, 0, 0);
+      // 检查是否到达了午休开始，如果是，跳到午休结束继续当天工作
+      if (lunchBreak && lunchBreak.start < lunchBreak.end &&
+          result.getTime() === lunchBreak.start.getTime()) {
+        // 到达午休开始，跳到午休结束继续当天下午工作
+        result.setTime(lunchBreak.end.getTime());
+      } else if (result.getTime() >= endOfDay.getTime()) {
+        // 已经到下班时间，跳到下一天
+        result.setDate(result.getDate() + 1);
+        result.setHours(0, 0, 0, 0);
+      }
+      // 否则，继续在同一天工作（比如在午休后还有剩余时间，但已到下班）
     }
   }
 
