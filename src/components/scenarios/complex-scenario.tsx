@@ -195,13 +195,14 @@ export default function ComplexScenario() {
                       </TableCell>
                       <TableCell>
                         <Select
-                          value={task.projectId || ''}
-                          onValueChange={(value) => handleTaskChange(task.id, 'projectId', value)}
+                          value={task.projectId || 'none'}
+                          onValueChange={(value) => handleTaskChange(task.id, 'projectId', value !== 'none' ? value : '')}
                         >
                           <SelectTrigger className="h-8">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="none">未分配</SelectItem>
                             {projects.map(proj => (
                               <SelectItem key={proj.id} value={proj.id}>
                                 {proj.name}
@@ -220,13 +221,14 @@ export default function ComplexScenario() {
                       </TableCell>
                       <TableCell>
                         <Select
-                          value={task.assignedResources[0] || ''}
-                          onValueChange={(value) => handleTaskChange(task.id, 'assignedResources', [value])}
+                          value={task.assignedResources[0] || 'none'}
+                          onValueChange={(value) => handleTaskChange(task.id, 'assignedResources', value !== 'none' ? [value] : [])}
                         >
                           <SelectTrigger className="h-8">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="none">未分配</SelectItem>
                             {sharedResources.map(res => (
                               <SelectItem key={res.id} value={res.id}>
                                 {res.name}
@@ -253,14 +255,14 @@ export default function ComplexScenario() {
                       </TableCell>
                       <TableCell>
                         <Select
-                          value={task.dependencies && task.dependencies.length > 0 ? task.dependencies[0] : ''}
-                          onValueChange={(value) => handleTaskChange(task.id, 'dependencies', value ? [value] : [])}
+                          value={task.dependencies && task.dependencies.length > 0 ? task.dependencies[0] : 'none'}
+                          onValueChange={(value) => handleTaskChange(task.id, 'dependencies', value !== 'none' ? [value] : [])}
                         >
                           <SelectTrigger className="h-8">
                             <SelectValue placeholder="无依赖" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">无依赖</SelectItem>
+                            <SelectItem value="none">无依赖</SelectItem>
                             {tasks.filter(t => t.id !== task.id).map(depTask => (
                               <SelectItem key={depTask.id} value={depTask.id}>
                                 {depTask.name} ({getProjectById(depTask.projectId || '')?.name})

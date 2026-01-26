@@ -124,8 +124,8 @@ export default function BasicScenario() {
                     </TableCell>
                     <TableCell>
                       <Select
-                        value={task.assignedResources[0]}
-                        onValueChange={(value) => handleTaskChange(task.id, 'assignedResources', [value])}
+                        value={task.assignedResources[0] || 'none'}
+                        onValueChange={(value) => handleTaskChange(task.id, 'assignedResources', value !== 'none' ? [value] : [])}
                       >
                         <SelectTrigger className="h-8">
                           <SelectValue />
@@ -165,14 +165,14 @@ export default function BasicScenario() {
                     </TableCell>
                     <TableCell>
                       <Select
-                        value={task.dependencies && task.dependencies.length > 0 ? task.dependencies[0] : ''}
-                        onValueChange={(value) => handleTaskChange(task.id, 'dependencies', value ? [value] : [])}
+                        value={task.dependencies && task.dependencies.length > 0 ? task.dependencies[0] : 'none'}
+                        onValueChange={(value) => handleTaskChange(task.id, 'dependencies', value !== 'none' ? [value] : [])}
                       >
                         <SelectTrigger className="h-8">
                           <SelectValue placeholder="无依赖" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">无依赖</SelectItem>
+                          <SelectItem value="none">无依赖</SelectItem>
                           {tasks.filter(t => t.id !== task.id).map(dependencyTask => (
                             <SelectItem key={dependencyTask.id} value={dependencyTask.id}>
                               {dependencyTask.name}
