@@ -51,6 +51,11 @@ export default function GanttChart({
   const endDayTime = new Date(lastTaskEnd);
   endDayTime.setHours(0, 0, 0, 0);
 
+  // 确保至少有1个工作日
+  if (startDayTime.getTime() === endDayTime.getTime()) {
+    endDayTime.setDate(endDayTime.getDate() + 1);
+  }
+
   // 生成所有日期（包含非工作日），用于计算工作日
   const totalCalendarDays = Math.floor((endDayTime.getTime() - startDayTime.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
@@ -283,8 +288,8 @@ export default function GanttChart({
 
                     {/* 项目甘特图条 */}
                     <div className="flex flex-1 relative" style={{ minHeight: '48px' }}>
-                      {/* 网格线 */}
-                      {workDaysList.map((_, index) => (
+                      {/* 网格线 - 在每个工作日的结束处绘制 */}
+                      {workDaysList.slice(1).map((_, index) => (
                         <div
                           key={index}
                           className="absolute top-0 bottom-0 border-r border-slate-100 dark:border-slate-800"
@@ -358,8 +363,8 @@ export default function GanttChart({
 
                           {/* 任务甘特图条 */}
                           <div className="flex flex-1 relative" style={{ minHeight: '36px' }}>
-                            {/* 网格线 */}
-                            {workDaysList.map((_, index) => (
+                            {/* 网格线 - 在每个工作日的结束处绘制（跳过第一个，因为第一个的开始是整体起点） */}
+                            {workDaysList.slice(1).map((_, index) => (
                               <div
                                 key={index}
                                 className="absolute top-0 bottom-0 border-r border-slate-100 dark:border-slate-800"
