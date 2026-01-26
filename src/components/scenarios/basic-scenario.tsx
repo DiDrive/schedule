@@ -14,6 +14,7 @@ import { Play, Plus, Trash2, AlertCircle, CheckCircle, TrendingUp, GitBranch } f
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import { basicScenarioSample, defaultWorkingHours } from '@/lib/sample-data';
 import { Task, Resource, ScheduleResult } from '@/types/schedule';
+import GanttChart from '@/components/gantt-chart';
 
 export default function BasicScenario() {
   const [tasks, setTasks] = useState<Task[]>(basicScenarioSample.tasks);
@@ -243,64 +244,10 @@ export default function BasicScenario() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {scheduleResult.tasks.map(task => {
-                  const isCritical = scheduleResult.criticalPath.includes(task.id);
-                  const startDate = task.startDate || new Date();
-                  const endDate = task.endDate || new Date();
-                  const resource = resources.find(r => r.id === task.assignedResources[0]);
-                  const barColor = resource?.color || '#3b82f6';
-                  
-                  // 格式化时间显示精确到小时
-                  const formatDateTime = (date: Date) => {
-                    const hours = date.getHours();
-                    const minutes = date.getMinutes();
-                    const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-                    return `${date.toLocaleDateString()} ${timeStr}`;
-                  };
-                  
-                  return (
-                    <div key={task.id} className="space-y-2">
-                      <div className="flex items-center gap-4">
-                        <div className="w-48">
-                          <div className="text-sm font-medium">{task.name}</div>
-                          {resource && (
-                            <div className="text-xs text-slate-600 dark:text-slate-400">
-                              {resource.name}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 relative">
-                          <div className="absolute left-0 top-0 h-6 rounded bg-slate-100 dark:bg-slate-800">
-                            <div
-                              className="absolute top-0 h-6 rounded"
-                              style={{
-                                backgroundColor: isCritical ? '#ef4444' : barColor,
-                                left: `${((startDate.getTime() - scheduleResult.tasks[0].startDate!.getTime()) / (1000 * 60 * 60 * 24)) * 2}%`,
-                                width: `${Math.max(((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) * 2, 1)}%`
-                              }}
-                            />
-                          </div>
-                        </div>
-                        <div className="w-56 text-xs text-slate-600 dark:text-slate-400">
-                          {formatDateTime(startDate)} - {formatDateTime(endDate)}
-                        </div>
-                        {isCritical && (
-                          <Badge variant="destructive" className="text-xs">
-                            关键路径
-                          </Badge>
-                        )}
-                        {task.dependencies && task.dependencies.length > 0 && (
-                          <Badge variant="outline" className="text-xs gap-1">
-                            <GitBranch className="h-3 w-3" />
-                            {task.dependencies.length}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <GanttChart
+                scheduleResult={scheduleResult}
+                resources={resources}
+              />
             </CardContent>
           </Card>
 

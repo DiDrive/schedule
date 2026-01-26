@@ -4,25 +4,192 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings } from 'lucide-react';
 import { generateSchedule } from '@/lib/schedule-algorithms';
-import { complexScenarioSample, defaultWorkingHours } from '@/lib/sample-data';
+import { defaultWorkingHours } from '@/lib/sample-data';
 import { Task, ScheduleResult, Project, Resource } from '@/types/schedule';
+import GanttChart from '@/components/gantt-chart';
+
+// 默认项目数据
+const defaultProjects: Project[] = [
+  {
+    id: 'proj-1',
+    name: '电商平台升级',
+    description: '电商平台性能优化和功能升级',
+    priority: 9,
+    deadline: new Date('2024-04-30'),
+    resourcePool: ['res-1', 'res-2', 'res-3', 'res-4'],
+    color: '#3b82f6',
+    tasks: []
+  },
+  {
+    id: 'proj-2',
+    name: '移动APP开发',
+    description: 'iOS和Android客户端开发',
+    priority: 8,
+    deadline: new Date('2024-05-15'),
+    resourcePool: ['res-1', 'res-3'],
+    color: '#10b981',
+    tasks: []
+  },
+  {
+    id: 'proj-3',
+    name: '数据中台建设',
+    description: '数据仓库和BI系统建设',
+    priority: 7,
+    deadline: new Date('2024-06-01'),
+    resourcePool: ['res-2', 'res-5'],
+    color: '#f59e0b',
+    tasks: []
+  }
+];
+
+// 默认任务数据
+const defaultTasks: Task[] = [
+  {
+    id: 'task-p1-1',
+    name: '性能分析',
+    description: '分析当前系统性能瓶颈',
+    estimatedHours: 16,
+    assignedResources: ['res-2'],
+    projectId: 'proj-1',
+    priority: 'high',
+    status: 'pending',
+    dependencies: []
+  },
+  {
+    id: 'task-p1-2',
+    name: '缓存优化',
+    description: '实现Redis缓存策略',
+    estimatedHours: 40,
+    assignedResources: ['res-2'],
+    projectId: 'proj-1',
+    priority: 'high',
+    status: 'pending',
+    dependencies: ['task-p1-1']
+  },
+  {
+    id: 'task-p1-3',
+    name: 'UI重构',
+    description: '重构前端UI组件',
+    estimatedHours: 64,
+    assignedResources: ['res-1', 'res-3'],
+    projectId: 'proj-1',
+    priority: 'normal',
+    status: 'pending',
+    dependencies: ['task-p1-1']
+  },
+  {
+    id: 'task-p2-1',
+    name: '原型设计',
+    description: '完成APP交互原型',
+    estimatedHours: 24,
+    assignedResources: ['res-3'],
+    projectId: 'proj-2',
+    priority: 'urgent',
+    status: 'pending',
+    dependencies: []
+  },
+  {
+    id: 'task-p2-2',
+    name: 'iOS开发',
+    description: '完成iOS版本开发',
+    estimatedHours: 120,
+    assignedResources: ['res-1'],
+    projectId: 'proj-2',
+    priority: 'high',
+    status: 'pending',
+    dependencies: ['task-p2-1']
+  },
+  {
+    id: 'task-p3-1',
+    name: '需求调研',
+    description: '调研各业务线数据需求',
+    estimatedHours: 32,
+    assignedResources: ['res-2'],
+    projectId: 'proj-3',
+    priority: 'high',
+    status: 'pending',
+    dependencies: []
+  },
+  {
+    id: 'task-p3-2',
+    name: '数据建模',
+    description: '设计数据仓库模型',
+    estimatedHours: 48,
+    assignedResources: ['res-2'],
+    projectId: 'proj-3',
+    priority: 'high',
+    status: 'pending',
+    dependencies: ['task-p3-1']
+  },
+  {
+    id: 'task-p3-3',
+    name: 'ETL开发',
+    description: '开发数据抽取转换加载',
+    estimatedHours: 80,
+    assignedResources: ['res-2'],
+    projectId: 'proj-3',
+    priority: 'normal',
+    status: 'pending',
+    dependencies: ['task-p3-2']
+  }
+];
+
+// 默认共享资源
+const defaultResources: Resource[] = [
+  {
+    id: 'res-1',
+    name: '张三',
+    type: 'human',
+    skills: ['frontend', 'react', 'typescript'],
+    availability: 0.9,
+    color: '#3b82f6'
+  },
+  {
+    id: 'res-2',
+    name: '李四',
+    type: 'human',
+    skills: ['backend', 'java', 'spring'],
+    availability: 1.0,
+    color: '#10b981'
+  },
+  {
+    id: 'res-3',
+    name: '王五',
+    type: 'human',
+    skills: ['design', 'ui', 'ux'],
+    availability: 0.8,
+    color: '#f59e0b'
+  },
+  {
+    id: 'res-4',
+    name: '赵六',
+    type: 'human',
+    skills: ['testing', 'qa', 'automation'],
+    availability: 0.85,
+    color: '#8b5cf6'
+  },
+  {
+    id: 'res-5',
+    name: '测试服务器',
+    type: 'equipment',
+    availability: 1.0,
+    color: '#ef4444'
+  }
+];
 
 export default function ComplexScenario() {
-  const [projects, setProjects] = useState<Project[]>(complexScenarioSample.projects as Project[]);
-  const [tasks, setTasks] = useState<Task[]>(complexScenarioSample.tasks);
-  const [sharedResources, setSharedResources] = useState<Resource[]>(complexScenarioSample.sharedResourcePool);
+  const [projects, setProjects] = useState<Project[]>(defaultProjects);
+  const [tasks, setTasks] = useState<Task[]>(defaultTasks);
+  const [sharedResources, setSharedResources] = useState<Resource[]>(defaultResources);
   const [scheduleResult, setScheduleResult] = useState<ScheduleResult | null>(null);
   const [isComputing, setIsComputing] = useState(false);
   const [activeProject, setActiveProject] = useState<string>('all');
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   const handleGenerateSchedule = () => {
     setIsComputing(true);
@@ -61,11 +228,27 @@ export default function ComplexScenario() {
     setTasks([...tasks, newTask]);
   };
 
-  const getPriorityColor = (priority: number) => {
-    if (priority >= 9) return 'bg-red-500 text-white';
-    if (priority >= 7) return 'bg-orange-500 text-white';
-    if (priority >= 5) return 'bg-yellow-500 text-white';
-    return 'bg-slate-500 text-white';
+  const handleAddProject = () => {
+    const newProject: Project = {
+      id: `proj-${Date.now()}`,
+      name: `新项目 ${projects.length + 1}`,
+      description: '',
+      priority: 5,
+      resourcePool: [],
+      color: '#64748b',
+      tasks: []
+    };
+    setProjects([...projects, newProject]);
+  };
+
+  const handleDeleteProject = (projectId: string) => {
+    setProjects(projects.filter(p => p.id !== projectId));
+    // 同时删除该项目的所有任务
+    setTasks(tasks.filter(t => t.projectId !== projectId));
+  };
+
+  const handleProjectChange = (projectId: string, field: keyof Project, value: any) => {
+    setProjects(projects.map(p => p.id === projectId ? { ...p, [field]: value } : p));
   };
 
   const filteredTasks = activeProject === 'all' 
@@ -81,44 +264,106 @@ export default function ComplexScenario() {
       {/* Projects Overview */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Network className="h-5 w-5 text-purple-500" />
-            多项目概览
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Network className="h-5 w-5 text-purple-500" />
+              项目管理
+            </div>
+            <Button 
+              onClick={handleAddProject} 
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              添加项目
+            </Button>
           </CardTitle>
           <CardDescription>
             当前管理 {projects.length} 个并行项目，共享资源池
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            {projects.map(project => (
-              <div key={project.id} className="rounded-lg border p-4 hover:border-purple-300 dark:hover:border-purple-700">
-                <div className="mb-3 flex items-start justify-between">
-                  <h4 className="font-semibold">{project.name}</h4>
-                  <Badge className={getPriorityColor(project.priority)}>
-                    优先级 {project.priority}
-                  </Badge>
-                </div>
-                <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">
-                  {project.description}
-                </p>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                    <GitBranch className="h-4 w-4" />
-                    <span>{tasks.filter(t => t.projectId === project.id).length} 个任务</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                    <Users className="h-4 w-4" />
-                    <span>{project.resourcePool.length} 个资源</span>
-                  </div>
-                  {project.deadline && (
-                    <div className="text-slate-600 dark:text-slate-400">
-                      截止: {project.deadline.toLocaleDateString()}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>项目名称</TableHead>
+                  <TableHead>描述</TableHead>
+                  <TableHead>优先级</TableHead>
+                  <TableHead>截止日期</TableHead>
+                  <TableHead>颜色</TableHead>
+                  <TableHead>任务数</TableHead>
+                  <TableHead>资源数</TableHead>
+                  <TableHead className="w-[100px]">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {projects.map(project => (
+                  <TableRow key={project.id}>
+                    <TableCell>
+                      <Input
+                        value={project.name}
+                        onChange={(e) => handleProjectChange(project.id, 'name', e.target.value)}
+                        className="h-8"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        value={project.description || ''}
+                        onChange={(e) => handleProjectChange(project.id, 'description', e.target.value)}
+                        className="h-8"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={project.priority}
+                        onChange={(e) => handleProjectChange(project.id, 'priority', parseInt(e.target.value))}
+                        className="w-20 h-8"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="date"
+                        value={project.deadline ? project.deadline.toISOString().split('T')[0] : ''}
+                        onChange={(e) => handleProjectChange(project.id, 'deadline', new Date(e.target.value))}
+                        className="w-36 h-8"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="color"
+                        value={project.color || '#3b82f6'}
+                        onChange={(e) => handleProjectChange(project.id, 'color', e.target.value)}
+                        className="w-20 h-8"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {tasks.filter(t => t.projectId === project.id).length}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {project.resourcePool.length}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteProject(project.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
@@ -341,66 +586,16 @@ export default function ComplexScenario() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {filteredTasks.map(task => {
-                    const isCritical = scheduleResult.criticalChain.includes(task.id);
-                    const project = getProjectById(task.projectId || '');
-                    const startDate = task.startDate || new Date();
-                    const endDate = task.endDate || new Date();
-                    
-                    // Color by project
-                    const barColor = project?.color || '#3b82f6';
-                    
-                    // 格式化时间显示精确到小时
-                    const formatDateTime = (date: Date) => {
-                      const hours = date.getHours();
-                      const minutes = date.getMinutes();
-                      const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-                      return `${date.toLocaleDateString()} ${timeStr}`;
-                    };
-                    
-                    return (
-                      <div key={task.id} className="space-y-2">
-                        <div className="flex items-center gap-4">
-                          <div className="w-56">
-                            <div className="text-sm font-medium">{task.name}</div>
-                            {project && (
-                              <div className="text-xs text-slate-600 dark:text-slate-400">
-                                {project.name}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex-1 relative">
-                            <div className="absolute left-0 top-0 h-6 rounded bg-slate-100 dark:bg-slate-800">
-                              <div
-                                className="absolute top-0 h-6 rounded"
-                                style={{
-                                  backgroundColor: isCritical ? '#ef4444' : barColor,
-                                  left: `${((startDate.getTime() - scheduleResult.tasks[0].startDate!.getTime()) / (1000 * 60 * 60 * 24)) * 1.5}%`,
-                                  width: `${Math.max(((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) * 1.5, 1)}%`
-                                }}
-                              />
-                            </div>
-                          </div>
-                          <div className="w-56 text-xs text-slate-600 dark:text-slate-400">
-                            {formatDateTime(startDate)} - {formatDateTime(endDate)}
-                          </div>
-                          {task.dependencies && task.dependencies.length > 0 && (
-                            <Badge variant="outline" className="text-xs gap-1">
-                              <GitBranch className="h-3 w-3" />
-                              依赖: {task.dependencies.length}
-                            </Badge>
-                          )}
-                          {isCritical && (
-                            <Badge variant="destructive" className="text-xs">
-                              关键链
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <GanttChart
+                  scheduleResult={{
+                    ...scheduleResult,
+                    tasks: filteredTasks
+                  }}
+                  projects={projects.map(p => ({
+                    id: p.id,
+                    color: p.color || '#3b82f6'
+                  }))}
+                />
               </CardContent>
             </Card>
 

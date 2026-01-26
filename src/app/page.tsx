@@ -5,13 +5,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, GitBranch, Zap, BarChart3, Clock, Users, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Calendar, GitBranch, BarChart3, Clock, Users, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import BasicScenario from '@/components/scenarios/basic-scenario';
 import ComplexScenario from '@/components/scenarios/complex-scenario';
-import CompositeScenario from '@/components/scenarios/composite-scenario';
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import { generateIntelligentAnalysis } from '@/lib/intelligent-analysis';
-import { basicScenarioSample, complexScenarioSample, compositeScenarioSample } from '@/lib/sample-data';
+import { basicScenarioSample, complexScenarioSample } from '@/lib/sample-data';
 import { Task, Resource, ScheduleResult } from '@/types/schedule';
 
 export default function ProjectScheduleSystem() {
@@ -36,10 +35,6 @@ export default function ProjectScheduleSystem() {
                 </p>
               </div>
             </div>
-            <Badge variant="outline" className="gap-1">
-              <Zap className="h-3 w-3 text-yellow-500" />
-              AI 增强
-            </Badge>
           </div>
         </div>
       </header>
@@ -47,7 +42,7 @@ export default function ProjectScheduleSystem() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto">
+          <TabsList className="grid w-full grid-cols-3 lg:w-auto">
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" />
               概览
@@ -59,10 +54,6 @@ export default function ProjectScheduleSystem() {
             <TabsTrigger value="complex" className="gap-2">
               <GitBranch className="h-4 w-4" />
               复杂场景
-            </TabsTrigger>
-            <TabsTrigger value="composite" className="gap-2">
-              <Zap className="h-4 w-4" />
-              复合场景
             </TabsTrigger>
           </TabsList>
 
@@ -124,34 +115,6 @@ export default function ProjectScheduleSystem() {
                   </ul>
                 </CardContent>
               </Card>
-
-              <Card className="border-l-4 border-l-orange-500">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Zap className="h-5 w-5 text-orange-500" />
-                    复合场景
-                  </CardTitle>
-                  <CardDescription>
-                    多维度约束、风险评估、智能优化
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      AI 智能排期建议
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      资源最优分配方案
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      风险缓解策略分析
-                    </li>
-                  </ul>
-                </CardContent>
-              </Card>
             </div>
 
             {/* System Features */}
@@ -197,18 +160,6 @@ export default function ProjectScheduleSystem() {
                       </p>
                     </div>
                   </div>
-                  
-                  <div className="flex gap-3 rounded-lg border p-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
-                      <Zap className="h-5 w-5 text-green-600 dark:text-green-400" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">智能优化建议</h4>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">
-                        AI 驱动的排期优化，提供速度/成本/质量权衡分析
-                      </p>
-                    </div>
-                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -222,11 +173,6 @@ export default function ProjectScheduleSystem() {
           {/* Complex Scenario Tab */}
           <TabsContent value="complex">
             <ComplexScenario />
-          </TabsContent>
-
-          {/* Composite Scenario Tab */}
-          <TabsContent value="composite">
-            <CompositeScenario />
           </TabsContent>
         </Tabs>
       </main>
