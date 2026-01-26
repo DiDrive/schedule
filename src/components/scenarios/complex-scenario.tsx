@@ -961,104 +961,106 @@ export default function ComplexScenario() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>任务名称</TableHead>
-                        <TableHead>所属项目</TableHead>
-                        <TableHead>任务类型</TableHead>
-                        <TableHead>负责人</TableHead>
-                        <TableHead>开始时间</TableHead>
-                        <TableHead>结束时间</TableHead>
-                        <TableHead>工时</TableHead>
-                        <TableHead>状态</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {scheduleResult.tasks
-                        .filter(task => activeProject === 'all' || task.projectId === activeProject)
-                        .map(task => {
-                        const project = getProjectById(task.projectId || '');
-                        const resource = sharedResources.find(r => r.id === task.assignedResources[0]);
-                        const isCritical = scheduleResult.criticalPath.includes(task.id);
+                <div className="rounded-md border">
+                  <div className="overflow-x-auto">
+                    <table className="w-full caption-bottom text-sm">
+                      <thead className="[&_tr]:border-b">
+                        <tr>
+                          <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">任务名称</th>
+                          <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">所属项目</th>
+                          <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">任务类型</th>
+                          <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">负责人</th>
+                          <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">开始时间</th>
+                          <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">结束时间</th>
+                          <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">工时</th>
+                          <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">状态</th>
+                        </tr>
+                      </thead>
+                      <tbody className="[&_tr:last-child]:border-0">
+                        {scheduleResult.tasks
+                          .filter(task => activeProject === 'all' || task.projectId === activeProject)
+                          .map(task => {
+                          const project = getProjectById(task.projectId || '');
+                          const resource = sharedResources.find(r => r.id === task.assignedResources[0]);
+                          const isCritical = scheduleResult.criticalPath.includes(task.id);
 
-                        return (
-                          <TableRow key={task.id}>
-                            <TableCell className="font-medium">
-                              {task.name}
-                              {isCritical && (
-                                <Badge variant="destructive" className="ml-2 text-xs">关键</Badge>
-                              )}
-                            </TableCell>
-                            <TableCell>{project?.name || '-'}</TableCell>
-                            <TableCell>
-                              <Badge variant={task.taskType === '平面' ? 'default' : 'secondary'}>
-                                {task.taskType || '-'}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2 min-w-[200px]">
-                                <Select
-                                  key={`select-${task.id}-${task.assignedResources[0] || 'none'}`}
-                                  value={task.assignedResources[0] || 'none'}
-                                  onValueChange={(value) => handleUpdateTaskResource(task.id, value !== 'none' ? value : '')}
-                                >
-                                  <SelectTrigger className="h-8 w-full [&>span]:truncate">
-                                    {resource ? (
-                                      <div className="flex items-center gap-2 flex-1 overflow-hidden">
-                                        <div
-                                          className="w-3 h-3 rounded-full flex-shrink-0"
-                                          style={{ backgroundColor: resource.color }}
-                                        />
-                                        <span className="text-sm truncate">{resource.name}</span>
-                                      </div>
-                                    ) : (
-                                      <span className="text-slate-400 text-sm">未分配</span>
-                                    )}
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="none">未分配</SelectItem>
-                                    {sharedResources.filter(r => r.type === 'human').map(r => (
-                                      <SelectItem key={r.id} value={r.id}>
-                                        <div className="flex items-center gap-2">
-                                          <div
-                                            className="w-3 h-3 rounded-full"
-                                            style={{ backgroundColor: r.color }}
-                                          />
-                                          <span>{r.name}</span>
-                                          <span className="text-xs text-slate-500">
-                                            ({r.level === 'senior' ? '高级' : r.level === 'junior' ? '初级' : '助理'})
-                                          </span>
-                                        </div>
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                {resource && (
-                                  <Badge className={getLevelBadgeColor(resource.level || 'junior')} variant="secondary" style={{ fontSize: '10px', padding: '2px 6px' }} title={resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}>
-                                    {resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}
-                                  </Badge>
+                          return (
+                            <tr key={task.id} className="hover:bg-muted/50 border-b transition-colors">
+                              <td className="p-2 align-middle whitespace-nowrap font-medium">
+                                {task.name}
+                                {isCritical && (
+                                  <Badge variant="destructive" className="ml-2 text-xs">关键</Badge>
                                 )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              {task.startDate ? formatDateTime(task.startDate) : '-'}
-                            </TableCell>
-                            <TableCell>
-                              {task.endDate ? formatDateTime(task.endDate) : '-'}
-                            </TableCell>
-                            <TableCell>{task.estimatedHours}h</TableCell>
-                            <TableCell>
-                              <Badge variant={task.status === 'completed' ? 'default' : 'outline'}>
-                                {task.status}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
+                              </td>
+                              <td className="p-2 align-middle whitespace-nowrap">{project?.name || '-'}</td>
+                              <td className="p-2 align-middle whitespace-nowrap">
+                                <Badge variant={task.taskType === '平面' ? 'default' : 'secondary'}>
+                                  {task.taskType || '-'}
+                                </Badge>
+                              </td>
+                              <td className="p-2 align-middle whitespace-nowrap">
+                                <div className="flex items-center gap-2 min-w-[220px]" onClick={(e) => e.stopPropagation()}>
+                                  <Select
+                                    key={`select-${task.id}-${task.assignedResources[0] || 'none'}`}
+                                    value={task.assignedResources[0] || 'none'}
+                                    onValueChange={(value) => handleUpdateTaskResource(task.id, value !== 'none' ? value : '')}
+                                  >
+                                    <SelectTrigger className="h-8 w-full">
+                                      {resource ? (
+                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                          <div
+                                            className="w-3 h-3 rounded-full flex-shrink-0"
+                                            style={{ backgroundColor: resource.color }}
+                                          />
+                                          <span className="text-sm truncate">{resource.name}</span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-slate-400 text-sm">未分配</span>
+                                      )}
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="none">未分配</SelectItem>
+                                      {sharedResources.filter(r => r.type === 'human').map(r => (
+                                        <SelectItem key={r.id} value={r.id}>
+                                          <div className="flex items-center gap-2">
+                                            <div
+                                              className="w-3 h-3 rounded-full"
+                                              style={{ backgroundColor: r.color }}
+                                            />
+                                            <span>{r.name}</span>
+                                            <span className="text-xs text-slate-500">
+                                              ({r.level === 'senior' ? '高级' : r.level === 'junior' ? '初级' : '助理'})
+                                            </span>
+                                          </div>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  {resource && (
+                                    <Badge className={getLevelBadgeColor(resource.level || 'junior')} variant="secondary" style={{ fontSize: '10px', padding: '2px 6px' }} title={resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}>
+                                      {resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-2 align-middle whitespace-nowrap">
+                                {task.startDate ? formatDateTime(task.startDate) : '-'}
+                              </td>
+                              <td className="p-2 align-middle whitespace-nowrap">
+                                {task.endDate ? formatDateTime(task.endDate) : '-'}
+                              </td>
+                              <td className="p-2 align-middle whitespace-nowrap">{task.estimatedHours}h</td>
+                              <td className="p-2 align-middle whitespace-nowrap">
+                                <Badge variant={task.status === 'completed' ? 'default' : 'outline'}>
+                                  {task.status}
+                                </Badge>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </CardContent>
             </Card>
