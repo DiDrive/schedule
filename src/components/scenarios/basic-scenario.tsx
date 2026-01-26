@@ -4,23 +4,98 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, Plus, Trash2, AlertCircle, CheckCircle, TrendingUp, GitBranch } from 'lucide-react';
+import { Play, Plus, Trash2, CheckCircle, TrendingUp, Settings, Calendar } from 'lucide-react';
 import { generateSchedule } from '@/lib/schedule-algorithms';
-import { basicScenarioSample, defaultWorkingHours } from '@/lib/sample-data';
-import { Task, Resource, ScheduleResult } from '@/types/schedule';
+import { defaultWorkingHours } from '@/lib/sample-data';
+import { Task, Resource, ScheduleResult, ResourceLevel } from '@/types/schedule';
 import GanttChart from '@/components/gantt-chart';
 
+const defaultResources: Resource[] = [
+  {
+    id: 'res-1',
+    name: '张三',
+    type: 'human',
+    level: 'senior',
+    efficiency: 1.5,
+    skills: ['frontend', 'react', 'typescript'],
+    availability: 0.9,
+    color: '#3b82f6'
+  },
+  {
+    id: 'res-2',
+    name: '李四',
+    type: 'human',
+    level: 'senior',
+    efficiency: 1.5,
+    skills: ['backend', 'java', 'spring'],
+    availability: 1.0,
+    color: '#10b981'
+  },
+  {
+    id: 'res-3',
+    name: '王五',
+    type: 'human',
+    level: 'junior',
+    efficiency: 1.0,
+    skills: ['design', 'ui', 'ux'],
+    availability: 0.8,
+    color: '#f59e0b'
+  },
+  {
+    id: 'res-4',
+    name: '赵六',
+    type: 'human',
+    level: 'junior',
+    efficiency: 1.0,
+    skills: ['testing', 'qa', 'automation'],
+    availability: 0.85,
+    color: '#8b5cf6'
+  },
+  {
+    id: 'res-5',
+    name: '小七',
+    type: 'human',
+    level: 'assistant',
+    efficiency: 0.7,
+    skills: ['documentation', 'support'],
+    availability: 0.9,
+    color: '#ec4899'
+  }
+];
+
 export default function BasicScenario() {
-  const [tasks, setTasks] = useState<Task[]>(basicScenarioSample.tasks);
-  const [resources] = useState<Resource[]>(basicScenarioSample.resources);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [resources, setResources] = useState<Resource[]>([]);
   const [scheduleResult, setScheduleResult] = useState<ScheduleResult | null>(null);
   const [isComputing, setIsComputing] = useState(false);
+  const [activeView, setActiveView] = useState<'gantt' | 'table'>('gantt');
+
+  useEffect(() => {
+    const savedTasks = localStorage.getItem('basic-scenario-tasks');
+    const savedResources = localStorage.getItem('basic-scenario-resources');
+
+    if (savedTasks) {
+      setTasks(JSON.parse(savedTasks));
+    }
+    if (savedResources) {
+      setResources(JSON.parse(savedResources));
+    } else {
+      setResources(defaultResources);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tasks.length > 0) {
+      localStorage.setItem('basic-scenario-tasks', JSON.stringify(tasks));
+    }
+    if (resources.length > 0) {
+      localStorage.setItem('basic-scenario-resources', JSON.stringify(resources));
+    }
+  }, [tasks, resources]);
 
   const handleGenerateSchedule = () => {
     setIsComputing(true);
@@ -37,7 +112,7 @@ export default function BasicScenario() {
       name: `新任务 ${tasks.length + 1}`,
       description: '',
       estimatedHours: 8,
-      assignedResources: [], // 自动分配
+      assignedResources: [],
       priority: 'normal',
       status: 'pending'
     };
@@ -52,18 +127,25 @@ export default function BasicScenario() {
     setTasks(tasks.map(t => t.id === taskId ? { ...t, [field]: value } : t));
   };
 
-  const getResourceName = (resourceId: string) => {
-    return resources.find(r => r.id === resourceId)?.name || resourceId;
+  const handleAddResource = () => {
+    const newResource: Resource = {
+      id: `res-${Date.now()}`,
+      name: '新成员',
+      type: 'human',
+      level: 'junior',
+      efficiency: 1.0,
+      availability: 1.0,
+      color: `#${Math.floor(Math.random()*16777215).toString(16)}`
+    };
+    setResources([...resources, newResource]);
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return 'bg-red-500 text-white';
-      case 'high': return 'bg-orange-500 text-white';
-      case 'normal': return 'bg-blue-500 text-white';
-      case 'low': return 'bg-slate-500 text-white';
-      default: return 'bg-slate-500 text-white';
-    }
+  const handleDeleteResource = (resourceId: string) => {
+    setResources(resources.filter(r => r.id !== resourceId));
+  };
+
+  const handleResourceChange = (resourceId: string, field: keyof Resource, value: any) => {
+    setResources(resources.map(r => r.id === resourceId ? { ...r, [field]: value } : r));
   };
 
   const getLevelBadgeColor = (level: string) => {
@@ -75,15 +157,32 @@ export default function BasicScenario() {
     }
   };
 
+  const formatDateTime = (date: Date) => {
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    return `${date.getMonth() + 1}/${date.getDate()} ${timeStr}`;
+  };
+
   return (
     <div className="space-y-6">
-      {/* Resource Pool */}
       <Card>
         <CardHeader>
-          <CardTitle>可用资源池</CardTitle>
-          <CardDescription>
-            系统会根据预估工时、优先级和资源效率自动分配任务负责人
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5 text-blue-500" />
+                可用资源池
+              </CardTitle>
+              <CardDescription>
+                管理团队成员，设置等级和效率，系统会自动分配任务
+              </CardDescription>
+            </div>
+            <Button onClick={handleAddResource} size="sm" variant="outline" className="gap-2">
+              <Plus className="h-4 w-4" />
+              添加成员
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
@@ -91,26 +190,72 @@ export default function BasicScenario() {
               const efficiency = resource.efficiency || 1.0;
               return (
                 <div key={resource.id} className="rounded-lg border p-4 bg-slate-50 dark:bg-slate-900">
-                  <div className="mb-2 flex items-center gap-2">
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: resource.color }}
-                    />
-                    <div className="font-semibold text-sm">{resource.name}</div>
-                  </div>
-                  <div className="mb-2">
-                    <Badge className={getLevelBadgeColor(resource.level || 'junior')}>
-                      {resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}
-                    </Badge>
-                  </div>
-                  <div className="text-xs text-slate-500 space-y-1">
-                    <div className="flex justify-between">
-                      <span>效率:</span>
-                      <span className="font-medium">{efficiency.toFixed(1)}x</span>
+                  <div className="mb-3 flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: resource.color }}
+                      />
+                      <Input
+                        value={resource.name}
+                        onChange={(e) => handleResourceChange(resource.id, 'name', e.target.value)}
+                        className="h-6 w-20 text-sm border-0 bg-transparent px-0 focus:ring-0"
+                      />
                     </div>
-                    <div className="flex justify-between">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteResource(resource.id)}
+                      className="h-6 w-6 p-0"
+                    >
+                      <Trash2 className="h-3 w-3 text-red-500" />
+                    </Button>
+                  </div>
+                  <div className="mb-3">
+                    <Select
+                      value={resource.level || 'junior'}
+                      onValueChange={(value: ResourceLevel) => handleResourceChange(resource.id, 'level', value)}
+                    >
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="assistant">助理</SelectItem>
+                        <SelectItem value="junior">初级</SelectItem>
+                        <SelectItem value="senior">高级</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2 text-xs text-slate-500">
+                    <div className="flex items-center justify-between">
+                      <span>效率:</span>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min="0.5"
+                          max="3.0"
+                          value={efficiency}
+                          onChange={(e) => handleResourceChange(resource.id, 'efficiency', parseFloat(e.target.value))}
+                          className="h-6 w-14 text-right text-xs"
+                        />
+                        <span>x</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
                       <span>可用性:</span>
-                      <span className="font-medium">{Math.round(resource.availability * 100)}%</span>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min="0.1"
+                          max="1.0"
+                          value={resource.availability}
+                          onChange={(e) => handleResourceChange(resource.id, 'availability', parseFloat(e.target.value))}
+                          className="h-6 w-14 text-right text-xs"
+                        />
+                        <span>%</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -120,7 +265,6 @@ export default function BasicScenario() {
         </CardContent>
       </Card>
 
-      {/* Control Panel */}
       <Card>
         <CardHeader>
           <CardTitle>任务管理</CardTitle>
@@ -134,8 +278,8 @@ export default function BasicScenario() {
               <Plus className="h-4 w-4" />
               添加任务
             </Button>
-            <Button 
-              onClick={handleGenerateSchedule} 
+            <Button
+              onClick={handleGenerateSchedule}
               disabled={isComputing || tasks.length === 0}
               className="gap-2"
             >
@@ -187,7 +331,7 @@ export default function BasicScenario() {
                           <SelectItem value="high">高</SelectItem>
                           <SelectItem value="normal">普通</SelectItem>
                           <SelectItem value="low">低</SelectItem>
-                        </SelectContent>
+                          </SelectContent>
                       </Select>
                     </TableCell>
                     <TableCell>
@@ -233,10 +377,8 @@ export default function BasicScenario() {
         </CardContent>
       </Card>
 
-      {/* Schedule Result */}
       {scheduleResult && (
         <>
-          {/* Summary Cards */}
           <div className="grid gap-4 md:grid-cols-4">
             <Card>
               <CardHeader className="pb-3">
@@ -266,101 +408,113 @@ export default function BasicScenario() {
             </Card>
           </div>
 
-          {/* Gantt Chart */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-blue-500" />
-                甘特图排期
-              </CardTitle>
-              <CardDescription>
-                任务时间线可视化（工作时间：9:30 - 19:00）
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <GanttChart
-                scheduleResult={scheduleResult}
-                resources={resources}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Critical Path */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-green-500" />
-                关键路径分析
-              </CardTitle>
-              <CardDescription>
-                影响项目总工期的关键任务链路，任何延迟都会影响项目交付
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {scheduleResult.criticalPath.map((taskId, index) => {
-                  const task = scheduleResult.tasks.find(t => t.id === taskId);
-                  if (!task) return null;
-                  
-                  return (
-                    <div key={taskId} className="flex items-center">
-                      <Badge variant="outline" className="border-red-500 text-red-600">
-                        {task.name}
-                      </Badge>
-                      {index < scheduleResult.criticalPath.length - 1 && (
-                        <div className="mx-2 text-red-500">→</div>
-                      )}
-                    </div>
-                  );
-                })}
+              <div className="flex items-center justify-between">
+                <CardTitle>排期结果</CardTitle>
+                <Tabs value={activeView} onValueChange={(v: any) => setActiveView(v)}>
+                  <TabsList>
+                    <TabsTrigger value="gantt">
+                      <TrendingUp className="h-4 w-4 mr-2" />
+                      甘特图
+                    </TabsTrigger>
+                    <TabsTrigger value="table">
+                      <Calendar className="h-4 w-4 mr-2" />
+                      列表视图
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </div>
+            </CardHeader>
+            <CardContent>
+              {activeView === 'gantt' && (
+                <GanttChart
+                  scheduleResult={scheduleResult}
+                  resources={resources}
+                />
+              )}
+
+              {activeView === 'table' && (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>任务名称</TableHead>
+                        <TableHead>负责人</TableHead>
+                        <TableHead>开始时间</TableHead>
+                        <TableHead>结束时间</TableHead>
+                        <TableHead>工时</TableHead>
+                        <TableHead>状态</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {scheduleResult.tasks.map(task => {
+                        const resource = resources.find(r => r.id === task.assignedResources[0]);
+                        return (
+                          <TableRow key={task.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                {task.isCritical && (
+                                  <div className="w-2 h-2 rounded-full bg-red-500" />
+                                )}
+                                <span className="font-medium">{task.name}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {resource ? (
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className="w-3 h-3 rounded-full"
+                                    style={{ backgroundColor: resource.color }}
+                                  />
+                                  <span className="text-sm">{resource.name}</span>
+                                  <Badge className={getLevelBadgeColor(resource.level || 'junior')} variant="secondary">
+                                    {resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}
+                                  </Badge>
+                                </div>
+                              ) : (
+                                <span className="text-slate-400">未分配</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {task.startDate && formatDateTime(task.startDate)}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {task.endDate && formatDateTime(task.endDate)}
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm font-medium">{task.estimatedHours}h</span>
+                            </TableCell>
+                            <TableCell>
+                              {task.isCritical ? (
+                                <Badge variant="destructive">关键路径</Badge>
+                              ) : (
+                                <Badge variant="outline">普通</Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Resource Conflicts */}
-          {scheduleResult.resourceConflicts.length > 0 && (
-            <Card className="border-red-200 dark:border-red-900">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-red-600">
-                  <AlertCircle className="h-5 w-5" />
-                  资源冲突警告
-                </CardTitle>
-                <CardDescription>
-                  检测到以下资源分配冲突，建议优先解决
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {scheduleResult.resourceConflicts.map((conflict, index) => (
-                    <div key={index} className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950">
-                      <div className="mb-2 flex items-center gap-2">
-                        <Badge variant={conflict.severity === 'high' ? 'destructive' : 'secondary'}>
-                          {conflict.severity === 'high' ? '高优先级' : conflict.severity === 'medium' ? '中优先级' : '低优先级'}
-                        </Badge>
-                        <span className="font-medium">{conflict.resourceName}</span>
-                      </div>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">
-                        {conflict.suggestedResolution}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Recommendations */}
           {scheduleResult.recommendations.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>优化建议</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  优化建议
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {scheduleResult.recommendations.map((rec, index) => (
-                    <div key={index} className="flex items-start gap-2 text-sm">
-                      <CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0" />
-                      <span className="text-slate-700 dark:text-slate-300">{rec}</span>
+                    <div key={index} className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950">
+                      <p className="text-sm text-slate-700 dark:text-slate-300">{rec}</p>
                     </div>
                   ))}
                 </div>

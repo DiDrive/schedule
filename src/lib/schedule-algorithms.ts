@@ -439,7 +439,7 @@ export function calculateResourceUtilization(
 }
 
 /**
- * 资源负载平衡建议
+ * 资源负载平衡建议（具体化）
  */
 export function getResourceBalancingRecommendations(
   tasks: Task[],
@@ -451,15 +451,78 @@ export function getResourceBalancingRecommendations(
   // 检查过度负载
   const overloaded = resources.filter(r => (utilization[r.id] || 0) > 0.9);
   if (overloaded.length > 0) {
-    const names = overloaded.map(r => r.name).join('、');
-    recommendations.push(`${names} 的利用率超过90%，建议：\n  - 考虑增加额外资源\n  - 将部分任务重新分配\n  - 优化任务优先级`);
+    overloaded.forEach(resource => {
+      const utilRate = (utilization[resource.id] || 0) * 100;
+      const assignedTasks = tasks.filter(t => t.assignedResources.includes(resource.id));
+
+      // 找到可以转移的任务
+      const transferableTasks = assignedTasks.filter(task => {
+        // 优先级不高的任务
+        if (task.priority === 'normal' || task.priority === 'low') {
+          return true;
+        }
+        // 工时较小的任务
+        if (task.estimatedHours < 8) {
+          return true;
+        }
+        return false;
+      });
+
+      if (transferableTasks.length > 0) {
+        const taskNames = transferableTasks.slice(0, 3).map(t => t.name).join('、');
+        recommendations.push(
+          `${resource.name} 的利用率已达到 ${utilRate.toFixed(0)}%，负载过高。建议将任务「${taskNames}」${transferableTasks.length > 3 ? '等' : ''}转移到其他资源。`
+        );
+      } else {
+        recommendations.push(
+          `${resource.name} 的利用率已达到 ${utilRate.toFixed(0)}%，建议：\n  • 增加一名新成员分担任务\n  • 调整任务优先级，优先处理关键路径任务\n  • 考虑提高该资源的可用性系数`
+        );
+      }
+    });
   }
 
   // 检查低利用率
-  const underutilized = resources.filter(r => (utilization[r.id] || 0) < 0.5);
+  const underutilized = resources.filter(r => (utilization[r.id] || 0) < 0.5 && (utilization[r.id] || 0) > 0);
   if (underutilized.length > 0) {
-    const names = underutilized.map(r => r.name).join('、');
-    recommendations.push(`${names} 的利用率低于50%，建议将部分任务重新分配以提高资源效率`);
+    underutilized.forEach(resource => {
+      const utilRate = (utilization[resource.id] || 0) * 100;
+      const assignedTasks = tasks.filter(t => t.assignedResources.includes(resource.id));
+
+      // 找到忙碌的资源
+      const busyResources = resources.filter(r =>
+        (utilization[r.id] || 0) > 0.8 && r.id !== resource.id
+      );
+
+      if (busyResources.length > 0 && assignedTasks.length > 0) {
+        const busyResource = busyResources[0];
+        const resourceEfficiency = resource.efficiency || LEVEL_EFFICIENCY[resource.level as ResourceLevel] || 1.0;
+        const busyResourceEfficiency = busyResource.efficiency || LEVEL_EFFICIENCY[busyResource.level as ResourceLevel] || 1.0;
+
+        if (resourceEfficiency >= busyResourceEfficiency) {
+          const busyTasks = tasks.filter(t => t.assignedResources.includes(busyResource.id));
+          const transferCandidates = busyTasks.slice(0, 2);
+          const taskNames = transferCandidates.map(t => t.name).join('、');
+
+          recommendations.push(
+            `${resource.name} 的利用率仅 ${utilRate.toFixed(0)}%，可以承接更多任务。建议将 ${busyResource.name} 的任务「${taskNames}」转移给 ${resource.name}，以平衡资源负载。`
+          );
+        } else {
+          recommendations.push(
+            `${resource.name} 的利用率仅 ${utilRate.toFixed(0)}%，建议优先分配小任务或提高该成员的效率等级。`
+          );
+        }
+      }
+    });
+  }
+
+  // 检查未使用的资源
+  const unusedResources = resources.filter(r => (utilization[r.id] || 0) === 0 && r.type === 'human');
+  if (unusedResources.length > 0) {
+    unusedResources.forEach(resource => {
+      recommendations.push(
+        `${resource.name} 当前未分配任何任务。建议：\n  • 检查是否需要添加新任务\n  • 评估该成员的技能是否匹配当前任务\n  • 考虑从繁忙资源处转移部分任务`
+      );
+    });
   }
 
   return recommendations;

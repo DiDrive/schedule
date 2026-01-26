@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings } from 'lucide-react';
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import { defaultWorkingHours } from '@/lib/sample-data';
-import { Task, ScheduleResult, Project, Resource } from '@/types/schedule';
+import { Task, ScheduleResult, Project, Resource, ResourceLevel } from '@/types/schedule';
 import GanttChart from '@/components/gantt-chart';
 
 // 默认项目数据
@@ -209,6 +209,23 @@ export default function ComplexScenario() {
   const [isComputing, setIsComputing] = useState(false);
   const [activeProject, setActiveProject] = useState<string>('all');
 
+  // 数据持久化
+  useEffect(() => {
+    const savedProjects = localStorage.getItem('complex-scenario-projects');
+    const savedTasks = localStorage.getItem('complex-scenario-tasks');
+    const savedResources = localStorage.getItem('complex-scenario-resources');
+
+    if (savedProjects) setProjects(JSON.parse(savedProjects));
+    if (savedTasks) setTasks(JSON.parse(savedTasks));
+    if (savedResources) setSharedResources(JSON.parse(savedResources));
+  }, []);
+
+  useEffect(() => {
+    if (projects.length > 0) localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
+    if (tasks.length > 0) localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
+    if (sharedResources.length > 0) localStorage.setItem('complex-scenario-resources', JSON.stringify(sharedResources));
+  }, [projects, tasks, sharedResources]);
+
   const handleGenerateSchedule = () => {
     setIsComputing(true);
     setTimeout(() => {
@@ -286,15 +303,48 @@ export default function ComplexScenario() {
     }
   };
 
+  // 资源管理
+  const handleAddResource = () => {
+    const newResource: Resource = {
+      id: `res-${Date.now()}`,
+      name: '新成员',
+      type: 'human',
+      level: 'junior',
+      efficiency: 1.0,
+      availability: 1.0,
+      color: `#${Math.floor(Math.random()*16777215).toString(16)}`
+    };
+    setSharedResources([...sharedResources, newResource]);
+  };
+
+  const handleDeleteResource = (resourceId: string) => {
+    setSharedResources(sharedResources.filter(r => r.id !== resourceId));
+  };
+
+  const handleResourceChange = (resourceId: string, field: keyof Resource, value: any) => {
+    setSharedResources(sharedResources.map(r => r.id === resourceId ? { ...r, [field]: value } : r));
+  };
+
   return (
     <div className="space-y-6">
       {/* Shared Resource Pool */}
       <Card>
         <CardHeader>
-          <CardTitle>共享资源池</CardTitle>
-          <CardDescription>
-            所有项目共享的资源，系统会根据效率、优先级和工时自动分配
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5 text-blue-500" />
+                共享资源池
+              </CardTitle>
+              <CardDescription>
+                所有项目共享的资源，系统会根据效率、优先级和工时自动分配
+              </CardDescription>
+            </div>
+            <Button onClick={handleAddResource} size="sm" variant="outline" className="gap-2">
+              <Plus className="h-4 w-4" />
+              添加成员
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
@@ -302,26 +352,72 @@ export default function ComplexScenario() {
               const efficiency = resource.efficiency || 1.0;
               return (
                 <div key={resource.id} className="rounded-lg border p-4 bg-slate-50 dark:bg-slate-900">
-                  <div className="mb-2 flex items-center gap-2">
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: resource.color }}
-                    />
-                    <div className="font-semibold text-sm">{resource.name}</div>
-                  </div>
-                  <div className="mb-2">
-                    <Badge className={getLevelBadgeColor(resource.level || 'junior')}>
-                      {resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}
-                    </Badge>
-                  </div>
-                  <div className="text-xs text-slate-500 space-y-1">
-                    <div className="flex justify-between">
-                      <span>效率:</span>
-                      <span className="font-medium">{efficiency.toFixed(1)}x</span>
+                  <div className="mb-3 flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: resource.color }}
+                      />
+                      <Input
+                        value={resource.name}
+                        onChange={(e) => handleResourceChange(resource.id, 'name', e.target.value)}
+                        className="h-6 w-20 text-sm border-0 bg-transparent px-0 focus:ring-0"
+                      />
                     </div>
-                    <div className="flex justify-between">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteResource(resource.id)}
+                      className="h-6 w-6 p-0"
+                    >
+                      <Trash2 className="h-3 w-3 text-red-500" />
+                    </Button>
+                  </div>
+                  <div className="mb-3">
+                    <Select
+                      value={resource.level || 'junior'}
+                      onValueChange={(value: ResourceLevel) => handleResourceChange(resource.id, 'level', value)}
+                    >
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="assistant">助理</SelectItem>
+                        <SelectItem value="junior">初级</SelectItem>
+                        <SelectItem value="senior">高级</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2 text-xs text-slate-500">
+                    <div className="flex items-center justify-between">
+                      <span>效率:</span>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min="0.5"
+                          max="3.0"
+                          value={efficiency}
+                          onChange={(e) => handleResourceChange(resource.id, 'efficiency', parseFloat(e.target.value))}
+                          className="h-6 w-14 text-right text-xs"
+                        />
+                        <span>x</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
                       <span>可用性:</span>
-                      <span className="font-medium">{Math.round(resource.availability * 100)}%</span>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min="0.1"
+                          max="1.0"
+                          value={resource.availability}
+                          onChange={(e) => handleResourceChange(resource.id, 'availability', parseFloat(e.target.value))}
+                          className="h-6 w-14 text-right text-xs"
+                        />
+                        <span>%</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -637,10 +733,7 @@ export default function ComplexScenario() {
               </CardHeader>
               <CardContent>
                 <GanttChart
-                  scheduleResult={{
-                    ...scheduleResult,
-                    tasks: filteredTasks
-                  }}
+                  scheduleResult={scheduleResult}
                   projects={projects.map(p => ({
                     id: p.id,
                     color: p.color || '#3b82f6'
