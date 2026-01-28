@@ -649,9 +649,9 @@ export default function BasicScenario() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">无依赖</SelectItem>
-                              {tasks.filter(t => t.id !== task.id && t.taskType !== '物料').map(dependencyTask => (
+                              {tasks.filter(t => t.id !== task.id).map(dependencyTask => (
                                 <SelectItem key={dependencyTask.id} value={dependencyTask.id}>
-                                  {dependencyTask.name}
+                                  {dependencyTask.name} {dependencyTask.taskType === '物料' && '(物料)'}
                                 </SelectItem>
                               ))}
                             </SelectContent>

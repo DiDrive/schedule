@@ -995,9 +995,9 @@ export default function ComplexScenario() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="none">无依赖</SelectItem>
-                                {tasks.filter(t => t.id !== task.id && t.taskType !== '物料').map(depTask => (
+                                {tasks.filter(t => t.id !== task.id).map(depTask => (
                                   <SelectItem key={depTask.id} value={depTask.id}>
-                                    {depTask.name} ({getProjectById(depTask.projectId || '')?.name})
+                                    {depTask.name} ({getProjectById(depTask.projectId || '')?.name}){depTask.taskType === '物料' && ' (物料)'}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
