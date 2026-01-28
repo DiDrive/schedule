@@ -118,8 +118,16 @@ export default function GanttChart({
 
   // 计算任务在甘特图上的位置（基于工作日和时间段）
   const getTaskPosition = (task: Task) => {
-    const taskStart = task.startDate || startDayTime;
-    const taskEnd = task.endDate || startDayTime;
+    // 确保 taskStart 和 taskEnd 是 Date 对象
+    let taskStart = task.startDate || startDayTime;
+    let taskEnd = task.endDate || startDayTime;
+
+    if (!(taskStart instanceof Date)) {
+      taskStart = new Date(taskStart);
+    }
+    if (!(taskEnd instanceof Date)) {
+      taskEnd = new Date(taskEnd);
+    }
 
     // 找到任务开始日期在工作日列表中的索引
     const taskStartDayStr = taskStart.toDateString();
@@ -337,7 +345,12 @@ export default function GanttChart({
 
                       // 物料任务（里程碑）
                       if (isMaterial) {
-                        const materialDate = task.estimatedMaterialDate || task.startDate || startDayTime;
+                        // 确保 materialDate 是 Date 对象
+                        let materialDate = task.estimatedMaterialDate || task.startDate || startDayTime;
+                        if (!(materialDate instanceof Date)) {
+                          materialDate = new Date(materialDate);
+                        }
+
                         const position = getTaskPosition({
                           ...task,
                           startDate: materialDate,
