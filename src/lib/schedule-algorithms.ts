@@ -302,6 +302,7 @@ export function calculateEndDate(startDate: Date, workHours: number, config: Wor
 
 /**
  * 拓扑排序 - 按依赖关系排序任务
+ * 改进：考虑任务优先级、截止日期和任务类型
  */
 export function topologicalSort(tasks: Task[]): Task[] {
   const taskMap = new Map<string, Task>();
@@ -328,39 +329,82 @@ export function topologicalSort(tasks: Task[]): Task[] {
     });
   });
 
+  // 任务评分函数：综合考虑优先级、截止日期和任务类型
+  const calculateScore = (task: Task): number => {
+    let score = 0;
+
+    // 1. 优先级权重（最优先）
+    score += (PRIORITY_WEIGHT[task.priority] || 1) * 1000;
+
+    // 2. 截止日期权重（越接近截止日期，分数越高）
+    if (task.deadline) {
+      const daysToDeadline = Math.max(0, (task.deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      if (daysToDeadline < 7) {
+        score += (7 - daysToDeadline) * 200; // 一周内高权重
+      } else if (daysToDeadline < 30) {
+        score += (30 - daysToDeadline) * 50; // 一月内中权重
+      }
+    }
+
+    // 3. 任务类型权重：物料任务如果被依赖，应该优先处理
+    if (task.taskType === '物料') {
+      // 检查是否有任务依赖此物料任务
+      const dependents = adj.get(task.id) || [];
+      if (dependents.length > 0) {
+        score += 500; // 物料任务如果有依赖，优先级很高
+      }
+    }
+
+    // 4. 任务工时权重（小任务优先）
+    score += 100 / (task.estimatedHours || 1);
+
+    return score;
+  };
+
   // 拓扑排序
   const result: Task[] = [];
-  const queue: string[] = [];
 
-  // 找到所有入度为0的节点
-  inDegree.forEach((degree, taskId) => {
-    if (degree === 0) {
-      queue.push(taskId);
-    }
-  });
+  // 使用优先队列：每次选择分数最高的任务
+  const getReadyTasks = (): Task[] => {
+    const readyTaskIds: string[] = [];
+    inDegree.forEach((degree, taskId) => {
+      if (degree === 0 && !result.find(t => t.id === taskId)) {
+        readyTaskIds.push(taskId);
+      }
+    });
+    return readyTaskIds.map(id => taskMap.get(id)!).filter(Boolean);
+  };
 
-  while (queue.length > 0) {
-    const taskId = queue.shift()!;
-    const task = taskMap.get(taskId);
-    if (task) {
-      result.push(task);
+  while (result.length < tasks.length) {
+    // 获取所有准备好的任务
+    const readyTasks = getReadyTasks();
+
+    if (readyTasks.length === 0) {
+      // 没有准备好的任务，可能存在循环依赖
+      const remaining = tasks.filter(t => !result.includes(t));
+      if (remaining.length > 0) {
+        // 随机选择一个剩余任务
+        result.push(remaining[0]);
+      }
+      break;
     }
+
+    // 按分数排序，选择分数最高的任务
+    readyTasks.sort((a, b) => {
+      const scoreA = calculateScore(a);
+      const scoreB = calculateScore(b);
+      return scoreB - scoreA; // 降序排列
+    });
+
+    const nextTask = readyTasks[0];
+    result.push(nextTask);
 
     // 减少依赖此任务的任务的入度
-    const dependents = adj.get(taskId) || [];
+    const dependents = adj.get(nextTask.id) || [];
     dependents.forEach(depId => {
       const newDegree = (inDegree.get(depId) || 0) - 1;
       inDegree.set(depId, newDegree);
-      if (newDegree === 0) {
-        queue.push(depId);
-      }
     });
-  }
-
-  // 处理循环依赖的情况
-  if (result.length < tasks.length) {
-    const remaining = tasks.filter(t => !result.includes(t));
-    result.push(...remaining);
   }
 
   return result;
@@ -679,11 +723,20 @@ export function generateSchedule(
       // 使用实际提供日期（如果有），否则使用预估提供日期
       let materialDate = task.actualMaterialDate || task.estimatedMaterialDate || startDate;
 
-      // 物料任务的开始和结束时间都是提供日期当天
+      // 确保物料日期在工作时间内
+      const materialDateObj = new Date(materialDate);
+      const workStart = new Date(materialDateObj);
+      workStart.setHours(Math.floor(workingHoursConfig.startHour), (workingHoursConfig.startHour % 1) * 60, 0, 0);
+
+      // 物料任务的开始时间是当天工作开始时间
+      // 结束时间是当天工作结束时间（这样依赖任务可以从第二天或当天开始）
+      const workEnd = new Date(materialDateObj);
+      workEnd.setHours(Math.floor(workingHoursConfig.endHour), (workingHoursConfig.endHour % 1) * 60, 0, 0);
+
       const scheduledTask: Task = {
         ...task,
-        startDate: new Date(materialDate),
-        endDate: new Date(materialDate),
+        startDate: workStart,
+        endDate: workEnd,
         isCritical: false,
         assignedResources: [] // 物料任务不分配资源
       };
@@ -698,18 +751,21 @@ export function generateSchedule(
 
     // 考虑前置任务的结束时间
     if (task.dependencies && task.dependencies.length > 0) {
-      let latestDepEnd = taskStart;
+      let latestDepEnd: Date | null = null;
 
       for (const depId of task.dependencies) {
         const depTask = taskMap.get(depId);
         if (depTask && depTask.endDate) {
-          if (depTask.endDate > latestDepEnd) {
+          if (!latestDepEnd || depTask.endDate > latestDepEnd) {
             latestDepEnd = depTask.endDate;
           }
         }
       }
 
-      taskStart = latestDepEnd;
+      // 如果有依赖任务，使用最晚的结束时间作为开始时间
+      if (latestDepEnd) {
+        taskStart = latestDepEnd;
+      }
     }
 
     // 获取分配的资源
