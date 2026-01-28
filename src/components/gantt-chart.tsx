@@ -214,6 +214,46 @@ export default function GanttChart({
     };
   };
 
+  // 计算里程碑（物料任务）在甘特图上的位置
+  const getMilestonePosition = (task: Task) => {
+    // 使用排期算法计算后的时间
+    let materialDate = task.startDate || task.endDate || startDayTime;
+    if (!(materialDate instanceof Date)) {
+      materialDate = new Date(materialDate);
+    }
+
+    // 找到里程碑日期在工作日列表中的索引
+    const materialDayStr = materialDate.toDateString();
+    const dayIndex = workDayIndexMap.get(materialDayStr) ?? 0;
+
+    // 计算当天的工作开始时间
+    const workStart = new Date(materialDate);
+    workStart.setHours(Math.floor(WORK_START_HOUR), (WORK_START_HOUR % 1) * 60, 0, 0);
+
+    // 计算午休时间段
+    const lunchStart = new Date(materialDate);
+    lunchStart.setHours(Math.floor(LUNCH_BREAK_START), (LUNCH_BREAK_START % 1) * 60, 0, 0);
+
+    const lunchEnd = new Date(materialDate);
+    lunchEnd.setHours(Math.floor(LUNCH_BREAK_END), (LUNCH_BREAK_END % 1) * 60, 0, 0);
+
+    // 计算里程碑时间相对于工作开始时间的偏移（排除午休）
+    let hourOffset = (materialDate.getTime() - workStart.getTime()) / (1000 * 60 * 60);
+
+    // 如果里程碑时间在午休后，需要减去午休时间
+    if (materialDate >= lunchEnd) {
+      hourOffset -= (LUNCH_BREAK_END - LUNCH_BREAK_START);
+    }
+
+    // 计算当天实际工作时间（减去午休）
+    const dailyWorkHours = (WORK_END_HOUR - WORK_START_HOUR) - (LUNCH_BREAK_END - LUNCH_BREAK_START);
+
+    // 里程碑作为一个点，只计算 left 位置
+    const left = ((dayIndex + hourOffset / dailyWorkHours) / totalWorkDays) * 100;
+
+    return { left };
+  };
+
   // 获取资源名称
   const getResourceNames = (task: Task): string => {
     if (!resources || task.assignedResources.length === 0) return '';
@@ -351,18 +391,8 @@ export default function GanttChart({
 
                       // 物料任务（里程碑）
                       if (isMaterial) {
-                        // 确保 materialDate 是 Date 对象
-                        let materialDate = task.estimatedMaterialDate || task.startDate || startDayTime;
-                        if (!(materialDate instanceof Date)) {
-                          materialDate = new Date(materialDate);
-                        }
-
-                        const position = getTaskPosition({
-                          ...task,
-                          startDate: materialDate,
-                          endDate: materialDate,
-                          estimatedHours: 1 // 里程碑用1小时计算位置
-                        } as Task);
+                        // 使用专门的里程碑位置计算函数
+                        const position = getMilestonePosition(task);
 
                         return (
                           <div
@@ -378,7 +408,7 @@ export default function GanttChart({
                                 </div>
                               </div>
                               <div className="text-xs text-slate-500 mt-1 pl-5">
-                                里程碑: {formatDateTime(materialDate)}
+                                里程碑: {formatDateTime(task.startDate || task.endDate || new Date())}
                               </div>
                             </div>
 
@@ -399,7 +429,7 @@ export default function GanttChart({
                                 style={{
                                   left: `calc(${position.left}% - 8px)`
                                 }}
-                                title={`${task.name} - 物料提供日期: ${formatDateLong(materialDate)}`}
+                                title={`${task.name} - 物料提供日期: ${formatDateLong(task.startDate || task.endDate || new Date())}`}
                               />
                             </div>
                           </div>
