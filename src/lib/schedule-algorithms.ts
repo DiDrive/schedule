@@ -122,16 +122,22 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
         let score = 1000;
 
         // 2. 负载惩罚：负载越高，分数越低
-        // 使用指数函数放大负载差异
-        const loadRatio = currentLoad / Math.max(avgLoad, 1); // 防止除以0
-        if (loadRatio > 0) {
-          score /= (loadRatio * loadRatio); // 平方惩罚
+        // 使用绝对负载值，优先选择空闲资源
+        // 如果资源已有任务，大幅降低分数
+        if (currentLoad > 0) {
+          score *= 0.5; // 有任务的基础惩罚
+          score /= (currentLoad * currentLoad); // 负载越高惩罚越重（平方惩罚）
         }
 
-        // 3. 时间可用性检查：避免将任务分配给已经被依赖任务占用的资源
+        // 3. 负载均衡惩罚：如果当前负载高于平均水平，进一步降低分数
+        const loadRatio = currentLoad / Math.max(avgLoad, 1);
+        if (loadRatio > 1.2) { // 超过平均负载20%
+          score /= (loadRatio - 1) * 2; // 超额部分惩罚
+        }
+
+        // 4. 时间可用性检查：避免将任务分配给已经被依赖任务占用的资源
         if (task.dependencies && task.dependencies.length > 0) {
-          const assignedToResource = resourceTasks.get(resource.id) || [];
-          const conflictExists = assignedToResource.some(t => 
+          const conflictExists = assignedToResource.some(t =>
             task.dependencies?.includes(t.id)
           );
           if (conflictExists) {
@@ -139,12 +145,12 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
           }
         }
 
-        // 4. 工作类型匹配分：类型完全匹配加分
+        // 5. 工作类型匹配分：类型完全匹配加分
         if (taskType && resource.workType === taskType) {
           score *= 2.0;
         }
 
-        // 5. 效率分：效率高略加分，但不能凌驾于负载之上
+        // 6. 效率分：效率高略加分，但不能凌驾于负载之上
         score *= (1 + (efficiency - 1) * 0.2); // 最多20%的加成
 
         // 6. 可用性分

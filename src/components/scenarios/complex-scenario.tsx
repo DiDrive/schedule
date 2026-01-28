@@ -907,9 +907,7 @@ export default function ComplexScenario() {
                       <TableHead>依赖任务</TableHead>
                     </>
                   )}
-                  {tasks.some(t => t.taskType === '物料') && (
-                    <TableHead>物料提供时间</TableHead>
-                  )}
+
                   <TableHead className="w-[100px]">操作</TableHead>
                 </TableRow>
               </TableHeader>
