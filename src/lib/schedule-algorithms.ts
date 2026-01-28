@@ -373,23 +373,11 @@ export function topologicalSort(tasks: Task[]): Task[] {
   // 拓扑排序
   const result: Task[] = [];
 
-  // 第一步：提取所有物料任务（不参与评分，按提供日期排序）
-  const materialTasks = tasks.filter(t => t.taskType === '物料');
-  materialTasks.sort((a, b) => {
-    const dateA = a.estimatedMaterialDate || a.actualMaterialDate || new Date();
-    const dateB = b.estimatedMaterialDate || b.actualMaterialDate || new Date();
-    return new Date(dateA).getTime() - new Date(dateB).getTime();
-  });
-  result.push(...materialTasks);
-
-  // 第二步：对非物料任务进行拓扑排序（使用评分系统）
   // 使用优先队列：每次选择分数最高的任务
   const getReadyTasks = (): Task[] => {
     const readyTaskIds: string[] = [];
     inDegree.forEach((degree, taskId) => {
-      // 只选择非物料任务，且不在结果中，且入度为0
-      const task = taskMap.get(taskId);
-      if (degree === 0 && !result.find(t => t.id === taskId) && task && task.taskType !== '物料') {
+      if (degree === 0 && !result.find(t => t.id === taskId)) {
         readyTaskIds.push(taskId);
       }
     });
@@ -397,12 +385,12 @@ export function topologicalSort(tasks: Task[]): Task[] {
   };
 
   while (result.length < tasks.length) {
-    // 获取所有准备好的非物料任务
+    // 获取所有准备好的任务（包括物料任务）
     const readyTasks = getReadyTasks();
 
     if (readyTasks.length === 0) {
       // 没有准备好的任务，可能存在循环依赖
-      const remaining = tasks.filter(t => !result.includes(t) && t.taskType !== '物料');
+      const remaining = tasks.filter(t => !result.includes(t));
       if (remaining.length > 0) {
         // 随机选择一个剩余任务
         result.push(remaining[0]);
@@ -411,6 +399,7 @@ export function topologicalSort(tasks: Task[]): Task[] {
     }
 
     // 按分数排序，选择分数最高的任务
+    // 注意：物料任务返回0分，不会影响其他任务的排序
     readyTasks.sort((a, b) => {
       const scoreA = calculateScore(a);
       const scoreB = calculateScore(b);
@@ -423,7 +412,7 @@ export function topologicalSort(tasks: Task[]): Task[] {
     // 调试信息（仅在开发环境下输出）
     if (process.env.NODE_ENV === 'development') {
       console.log(`[Topological Sort] 第${result.length}步: 选择 "${nextTask.name}" (得分: ${calculateScore(nextTask)})`);
-      console.log(`  - 优先级: ${nextTask.priority}, 工时: ${nextTask.estimatedHours}h`);
+      console.log(`  - 类型: ${nextTask.taskType}, 优先级: ${nextTask.priority}, 工时: ${nextTask.estimatedHours}h`);
       console.log(`  - 被依赖数: ${(adj.get(nextTask.id) || []).length}`);
       console.log(`  - 所有准备好的任务:`, readyTasks.map(t => ({ name: t.name, score: calculateScore(t) })));
     }
