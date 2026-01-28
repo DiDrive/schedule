@@ -329,29 +329,36 @@ export function topologicalSort(tasks: Task[]): Task[] {
     });
   });
 
-  // 任务评分函数：综合考虑优先级、截止日期和任务类型
+  // 任务评分函数：综合考虑优先级、截止日期、依赖关系和任务类型
   const calculateScore = (task: Task): number => {
     let score = 0;
 
-    // 1. 优先级权重（最优先）
+    // 1. 【最重要】被其他任务依赖的任务应该优先处理
+    // 任何有依赖的任务都应该获得高优先级，因为它阻塞后续任务
+    const dependents = adj.get(task.id) || [];
+    if (dependents.length > 0) {
+      // 基础分：被依赖的任务至少获得2000分
+      score += 2000;
+
+      // 被依赖的任务数量越多，分数越高（阻塞更多任务）
+      score += dependents.length * 500;
+
+      // 物料任务额外加分，因为它通常时间固定且影响重大
+      if (task.taskType === '物料') {
+        score += 300;
+      }
+    }
+
+    // 2. 优先级权重
     score += (PRIORITY_WEIGHT[task.priority] || 1) * 1000;
 
-    // 2. 截止日期权重（越接近截止日期，分数越高）
+    // 3. 截止日期权重（越接近截止日期，分数越高）
     if (task.deadline) {
       const daysToDeadline = Math.max(0, (task.deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
       if (daysToDeadline < 7) {
         score += (7 - daysToDeadline) * 200; // 一周内高权重
       } else if (daysToDeadline < 30) {
         score += (30 - daysToDeadline) * 50; // 一月内中权重
-      }
-    }
-
-    // 3. 任务类型权重：物料任务如果被依赖，应该优先处理
-    if (task.taskType === '物料') {
-      // 检查是否有任务依赖此物料任务
-      const dependents = adj.get(task.id) || [];
-      if (dependents.length > 0) {
-        score += 500; // 物料任务如果有依赖，优先级很高
       }
     }
 
@@ -398,6 +405,14 @@ export function topologicalSort(tasks: Task[]): Task[] {
 
     const nextTask = readyTasks[0];
     result.push(nextTask);
+
+    // 调试信息（仅在开发环境下输出）
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Topological Sort] 第${result.length}步: 选择 "${nextTask.name}" (得分: ${calculateScore(nextTask)})`);
+      console.log(`  - 优先级: ${nextTask.priority}, 工时: ${nextTask.estimatedHours}h`);
+      console.log(`  - 被依赖数: ${(adj.get(nextTask.id) || []).length}`);
+      console.log(`  - 所有准备好的任务:`, readyTasks.map(t => ({ name: t.name, score: calculateScore(t) })));
+    }
 
     // 减少依赖此任务的任务的入度
     const dependents = adj.get(nextTask.id) || [];
