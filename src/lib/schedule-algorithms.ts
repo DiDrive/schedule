@@ -75,6 +75,10 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
   const resourceLoad = new Map<string, number>();
   humanResources.forEach(r => resourceLoad.set(r.id, 0));
 
+  // 记录每个资源已经分配的任务（用于计算时间冲突）
+  const resourceTasks = new Map<string, Task[]>();
+  humanResources.forEach(r => resourceTasks.set(r.id, []));
+
   const assignedTasks = sortedTasks.map(task => {
     // 物料任务不分配资源
     if (task.taskType === '物料') {
@@ -111,6 +115,7 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
       .map(resource => {
         const efficiency = resource.efficiency || LEVEL_EFFICIENCY[resource.level as ResourceLevel] || 1.0;
         const currentLoad = resourceLoad.get(resource.id) || 0;
+        const assignedToResource = resourceTasks.get(resource.id) || [];
 
         // 核心策略：负载是主要因素
         // 1. 基础分：1000（确保负载优先级高于效率）
@@ -123,15 +128,26 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
           score /= (loadRatio * loadRatio); // 平方惩罚
         }
 
-        // 3. 工作类型匹配分：类型完全匹配加分
+        // 3. 时间可用性检查：避免将任务分配给已经被依赖任务占用的资源
+        if (task.dependencies && task.dependencies.length > 0) {
+          const assignedToResource = resourceTasks.get(resource.id) || [];
+          const conflictExists = assignedToResource.some(t => 
+            task.dependencies?.includes(t.id)
+          );
+          if (conflictExists) {
+            score *= 0.1; // 资源被依赖任务占用，大幅降低分数
+          }
+        }
+
+        // 4. 工作类型匹配分：类型完全匹配加分
         if (taskType && resource.workType === taskType) {
           score *= 2.0;
         }
 
-        // 4. 效率分：效率高略加分，但不能凌驾于负载之上
+        // 5. 效率分：效率高略加分，但不能凌驾于负载之上
         score *= (1 + (efficiency - 1) * 0.2); // 最多20%的加成
 
-        // 5. 可用性分
+        // 6. 可用性分
         score *= resource.availability;
 
         return {
@@ -148,6 +164,11 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
       const selected = scoredResources[0];
       const resourceLoadHours = resourceLoad.get(selected.resource.id) || 0;
       resourceLoad.set(selected.resource.id, resourceLoadHours + task.estimatedHours);
+
+      // 记录任务到资源列表（用于后续任务的时间可用性检查）
+      const tasksForResource = resourceTasks.get(selected.resource.id) || [];
+      tasksForResource.push(task);
+      resourceTasks.set(selected.resource.id, tasksForResource);
 
       return {
         ...task,
