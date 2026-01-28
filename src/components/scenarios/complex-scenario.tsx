@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -266,8 +266,16 @@ export default function ComplexScenario() {
   const [aiSuggestion, setAiSuggestion] = useState<string>('');
   const [isAiOptimizing, setIsAiOptimizing] = useState(false);
 
-  // 数据持久化
+  // 使用 ref 跟踪是否已经加载过数据，避免重复加载
+  const hasLoadedData = useRef(false);
+
+  // 数据加载：只在组件首次挂载时执行
   useEffect(() => {
+    // 如果已经加载过数据，则不再加载
+    if (hasLoadedData.current) return;
+    
+    hasLoadedData.current = true;
+
     const savedProjects = localStorage.getItem('complex-scenario-projects');
     const savedTasks = localStorage.getItem('complex-scenario-tasks');
     const savedResources = localStorage.getItem('complex-scenario-resources');
@@ -326,10 +334,13 @@ export default function ComplexScenario() {
   }, []);
 
   useEffect(() => {
-    if (projects.length > 0) localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
-    if (tasks.length > 0) localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
-    if (sharedResources.length > 0) localStorage.setItem('complex-scenario-resources', JSON.stringify(sharedResources));
-    if (scheduleResult) localStorage.setItem('complex-scenario-schedule-result', JSON.stringify(scheduleResult));
+    // 始终保存数据，即使数量为0也要保存
+    localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
+    localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
+    localStorage.setItem('complex-scenario-resources', JSON.stringify(sharedResources));
+    if (scheduleResult) {
+      localStorage.setItem('complex-scenario-schedule-result', JSON.stringify(scheduleResult));
+    }
   }, [projects, tasks, sharedResources, scheduleResult]);
 
   const handleGenerateSchedule = () => {

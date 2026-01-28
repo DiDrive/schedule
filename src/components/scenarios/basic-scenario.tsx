@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -103,7 +103,16 @@ export default function BasicScenario() {
   const [aiSuggestion, setAiSuggestion] = useState<string>('');
   const [isAiOptimizing, setIsAiOptimizing] = useState(false);
 
+  // 使用 ref 跟踪是否已经加载过数据，避免重复加载
+  const hasLoadedData = useRef(false);
+
+  // 数据加载：只在组件首次挂载时执行
   useEffect(() => {
+    // 如果已经加载过数据，则不再加载
+    if (hasLoadedData.current) return;
+    
+    hasLoadedData.current = true;
+
     const savedTasks = localStorage.getItem('basic-scenario-tasks');
     const savedResources = localStorage.getItem('basic-scenario-resources');
     const savedScheduleResult = localStorage.getItem('basic-scenario-schedule-result');
@@ -142,12 +151,9 @@ export default function BasicScenario() {
   }, []);
 
   useEffect(() => {
-    if (tasks.length > 0) {
-      localStorage.setItem('basic-scenario-tasks', JSON.stringify(tasks));
-    }
-    if (resources.length > 0) {
-      localStorage.setItem('basic-scenario-resources', JSON.stringify(resources));
-    }
+    // 始终保存数据，即使数量为0也要保存
+    localStorage.setItem('basic-scenario-tasks', JSON.stringify(tasks));
+    localStorage.setItem('basic-scenario-resources', JSON.stringify(resources));
     if (scheduleResult) {
       localStorage.setItem('basic-scenario-schedule-result', JSON.stringify(scheduleResult));
     }
