@@ -26,19 +26,49 @@ const PRIORITY_WEIGHT: Record<string, number> = {
 
 /**
  * 根据任务特征自动分配资源
- * 策略：在满足工作类型匹配的前提下，优先选择负载最低的资源
- * 这样可以实现负载均衡，让所有人都有活干
+ * 策略：
+ * 1. 被依赖的任务优先获得资源（避免阻塞后续任务）
+ * 2. 在满足工作类型匹配的前提下，优先选择负载最低的资源
+ * 3. 实现负载均衡，让所有人都有活干
  * 注意：物料任务不分配资源
  */
 export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[] {
   // 只有人类资源可以分配
   const humanResources = resources.filter(r => r.type === 'human');
 
-  // 按优先级和工时对任务排序（高优先级、高工时优先分配）
+  // 构建任务依赖关系图（用于计算被依赖数）
+  const dependentsMap = new Map<string, string[]>();
+  tasks.forEach(task => {
+    const deps = task.dependencies || [];
+    deps.forEach(depId => {
+      const list = dependentsMap.get(depId) || [];
+      list.push(task.id);
+      dependentsMap.set(depId, list);
+    });
+  });
+
+  // 按以下因素对任务排序（优先级从高到低）：
+  // 1. 被依赖数（越多越优先，避免阻塞）
+  // 2. 优先级（urgent > high > normal > low）
+  // 3. 工时（高工时优先）
   const sortedTasks = [...tasks].sort((a, b) => {
-    const aWeight = (PRIORITY_WEIGHT[a.priority] || 1) * a.estimatedHours;
-    const bWeight = (PRIORITY_WEIGHT[b.priority] || 1) * b.estimatedHours;
-    return bWeight - aWeight;
+    const aDependents = (dependentsMap.get(a.id) || []).length;
+    const bDependents = (dependentsMap.get(b.id) || []).length;
+
+    // 1. 被依赖数：越多越优先（权重最高）
+    if (aDependents !== bDependents) {
+      return bDependents - aDependents;
+    }
+
+    // 2. 优先级
+    const aPriority = PRIORITY_WEIGHT[a.priority] || 1;
+    const bPriority = PRIORITY_WEIGHT[b.priority] || 1;
+    if (aPriority !== bPriority) {
+      return bPriority - aPriority;
+    }
+
+    // 3. 工时
+    return b.estimatedHours - a.estimatedHours;
   });
 
   // 跟踪每个资源的已分配工时
