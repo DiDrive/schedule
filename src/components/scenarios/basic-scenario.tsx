@@ -562,7 +562,7 @@ export default function BasicScenario() {
                     </>
                   )}
                   {tasks.some(t => t.taskType === '物料') && (
-                    <TableHead>物料预估日期</TableHead>
+                    <TableHead>物料提供时间</TableHead>
                   )}
                   <TableHead className="w-[100px]">操作</TableHead>
                 </TableRow>
@@ -596,11 +596,11 @@ export default function BasicScenario() {
                     {task.taskType === '物料' ? (
                       <TableCell>
                         <Input
-                          type="date"
-                          value={formatDateToInputValue(task.estimatedMaterialDate)}
+                          type="datetime-local"
+                          value={formatDateTimeToInputValue(task.estimatedMaterialDate)}
                           onChange={(e) => handleTaskChange(task.id, 'estimatedMaterialDate', new Date(e.target.value))}
-                          className="w-36 h-8"
-                          placeholder="预估提供日期"
+                          className="w-48 h-8"
+                          placeholder="选择提供时间"
                         />
                       </TableCell>
                     ) : (
@@ -820,7 +820,7 @@ export default function BasicScenario() {
                                     <span>甲方提供</span>
                                     {task.estimatedMaterialDate && (
                                       <span className="text-xs">
-                                        （{formatDateToInputValue(task.estimatedMaterialDate)}）
+                                        （{formatDateTime(task.estimatedMaterialDate)}）
                                       </span>
                                     )}
                                   </div>

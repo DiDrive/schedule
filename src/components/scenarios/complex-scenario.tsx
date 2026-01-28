@@ -22,6 +22,18 @@ const formatDateToInputValue = (date: Date | string | undefined): string => {
   return d.toISOString().split('T')[0];
 };
 
+// 辅助函数：将 Date 或字符串转换为 YYYY-MM-DDTHH:mm 格式（用于datetime-local）
+const formatDateTimeToInputValue = (date: Date | string | undefined): string => {
+  if (!date) return '';
+  const d = date instanceof Date ? date : new Date(date);
+  const year = d.getFullYear();
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  const hours = d.getHours().toString().padStart(2, '0');
+  const minutes = d.getMinutes().toString().padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 // 辅助函数：格式化日期时间
 const formatDateTime = (date: Date | string): string => {
   const d = date instanceof Date ? date : new Date(date);
@@ -853,7 +865,7 @@ export default function ComplexScenario() {
                     </>
                   )}
                   {tasks.some(t => t.taskType === '物料') && (
-                    <TableHead>物料预估日期</TableHead>
+                    <TableHead>物料提供时间</TableHead>
                   )}
                   <TableHead className="w-[100px]">操作</TableHead>
                 </TableRow>
@@ -908,11 +920,11 @@ export default function ComplexScenario() {
                       {task.taskType === '物料' ? (
                         <TableCell>
                           <Input
-                            type="date"
-                            value={formatDateToInputValue(task.estimatedMaterialDate)}
+                            type="datetime-local"
+                            value={formatDateTimeToInputValue(task.estimatedMaterialDate)}
                             onChange={(e) => handleTaskChange(task.id, 'estimatedMaterialDate', new Date(e.target.value))}
-                            className="w-36 h-8"
-                            placeholder="预估提供日期"
+                            className="w-48 h-8"
+                            placeholder="选择提供时间"
                           />
                         </TableCell>
                       ) : (
@@ -1122,7 +1134,7 @@ export default function ComplexScenario() {
                                     <span>甲方提供</span>
                                     {task.estimatedMaterialDate && (
                                       <span className="text-xs">
-                                        （{formatDateToInputValue(task.estimatedMaterialDate)}）
+                                        （{formatDateTime(task.estimatedMaterialDate)}）
                                       </span>
                                     )}
                                   </div>
