@@ -409,13 +409,14 @@ export function topologicalSort(tasks: Task[]): Task[] {
     const nextTask = readyTasks[0];
     result.push(nextTask);
 
-    // 调试信息（仅在开发环境下输出）
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[Topological Sort] 第${result.length}步: 选择 "${nextTask.name}" (得分: ${calculateScore(nextTask)})`);
-      console.log(`  - 类型: ${nextTask.taskType}, 优先级: ${nextTask.priority}, 工时: ${nextTask.estimatedHours}h`);
-      console.log(`  - 被依赖数: ${(adj.get(nextTask.id) || []).length}`);
-      console.log(`  - 所有准备好的任务:`, readyTasks.map(t => ({ name: t.name, score: calculateScore(t) })));
-    }
+    // 调试信息（始终输出）
+    console.log(`[Topological Sort] 第${result.length}步: 选择 "${nextTask.name}"`);
+    console.log(`  - 类型: ${nextTask.taskType}, 优先级: ${nextTask.priority}, 工时: ${nextTask.estimatedHours}h`);
+    console.log(`  - 被依赖数: ${(adj.get(nextTask.id) || []).length}, 得分: ${calculateScore(nextTask)}`);
+    console.log(`  - 所有准备好的任务:`);
+    readyTasks.forEach(t => {
+      console.log(`    • "${t.name}": 得分=${calculateScore(t)}, 依赖数=${(adj.get(t.id) || []).length}, 优先级=${t.priority}`);
+    });
 
     // 减少依赖此任务的任务的入度
     const dependents = adj.get(nextTask.id) || [];
