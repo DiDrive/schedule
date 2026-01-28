@@ -33,8 +33,13 @@ const PRIORITY_WEIGHT: Record<string, number> = {
  * 注意：物料任务不分配资源
  */
 export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[] {
+  console.log('========================================');
+  console.log('开始资源分配');
+  console.log(`任务数: ${tasks.length}, 资源数: ${resources.length}`);
+
   // 只有人类资源可以分配
   const humanResources = resources.filter(r => r.type === 'human');
+  console.log(`人类资源: ${humanResources.map(r => `${r.name}(${r.workType})`).join(', ')}`);
 
   // 构建任务依赖关系图（用于计算被依赖数）
   const dependentsMap = new Map<string, string[]>();
@@ -102,7 +107,11 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
     // 如果没有匹配的资源，使用所有资源（降级处理）
     const resourcesToScore = matchingResources.length > 0 ? matchingResources : humanResources;
 
+    // 调试日志
+    console.log(`任务 ${task.name} (${taskType || '未指定'}), 匹配资源: ${resourcesToScore.map(r => r.name).join(', ')}`);
+
     if (resourcesToScore.length === 0) {
+      console.log(`  ⚠ 没有可分配的资源！`);
       return task;
     }
 
@@ -156,6 +165,12 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
         // 6. 可用性分
         score *= resource.availability;
 
+        // 调试日志
+        console.log(`资源分配调试 - 任务: ${task.name} (${task.id})`);
+        console.log(`  资源: ${resource.name} (${resource.id}), 类型: ${resource.workType}`);
+        console.log(`  当前负载: ${currentLoad}h, 平均负载: ${avgLoad.toFixed(2)}h`);
+        console.log(`  基础分: 1000, 最终得分: ${score.toFixed(2)}`);
+
         return {
           resource,
           score,
@@ -176,6 +191,9 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
       tasksForResource.push(task);
       resourceTasks.set(selected.resource.id, tasksForResource);
 
+      // 调试日志：选择的资源
+      console.log(`✓ 任务 ${task.name} 分配给 ${selected.resource.name} (得分: ${selected.score.toFixed(2)}, 负载: ${selected.load}h)`);
+
       return {
         ...task,
         assignedResources: [selected.resource.id]
@@ -184,6 +202,9 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
 
     return task;
   });
+
+  console.log('资源分配完成');
+  console.log('========================================');
 
   return assignedTasks;
 }

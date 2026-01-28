@@ -900,14 +900,11 @@ export default function ComplexScenario() {
                   <TableHead className="w-[200px]">任务名称</TableHead>
                   <TableHead>项目</TableHead>
                   <TableHead>任务类型</TableHead>
-                  {!tasks.some(t => t.taskType === '物料') && (
-                    <>
-                      <TableHead>预估工时</TableHead>
-                      <TableHead>优先级</TableHead>
-                      <TableHead>依赖任务</TableHead>
-                    </>
-                  )}
-
+                  <TableHead>
+                    {tasks.some(t => t.taskType === '物料') ? '工时/提供时间' : '预估工时'}
+                  </TableHead>
+                  <TableHead>优先级</TableHead>
+                  <TableHead>依赖任务</TableHead>
                   <TableHead className="w-[100px]">操作</TableHead>
                 </TableRow>
               </TableHeader>
@@ -959,15 +956,23 @@ export default function ComplexScenario() {
                         </Select>
                       </TableCell>
                       {task.taskType === '物料' ? (
-                        <TableCell>
-                          <Input
-                            type="datetime-local"
-                            value={formatDateTimeToInputValue(task.estimatedMaterialDate)}
-                            onChange={(e) => handleTaskChange(task.id, 'estimatedMaterialDate', new Date(e.target.value))}
-                            className="w-48 h-8"
-                            placeholder="选择提供时间"
-                          />
-                        </TableCell>
+                        <>
+                          <TableCell>
+                            <Input
+                              type="datetime-local"
+                              value={formatDateTimeToInputValue(task.estimatedMaterialDate)}
+                              onChange={(e) => handleTaskChange(task.id, 'estimatedMaterialDate', new Date(e.target.value))}
+                              className="w-48 h-8"
+                              placeholder="选择提供时间"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-slate-400">-</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-slate-400">-</span>
+                          </TableCell>
+                        </>
                       ) : (
                         <>
                           <TableCell>
