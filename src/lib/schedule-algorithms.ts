@@ -739,20 +739,17 @@ export function generateSchedule(
     // 物料任务特殊处理
     if (task.taskType === '物料') {
       // 使用实际提供日期（如果有），否则使用预估提供日期
+      // 使用用户在界面上选择的精确时间（datetime-local）
       let materialDate = task.actualMaterialDate || task.estimatedMaterialDate || startDate;
+      const materialTime = new Date(materialDate);
 
-      // 物料任务是里程碑，表示在这天提供
-      // 开始时间：工作开始时间（9:30）
-      // 结束时间：也是工作开始时间（9:30），表示物料在这天可用
-      // 这样依赖任务可以从提供日期当天立即开始
-      const materialDateObj = new Date(materialDate);
-      const materialTime = new Date(materialDateObj);
-      materialTime.setHours(Math.floor(workingHoursConfig.startHour), (workingHoursConfig.startHour % 1) * 60, 0, 0);
-
+      // 物料任务是里程碑，表示在这个时间点提供
+      // 开始时间：用户选择的提供时间
+      // 结束时间：也是用户选择的提供时间，表示物料在这个时间点立即可用
       const scheduledTask: Task = {
         ...task,
-        startDate: materialTime,
-        endDate: materialTime, // 里程碑，开始和结束时间相同
+        startDate: new Date(materialTime),
+        endDate: new Date(materialTime), // 里程碑，开始和结束时间相同
         isCritical: false,
         assignedResources: [] // 物料任务不分配资源
       };
