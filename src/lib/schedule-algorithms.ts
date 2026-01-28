@@ -398,30 +398,15 @@ export function topologicalSort(tasks: Task[]): Task[] {
       break;
     }
 
-    // 特殊处理：如果有物料任务，优先处理物料任务
-    const materialTasks = readyTasks.filter(t => t.taskType === '物料');
-    const nonMaterialTasks = readyTasks.filter(t => t.taskType !== '物料');
+    // 按分数排序，选择分数最高的任务
+    // 物料任务得分为0，会被排在没有依赖的非物料任务之后
+    readyTasks.sort((a, b) => {
+      const scoreA = calculateScore(a);
+      const scoreB = calculateScore(b);
+      return scoreB - scoreA; // 降序排列
+    });
 
-    let nextTask: Task;
-
-    if (materialTasks.length > 0) {
-      // 有物料任务，按提供日期排序，选择最早提供的物料任务
-      materialTasks.sort((a, b) => {
-        const dateA = a.estimatedMaterialDate || a.actualMaterialDate || new Date();
-        const dateB = b.estimatedMaterialDate || b.actualMaterialDate || new Date();
-        return new Date(dateA).getTime() - new Date(dateB).getTime();
-      });
-      nextTask = materialTasks[0];
-    } else {
-      // 没有物料任务，按分数排序非物料任务
-      nonMaterialTasks.sort((a, b) => {
-        const scoreA = calculateScore(a);
-        const scoreB = calculateScore(b);
-        return scoreB - scoreA; // 降序排列
-      });
-      nextTask = nonMaterialTasks[0];
-    }
-
+    const nextTask = readyTasks[0];
     result.push(nextTask);
 
     // 调试信息（始终输出）
