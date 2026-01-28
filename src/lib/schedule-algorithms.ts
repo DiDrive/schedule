@@ -814,10 +814,7 @@ export function generateSchedule(
   // 1. 自动分配资源（如果任务没有分配资源）
   const tasksWithResources = autoAssignResources(tasks, resources);
 
-  // 2. 拓扑排序，确保依赖顺序
-  const sortedTasks = topologicalSort(tasksWithResources);
-
-  // 3. 按依赖顺序生成任务时间表（考虑资源冲突）
+  // 2. 并行调度算法：同时安排可并行的任务
   const taskMap = new Map<string, Task>();
   const scheduledTasks: Task[] = [];
 
@@ -827,61 +824,81 @@ export function generateSchedule(
     resourceSchedules.set(resource.id, []);
   });
 
-  for (const task of sortedTasks) {
-    // 物料任务特殊处理
-    if (task.taskType === '物料') {
-      // 使用实际提供日期（如果有），否则使用预估提供日期
-      // 使用用户在界面上选择的精确时间（datetime-local）
-      let materialDate = task.actualMaterialDate || task.estimatedMaterialDate || startDate;
-      let materialTime = new Date(materialDate);
+  // 创建任务集合，用于快速查找未安排的任务
+  const unscheduledTasks = new Set(tasksWithResources.map(t => t.id));
 
-      // 如果物料提供日期是周末，自动顺延到最近的下一个工作日
-      const dayOfWeek = materialTime.getDay();
-      if (dayOfWeek === 0) { // 周日
-        // 顺延到下周一
-        materialTime.setDate(materialTime.getDate() + 1);
-      } else if (dayOfWeek === 6) { // 周六
-        // 顺延到下周一
-        materialTime.setDate(materialTime.getDate() + 2);
-      }
+  // 循环直到所有任务都被安排
+  while (unscheduledTasks.size > 0) {
+    // 找出所有"可用任务"：依赖已满足且未安排的任务
+    const availableTasks = tasksWithResources.filter(task =>
+      unscheduledTasks.has(task.id) &&
+      areDependenciesSatisfied(task, taskMap)
+    );
 
-      // 物料任务是里程碑，表示在这个时间点提供
-      // 开始时间：顺延后的提供时间
-      // 结束时间：也是顺延后的提供时间，表示物料在这个时间点立即可用
-      const scheduledTask: Task = {
-        ...task,
-        startDate: new Date(materialTime),
-        endDate: new Date(materialTime), // 里程碑，开始和结束时间相同
-        isCritical: false,
-        assignedResources: [] // 物料任务不分配资源
-      };
-
-      taskMap.set(task.id, scheduledTask);
-      scheduledTasks.push(scheduledTask);
-      continue;
+    if (availableTasks.length === 0) {
+      console.error('无法继续调度：存在循环依赖或无法满足的依赖');
+      break;
     }
 
-    // 根据依赖关系计算开始时间
-    let taskStart = new Date(startDate);
+    console.log(`当前可并行任务数: ${availableTasks.length}, 任务: ${availableTasks.map(t => t.name).join(', ')}`);
 
-    // 考虑前置任务的结束时间
-    if (task.dependencies && task.dependencies.length > 0) {
-      let latestDepEnd: Date | null = null;
+    // 为所有可用任务同时安排时间（实现并行）
+    for (const task of availableTasks) {
+      // 物料任务特殊处理
+      if (task.taskType === '物料') {
+        // 使用实际提供日期（如果有），否则使用预估提供日期
+        // 使用用户在界面上选择的精确时间（datetime-local）
+        let materialDate = task.actualMaterialDate || task.estimatedMaterialDate || startDate;
+        let materialTime = new Date(materialDate);
 
-      for (const depId of task.dependencies) {
-        const depTask = taskMap.get(depId);
-        if (depTask && depTask.endDate) {
-          if (!latestDepEnd || depTask.endDate > latestDepEnd) {
-            latestDepEnd = depTask.endDate;
+        // 如果物料提供日期是周末，自动顺延到最近的下一个工作日
+        const dayOfWeek = materialTime.getDay();
+        if (dayOfWeek === 0) { // 周日
+          // 顺延到下周一
+          materialTime.setDate(materialTime.getDate() + 1);
+        } else if (dayOfWeek === 6) { // 周六
+          // 顺延到下周一
+          materialTime.setDate(materialTime.getDate() + 2);
+        }
+
+        // 物料任务是里程碑，表示在这个时间点提供
+        // 开始时间：顺延后的提供时间
+        // 结束时间：也是顺延后的提供时间，表示物料在这个时间点立即可用
+        const scheduledTask: Task = {
+          ...task,
+          startDate: new Date(materialTime),
+          endDate: new Date(materialTime), // 里程碑，开始和结束时间相同
+          isCritical: false,
+          assignedResources: [] // 物料任务不分配资源
+        };
+
+        taskMap.set(task.id, scheduledTask);
+        scheduledTasks.push(scheduledTask);
+        unscheduledTasks.delete(task.id); // 从未安排集合中移除
+        continue;
+      }
+
+      // 根据依赖关系计算开始时间
+      let taskStart = new Date(startDate);
+
+      // 考虑前置任务的结束时间
+      if (task.dependencies && task.dependencies.length > 0) {
+        let latestDepEnd: Date | null = null;
+
+        for (const depId of task.dependencies) {
+          const depTask = taskMap.get(depId);
+          if (depTask && depTask.endDate) {
+            if (!latestDepEnd || depTask.endDate > latestDepEnd) {
+              latestDepEnd = depTask.endDate;
+            }
           }
         }
-      }
 
-      // 如果有依赖任务，使用最晚的结束时间作为开始时间
-      if (latestDepEnd) {
-        taskStart = latestDepEnd;
+        // 如果有依赖任务，使用最晚的结束时间作为开始时间
+        if (latestDepEnd) {
+          taskStart = latestDepEnd;
+        }
       }
-    }
 
     // 获取分配的资源
     const resourceId = task.assignedResources[0];
@@ -950,21 +967,23 @@ export function generateSchedule(
       startDate: taskStart,
       endDate: taskEnd,
       startHour,
-      endHour,
-      isCritical: false
-    };
+        endHour,
+        isCritical: false
+      };
 
-    // 记录到资源时间表
-    if (resourceSchedule) {
-      resourceSchedule.push({
-        start: taskStart,
-        end: taskEnd
-      });
-    }
+      // 记录到资源时间表
+      if (resourceSchedule) {
+        resourceSchedule.push({
+          start: taskStart,
+          end: taskEnd
+        });
+      }
 
-    taskMap.set(task.id, scheduledTask);
-    scheduledTasks.push(scheduledTask);
-  }
+      taskMap.set(task.id, scheduledTask);
+      scheduledTasks.push(scheduledTask);
+      unscheduledTasks.delete(task.id); // 从未安排集合中移除
+    } // end for (const task of availableTasks)
+  } // end while (unscheduledTasks.size > 0)
 
   // 4. 计算关键路径（使用排好期的任务）
   const criticalPath = calculateCriticalPath(scheduledTasks);
@@ -1018,4 +1037,15 @@ export function generateSchedule(
     warnings,
     recommendations
   };
+}
+/**
+ * 检查任务的所有依赖是否已满足
+ */
+function areDependenciesSatisfied(task: Task, taskMap: Map<string, Task>): boolean {
+  if (!task.dependencies || task.dependencies.length === 0) {
+    return true;
+  }
+
+  // 检查所有依赖任务是否都已被安排
+  return task.dependencies.every(depId => taskMap.has(depId));
 }
