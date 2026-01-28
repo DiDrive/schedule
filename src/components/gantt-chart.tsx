@@ -333,6 +333,61 @@ export default function GanttChart({
                   <div className="divide-y dark:divide-slate-700">
                     {projectTasks.map(task => {
                       const isCritical = scheduleResult.criticalPath.includes(task.id);
+                      const isMaterial = task.taskType === '物料';
+
+                      // 物料任务（里程碑）
+                      if (isMaterial) {
+                        const materialDate = task.estimatedMaterialDate || task.startDate || startDayTime;
+                        const position = getTaskPosition({
+                          ...task,
+                          startDate: materialDate,
+                          endDate: materialDate,
+                          estimatedHours: 1 // 里程碑用1小时计算位置
+                        } as Task);
+
+                        return (
+                          <div
+                            key={task.id}
+                            className="flex hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+                          >
+                            {/* 任务名称 */}
+                            <div className="w-52 flex-shrink-0 p-3 border-r dark:border-slate-700">
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rotate-45 bg-amber-500 border-2 border-amber-300" />
+                                <div className="text-sm font-medium truncate" title={task.name}>
+                                  {task.name}
+                                </div>
+                              </div>
+                              <div className="text-xs text-slate-500 mt-1 pl-5">
+                                里程碑: {formatDateLong(materialDate)}
+                              </div>
+                            </div>
+
+                            {/* 里程碑（菱形） */}
+                            <div className="flex flex-1 relative" style={{ minHeight: '36px' }}>
+                              {/* 网格线 */}
+                              {workDaysList.slice(1).map((_, index) => (
+                                <div
+                                  key={index}
+                                  className="absolute top-0 bottom-0 border-r border-slate-100 dark:border-slate-800"
+                                  style={{ left: `${(index + 1) / totalWorkDays * 100}%`, width: '1px' }}
+                                />
+                              ))}
+
+                              {/* 里程碑图标 - 菱形 */}
+                              <div
+                                className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rotate-45 bg-amber-500 border-2 border-amber-300 shadow-md cursor-pointer hover:bg-amber-400 transition-colors"
+                                style={{
+                                  left: `calc(${position.left}% - 8px)`
+                                }}
+                                title={`${task.name} - 物料提供日期: ${formatDateLong(materialDate)}`}
+                              />
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // 普通任务
                       const position = getTaskPosition(task);
                       const taskColor = getTaskColor(task, isCritical);
 
@@ -418,6 +473,10 @@ export default function GanttChart({
           <div className="flex items-center gap-2">
             <Badge variant="destructive" className="text-xs py-0 px-2">关键路径</Badge>
             <span>关键路径任务</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rotate-45 bg-amber-500 border-2 border-amber-300" />
+            <span>物料里程碑</span>
           </div>
           {projects && projects.length > 0 && (
             <>

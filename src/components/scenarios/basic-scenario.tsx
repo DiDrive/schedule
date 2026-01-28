@@ -553,11 +553,17 @@ export default function BasicScenario() {
                 <TableRow>
                   <TableHead className="w-[200px]">任务名称</TableHead>
                   <TableHead>任务类型</TableHead>
-                  <TableHead>预估工时</TableHead>
-                  <TableHead>物料预估日期</TableHead>
-                  <TableHead>优先级</TableHead>
-                  <TableHead>截止日期</TableHead>
-                  <TableHead className="w-[180px]">依赖任务</TableHead>
+                  {!tasks.some(t => t.taskType === '物料') && (
+                    <>
+                      <TableHead>预估工时</TableHead>
+                      <TableHead>优先级</TableHead>
+                      <TableHead>截止日期</TableHead>
+                      <TableHead className="w-[180px]">依赖任务</TableHead>
+                    </>
+                  )}
+                  {tasks.some(t => t.taskType === '物料') && (
+                    <TableHead>物料预估日期</TableHead>
+                  )}
                   <TableHead className="w-[100px]">操作</TableHead>
                 </TableRow>
               </TableHeader>
@@ -587,16 +593,8 @@ export default function BasicScenario() {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        value={task.estimatedHours}
-                        onChange={(e) => handleTaskChange(task.id, 'estimatedHours', parseInt(e.target.value))}
-                        className="w-24 h-8"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {task.taskType === '物料' ? (
+                    {task.taskType === '物料' ? (
+                      <TableCell>
                         <Input
                           type="date"
                           value={formatDateToInputValue(task.estimatedMaterialDate)}
@@ -604,52 +602,61 @@ export default function BasicScenario() {
                           className="w-36 h-8"
                           placeholder="预估提供日期"
                         />
-                      ) : (
-                        <span className="text-slate-400 text-sm">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={task.priority}
-                        onValueChange={(value) => handleTaskChange(task.id, 'priority', value)}
-                      >
-                        <SelectTrigger className="h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="urgent">紧急</SelectItem>
-                          <SelectItem value="high">高</SelectItem>
-                          <SelectItem value="normal">普通</SelectItem>
-                          <SelectItem value="low">低</SelectItem>
-                          </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="date"
-                        value={formatDateToInputValue(task.deadline)}
-                        onChange={(e) => handleTaskChange(task.id, 'deadline', new Date(e.target.value))}
-                        className="w-36 h-8"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={task.dependencies && task.dependencies.length > 0 ? task.dependencies[0] : 'none'}
-                        onValueChange={(value) => handleTaskChange(task.id, 'dependencies', value !== 'none' ? [value] : [])}
-                      >
-                        <SelectTrigger className="h-8">
-                          <SelectValue placeholder="无依赖" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">无依赖</SelectItem>
-                          {tasks.filter(t => t.id !== task.id).map(dependencyTask => (
-                            <SelectItem key={dependencyTask.id} value={dependencyTask.id}>
-                              {dependencyTask.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
+                      </TableCell>
+                    ) : (
+                      <>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            value={task.estimatedHours}
+                            onChange={(e) => handleTaskChange(task.id, 'estimatedHours', parseInt(e.target.value))}
+                            className="w-24 h-8"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={task.priority}
+                            onValueChange={(value) => handleTaskChange(task.id, 'priority', value)}
+                          >
+                            <SelectTrigger className="h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="urgent">紧急</SelectItem>
+                              <SelectItem value="high">高</SelectItem>
+                              <SelectItem value="normal">普通</SelectItem>
+                              <SelectItem value="low">低</SelectItem>
+                              </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="date"
+                            value={formatDateToInputValue(task.deadline)}
+                            onChange={(e) => handleTaskChange(task.id, 'deadline', new Date(e.target.value))}
+                            className="w-36 h-8"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={task.dependencies && task.dependencies.length > 0 ? task.dependencies[0] : 'none'}
+                            onValueChange={(value) => handleTaskChange(task.id, 'dependencies', value !== 'none' ? [value] : [])}
+                          >
+                            <SelectTrigger className="h-8">
+                              <SelectValue placeholder="无依赖" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">无依赖</SelectItem>
+                              {tasks.filter(t => t.id !== task.id && t.taskType !== '物料').map(dependencyTask => (
+                                <SelectItem key={dependencyTask.id} value={dependencyTask.id}>
+                                  {dependencyTask.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      </>
+                    )}
                     <TableCell>
                       <Button
                         variant="ghost"
