@@ -222,9 +222,25 @@ export default function GanttChart({
       materialDate = new Date(materialDate);
     }
 
-    // 找到里程碑日期在工作日列表中的索引
-    const materialDayStr = materialDate.toDateString();
-    const dayIndex = workDayIndexMap.get(materialDayStr) ?? 0;
+    // 计算从时间范围开始到物料日期之间的工作日数量
+    // 这样即使物料日期在周末，也能计算出正确的位置
+    let workDayCount = 0;
+    let currentDate = new Date(startDayTime);
+    
+    // 标准化物料日期到当天0点
+    const materialDateNormalized = new Date(materialDate);
+    materialDateNormalized.setHours(0, 0, 0, 0);
+    
+    // 标准化当前日期到当天0点
+    currentDate.setHours(0, 0, 0, 0);
+    
+    // 遍历从开始日期到物料日期
+    while (currentDate < materialDateNormalized) {
+      if (WORK_DAYS.includes(currentDate.getDay())) {
+        workDayCount++;
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
 
     // 计算当天的工作开始时间
     const workStart = new Date(materialDate);
@@ -249,7 +265,7 @@ export default function GanttChart({
     const dailyWorkHours = (WORK_END_HOUR - WORK_START_HOUR) - (LUNCH_BREAK_END - LUNCH_BREAK_START);
 
     // 里程碑作为一个点，只计算 left 位置
-    const left = ((dayIndex + hourOffset / dailyWorkHours) / totalWorkDays) * 100;
+    const left = ((workDayCount + hourOffset / dailyWorkHours) / totalWorkDays) * 100;
 
     return { left };
   };

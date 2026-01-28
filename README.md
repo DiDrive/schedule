@@ -506,3 +506,53 @@ export const useStore = create<Store>((set) => ({
 - ✅ 物料任务使用排期算法计算后的时间，确保与排期结果一致
 - ✅ 里程碑作为时间点显示，而不是时间段
 - ✅ 构建检查通过，无类型错误
+
+### 2025-01-XX（第二次修复）：修复物料任务在非工作日的显示位置
+
+**问题描述**：
+- 物料任务设置在非工作日（如周末）时，显示位置错误
+- 例如：物料设置在2/1（周六），但显示在1/28的位置
+- 原因：工作日映射只包含工作日，物料日期如果不在工作日列表中，使用默认索引0
+
+**解决方案**：
+
+#### 1. 修复工作日计算逻辑
+- 计算从时间范围开始到物料日期之间的工作日数量
+- 即使物料日期在周末，也能正确计算出位置
+- 物料任务显示在最近的实际日期位置，而不是强制移动到工作日
+
+#### 2. 优化里程碑位置计算
+- 遍历从开始日期到物料日期的所有日期
+- 统计工作日数量，作为工作日索引
+- 结合时间偏移，计算出精确的 `left` 位置
+
+**技术细节**：
+```typescript
+// 计算从时间范围开始到物料日期之间的工作日数量
+let workDayCount = 0;
+let currentDate = new Date(startDayTime);
+
+const materialDateNormalized = new Date(materialDate);
+materialDateNormalized.setHours(0, 0, 0, 0);
+
+currentDate.setHours(0, 0, 0, 0);
+
+while (currentDate < materialDateNormalized) {
+  if (WORK_DAYS.includes(currentDate.getDay())) {
+    workDayCount++;
+  }
+  currentDate.setDate(currentDate.getDate() + 1);
+}
+
+// 使用 workDayCount 替代 dayIndex
+const left = ((workDayCount + hourOffset / dailyWorkHours) / totalWorkDays) * 100;
+```
+
+**修改文件**：
+- `src/components/gantt-chart.tsx`：修复物料任务在非工作日的位置计算
+
+**验收结果**：
+- ✅ 物料任务在周末或非工作日也能正确显示位置
+- ✅ 物料任务显示在实际设置的日期位置，不强制移动到工作日
+- ✅ 构建检查通过，无类型错误
+- ✅ 服务运行正常
