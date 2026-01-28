@@ -785,6 +785,14 @@ export function generateSchedule(
     const resourceId = task.assignedResources[0];
     const resourceSchedule = resourceSchedules.get(resourceId) || [];
 
+    // 计算实际工作时间：高效率人员用更少时间完成任务
+    // 任务预估工时是"标准人"（效率1.0）完成所需时间
+    // 高效率（1.5倍）人员：实际用时 = 预估工时 / 1.5
+    // 低效率（0.7倍）人员：实际用时 = 预估工时 / 0.7
+    const resource = resources.find(r => r.id === resourceId);
+    const efficiency = resource?.efficiency || LEVEL_EFFICIENCY[resource?.level as ResourceLevel] || 1.0;
+    const actualWorkHours = task.estimatedHours / efficiency;
+
     // 检查资源冲突并调整开始时间
     let hasConflict = true;
     let maxIterations = 100; // 防止无限循环
@@ -794,8 +802,8 @@ export function generateSchedule(
       hasConflict = false;
       iteration++;
 
-      // 计算当前安排的任务结束时间
-      const taskEnd = calculateEndDate(taskStart, task.estimatedHours, workingHoursConfig);
+      // 计算当前安排的任务结束时间（使用实际工作时间）
+      const taskEnd = calculateEndDate(taskStart, actualWorkHours, workingHoursConfig);
 
       // 检查是否与该资源的其他任务冲突
       for (const scheduled of resourceSchedule) {
@@ -809,15 +817,7 @@ export function generateSchedule(
       }
     }
 
-    // 计算实际工作时间：高效率人员用更少时间完成任务
-    // 任务预估工时是"标准人"（效率1.0）完成所需时间
-    // 高效率（1.5倍）人员：实际用时 = 预估工时 / 1.5
-    // 低效率（0.7倍）人员：实际用时 = 预估工时 / 0.7
-    const resource = resources.find(r => r.id === resourceId);
-    const efficiency = resource?.efficiency || LEVEL_EFFICIENCY[resource?.level as ResourceLevel] || 1.0;
-    const actualWorkHours = task.estimatedHours / efficiency;
-
-    // 使用实际工作时间计算结束时间
+    // 使用实际工作时间计算最终的结束时间
     const taskEnd = calculateEndDate(taskStart, actualWorkHours, workingHoursConfig);
 
     // 计算开始和结束的小时数

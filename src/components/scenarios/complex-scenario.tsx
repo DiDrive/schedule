@@ -986,22 +986,54 @@ export default function ComplexScenario() {
                             </Select>
                           </TableCell>
                           <TableCell>
-                            <Select
-                              value={task.dependencies && task.dependencies.length > 0 ? task.dependencies[0] : 'none'}
-                              onValueChange={(value) => handleTaskChange(task.id, 'dependencies', value !== 'none' ? [value] : [])}
-                            >
-                              <SelectTrigger className="h-8">
-                                <SelectValue placeholder="无依赖" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">无依赖</SelectItem>
-                                {tasks.filter(t => t.id !== task.id).map(depTask => (
-                                  <SelectItem key={depTask.id} value={depTask.id}>
-                                    {depTask.name} ({getProjectById(depTask.projectId || '')?.name}){depTask.taskType === '物料' && ' (物料)'}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value=""
+                                onValueChange={(value) => {
+                                  if (value && !task.dependencies?.includes(value)) {
+                                    const newDeps = [...(task.dependencies || []), value];
+                                    handleTaskChange(task.id, 'dependencies', newDeps);
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="h-8 w-32">
+                                  <SelectValue placeholder="添加依赖" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {tasks.filter(t => t.id !== task.id && !task.dependencies?.includes(t.id)).map(depTask => (
+                                    <SelectItem key={depTask.id} value={depTask.id}>
+                                      {depTask.name} ({getProjectById(depTask.projectId || '')?.name}){depTask.taskType === '物料' && ' (物料)'}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <div className="flex flex-wrap gap-1">
+                                {task.dependencies && task.dependencies.length > 0 ? (
+                                  task.dependencies.map(depId => {
+                                    const depTask = tasks.find(t => t.id === depId);
+                                    if (!depTask) return null;
+                                    return (
+                                      <Badge key={depId} variant="secondary" className="h-6 flex items-center gap-1">
+                                        {depTask.name}
+                                        <button
+                                          onClick={() => {
+                                            const newDeps = task.dependencies!.filter(id => id !== depId);
+                                            handleTaskChange(task.id, 'dependencies', newDeps);
+                                          }}
+                                          className="hover:bg-destructive/20 rounded-full p-0.5"
+                                        >
+                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                          </svg>
+                                        </button>
+                                      </Badge>
+                                    );
+                                  })
+                                ) : (
+                                  <span className="text-xs text-slate-400">无依赖</span>
+                                )}
+                              </div>
+                            </div>
                           </TableCell>
                         </>
                       )}
