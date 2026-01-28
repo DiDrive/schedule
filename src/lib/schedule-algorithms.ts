@@ -329,6 +329,12 @@ export function topologicalSort(tasks: Task[]): Task[] {
     });
   });
 
+  // 调试：输出所有任务的入度和依赖关系
+  console.log('[Topological Sort] 任务依赖关系:');
+  tasks.forEach(task => {
+    console.log(`  • "${task.name}": 类型=${task.taskType}, 入度=${inDegree.get(task.id)}, 依赖=${JSON.stringify(task.dependencies || [])}`);
+  });
+
   // 任务评分函数：综合考虑优先级、截止日期、依赖关系和任务类型
   // 注意：物料任务不参与评分，因为它们的时间固定，不由我们控制
   const calculateScore = (task: Task): number => {
