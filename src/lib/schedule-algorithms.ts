@@ -741,20 +741,18 @@ export function generateSchedule(
       // 使用实际提供日期（如果有），否则使用预估提供日期
       let materialDate = task.actualMaterialDate || task.estimatedMaterialDate || startDate;
 
-      // 确保物料日期在工作时间内
+      // 物料任务是里程碑，表示在这天提供
+      // 开始时间：工作开始时间（9:30）
+      // 结束时间：也是工作开始时间（9:30），表示物料在这天可用
+      // 这样依赖任务可以从提供日期当天立即开始
       const materialDateObj = new Date(materialDate);
-      const workStart = new Date(materialDateObj);
-      workStart.setHours(Math.floor(workingHoursConfig.startHour), (workingHoursConfig.startHour % 1) * 60, 0, 0);
-
-      // 物料任务的开始时间是当天工作开始时间
-      // 结束时间是当天工作结束时间（这样依赖任务可以从第二天或当天开始）
-      const workEnd = new Date(materialDateObj);
-      workEnd.setHours(Math.floor(workingHoursConfig.endHour), (workingHoursConfig.endHour % 1) * 60, 0, 0);
+      const materialTime = new Date(materialDateObj);
+      materialTime.setHours(Math.floor(workingHoursConfig.startHour), (workingHoursConfig.startHour % 1) * 60, 0, 0);
 
       const scheduledTask: Task = {
         ...task,
-        startDate: workStart,
-        endDate: workEnd,
+        startDate: materialTime,
+        endDate: materialTime, // 里程碑，开始和结束时间相同
         isCritical: false,
         assignedResources: [] // 物料任务不分配资源
       };
