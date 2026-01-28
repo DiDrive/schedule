@@ -330,10 +330,12 @@ export function topologicalSort(tasks: Task[]): Task[] {
   });
 
   // 调试：输出所有任务的入度和依赖关系
-  console.log('[Topological Sort] 任务依赖关系:');
+  console.log('\n=== 拓扑排序开始 ===');
+  console.log('任务列表:');
   tasks.forEach(task => {
-    console.log(`  • "${task.name}": 类型=${task.taskType}, 入度=${inDegree.get(task.id)}, 依赖=${JSON.stringify(task.dependencies || [])}`);
+    console.log(`  • "${task.name}": 类型=${task.taskType}, 入度=${inDegree.get(task.id)}, 依赖=${JSON.stringify(task.dependencies || [])}, 被依赖数=${(adj.get(task.id) || []).length}`);
   });
+  console.log('=== 拓扑排序开始 ===\n');
 
   // 任务评分函数：综合考虑优先级、截止日期、依赖关系和任务类型
   // 注意：物料任务不参与评分，因为它们的时间固定，不由我们控制
@@ -416,13 +418,18 @@ export function topologicalSort(tasks: Task[]): Task[] {
     result.push(nextTask);
 
     // 调试信息（始终输出）
-    console.log(`[Topological Sort] 第${result.length}步: 选择 "${nextTask.name}"`);
+    console.log(`\n=== 第${result.length + 1}步排序 ===`);
+    console.log(`选择: "${nextTask.name}"`);
     console.log(`  - 类型: ${nextTask.taskType}, 优先级: ${nextTask.priority}, 工时: ${nextTask.estimatedHours}h`);
-    console.log(`  - 被依赖数: ${(adj.get(nextTask.id) || []).length}, 得分: ${calculateScore(nextTask)}`);
-    console.log(`  - 所有准备好的任务:`);
-    readyTasks.forEach(t => {
-      console.log(`    • "${t.name}": 类型=${t.taskType}, 得分=${calculateScore(t)}, 依赖数=${(adj.get(t.id) || []).length}, 优先级=${t.priority}`);
+    console.log(`  - 被依赖数: ${(adj.get(nextTask.id) || []).length}, 得分: ${calculateScore(nextTask).toFixed(2)}`);
+    console.log(`  - 入度: ${inDegree.get(nextTask.id)}`);
+    console.log(`  - 依赖: ${JSON.stringify(nextTask.dependencies)}`);
+    console.log(`准备好的任务排序:`);
+    readyTasks.forEach((t, index) => {
+      const score = calculateScore(t);
+      console.log(`  ${index + 1}. "${t.name}" [${t.taskType}] 得分=${score.toFixed(2)}, 入度=${inDegree.get(t.id)}, 依赖数=${(adj.get(t.id) || []).length}, 优先级=${t.priority}`);
     });
+    console.log(`=== 第${result.length + 1}步结束 ===\n`);
 
     // 减少依赖此任务的任务的入度
     const dependents = adj.get(nextTask.id) || [];
