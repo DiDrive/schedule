@@ -385,7 +385,7 @@ export function topologicalSort(tasks: Task[]): Task[] {
   };
 
   while (result.length < tasks.length) {
-    // 获取所有准备好的任务（包括物料任务）
+    // 获取所有准备好的任务（包括物料任务和非物料任务）
     const readyTasks = getReadyTasks();
 
     if (readyTasks.length === 0) {
@@ -398,15 +398,30 @@ export function topologicalSort(tasks: Task[]): Task[] {
       break;
     }
 
-    // 按分数排序，选择分数最高的任务
-    // 注意：物料任务返回0分，不会影响其他任务的排序
-    readyTasks.sort((a, b) => {
-      const scoreA = calculateScore(a);
-      const scoreB = calculateScore(b);
-      return scoreB - scoreA; // 降序排列
-    });
+    // 特殊处理：如果有物料任务，优先处理物料任务
+    const materialTasks = readyTasks.filter(t => t.taskType === '物料');
+    const nonMaterialTasks = readyTasks.filter(t => t.taskType !== '物料');
 
-    const nextTask = readyTasks[0];
+    let nextTask: Task;
+
+    if (materialTasks.length > 0) {
+      // 有物料任务，按提供日期排序，选择最早提供的物料任务
+      materialTasks.sort((a, b) => {
+        const dateA = a.estimatedMaterialDate || a.actualMaterialDate || new Date();
+        const dateB = b.estimatedMaterialDate || b.actualMaterialDate || new Date();
+        return new Date(dateA).getTime() - new Date(dateB).getTime();
+      });
+      nextTask = materialTasks[0];
+    } else {
+      // 没有物料任务，按分数排序非物料任务
+      nonMaterialTasks.sort((a, b) => {
+        const scoreA = calculateScore(a);
+        const scoreB = calculateScore(b);
+        return scoreB - scoreA; // 降序排列
+      });
+      nextTask = nonMaterialTasks[0];
+    }
+
     result.push(nextTask);
 
     // 调试信息（始终输出）
@@ -415,7 +430,7 @@ export function topologicalSort(tasks: Task[]): Task[] {
     console.log(`  - 被依赖数: ${(adj.get(nextTask.id) || []).length}, 得分: ${calculateScore(nextTask)}`);
     console.log(`  - 所有准备好的任务:`);
     readyTasks.forEach(t => {
-      console.log(`    • "${t.name}": 得分=${calculateScore(t)}, 依赖数=${(adj.get(t.id) || []).length}, 优先级=${t.priority}`);
+      console.log(`    • "${t.name}": 类型=${t.taskType}, 得分=${calculateScore(t)}, 依赖数=${(adj.get(t.id) || []).length}, 优先级=${t.priority}`);
     });
 
     // 减少依赖此任务的任务的入度
