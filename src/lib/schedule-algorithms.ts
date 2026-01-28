@@ -119,88 +119,43 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
     const totalLoad = Array.from(resourceLoad.values()).reduce((sum, load) => sum + load, 0);
     const avgLoad = totalLoad / humanResources.length;
 
-    // 评分每个资源：负载优先，效率次之
-    const scoredResources = resourcesToScore
-      .map(resource => {
-        const efficiency = resource.efficiency || LEVEL_EFFICIENCY[resource.level as ResourceLevel] || 1.0;
-        const currentLoad = resourceLoad.get(resource.id) || 0;
-        const assignedToResource = resourceTasks.get(resource.id) || [];
+    // ★★★ 核心修改：直接选择负载最低的资源，而不是评分★★★
+    // 按负载从低到高排序，优先选择负载最低的资源
+    const sortedResources = [...resourcesToScore].sort((a, b) => {
+      const loadA = resourceLoad.get(a.id) || 0;
+      const loadB = resourceLoad.get(b.id) || 0;
 
-        // 核心策略：负载是主要因素
-        // 1. 基础分：1000（确保负载优先级高于效率）
-        let score = 1000;
+      // 负载优先：负载越低越优先
+      if (loadA !== loadB) {
+        return loadA - loadB;
+      }
 
-        // 2. 负载惩罚：负载越高，分数越低
-        // 使用绝对负载值，优先选择空闲资源
-        // 如果资源已有任务，大幅降低分数
-        if (currentLoad > 0) {
-          score *= 0.5; // 有任务的基础惩罚
-          score /= (currentLoad * currentLoad); // 负载越高惩罚越重（平方惩罚）
-        }
+      // 负载相同时，考虑效率（效率高的略优）
+      const effA = a.efficiency || LEVEL_EFFICIENCY[a.level as ResourceLevel] || 1.0;
+      const effB = b.efficiency || LEVEL_EFFICIENCY[b.level as ResourceLevel] || 1.0;
+      return effB - effA;
+    });
 
-        // 3. 负载均衡惩罚：如果当前负载高于平均水平，进一步降低分数
-        const loadRatio = currentLoad / Math.max(avgLoad, 1);
-        if (loadRatio > 1.2) { // 超过平均负载20%
-          score /= (loadRatio - 1) * 2; // 超额部分惩罚
-        }
+    // 选择负载最低的资源
+    const selectedResource = sortedResources[0];
 
-        // 4. 时间可用性检查：避免将任务分配给已经被依赖任务占用的资源
-        if (task.dependencies && task.dependencies.length > 0) {
-          const conflictExists = assignedToResource.some(t =>
-            task.dependencies?.includes(t.id)
-          );
-          if (conflictExists) {
-            score *= 0.1; // 资源被依赖任务占用，大幅降低分数
-          }
-        }
+    // 调试日志
+    const resourceLoadHours = resourceLoad.get(selectedResource.id) || 0;
+    console.log(`  → 分配给 ${selectedResource.name} (负载: ${resourceLoadHours}h, 效率: ${selectedResource.efficiency || LEVEL_EFFICIENCY[selectedResource.level as ResourceLevel] || 1.0})`);
+    console.log(`     所有资源负载: ${sortedResources.map(r => `${r.name}:${resourceLoad.get(r.id) || 0}h`).join(', ')}`);
 
-        // 5. 工作类型匹配分：类型完全匹配加分
-        if (taskType && resource.workType === taskType) {
-          score *= 2.0;
-        }
+    // 更新资源负载
+    resourceLoad.set(selectedResource.id, resourceLoadHours + task.estimatedHours);
 
-        // 6. 效率分：效率高略加分，但不能凌驾于负载之上
-        score *= (1 + (efficiency - 1) * 0.2); // 最多20%的加成
+    // 记录任务到资源列表
+    const tasksForResource = resourceTasks.get(selectedResource.id) || [];
+    tasksForResource.push(task);
+    resourceTasks.set(selectedResource.id, tasksForResource);
 
-        // 6. 可用性分
-        score *= resource.availability;
-
-        // 调试日志
-        console.log(`资源分配调试 - 任务: ${task.name} (${task.id})`);
-        console.log(`  资源: ${resource.name} (${resource.id}), 类型: ${resource.workType}`);
-        console.log(`  当前负载: ${currentLoad}h, 平均负载: ${avgLoad.toFixed(2)}h`);
-        console.log(`  基础分: 1000, 最终得分: ${score.toFixed(2)}`);
-
-        return {
-          resource,
-          score,
-          efficiency,
-          load: currentLoad
-        };
-      })
-      .sort((a, b) => b.score - a.score);
-
-    // 选择最高分的资源
-    if (scoredResources.length > 0) {
-      const selected = scoredResources[0];
-      const resourceLoadHours = resourceLoad.get(selected.resource.id) || 0;
-      resourceLoad.set(selected.resource.id, resourceLoadHours + task.estimatedHours);
-
-      // 记录任务到资源列表（用于后续任务的时间可用性检查）
-      const tasksForResource = resourceTasks.get(selected.resource.id) || [];
-      tasksForResource.push(task);
-      resourceTasks.set(selected.resource.id, tasksForResource);
-
-      // 调试日志：选择的资源
-      console.log(`✓ 任务 ${task.name} 分配给 ${selected.resource.name} (得分: ${selected.score.toFixed(2)}, 负载: ${selected.load}h)`);
-
-      return {
-        ...task,
-        assignedResources: [selected.resource.id]
-      };
-    }
-
-    return task;
+    return {
+      ...task,
+      assignedResources: [selectedResource.id]
+    };
   });
 
   console.log('资源分配完成');
