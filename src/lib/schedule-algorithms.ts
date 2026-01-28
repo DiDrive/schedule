@@ -846,6 +846,25 @@ export function generateSchedule(
       hasConflict = false;
       iteration++;
 
+      // 重新检查依赖关系：确保 taskStart 不早于任何依赖任务的结束时间
+      if (task.dependencies && task.dependencies.length > 0) {
+        let latestDepEnd: Date | null = null;
+
+        for (const depId of task.dependencies) {
+          const depTask = taskMap.get(depId);
+          if (depTask && depTask.endDate) {
+            if (!latestDepEnd || depTask.endDate > latestDepEnd) {
+              latestDepEnd = depTask.endDate;
+            }
+          }
+        }
+
+        // 如果当前 taskStart 早于最晚的依赖任务结束时间，则调整为最晚的依赖任务结束时间
+        if (latestDepEnd && taskStart < latestDepEnd) {
+          taskStart = new Date(latestDepEnd);
+        }
+      }
+
       // 计算当前安排的任务结束时间（使用实际工作时间）
       const taskEnd = calculateEndDate(taskStart, actualWorkHours, workingHoursConfig);
 

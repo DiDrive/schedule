@@ -556,3 +556,69 @@ const left = ((workDayCount + hourOffset / dailyWorkHours) / totalWorkDays) * 10
 - ✅ 物料任务显示在实际设置的日期位置，不强制移动到工作日
 - ✅ 构建检查通过，无类型错误
 - ✅ 服务运行正常
+
+### 2025-01-XX（第三次修复）：修复任务不等物料到达就开始的问题
+
+**问题描述**：
+- 任务依赖于物料任务，但任务开始时间早于物料任务的结束时间
+- 例如：物料任务2/1提供，但任务7在1/28就开始了
+- 原因：在资源冲突检测循环中，更新 `taskStart` 后没有重新检查依赖关系
+
+**根本原因**：
+1. 任务的开始时间首先根据依赖关系计算（使用最晚的依赖任务结束时间）
+2. 然后在资源冲突检测循环中，如果检测到冲突，会更新 `taskStart` 为冲突任务的结束时间
+3. 但是，更新后的 `taskStart` 可能早于依赖任务的结束时间
+4. 导致任务在依赖物料到达之前就开始了
+
+**解决方案**：
+
+#### 1. 在资源冲突检测循环中重新检查依赖关系
+每次在资源冲突检测循环中更新 `taskStart` 后，都重新检查依赖关系，确保 `taskStart` 不早于任何依赖任务的结束时间。
+
+#### 2. 修复逻辑流程
+```typescript
+while (hasConflict && iteration < maxIterations) {
+  // 1. 重新检查依赖关系：确保 taskStart 不早于依赖任务的结束时间
+  if (task.dependencies && task.dependencies.length > 0) {
+    let latestDepEnd: Date | null = null;
+    for (const depId of task.dependencies) {
+      const depTask = taskMap.get(depId);
+      if (depTask && depTask.endDate) {
+        if (!latestDepEnd || depTask.endDate > latestDepEnd) {
+          latestDepEnd = depTask.endDate;
+        }
+      }
+    }
+    // 如果当前 taskStart 早于最晚的依赖任务结束时间，则调整
+    if (latestDepEnd && taskStart < latestDepEnd) {
+      taskStart = new Date(latestDepEnd);
+    }
+  }
+
+  // 2. 检查资源冲突
+  const taskEnd = calculateEndDate(taskStart, actualWorkHours, workingHoursConfig);
+  for (const scheduled of resourceSchedule) {
+    if (taskStart < scheduled.end && taskEnd > scheduled.start) {
+      hasConflict = true;
+      taskStart = new Date(scheduled.end);
+      break;
+    }
+  }
+}
+```
+
+**技术细节**：
+- 依赖关系检查被移到资源冲突检测循环的开始位置
+- 每次更新 `taskStart` 后，立即检查是否违反依赖关系
+- 如果违反，则将 `taskStart` 调整为最晚的依赖任务结束时间
+- 这确保了即使在解决资源冲突后，也不会违反依赖关系
+
+**修改文件**：
+- `src/lib/schedule-algorithms.ts`：修复依赖关系检查逻辑
+
+**验收结果**：
+- ✅ 任务必须等待所有依赖任务完成后才能开始
+- ✅ 物料任务作为依赖时，任务必须在物料提供时间之后才能开始
+- ✅ 资源冲突检测和依赖关系检查协同工作
+- ✅ 构建检查通过，无类型错误
+- ✅ 服务运行正常
