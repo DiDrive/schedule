@@ -3,7 +3,7 @@ export type ResourceLevel = 'assistant' | 'junior' | 'senior';
 
 // 资源类型
 export type ResourceType = 'human' | 'material' | 'equipment';
-export type ResourceWorkType = '平面' | '后期';
+export type ResourceWorkType = '平面' | '后期' | '物料';
 
 // 基础数据类型
 export interface Resource {
@@ -36,12 +36,12 @@ export interface Task {
   deadline?: Date;
   priority: 'urgent' | 'high' | 'normal' | 'low';
   status: 'pending' | 'in-progress' | 'completed' | 'blocked';
-  taskType?: ResourceWorkType; // 任务类型：平面/后期
-  
+  taskType?: ResourceWorkType; // 任务类型：平面/后期/物料
+
   // 复杂场景扩展
   projectId?: string;
   dependencies?: string[]; // 前置任务 IDs
-  
+
   // 复合场景扩展
   tags?: string[];
   riskFactor?: number; // 0-1, 风险系数
@@ -50,7 +50,11 @@ export interface Task {
     quantity: number;
     leadTime?: number; // 采购周期（天）
   }[];
-  
+
+  // 物料任务专用字段
+  estimatedMaterialDate?: Date; // 物料预估提供日期
+  actualMaterialDate?: Date; // 物料实际提供日期（可能提前）
+
   // 排期结果（精确到小时）
   startDate?: Date;
   endDate?: Date;

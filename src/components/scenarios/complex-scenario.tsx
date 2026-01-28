@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download } from 'lucide-react';
+import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2 } from 'lucide-react';
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import * as XLSX from 'xlsx';
 import { defaultWorkingHours } from '@/lib/sample-data';
@@ -251,6 +251,8 @@ export default function ComplexScenario() {
   const [scheduleResult, setScheduleResult] = useState<ScheduleResult | null>(null);
   const [isComputing, setIsComputing] = useState(false);
   const [activeProject, setActiveProject] = useState<string>('all');
+  const [aiSuggestion, setAiSuggestion] = useState<string>('');
+  const [isAiOptimizing, setIsAiOptimizing] = useState(false);
 
   // 数据持久化
   useEffect(() => {
@@ -492,6 +494,81 @@ export default function ComplexScenario() {
     // 下载文件
     const fileName = `复杂项目排期_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`;
     XLSX.writeFile(wb, fileName);
+  };
+
+  // AI优化排期
+  const handleAiOptimize = async () => {
+    if (!scheduleResult || tasks.length === 0) {
+      alert('请先生成排期结果');
+      return;
+    }
+
+    setIsAiOptimizing(true);
+    setAiSuggestion('');
+
+    try {
+      const response = await fetch('/api/ai-optimize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tasks,
+          resources: sharedResources,
+          currentResult: scheduleResult,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('AI优化请求失败');
+      }
+
+      // 处理流式响应
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('无法读取响应流');
+      }
+
+      let accumulatedText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+
+            if (data === '[DONE]') {
+              break;
+            }
+
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.content) {
+                accumulatedText += parsed.content;
+                setAiSuggestion(accumulatedText);
+              }
+            } catch (e) {
+              // 忽略解析错误
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('AI优化错误:', error);
+      alert('AI优化失败，请稍后重试');
+    } finally {
+      setIsAiOptimizing(false);
+    }
   };
 
   return (
@@ -769,6 +846,7 @@ export default function ComplexScenario() {
                   <TableHead>项目</TableHead>
                   <TableHead>任务类型</TableHead>
                   <TableHead>预估工时</TableHead>
+                  <TableHead>物料预估日期</TableHead>
                   <TableHead>优先级</TableHead>
                   <TableHead>依赖任务</TableHead>
                   <TableHead className="w-[100px]">操作</TableHead>
@@ -817,6 +895,7 @@ export default function ComplexScenario() {
                             <SelectItem value="none">未指定</SelectItem>
                             <SelectItem value="平面">平面</SelectItem>
                             <SelectItem value="后期">后期</SelectItem>
+                            <SelectItem value="物料">物料</SelectItem>
                           </SelectContent>
                         </Select>
                       </TableCell>
@@ -827,6 +906,19 @@ export default function ComplexScenario() {
                           onChange={(e) => handleTaskChange(task.id, 'estimatedHours', parseInt(e.target.value))}
                           className="w-24 h-8"
                         />
+                      </TableCell>
+                      <TableCell>
+                        {task.taskType === '物料' ? (
+                          <Input
+                            type="date"
+                            value={formatDateToInputValue(task.estimatedMaterialDate)}
+                            onChange={(e) => handleTaskChange(task.id, 'estimatedMaterialDate', new Date(e.target.value))}
+                            className="w-36 h-8"
+                            placeholder="预估提供日期"
+                          />
+                        ) : (
+                          <span className="text-slate-400 text-sm">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Select
@@ -954,10 +1046,26 @@ export default function ComplexScenario() {
                       详细展示任务、负责人、时间段等信息
                     </CardDescription>
                   </div>
-                  <Button onClick={handleExportToExcel} size="sm" variant="outline" className="gap-2">
-                    <Download className="h-4 w-4" />
-                    导出Excel
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={handleAiOptimize}
+                      disabled={isAiOptimizing}
+                      size="sm"
+                      variant="outline"
+                      className="gap-2"
+                    >
+                      {isAiOptimizing ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" />
+                      )}
+                      {isAiOptimizing ? 'AI分析中...' : 'AI优化排期'}
+                    </Button>
+                    <Button onClick={handleExportToExcel} size="sm" variant="outline" className="gap-2">
+                      <Download className="h-4 w-4" />
+                      导出Excel
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -991,60 +1099,74 @@ export default function ComplexScenario() {
                                 {isCritical && (
                                   <Badge variant="destructive" className="ml-2 text-xs">关键</Badge>
                                 )}
+                                {task.taskType === '物料' && (
+                                  <Badge variant="outline" className="ml-2 text-xs">物料</Badge>
+                                )}
                               </td>
                               <td className="p-2 align-middle whitespace-nowrap">{project?.name || '-'}</td>
                               <td className="p-2 align-middle whitespace-nowrap">
-                                <Badge variant={task.taskType === '平面' ? 'default' : 'secondary'}>
+                                <Badge variant={task.taskType === '平面' ? 'default' : task.taskType === '后期' ? 'secondary' : 'outline'}>
                                   {task.taskType || '-'}
                                 </Badge>
                               </td>
                               <td className="p-2 align-middle whitespace-nowrap min-w-[250px]">
-                                <div className="flex items-center gap-2">
-                                  <Select
-                                    value={task.assignedResources[0] || 'none'}
-                                    onValueChange={(value) => handleUpdateTaskResource(task.id, value !== 'none' ? value : '')}
-                                  >
-                                    <SelectTrigger className="h-8 min-w-[160px]">
-                                      <SelectValue>
-                                        {resource ? (
-                                          <div className="flex items-center gap-2">
-                                            <div
-                                              className="w-3 h-3 rounded-full flex-shrink-0"
-                                              style={{ backgroundColor: resource.color }}
-                                            />
-                                            <span className="text-sm">{resource.name}</span>
-                                          </div>
-                                        ) : (
-                                          <span className="text-slate-400 text-sm">未分配</span>
-                                        )}
-                                      </SelectValue>
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="none">未分配</SelectItem>
-                                      {sharedResources
-                                        .filter(r => r.type === 'human' && (!task.taskType || r.workType === task.taskType))
-                                        .map(r => (
-                                        <SelectItem key={r.id} value={r.id}>
-                                          <div className="flex items-center gap-2">
-                                            <div
-                                              className="w-3 h-3 rounded-full"
-                                              style={{ backgroundColor: r.color }}
-                                            />
-                                            <span>{r.name}</span>
-                                            <span className="text-xs text-slate-500">
-                                              ({r.level === 'senior' ? '高级' : r.level === 'junior' ? '初级' : '助理'})
-                                            </span>
-                                          </div>
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  {resource && (
-                                    <Badge className={getLevelBadgeColor(resource.level || 'junior')} variant="secondary" style={{ fontSize: '10px', padding: '2px 6px' }} title={resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}>
-                                      {resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}
-                                    </Badge>
-                                  )}
-                                </div>
+                                {task.taskType === '物料' ? (
+                                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                                    <span>甲方提供</span>
+                                    {task.estimatedMaterialDate && (
+                                      <span className="text-xs">
+                                        （{formatDateToInputValue(task.estimatedMaterialDate)}）
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <Select
+                                      value={task.assignedResources[0] || 'none'}
+                                      onValueChange={(value) => handleUpdateTaskResource(task.id, value !== 'none' ? value : '')}
+                                    >
+                                      <SelectTrigger className="h-8 min-w-[160px]">
+                                        <SelectValue>
+                                          {resource ? (
+                                            <div className="flex items-center gap-2">
+                                              <div
+                                                className="w-3 h-3 rounded-full flex-shrink-0"
+                                                style={{ backgroundColor: resource.color }}
+                                              />
+                                              <span className="text-sm">{resource.name}</span>
+                                            </div>
+                                          ) : (
+                                            <span className="text-slate-400 text-sm">未分配</span>
+                                          )}
+                                        </SelectValue>
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="none">未分配</SelectItem>
+                                        {sharedResources
+                                          .filter(r => r.type === 'human' && (!task.taskType || r.workType === task.taskType))
+                                          .map(r => (
+                                          <SelectItem key={r.id} value={r.id}>
+                                            <div className="flex items-center gap-2">
+                                              <div
+                                                className="w-3 h-3 rounded-full"
+                                                style={{ backgroundColor: r.color }}
+                                              />
+                                              <span>{r.name}</span>
+                                              <span className="text-xs text-slate-500">
+                                                ({r.level === 'senior' ? '高级' : r.level === 'junior' ? '初级' : '助理'})
+                                              </span>
+                                            </div>
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    {resource && (
+                                      <Badge className={getLevelBadgeColor(resource.level || 'junior')} variant="secondary" style={{ fontSize: '10px', padding: '2px 6px' }} title={resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}>
+                                        {resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                )}
                               </td>
                               <td className="p-2 align-middle whitespace-nowrap">
                                 {task.startDate ? formatDateTime(task.startDate) : '-'}
@@ -1202,6 +1324,26 @@ export default function ComplexScenario() {
                         <span className="text-slate-700 dark:text-slate-300">{rec}</span>
                       </div>
                     ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* AI Optimization Suggestions */}
+            {aiSuggestion && (
+              <Card className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 border-purple-200 dark:border-purple-800">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-purple-900 dark:text-purple-100">
+                    <Sparkles className="h-5 w-5 text-purple-600" />
+                    AI智能优化建议
+                  </CardTitle>
+                  <CardDescription className="text-purple-700 dark:text-purple-300">
+                    基于大语言模型分析，为您提供最高效率的排期优化方案
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="prose prose-sm max-w-none dark:prose-invert">
+                    <div className="whitespace-pre-wrap">{aiSuggestion}</div>
                   </div>
                 </CardContent>
               </Card>

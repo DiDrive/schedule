@@ -28,6 +28,7 @@ const PRIORITY_WEIGHT: Record<string, number> = {
  * 根据任务特征自动分配资源
  * 策略：在满足工作类型匹配的前提下，优先选择负载最低的资源
  * 这样可以实现负载均衡，让所有人都有活干
+ * 注意：物料任务不分配资源
  */
 export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[] {
   // 只有人类资源可以分配
@@ -45,6 +46,14 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
   humanResources.forEach(r => resourceLoad.set(r.id, 0));
 
   const assignedTasks = sortedTasks.map(task => {
+    // 物料任务不分配资源
+    if (task.taskType === '物料') {
+      return {
+        ...task,
+        assignedResources: []
+      };
+    }
+
     // 如果任务已有分配，跳过
     if (task.assignedResources && task.assignedResources.length > 0) {
       return task;
@@ -658,6 +667,25 @@ export function generateSchedule(
   });
 
   for (const task of sortedTasks) {
+    // 物料任务特殊处理
+    if (task.taskType === '物料') {
+      // 使用实际提供日期（如果有），否则使用预估提供日期
+      let materialDate = task.actualMaterialDate || task.estimatedMaterialDate || startDate;
+
+      // 物料任务的开始和结束时间都是提供日期当天
+      const scheduledTask: Task = {
+        ...task,
+        startDate: new Date(materialDate),
+        endDate: new Date(materialDate),
+        isCritical: false,
+        assignedResources: [] // 物料任务不分配资源
+      };
+
+      taskMap.set(task.id, scheduledTask);
+      scheduledTasks.push(scheduledTask);
+      continue;
+    }
+
     // 根据依赖关系计算开始时间
     let taskStart = new Date(startDate);
 
