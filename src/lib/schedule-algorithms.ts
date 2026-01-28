@@ -785,11 +785,21 @@ export function generateSchedule(
       // 使用实际提供日期（如果有），否则使用预估提供日期
       // 使用用户在界面上选择的精确时间（datetime-local）
       let materialDate = task.actualMaterialDate || task.estimatedMaterialDate || startDate;
-      const materialTime = new Date(materialDate);
+      let materialTime = new Date(materialDate);
+
+      // 如果物料提供日期是周末，自动顺延到最近的下一个工作日
+      const dayOfWeek = materialTime.getDay();
+      if (dayOfWeek === 0) { // 周日
+        // 顺延到下周一
+        materialTime.setDate(materialTime.getDate() + 1);
+      } else if (dayOfWeek === 6) { // 周六
+        // 顺延到下周一
+        materialTime.setDate(materialTime.getDate() + 2);
+      }
 
       // 物料任务是里程碑，表示在这个时间点提供
-      // 开始时间：用户选择的提供时间
-      // 结束时间：也是用户选择的提供时间，表示物料在这个时间点立即可用
+      // 开始时间：顺延后的提供时间
+      // 结束时间：也是顺延后的提供时间，表示物料在这个时间点立即可用
       const scheduledTask: Task = {
         ...task,
         startDate: new Date(materialTime),
