@@ -287,11 +287,13 @@ export default function BasicScenario() {
     }
   };
 
-  const formatDateTime = (date: Date) => {
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
+  const formatDateTime = (date: Date | string) => {
+    const dateObj = date instanceof Date ? date : new Date(date);
+    if (isNaN(dateObj.getTime())) return '无效日期';
+    const hours = dateObj.getHours();
+    const minutes = dateObj.getMinutes();
     const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-    return `${date.getMonth() + 1}/${date.getDate()} ${timeStr}`;
+    return `${dateObj.getMonth() + 1}/${dateObj.getDate()} ${timeStr}`;
   };
 
   // AI优化排期
