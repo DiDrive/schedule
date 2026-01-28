@@ -858,18 +858,44 @@ export default function ComplexScenario() {
           <div className="text-sm text-blue-700 dark:text-blue-300">
             <div className="font-medium mb-2">效率系数影响任务实际完成时间：</div>
             <div className="grid gap-2 md:grid-cols-3">
-              <div className="flex items-start gap-2">
-                <span className="text-purple-500 font-bold min-w-[60px]">高级</span>
-                <span>效率1.5倍，8小时任务实际只需5.3小时完成</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-blue-500 font-bold min-w-[60px]">初级</span>
-                <span>效率1.0倍，8小时任务实际用时8小时</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-slate-500 font-bold min-w-[60px]">助理</span>
-                <span>效率0.7倍，8小时任务实际需要11.4小时</span>
-              </div>
+              {(() => {
+                // 动态计算各等级的实际效率值（取该等级资源的平均效率）
+                const getLevelEfficiency = (level: ResourceLevel) => {
+                  const levelResources = sharedResources.filter(r => r.level === level);
+                  if (levelResources.length === 0) return 0;
+                  const totalEfficiency = levelResources.reduce((sum, r) => sum + (r.efficiency || 1.0), 0);
+                  return totalEfficiency / levelResources.length;
+                };
+
+                const seniorEff = getLevelEfficiency('senior');
+                const juniorEff = getLevelEfficiency('junior');
+                const assistantEff = getLevelEfficiency('assistant');
+
+                const baseHours = 8; // 示例：8小时任务
+
+                return (
+                  <>
+                    {seniorEff > 0 && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-purple-500 font-bold min-w-[60px]">高级</span>
+                        <span>效率{seniorEff.toFixed(1)}倍，{baseHours}小时任务实际只需{(baseHours / seniorEff).toFixed(1)}小时完成</span>
+                      </div>
+                    )}
+                    {juniorEff > 0 && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-blue-500 font-bold min-w-[60px]">初级</span>
+                        <span>效率{juniorEff.toFixed(1)}倍，{baseHours}小时任务实际用时{(baseHours / juniorEff).toFixed(1)}小时</span>
+                      </div>
+                    )}
+                    {assistantEff > 0 && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-slate-500 font-bold min-w-[60px]">助理</span>
+                        <span>效率{assistantEff.toFixed(1)}倍，{baseHours}小时任务实际需要{(baseHours / assistantEff).toFixed(1)}小时</span>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
             <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
               <strong>影响体现：</strong>
