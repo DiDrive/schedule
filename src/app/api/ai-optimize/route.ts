@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config } from 'coze-coding-dev-sdk';
 import { Task, Resource } from '@/types/schedule';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {
