@@ -330,7 +330,14 @@ export function topologicalSort(tasks: Task[]): Task[] {
   });
 
   // 任务评分函数：综合考虑优先级、截止日期、依赖关系和任务类型
+  // 注意：物料任务不参与评分，因为它们的时间固定，不由我们控制
   const calculateScore = (task: Task): number => {
+    // 物料任务直接返回0分，不参与评分竞争
+    // 物料任务在拓扑排序开始前会被提前处理
+    if (task.taskType === '物料') {
+      return 0;
+    }
+
     let score = 0;
 
     // 1. 【最重要】被其他任务依赖的任务应该优先处理
@@ -342,11 +349,6 @@ export function topologicalSort(tasks: Task[]): Task[] {
 
       // 被依赖的任务数量越多，分数越高（阻塞更多任务）
       score += dependents.length * 500;
-
-      // 物料任务额外加分，因为它通常时间固定且影响重大
-      if (task.taskType === '物料') {
-        score += 300;
-      }
     }
 
     // 2. 优先级权重
@@ -371,11 +373,23 @@ export function topologicalSort(tasks: Task[]): Task[] {
   // 拓扑排序
   const result: Task[] = [];
 
+  // 第一步：提取所有物料任务（不参与评分，按提供日期排序）
+  const materialTasks = tasks.filter(t => t.taskType === '物料');
+  materialTasks.sort((a, b) => {
+    const dateA = a.estimatedMaterialDate || a.actualMaterialDate || new Date();
+    const dateB = b.estimatedMaterialDate || b.actualMaterialDate || new Date();
+    return new Date(dateA).getTime() - new Date(dateB).getTime();
+  });
+  result.push(...materialTasks);
+
+  // 第二步：对非物料任务进行拓扑排序（使用评分系统）
   // 使用优先队列：每次选择分数最高的任务
   const getReadyTasks = (): Task[] => {
     const readyTaskIds: string[] = [];
     inDegree.forEach((degree, taskId) => {
-      if (degree === 0 && !result.find(t => t.id === taskId)) {
+      // 只选择非物料任务，且不在结果中，且入度为0
+      const task = taskMap.get(taskId);
+      if (degree === 0 && !result.find(t => t.id === taskId) && task && task.taskType !== '物料') {
         readyTaskIds.push(taskId);
       }
     });
@@ -383,12 +397,12 @@ export function topologicalSort(tasks: Task[]): Task[] {
   };
 
   while (result.length < tasks.length) {
-    // 获取所有准备好的任务
+    // 获取所有准备好的非物料任务
     const readyTasks = getReadyTasks();
 
     if (readyTasks.length === 0) {
       // 没有准备好的任务，可能存在循环依赖
-      const remaining = tasks.filter(t => !result.includes(t));
+      const remaining = tasks.filter(t => !result.includes(t) && t.taskType !== '物料');
       if (remaining.length > 0) {
         // 随机选择一个剩余任务
         result.push(remaining[0]);
