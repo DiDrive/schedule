@@ -520,6 +520,11 @@ export function detectResourceConflicts(
 
 /**
  * 计算资源利用率
+ * 说明：
+ * - 任务预估工时是"标准人"（效率1.0）完成所需时间
+ * - 高效率（1.5倍）人员在相同时间内能完成更多工作
+ * - 利用率 = 分配工时 / (可用时间 × 可用性 × 效率)
+ * - 例如：高效率人在160小时可完成240小时的标准工时
  */
 export function calculateResourceUtilization(
   tasks: Task[],
@@ -535,14 +540,16 @@ export function calculateResourceUtilization(
       return;
     }
 
-    // 计算总工时（考虑效率）
-    const efficiency = resource.efficiency || LEVEL_EFFICIENCY[resource.level as ResourceLevel] || 1.0;
+    // 计算分配的标准工时（任务预估工时之和）
     const totalAssignedHours = assignedTasks.reduce(
       (sum, task) => sum + task.estimatedHours,
       0
     );
 
-    // 考虑可用性系数
+    // 计算资源有效容量（考虑效率）
+    // 假设4周工作：8小时/天 × 5天/周 × 4周 = 160小时（标准人）
+    // 高效率（1.5倍）：160 × 1.5 × 可用性 = 可完成的标准工时
+    const efficiency = resource.efficiency || LEVEL_EFFICIENCY[resource.level as ResourceLevel] || 1.0;
     const effectiveCapacity = 8 * 5 * 4 * resource.availability * efficiency;
 
     utilization[resource.id] = Math.min(totalAssignedHours / effectiveCapacity, 1);
@@ -733,12 +740,16 @@ export function generateSchedule(
       }
     }
 
-    // 获取分配的资源效率（仅用于显示，不影响实际时长）
+    // 计算实际工作时间：高效率人员用更少时间完成任务
+    // 任务预估工时是"标准人"（效率1.0）完成所需时间
+    // 高效率（1.5倍）人员：实际用时 = 预估工时 / 1.5
+    // 低效率（0.7倍）人员：实际用时 = 预估工时 / 0.7
     const resource = resources.find(r => r.id === resourceId);
     const efficiency = resource?.efficiency || LEVEL_EFFICIENCY[resource?.level as ResourceLevel] || 1.0;
+    const actualWorkHours = task.estimatedHours / efficiency;
 
-    // 使用自定义工作时间计算结束时间（精确到小时，不考虑效率系数）
-    const taskEnd = calculateEndDate(taskStart, task.estimatedHours, workingHoursConfig);
+    // 使用实际工作时间计算结束时间
+    const taskEnd = calculateEndDate(taskStart, actualWorkHours, workingHoursConfig);
 
     // 计算开始和结束的小时数
     const startHour = taskStart.getHours() + taskStart.getMinutes() / 60;

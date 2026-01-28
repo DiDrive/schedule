@@ -1,5 +1,6 @@
 import { Task, ScheduleResult, Resource, Project } from '@/types/schedule';
 import { Badge } from '@/components/ui/badge';
+import { calculateWorkHours } from '@/lib/schedule-algorithms';
 
 interface ProjectColor {
   id: string;
@@ -155,8 +156,13 @@ export default function GanttChart({
     // 计算当天实际工作时间（减去午休）
     const dailyWorkHours = (WORK_END_HOUR - WORK_START_HOUR) - (LUNCH_BREAK_END - LUNCH_BREAK_START);
 
-    // 使用预估工时而不是自然时间差
-    let remainingDuration = task.estimatedHours;
+    // 使用实际的时间跨度（已考虑效率）计算宽度
+    // 任务的实际完成时间已经由排期算法根据效率计算好了
+    // 这里只需要将其转换为甘特图位置
+    const actualWorkHours = calculateWorkHours(taskStart, taskEnd);
+
+    // 计算总宽度天数（基于实际工作时间）
+    let remainingDuration = actualWorkHours;
     let totalWidthDays = 0;
 
     // 从任务开始日期开始计算
@@ -433,6 +439,16 @@ export default function GanttChart({
                             {resources && (
                               <div className="text-xs text-slate-600 dark:text-slate-400 mt-1 pl-4 truncate">
                                 负责人: {getResourceNames(task)}
+                              </div>
+                            )}
+                            {resources && task.assignedResources.length > 0 && !task.isCritical && (
+                              <div className="text-xs text-slate-400 dark:text-slate-500 mt-1 pl-4">
+                                {(() => {
+                                  const resource = resources.find(r => r.id === task.assignedResources[0]);
+                                  const efficiency = resource?.efficiency || 1.0;
+                                  const actualHours = task.estimatedHours / efficiency;
+                                  return `效率: ${efficiency}× | 预估${task.estimatedHours}h → 实际${actualHours.toFixed(1)}h`;
+                                })()}
                               </div>
                             )}
                           </div>

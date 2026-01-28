@@ -840,6 +840,38 @@ export default function ComplexScenario() {
         </div>
       </div>
 
+      {/* 资源效率说明 */}
+      <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+        <CardContent className="pt-6">
+          <h4 className="font-semibold mb-3 text-blue-900 dark:text-blue-100">⚡ 资源效率说明</h4>
+          <div className="text-sm text-blue-700 dark:text-blue-300">
+            <div className="font-medium mb-2">效率系数影响任务实际完成时间：</div>
+            <div className="grid gap-2 md:grid-cols-3">
+              <div className="flex items-start gap-2">
+                <span className="text-purple-500 font-bold min-w-[60px]">高级</span>
+                <span>效率1.5倍，8小时任务实际只需5.3小时完成</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-blue-500 font-bold min-w-[60px]">初级</span>
+                <span>效率1.0倍，8小时任务实际用时8小时</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-slate-500 font-bold min-w-[60px]">助理</span>
+                <span>效率0.7倍，8小时任务实际需要11.4小时</span>
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+              <strong>影响体现：</strong>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li>甘特图任务条长度反映实际完成时间</li>
+                <li>高效率人员的任务条更短</li>
+                <li>资源利用率计算考虑效率加成</li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Task Management Table */}
       <Card>
         <CardHeader>
