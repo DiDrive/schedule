@@ -856,21 +856,20 @@ export function generateSchedule(
       }
 
     // 获取分配的资源
-    const resourceId = task.assignedResources[0];
-    const resourceSchedule = resourceSchedules.get(resourceId) || [];
+    let resourceId = task.assignedResources[0];
+    let resource = resources.find(r => r.id === resourceId);
 
-    // 计算实际工作时间：高效率人员用更少时间完成任务
-    // 任务预估工时是"标准人"（效率1.0）完成所需时间
-    // 高效率（1.5倍）人员：实际用时 = 预估工时 / 1.5
-    // 低效率（0.7倍）人员：实际用时 = 预估工时 / 0.7
-    const resource = resources.find(r => r.id === resourceId);
-    const efficiency = resource?.efficiency || LEVEL_EFFICIENCY[resource?.level as ResourceLevel] || 1.0;
-    const actualWorkHours = task.estimatedHours / efficiency;
+    if (!resource) {
+      console.error(`  ⚠ 资源 ${resourceId} 不存在！`);
+      continue; // 跳过这个任务
+    }
 
     // 检查资源冲突并调整开始时间
     let hasConflict = true;
     let maxIterations = 100; // 防止无限循环
     let iteration = 0;
+
+    console.log(`  调度开始: 任务 ${task.name}, 原始资源: ${resource.name} (类型: ${resource.workType})`);
 
     while (hasConflict && iteration < maxIterations) {
       hasConflict = false;
@@ -895,23 +894,67 @@ export function generateSchedule(
         }
       }
 
-      // 计算当前安排的任务结束时间（使用实际工作时间）
+      // 计算实际工作时间：高效率人员用更少时间完成任务
+      const efficiency = resource.efficiency || LEVEL_EFFICIENCY[resource.level as ResourceLevel] || 1.0;
+      const actualWorkHours = task.estimatedHours / efficiency;
       const taskEnd = calculateEndDate(taskStart, actualWorkHours, workingHoursConfig);
 
+      // 获取当前资源的时间表
+      const resourceSchedule = resourceSchedules.get(resourceId) || [];
+
       // 检查是否与该资源的其他任务冲突
+      console.log(`    第${iteration}次检查: 开始时间 ${taskStart.toLocaleString()}, 结束时间 ${taskEnd.toLocaleString()}`);
+      console.log(`    资源 ${resource.name} 已安排任务: ${resourceSchedule.length}个`);
+
       for (const scheduled of resourceSchedule) {
+        console.log(`      已安排: ${scheduled.start.toLocaleString()} - ${scheduled.end.toLocaleString()}`);
         // 检查时间重叠：任务开始 < 已安排任务结束 且 任务结束 > 已安排任务开始
         if (taskStart < scheduled.end && taskEnd > scheduled.start) {
           hasConflict = true;
-          // 从冲突任务的结束时间开始
+          const overlapStart = taskStart > scheduled.start ? taskStart : scheduled.start;
+          const overlapEnd = taskEnd < scheduled.end ? taskEnd : scheduled.end;
+          console.log(`      ⚠ 检测到冲突: 重叠时间 ${overlapStart.toLocaleString()} - ${overlapEnd.toLocaleString()}`);
+
+          // ★★★ 关键改进：尝试切换到其他空闲资源 ★★★
+          const alternativeResource = findAvailableResource(
+            task,
+            resources,
+            taskStart,
+            actualWorkHours,
+            workingHoursConfig,
+            resourceSchedules,
+            resourceId // 排除当前资源
+          );
+
+          if (alternativeResource) {
+            console.log(`      ✓ 发现空闲资源: ${alternativeResource.name}，切换资源`);
+            resource = alternativeResource;
+            resourceId = alternativeResource.id;
+            hasConflict = false; // 重置冲突标记，使用新资源重新检查
+            break; // 退出冲突检查循环，重新开始
+          }
+
+          // 没有空闲资源，只能调整时间
+          console.log(`      → 没有空闲资源，调整开始时间为 ${scheduled.end.toLocaleString()}`);
           taskStart = new Date(scheduled.end);
           break;
         }
       }
+
+      if (!hasConflict) {
+        console.log(`    ✓ 无冲突，时间安排成功 (资源: ${resource.name})`);
+      }
+    }
+
+    if (iteration >= maxIterations) {
+      console.error(`    ⚠ 调度失败：超过最大迭代次数`);
     }
 
     // 使用实际工作时间计算最终的结束时间
-    const taskEnd = calculateEndDate(taskStart, actualWorkHours, workingHoursConfig);
+    // 重新计算实际工作时间（因为资源可能已经切换）
+    const efficiency = resource.efficiency || LEVEL_EFFICIENCY[resource.level as ResourceLevel] || 1.0;
+    const finalActualWorkHours = task.estimatedHours / efficiency;
+    const taskEnd = calculateEndDate(taskStart, finalActualWorkHours, workingHoursConfig);
 
     // 计算开始和结束的小时数
     const startHour = taskStart.getHours() + taskStart.getMinutes() / 60;
@@ -922,17 +965,18 @@ export function generateSchedule(
       startDate: taskStart,
       endDate: taskEnd,
       startHour,
-        endHour,
-        isCritical: false
-      };
+      endHour,
+      assignedResources: [resourceId], // 使用最终选择的资源ID（可能已经切换）
+      isCritical: false
+    };
 
-      // 记录到资源时间表
-      if (resourceSchedule) {
-        resourceSchedule.push({
-          start: taskStart,
-          end: taskEnd
-        });
-      }
+    // 记录到资源时间表
+    const finalResourceSchedule = resourceSchedules.get(resourceId) || [];
+    finalResourceSchedule.push({
+      start: taskStart,
+      end: taskEnd
+    });
+    resourceSchedules.set(resourceId, finalResourceSchedule);
 
       taskMap.set(task.id, scheduledTask);
       scheduledTasks.push(scheduledTask);
@@ -1003,4 +1047,56 @@ function areDependenciesSatisfied(task: Task, taskMap: Map<string, Task>): boole
 
   // 检查所有依赖任务是否都已被安排
   return task.dependencies.every(depId => taskMap.has(depId));
+}
+
+/**
+ * 查找在指定时间段可用的空闲资源
+ */
+function findAvailableResource(
+  task: Task,
+  resources: Resource[],
+  taskStart: Date,
+  actualWorkHours: number,
+  workingHoursConfig: WorkingHoursConfig,
+  resourceSchedules: Map<string, Array<{ start: Date; end: Date }>>,
+  excludeResourceId?: string
+): Resource | null {
+  // 找出所有匹配的资源（相同工作类型且是人类资源）
+  const matchingResources = resources.filter(r =>
+    r.type === 'human' &&
+    r.workType === task.taskType &&
+    r.id !== excludeResourceId // 排除当前资源
+  );
+
+  if (matchingResources.length === 0) {
+    return null;
+  }
+
+  // 计算任务的结束时间
+  const taskEnd = calculateEndDate(taskStart, actualWorkHours, workingHoursConfig);
+
+  // 找出所有在指定时间段无冲突的资源
+  const availableResources = matchingResources.filter(resource => {
+    const schedule = resourceSchedules.get(resource.id) || [];
+
+    // 检查是否与该资源的任何已安排任务冲突
+    const hasConflict = schedule.some(scheduled =>
+      taskStart < scheduled.end && taskEnd > scheduled.start
+    );
+
+    return !hasConflict;
+  });
+
+  if (availableResources.length === 0) {
+    return null;
+  }
+
+  // 优先选择效率高的资源
+  availableResources.sort((a, b) => {
+    const effA = a.efficiency || LEVEL_EFFICIENCY[a.level as ResourceLevel] || 1.0;
+    const effB = b.efficiency || LEVEL_EFFICIENCY[b.level as ResourceLevel] || 1.0;
+    return effB - effA;
+  });
+
+  return availableResources[0];
 }
