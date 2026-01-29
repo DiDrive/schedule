@@ -107,7 +107,7 @@ export function ConflictResolutionDialog({
 
                 {/* 任务卡片列表 */}
                 <div className="p-4 space-y-3">
-                  {conflictTasks.map((conflictTask, index) => {
+                  {conflictTasks.map((conflictTask) => {
                     const resolution = resolutions.get(conflictTask.task.id);
                     return (
                       <div
@@ -116,9 +116,6 @@ export function ConflictResolutionDialog({
                       >
                         {/* 第一行：任务信息 */}
                         <div className="flex items-center gap-3 mb-3 pb-3 border-b border-slate-200 dark:border-slate-700">
-                          <Badge variant="outline" className="w-20 justify-center font-semibold">
-                            任务 {index + 1}
-                          </Badge>
                           <h4 className="font-bold text-base flex-1">{conflictTask.task.name}</h4>
                           {conflictTask.task.taskType && (
                             <Badge variant="secondary">
@@ -156,14 +153,14 @@ export function ConflictResolutionDialog({
                           </div>
 
                           {/* 操作按钮 */}
-                          <div className="flex flex-shrink-0 gap-2">
+                          <div className="flex flex-shrink-0 flex-col gap-2">
                             <Button
                               variant={resolution === 'switch' ? 'default' : 'outline'}
                               size="sm"
                               onClick={() => handleToggleResolution(conflictTask.task.id)}
                               className={resolution === 'switch' 
-                                ? 'bg-blue-600 hover:bg-blue-700 h-8' 
-                                : 'border-2 hover:border-blue-300 h-8'
+                                ? 'bg-blue-600 hover:bg-blue-700 h-8 w-32' 
+                                : 'border-2 hover:border-blue-300 h-8 w-32'
                               }
                             >
                               <ArrowRightLeft className="h-3.5 w-3.5 mr-1.5" />
@@ -174,8 +171,8 @@ export function ConflictResolutionDialog({
                               size="sm"
                               onClick={() => handleToggleResolution(conflictTask.task.id)}
                               className={resolution === 'delay'
-                                ? 'bg-orange-600 hover:bg-orange-700 h-8'
-                                : 'border-2 hover:border-orange-300 h-8'
+                                ? 'bg-orange-600 hover:bg-orange-700 h-8 w-32'
+                                : 'border-2 hover:border-orange-300 h-8 w-32'
                               }
                             >
                               <Clock4 className="h-3.5 w-3.5 mr-1.5" />
