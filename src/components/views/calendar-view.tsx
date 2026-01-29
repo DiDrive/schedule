@@ -33,7 +33,13 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
     return eachDayOfInterval({ start, end });
   }, [currentDate]);
 
-  // 按日期分组任务
+  // 判断是否是工作日（周一到周五）
+  const isWorkDay = (date: Date) => {
+    const dayOfWeek = date.getDay();
+    return dayOfWeek >= 1 && dayOfWeek <= 5; // 1=周一, 5=周五
+  };
+
+  // 按日期分组任务（只包括工作日）
   const tasksByDate = useMemo(() => {
     const grouped: Record<string, Task[]> = {};
 
@@ -41,21 +47,28 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
       const startDate = new Date(scheduledTask.startDate!);
       const endDate = new Date(scheduledTask.endDate!);
 
-      // 为任务的每一天添加任务
-      const days = eachDayOfInterval({ start: startDate, end: endDate });
-      days.forEach(day => {
-        const dateKey = format(day, 'yyyy-MM-dd');
-        if (!grouped[dateKey]) {
-          grouped[dateKey] = [];
+      // 只计算工作日
+      const currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        if (isWorkDay(currentDate)) {
+          const dateKey = format(currentDate, 'yyyy-MM-dd');
+          if (!grouped[dateKey]) {
+            grouped[dateKey] = [];
+          }
+          // 避免重复添加同一任务
+          if (!grouped[dateKey].find(t => t.id === scheduledTask.id)) {
+            grouped[dateKey].push(scheduledTask);
+          }
         }
-        grouped[dateKey].push(scheduledTask);
-      });
+        // 移动到下一天
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
     });
 
     return grouped;
   }, [scheduledTasks]);
 
-  // 获取当月范围的任务日期
+  // 获取当月范围的任务日期（只包括工作日）
   const monthTasks: Record<string, Task[]> = useMemo(() => {
     const tasksInMonth: Record<string, Task[]> = {};
 
@@ -63,18 +76,22 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
       const startDate = new Date(scheduledTask.startDate!);
       const endDate = new Date(scheduledTask.endDate!);
 
-      const days = eachDayOfInterval({ start: startDate, end: endDate });
-      days.forEach(day => {
-        if (isSameMonth(day, currentDate)) {
-          const dateKey = format(day, 'yyyy-MM-dd');
+      // 只计算工作日，且只在当前显示的月份内
+      const taskDate = new Date(startDate);
+      while (taskDate <= endDate) {
+        if (isWorkDay(taskDate) && isSameMonth(taskDate, currentDate)) {
+          const dateKey = format(taskDate, 'yyyy-MM-dd');
           if (!tasksInMonth[dateKey]) {
             tasksInMonth[dateKey] = [];
           }
-          if (!tasksInMonth[dateKey].includes(scheduledTask)) {
+          // 避免重复添加同一任务
+          if (!tasksInMonth[dateKey].find(t => t.id === scheduledTask.id)) {
             tasksInMonth[dateKey].push(scheduledTask);
           }
         }
-      });
+        // 移动到下一天
+        taskDate.setDate(taskDate.getDate() + 1);
+      }
     });
 
     return tasksInMonth;
@@ -148,51 +165,55 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
             const dayTasks = tasksByDate[dateKey] || [];
             const isCurrentMonth = isSameMonth(day, currentDate);
             const isToday = isSameDay(day, new Date());
+            const isWeekend = !isWorkDay(day);
 
             return (
               <div
                 key={index}
                 className={`min-h-[120px] p-2 border rounded-lg ${
-                  !isCurrentMonth ? 'bg-slate-50' : 'bg-white'
+                  !isCurrentMonth ? 'bg-slate-50' : isWeekend ? 'bg-slate-100' : 'bg-white'
                 } ${isToday ? 'border-blue-500' : 'border-slate-200'} hover:border-blue-300 transition-colors`}
               >
-                <div className={`text-sm font-medium mb-2 ${!isCurrentMonth ? 'text-slate-400' : ''} ${isToday ? 'text-blue-600' : ''}`}>
+                <div className={`text-sm font-medium mb-2 ${!isCurrentMonth || isWeekend ? 'text-slate-400' : ''} ${isToday ? 'text-blue-600' : ''}`}>
                   {format(day, 'd')}
                 </div>
 
-                <div className="space-y-1 overflow-y-auto max-h-[80px]">
-                  {dayTasks.map((scheduledTask, taskIndex) => {
-                    const task = getTaskDetails(scheduledTask);
-                    const resource = getResource(scheduledTask.assignedResources[0]!);
-                    const isMultiDay = isMultiDayTask(scheduledTask, day);
+                {/* 只在工作日显示任务 */}
+                {!isWeekend && (
+                  <div className="space-y-1 overflow-y-auto max-h-[80px]">
+                    {dayTasks.map((scheduledTask, taskIndex) => {
+                      const task = getTaskDetails(scheduledTask);
+                      const resource = getResource(scheduledTask.assignedResources[0]!);
+                      const isMultiDay = isMultiDayTask(scheduledTask, day);
 
-                    if (!task) return null;
+                      if (!task) return null;
 
-                    return (
-                      <div
-                        key={taskIndex}
-                        className={`text-xs p-1.5 rounded cursor-pointer truncate ${
-                          task.taskType === '平面'
-                            ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                            : task.taskType === '后期'
-                            ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-                            : 'bg-orange-100 text-orange-800 hover:bg-orange-200'
-                        }`}
-                        title={`${task.name}\n负责人: ${resource?.name || '未分配'}\n${format(new Date(scheduledTask.startDate!), 'HH:mm')} - ${format(new Date(scheduledTask.endDate!), 'HH:mm')}`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="truncate flex-1">{task.name}</span>
-                          {isMultiDay && <span className="text-[10px] ml-1">↔</span>}
-                        </div>
-                        {resource && (
-                          <div className="truncate text-[10px] opacity-75">
-                            {resource.name}
+                      return (
+                        <div
+                          key={taskIndex}
+                          className={`text-xs p-1.5 rounded cursor-pointer truncate ${
+                            task.taskType === '平面'
+                              ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                              : task.taskType === '后期'
+                              ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                              : 'bg-orange-100 text-orange-800 hover:bg-orange-200'
+                          }`}
+                          title={`${task.name}\n负责人: ${resource?.name || '未分配'}\n${format(new Date(scheduledTask.startDate!), 'HH:mm')} - ${format(new Date(scheduledTask.endDate!), 'HH:mm')}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="truncate flex-1">{task.name}</span>
+                            {isMultiDay && <span className="text-[10px] ml-1">↔</span>}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                          {resource && (
+                            <div className="truncate text-[10px] opacity-75">
+                              {resource.name}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -215,7 +236,10 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
             </div>
           </div>
           <div className="mt-2 text-sm text-slate-600">
-            本月总任务: {Object.values(monthTasks).flat().length} 项
+            本月工作日任务: {Object.values(monthTasks).flat().length} 项
+          </div>
+          <div className="text-xs text-slate-500 mt-1">
+            * 仅显示工作日（周一至周五）的任务安排
           </div>
         </div>
       </CardContent>
