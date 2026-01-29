@@ -13,7 +13,7 @@ import { Play, Plus, Trash2, CheckCircle, TrendingUp, Settings, Calendar, Downlo
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import * as XLSX from 'xlsx';
 import { defaultWorkingHours } from '@/lib/sample-data';
-import { Task, Resource, ScheduleResult, ResourceLevel } from '@/types/schedule';
+import { Task, Resource, ScheduleResult, ResourceLevel, ResourceConflictStrategy } from '@/types/schedule';
 import GanttChart from '@/components/gantt-chart';
 import { CalendarView } from '@/components/views/calendar-view';
 
@@ -103,6 +103,7 @@ export default function BasicScenario() {
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [aiSuggestion, setAiSuggestion] = useState<string>('');
   const [isAiOptimizing, setIsAiOptimizing] = useState(false);
+  const [conflictStrategy, setConflictStrategy] = useState<ResourceConflictStrategy>('auto-switch');
 
   // 使用 ref 跟踪是否已经加载过数据，避免重复加载
   const hasLoadedData = useRef(false);
@@ -164,7 +165,7 @@ export default function BasicScenario() {
   const handleGenerateSchedule = () => {
     setIsComputing(true);
     setTimeout(() => {
-      const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours);
+      const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy);
       setScheduleResult(result);
       setIsComputing(false);
     }, 500);
@@ -406,6 +407,31 @@ export default function BasicScenario() {
               <CardDescription>
                 管理团队成员，设置等级和效率，系统会自动分配任务
               </CardDescription>
+              <div className="mt-2 flex items-center gap-2 text-sm">
+                <span className="text-slate-600 dark:text-slate-400">冲突策略:</span>
+                <Select
+                  value={conflictStrategy}
+                  onValueChange={(value: ResourceConflictStrategy) => setConflictStrategy(value)}
+                >
+                  <SelectTrigger className="h-7 w-[200px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto-switch">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-medium">自动切换空闲资源</span>
+                        <span className="text-[10px] text-slate-500">冲突时自动切换到其他空闲人员</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="delay-only">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-medium">延后执行时间</span>
+                        <span className="text-[10px] text-slate-500">指定人员冲突时延后时间，不切换</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <Button onClick={handleAddResource} size="sm" variant="outline" className="gap-2">
               <Plus className="h-4 w-4" />

@@ -5,6 +5,9 @@ export type ResourceLevel = 'assistant' | 'junior' | 'senior';
 export type ResourceType = 'human' | 'material' | 'equipment';
 export type ResourceWorkType = '平面' | '后期' | '物料';
 
+// 资源冲突处理策略
+export type ResourceConflictStrategy = 'auto-switch' | 'delay-only' | 'ask-each';
+
 // 基础数据类型
 export interface Resource {
   id: string;

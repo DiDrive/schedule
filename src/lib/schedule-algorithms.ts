@@ -1,4 +1,4 @@
-import { Task, Resource, ScheduleResult, ResourceConflict, WorkingHoursConfig, ResourceLevel } from '@/types/schedule';
+import { Task, Resource, ScheduleResult, ResourceConflict, WorkingHoursConfig, ResourceLevel, ResourceConflictStrategy } from '@/types/schedule';
 
 // 默认工作时间配置
 const DEFAULT_WORKING_HOURS: WorkingHoursConfig = {
@@ -796,7 +796,8 @@ export function generateSchedule(
   tasks: Task[],
   resources: Resource[],
   startDate: Date = new Date(),
-  workingHoursConfig: WorkingHoursConfig = DEFAULT_WORKING_HOURS
+  workingHoursConfig: WorkingHoursConfig = DEFAULT_WORKING_HOURS,
+  conflictStrategy: ResourceConflictStrategy = 'auto-switch'
 ): ScheduleResult {
   // 1. 自动分配资源（如果任务没有分配资源）
   const tasksWithResources = autoAssignResources(tasks, resources);
@@ -963,27 +964,36 @@ export function generateSchedule(
             break;
           }
 
-          // 如果没有指定资源，尝试切换到其他空闲资源
-          const alternativeResource = findAvailableResource(
-            task,
-            resources,
-            taskStart,
-            actualWorkHours,
-            workingHoursConfig,
-            resourceSchedules,
-            resourceId // 排除当前资源
-          );
+          // 根据冲突处理策略决定是否允许切换资源
+          const allowSwitch = conflictStrategy === 'auto-switch';
 
-          if (alternativeResource) {
-            console.log(`      ✓ 发现空闲资源: ${alternativeResource.name}，切换资源`);
-            resource = alternativeResource;
-            resourceId = alternativeResource.id;
-            hasConflict = false; // 重置冲突标记，使用新资源重新检查
-            break; // 退出冲突检查循环，重新开始
+          // 如果允许切换且没有指定资源，尝试切换到其他空闲资源
+          if (allowSwitch) {
+            const alternativeResource = findAvailableResource(
+              task,
+              resources,
+              taskStart,
+              actualWorkHours,
+              workingHoursConfig,
+              resourceSchedules,
+              resourceId // 排除当前资源
+            );
+
+            if (alternativeResource) {
+              console.log(`      ✓ 发现空闲资源: ${alternativeResource.name}，切换资源`);
+              resource = alternativeResource;
+              resourceId = alternativeResource.id;
+              hasConflict = false; // 重置冲突标记，使用新资源重新检查
+              break; // 退出冲突检查循环，重新开始
+            }
           }
 
-          // 没有空闲资源，只能调整时间
-          console.log(`      → 没有空闲资源，调整开始时间为 ${scheduled.end.toLocaleString()}`);
+          // 如果不允许切换或没有空闲资源，只能调整时间
+          if (!allowSwitch) {
+            console.log(`      → 策略不允许切换资源，调整开始时间为 ${scheduled.end.toLocaleString()}`);
+          } else {
+            console.log(`      → 没有空闲资源，调整开始时间为 ${scheduled.end.toLocaleString()}`);
+          }
           taskStart = new Date(scheduled.end);
           break;
         }
