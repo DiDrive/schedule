@@ -162,10 +162,10 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
         return loadA - loadB;
       }
 
-      // 负载相同时，考虑效率（效率高的略优）
+      // 负载相同时，优先选择效率低的（实现负载均衡，避免所有任务都集中到高效率人员）
       const effA = a.efficiency || LEVEL_EFFICIENCY[a.level as ResourceLevel] || 1.0;
       const effB = b.efficiency || LEVEL_EFFICIENCY[b.level as ResourceLevel] || 1.0;
-      return effB - effA;
+      return effA - effB; // 效率低的排在前面
     });
 
     // 选择负载最低的资源
@@ -1213,7 +1213,7 @@ function findAvailableResource(
 
   console.log(`    📋 可用资源列表: ${availableResources.map(r => `${r.name}(任务数:${resourceSchedules.get(r.id)?.length || 0}, 效率:${r.efficiency || LEVEL_EFFICIENCY[r.level as ResourceLevel] || 1.0})`).join(', ')}`);
 
-  // ★★★ 优先选择负载最低的资源，而不是效率最高的资源 ★★★
+  // ★★★ 优先选择负载最低的资源，负载相同时选择效率低的 ★★★
   // 计算每个资源的负载（已安排任务数）
   availableResources.sort((a, b) => {
     const scheduleA = resourceSchedules.get(a.id) || [];
@@ -1224,10 +1224,10 @@ function findAvailableResource(
       return scheduleA.length - scheduleB.length;
     }
 
-    // 负载相同时，考虑效率（作为次要因素）
+    // 负载相同时，优先选择效率低的（实现负载均衡）
     const effA = a.efficiency || LEVEL_EFFICIENCY[a.level as ResourceLevel] || 1.0;
     const effB = b.efficiency || LEVEL_EFFICIENCY[b.level as ResourceLevel] || 1.0;
-    return effB - effA;
+    return effA - effB; // 效率低的排在前面
   });
 
   const selected = availableResources[0];
