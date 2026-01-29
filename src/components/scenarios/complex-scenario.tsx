@@ -565,6 +565,29 @@ export default function ComplexScenario() {
     setSharedResources(sharedResources.filter(r => r.id !== resourceId));
   };
 
+  const handleResetData = () => {
+    if (!confirm('确定要重置所有数据吗？这将清除所有自定义任务并恢复默认数据。')) return;
+    
+    // 清除 localStorage
+    localStorage.removeItem('complex-scenario-projects');
+    localStorage.removeItem('complex-scenario-tasks');
+    localStorage.removeItem('complex-scenario-resources');
+    localStorage.removeItem('complex-scenario-schedule-result');
+    
+    // 重置为默认数据
+    setProjects(defaultProjects);
+    setTasks(defaultTasks);
+    setSharedResources(defaultResources);
+    setScheduleResult(null);
+    setPendingConflicts(new Map());
+    setJustResolvedConflict(false);
+    setSavedResolutions(null);
+    setAiSuggestion('');
+    setDeadlineWarningCount(0);
+    setShowDeadlineWarningDialog(false);
+    setConflictDialogOpen(false);
+  };
+
   const handleResourceChange = (resourceId: string, field: keyof Resource, value: any) => {
     setSharedResources(sharedResources.map(r => r.id === resourceId ? { ...r, [field]: value } : r));
   };
@@ -734,10 +757,16 @@ export default function ComplexScenario() {
                 所有项目共享的资源，系统会根据效率、优先级和工时自动分配
               </CardDescription>
             </div>
-            <Button onClick={handleAddResource} size="sm" variant="outline" className="gap-2">
-              <Plus className="h-4 w-4" />
-              添加成员
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleAddResource} size="sm" variant="outline" className="gap-2">
+                <Plus className="h-4 w-4" />
+                添加成员
+              </Button>
+              <Button onClick={handleResetData} size="sm" variant="outline" className="gap-2 text-orange-600 hover:text-orange-700">
+                <Settings className="h-4 w-4" />
+                重置数据
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
