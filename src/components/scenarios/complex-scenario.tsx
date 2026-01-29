@@ -2,6 +2,14 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -270,6 +278,8 @@ export default function ComplexScenario() {
   const [conflictStrategy, setConflictStrategy] = useState<ResourceConflictStrategy>('auto-switch');
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [pendingConflicts, setPendingConflicts] = useState<Map<string, ConflictTask[]>>(new Map());
+  const [deadlineWarningCount, setDeadlineWarningCount] = useState(0);
+  const [showDeadlineWarningDialog, setShowDeadlineWarningDialog] = useState(false);
 
   // 使用 ref 跟踪是否已经加载过数据，避免重复加载
   const hasLoadedData = useRef(false);
@@ -347,6 +357,30 @@ export default function ComplexScenario() {
       localStorage.setItem('complex-scenario-schedule-result', JSON.stringify(scheduleResult));
     }
   }, [projects, tasks, sharedResources, scheduleResult]);
+
+  // 计算快到截止日期的任务数量（距离DDL小于3天）
+  useEffect(() => {
+    if (!scheduleResult) {
+      setDeadlineWarningCount(0);
+      return;
+    }
+
+    const today = new Date();
+    const warningDays = 3; // 3天内截止的任务视为预警
+
+    const warningTasks = scheduleResult.tasks.filter(task => {
+      if (!task.deadline || !task.endDate) return false;
+
+      const daysToDeadline = Math.ceil(
+        (task.deadline.getTime() - task.endDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      // 如果任务的结束时间已经超过了截止日期，或者距离截止日期小于3天
+      return daysToDeadline < warningDays;
+    });
+
+    setDeadlineWarningCount(warningTasks.length);
+  }, [scheduleResult]);
 
   const handleGenerateSchedule = () => {
     setIsComputing(true);
@@ -1202,11 +1236,11 @@ export default function ComplexScenario() {
                   <CardTitle className="text-2xl">{scheduleResult.totalHours} 小时</CardTitle>
                 </CardHeader>
               </Card>
-              <Card>
+              <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setShowDeadlineWarningDialog(true)}>
                 <CardHeader className="pb-3">
-                  <CardDescription>资源冲突</CardDescription>
-                  <CardTitle className={`text-2xl ${scheduleResult.resourceConflicts.length > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                    {scheduleResult.resourceConflicts.length}
+                  <CardDescription>截止日期预警</CardDescription>
+                  <CardTitle className={`text-2xl ${deadlineWarningCount > 0 ? 'text-amber-500' : 'text-green-500'}`}>
+                    {deadlineWarningCount} 个
                   </CardTitle>
                 </CardHeader>
               </Card>
@@ -1554,7 +1588,105 @@ export default function ComplexScenario() {
           </TabsContent>
         </Tabs>
       )}
-      
+
+      {/* 截止日期预警对话框 */}
+      <Dialog open={showDeadlineWarningDialog} onOpenChange={setShowDeadlineWarningDialog}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3 text-2xl">
+              <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+              </div>
+              截止日期预警
+            </DialogTitle>
+            <DialogDescription className="text-base mt-2">
+              以下任务的结束时间距离截止日期小于 3 天
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto py-4">
+            <div className="space-y-3">
+              {scheduleResult?.tasks
+                .filter(task => {
+                  if (!task.deadline || !task.endDate) return false;
+                  const daysToDeadline = Math.ceil(
+                    (task.deadline.getTime() - task.endDate.getTime()) / (1000 * 60 * 60 * 24)
+                  );
+                  return daysToDeadline < 3;
+                })
+                .map(task => {
+                  const resource = sharedResources.find(r => r.id === task.assignedResources[0]);
+                  const project = projects.find(p => p.id === task.projectId);
+                  const daysToDeadline = Math.ceil(
+                    (task.deadline!.getTime() - task.endDate!.getTime()) / (1000 * 60 * 60 * 24)
+                  );
+
+                  return (
+                    <div
+                      key={task.id}
+                      className={`border rounded-lg p-4 ${
+                        daysToDeadline < 0
+                          ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                          : daysToDeadline === 0
+                          ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
+                          : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-bold text-base">{task.name}</h4>
+                            {project && (
+                              <Badge variant="outline">{project.name}</Badge>
+                            )}
+                            {daysToDeadline < 0 && (
+                              <Badge variant="destructive">已超期</Badge>
+                            )}
+                            {daysToDeadline === 0 && (
+                              <Badge className="bg-orange-500 hover:bg-orange-600">今日截止</Badge>
+                            )}
+                            {daysToDeadline > 0 && daysToDeadline < 3 && (
+                              <Badge className="bg-amber-500 hover:bg-amber-600">剩余 {daysToDeadline} 天</Badge>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-slate-600 dark:text-slate-400">负责人：</span>
+                              <span className="font-medium ml-1">
+                                {resource ? resource.name : '未分配'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-slate-600 dark:text-slate-400">预估工时：</span>
+                              <span className="font-medium ml-1">{task.estimatedHours}h</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-600 dark:text-slate-400">结束时间：</span>
+                              <span className="font-medium ml-1">
+                                {task.endDate ? formatDateTime(task.endDate) : '-'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-slate-600 dark:text-slate-400">截止日期：</span>
+                              <span className="font-medium ml-1">
+                                {formatDateToInputValue(task.deadline)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setShowDeadlineWarningDialog(false)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* 资源冲突处理对话框 */}
       <ConflictResolutionDialog
         isOpen={conflictDialogOpen}
