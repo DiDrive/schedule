@@ -722,12 +722,16 @@ export function getResourceBalancingRecommendations(
  */
 export function detectResourceConflicts(
   tasks: Task[],
-  resources: Resource[]
+  resources: Resource[],
+  scheduleResult?: ScheduleResult
 ): Map<string, ConflictTask[]> {
   const conflictsMap = new Map<string, ConflictTask[]>();
 
+  // 如果提供了排期结果，使用排期结果中的任务；否则使用原始任务
+  const tasksToCheck = scheduleResult ? scheduleResult.tasks : tasks;
+
   // 找出所有有指定资源的任务
-  const tasksWithFixedResource = tasks.filter(t => t.fixedResourceId && t.taskType !== '物料');
+  const tasksWithFixedResource = tasksToCheck.filter(t => t.fixedResourceId && t.taskType !== '物料');
 
   // 按资源分组
   tasksWithFixedResource.forEach(task => {
@@ -736,14 +740,14 @@ export function detectResourceConflicts(
       conflictsMap.set(resourceId, []);
     }
 
-    // 假设任务都在同一天开始（简化处理，实际需要根据依赖关系计算）
-    const taskStart = new Date();
-    taskStart.setHours(9, 30, 0, 0); // 默认从 9:30 开始
-
+    // 使用排期结果中的时间，如果没有则使用预估时间
+    const taskStart = task.startDate || new Date(); // 使用实际排期开始时间
     const resource = resources.find(r => r.id === resourceId);
     const efficiency = resource?.efficiency || LEVEL_EFFICIENCY[resource?.level as ResourceLevel] || 1.0;
     const actualWorkHours = task.estimatedHours / efficiency;
-    const taskEnd = calculateEndDate(taskStart, actualWorkHours);
+
+    // 计算任务结束时间（使用排期结束时间或重新计算）
+    const taskEnd = task.endDate || calculateEndDate(taskStart, actualWorkHours);
 
     conflictsMap.get(resourceId)!.push({
       task,

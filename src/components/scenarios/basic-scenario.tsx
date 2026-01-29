@@ -177,8 +177,8 @@ export default function BasicScenario() {
   const handleGenerateSchedule = () => {
     setIsComputing(true);
 
-    // 先检测资源冲突
-    const conflicts = detectResourceConflicts(tasks, resources);
+    // 先检测资源冲突（如果有旧排期结果，基于实际排期检测；否则基于原始任务检测）
+    const conflicts = detectResourceConflicts(tasks, resources, scheduleResult || undefined);
 
     if (conflicts.size > 0) {
       // 有冲突，显示对话框
