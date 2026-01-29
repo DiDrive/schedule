@@ -100,15 +100,20 @@ export function ConflictResolutionDialog({
   };
 
   const allTasksResolved = () => {
+    // 获取当前冲突列表中的所有任务ID
+    const currentConflictTaskIds = new Set(
+      Array.from(conflicts.values()).flat().map(ct => ct.task.id)
+    );
+
     // 计算需要用户选择的任务数（排除最高评分任务）
     const totalTasks = Array.from(conflicts.values()).flat().length;
     const userSelectableTasks = totalTasks - highestScoreTaskIds.size;
-    
-    // 计算用户已经选择的任务数
+
+    // 计算用户已经选择的任务数（只计算当前冲突列表中的任务）
     const userSelectedTasks = Array.from(resolutions.entries()).filter(
-      ([taskId]) => !highestScoreTaskIds.has(taskId)
+      ([taskId]) => !highestScoreTaskIds.has(taskId) && currentConflictTaskIds.has(taskId)
     ).length;
-    
+
     return userSelectedTasks === userSelectableTasks;
   };
 
@@ -294,7 +299,16 @@ export function ConflictResolutionDialog({
             <div className="text-sm text-slate-600 dark:text-slate-400">
               <span className="text-slate-500 dark:text-slate-400 mr-2">已自动保留综合最高优先级任务，</span>
               <span className="font-bold text-base text-blue-600 dark:text-blue-400">
-                已选择 {Array.from(resolutions.entries()).filter(([taskId]) => !highestScoreTaskIds.has(taskId)).length}
+                已选择 {(() => {
+                  // 获取当前冲突列表中的所有任务ID
+                  const currentConflictTaskIds = new Set(
+                    Array.from(conflicts.values()).flat().map(ct => ct.task.id)
+                  );
+                  // 只计算当前冲突列表中的任务
+                  return Array.from(resolutions.entries()).filter(
+                    ([taskId]) => !highestScoreTaskIds.has(taskId) && currentConflictTaskIds.has(taskId)
+                  ).length;
+                })()}
               </span> / <span className="font-bold text-base">
                 {Array.from(conflicts.values()).flat().length - highestScoreTaskIds.size}
               </span> 个任务
