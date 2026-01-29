@@ -27,10 +27,44 @@ export function ConflictResolutionDialog({
   onConfirm,
   conflicts,
 }: ConflictResolutionDialogProps) {
+  // 优先级权重
+  const priorityWeight: Record<string, number> = {
+    urgent: 4,
+    high: 3,
+    normal: 2,
+    low: 1,
+  };
+
+  // 找出每个资源的最高优先级任务
+  const highestPriorityTaskIds = new Set<string>();
+  conflicts.forEach((conflictTasks) => {
+    if (conflictTasks.length === 0) return;
+    
+    // 按优先级排序，找出最高优先级的任务
+    const sortedTasks = [...conflictTasks].sort((a, b) => {
+      const weightA = priorityWeight[a.task.priority] || 2;
+      const weightB = priorityWeight[b.task.priority] || 2;
+      return weightB - weightA; // 降序排列
+    });
+    
+    // 保留最高优先级的任务
+    highestPriorityTaskIds.add(sortedTasks[0].task.id);
+  });
+
   // 为每个任务存储用户的选择
-  const [resolutions, setResolutions] = useState<Map<string, 'switch' | 'delay'>>(new Map());
+  const [resolutions, setResolutions] = useState<Map<string, 'switch' | 'delay'>>(() => {
+    // 初始化：为最高优先级的任务自动设置为"delay"（保留原资源）
+    const initialResolutions = new Map<string, 'switch' | 'delay'>();
+    highestPriorityTaskIds.forEach(taskId => {
+      initialResolutions.set(taskId, 'delay');
+    });
+    return initialResolutions;
+  });
 
   const handleToggleResolution = (taskId: string) => {
+    // 不允许切换最高优先级的任务
+    if (highestPriorityTaskIds.has(taskId)) return;
+    
     const newResolutions = new Map(resolutions);
     const current = newResolutions.get(taskId);
     newResolutions.set(taskId, current === 'switch' ? 'delay' : 'switch');
@@ -38,8 +72,16 @@ export function ConflictResolutionDialog({
   };
 
   const allTasksResolved = () => {
+    // 计算需要用户选择的任务数（排除最高优先级任务）
     const totalTasks = Array.from(conflicts.values()).flat().length;
-    return resolutions.size === totalTasks;
+    const userSelectableTasks = totalTasks - highestPriorityTaskIds.size;
+    
+    // 计算用户已经选择的任务数
+    const userSelectedTasks = Array.from(resolutions.entries()).filter(
+      ([taskId]) => !highestPriorityTaskIds.has(taskId)
+    ).length;
+    
+    return userSelectedTasks === userSelectableTasks;
   };
 
   const handleConfirm = () => {
@@ -71,7 +113,7 @@ export function ConflictResolutionDialog({
 
         {/* 图例说明 */}
         <div className="px-6 py-3 bg-slate-50 dark:bg-slate-900/50 border-b">
-          <div className="flex items-center gap-8 text-sm">
+          <div className="flex items-center gap-8 text-sm flex-wrap">
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded bg-blue-100 dark:bg-blue-900/30">
                 <ArrowRightLeft className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -83,6 +125,12 @@ export function ConflictResolutionDialog({
                 <Clock4 className="h-4 w-4 text-orange-600 dark:text-orange-400" />
               </div>
               <span className="text-slate-700 dark:text-slate-300">延期等待：调整任务开始时间，等待指定人员</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded bg-blue-600 flex items-center justify-center">
+                <span className="text-xs text-white font-bold">★</span>
+              </div>
+              <span className="text-slate-700 dark:text-slate-300">最高优先级任务自动保留原资源</span>
             </div>
           </div>
         </div>
@@ -109,19 +157,31 @@ export function ConflictResolutionDialog({
                 <div className="p-4 space-y-3">
                   {conflictTasks.map((conflictTask) => {
                     const resolution = resolutions.get(conflictTask.task.id);
+                    const isHighestPriority = highestPriorityTaskIds.has(conflictTask.task.id);
                     return (
                       <div
                         key={conflictTask.task.id}
-                        className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-800/50"
+                        className={`border rounded-lg p-4 ${
+                          isHighestPriority 
+                            ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' 
+                            : 'bg-slate-50 dark:bg-slate-800/50'
+                        }`}
                       >
                         {/* 第一行：任务信息 */}
                         <div className="flex items-center gap-3 mb-3 pb-3 border-b border-slate-200 dark:border-slate-700">
                           <h4 className="font-bold text-base flex-1">{conflictTask.task.name}</h4>
-                          {conflictTask.task.taskType && (
-                            <Badge variant="secondary">
-                              {conflictTask.task.taskType}
-                            </Badge>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {conflictTask.task.taskType && (
+                              <Badge variant="secondary">
+                                {conflictTask.task.taskType}
+                              </Badge>
+                            )}
+                            {isHighestPriority && (
+                              <Badge variant="default" className="bg-blue-600">
+                                最高优先级（保留）
+                              </Badge>
+                            )}
+                          </div>
                         </div>
 
                         {/* 第二行：时间信息和操作按钮 */}
@@ -154,30 +214,40 @@ export function ConflictResolutionDialog({
 
                           {/* 操作按钮 */}
                           <div className="flex flex-shrink-0 flex-col gap-1.5">
-                            <Button
-                              variant={resolution === 'switch' ? 'default' : 'outline'}
-                              size="sm"
-                              onClick={() => handleToggleResolution(conflictTask.task.id)}
-                              className={resolution === 'switch' 
-                                ? 'bg-blue-600 hover:bg-blue-700 h-7 px-2' 
-                                : 'border hover:border-blue-300 h-7 px-2'
-                              }
-                            >
-                              <ArrowRightLeft className="h-3 w-3 mr-1" />
-                              <span className="font-medium text-xs">自动切换</span>
-                            </Button>
-                            <Button
-                              variant={resolution === 'delay' ? 'default' : 'outline'}
-                              size="sm"
-                              onClick={() => handleToggleResolution(conflictTask.task.id)}
-                              className={resolution === 'delay'
-                                ? 'bg-orange-600 hover:bg-orange-700 h-7 px-2'
-                                : 'border hover:border-orange-300 h-7 px-2'
-                              }
-                            >
-                              <Clock4 className="h-3 w-3 mr-1" />
-                              <span className="font-medium text-xs">延期等待</span>
-                            </Button>
+                            {isHighestPriority ? (
+                              // 最高优先级任务：显示提示，禁用选择
+                              <div className="h-7 w-28 flex items-center justify-center text-xs text-slate-500 dark:text-slate-400">
+                                自动保留原资源
+                              </div>
+                            ) : (
+                              // 其他任务：显示选择按钮
+                              <>
+                                <Button
+                                  variant={resolution === 'switch' ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => handleToggleResolution(conflictTask.task.id)}
+                                  className={resolution === 'switch' 
+                                    ? 'bg-blue-600 hover:bg-blue-700 h-7 px-2' 
+                                    : 'border hover:border-blue-300 h-7 px-2'
+                                  }
+                                >
+                                  <ArrowRightLeft className="h-3 w-3 mr-1" />
+                                  <span className="font-medium text-xs">自动切换</span>
+                                </Button>
+                                <Button
+                                  variant={resolution === 'delay' ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => handleToggleResolution(conflictTask.task.id)}
+                                  className={resolution === 'delay'
+                                    ? 'bg-orange-600 hover:bg-orange-700 h-7 px-2'
+                                    : 'border hover:border-orange-300 h-7 px-2'
+                                  }
+                                >
+                                  <Clock4 className="h-3 w-3 mr-1" />
+                                  <span className="font-medium text-xs">延期等待</span>
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -193,7 +263,12 @@ export function ConflictResolutionDialog({
         <DialogFooter className="px-6 py-4 border-t bg-slate-50 dark:bg-slate-900/50">
           <div className="flex w-full items-center justify-between">
             <div className="text-sm text-slate-600 dark:text-slate-400">
-              已选择 <span className="font-bold text-base text-blue-600 dark:text-blue-400">{resolutions.size}</span> / <span className="font-bold text-base">{Array.from(conflicts.values()).flat().length}</span> 个任务
+              <span className="text-slate-500 dark:text-slate-400 mr-2">已自动保留最高优先级任务，</span>
+              需要选择 <span className="font-bold text-base text-blue-600 dark:text-blue-400">
+                {Array.from(conflicts.values()).flat().length - highestPriorityTaskIds.size}
+              </span> / <span className="font-bold text-base">
+                {Array.from(conflicts.values()).flat().length - highestPriorityTaskIds.size}
+              </span> 个任务
             </div>
             <div className="flex gap-3">
               <Button variant="outline" size="default" onClick={handleCancel} className="min-w-[100px]">
