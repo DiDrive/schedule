@@ -353,7 +353,21 @@ export default function ComplexScenario() {
   };
 
   const handleTaskChange = (taskId: string, field: keyof Task, value: any) => {
-    setTasks(tasks.map(t => t.id === taskId ? { ...t, [field]: value } : t));
+    setTasks(tasks.map(t => {
+      if (t.id !== taskId) return t;
+
+      // 如果修改的是任务类型，检查当前的 fixedResourceId 是否匹配新的类型
+      if (field === 'taskType' && t.fixedResourceId) {
+        const fixedResource = sharedResources.find(r => r.id === t.fixedResourceId);
+        if (fixedResource && fixedResource.workType !== value) {
+          // 指定的资源类型与新的任务类型不匹配，清除指定资源
+          console.log(`任务 ${t.name} 的类型从 ${t.taskType} 改为 ${value}，清除指定的资源 ${fixedResource.name}`);
+          return { ...t, [field]: value, fixedResourceId: undefined };
+        }
+      }
+
+      return { ...t, [field]: value };
+    }));
   };
 
   const handleDeleteTask = (taskId: string) => {
@@ -991,15 +1005,21 @@ export default function ComplexScenario() {
                             onValueChange={(value) => handleTaskChange(task.id, 'fixedResourceId', value !== 'none' ? value : undefined)}
                           >
                             <SelectTrigger className="h-8">
-                              <SelectValue placeholder="自动分配" />
+                              <SelectValue placeholder={task.taskType ? "选择人员" : "先选择任务类型"} />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">自动分配</SelectItem>
-                              {sharedResources.filter(r => r.workType === task.taskType).map(resource => (
-                                <SelectItem key={resource.id} value={resource.id}>
-                                  {resource.name}
-                                </SelectItem>
-                              ))}
+                              {task.taskType ? (
+                                sharedResources.filter(r => r.workType === task.taskType).map(resource => (
+                                  <SelectItem key={resource.id} value={resource.id}>
+                                    {resource.name}
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                <div className="p-2 text-xs text-slate-500">
+                                  请先选择任务类型
+                                </div>
+                              )}
                             </SelectContent>
                           </Select>
                         )}
