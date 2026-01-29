@@ -294,8 +294,8 @@ export function ConflictResolutionDialog({
           <div className="flex w-full items-center justify-between">
             <div className="text-sm text-slate-600 dark:text-slate-400">
               <span className="text-slate-500 dark:text-slate-400 mr-2">已自动保留综合最高优先级任务，</span>
-              需要选择 <span className="font-bold text-base text-blue-600 dark:text-blue-400">
-                {Array.from(conflicts.values()).flat().length - highestScoreTaskIds.size}
+              <span className="font-bold text-base text-blue-600 dark:text-blue-400">
+                已选择 {Array.from(resolutions.entries()).filter(([taskId]) => !highestScoreTaskIds.has(taskId)).length}
               </span> / <span className="font-bold text-base">
                 {Array.from(conflicts.values()).flat().length - highestScoreTaskIds.size}
               </span> 个任务
