@@ -993,14 +993,18 @@ export function generateSchedule(
           const overlapEnd = taskEnd < scheduled.end ? taskEnd : scheduled.end;
           console.log(`      ⚠ 检测到冲突: 重叠时间 ${overlapStart.toLocaleString()} - ${overlapEnd.toLocaleString()}`);
 
+          // 计算等待当前资源完成的时间
+          const waitCurrentResource = scheduled.end.getTime() - taskStart.getTime();
+          const waitCurrentHours = waitCurrentResource / (1000 * 60 * 60);
+
           // 根据冲突处理策略决定是否允许切换资源
           // 优先使用用户的选择，如果没有则使用默认策略
           // ★★★ 修复：移除 !task.fixedResourceId 条件，允许指定资源的任务也能自动切换 ★★★
           const allowSwitch = userResolution === 'switch' || (userResolution === undefined && conflictStrategy === 'auto-switch');
 
-      // 如果允许切换，尝试切换到其他空闲资源
+      // 如果允许切换，比较等待指定资源和其他资源的时间
       if (allowSwitch) {
-            const alternativeResource = findAvailableResource(
+            const bestOption = findBestResourceWithWaitTime(
               task,
               resources,
               taskStart,
@@ -1011,12 +1015,34 @@ export function generateSchedule(
               resourceLoad // 传入累计工时信息
             );
 
-            if (alternativeResource) {
-              console.log(`      ✓ 发现空闲资源: ${alternativeResource.name}，切换资源`);
-              resource = alternativeResource;
-              resourceId = alternativeResource.id;
-              hasConflict = false; // 重置冲突标记，使用新资源重新检查
-              break; // 退出冲突检查循环，重新开始
+            if (bestOption.resource) {
+              // 比较等待时间
+              if (bestOption.isAvailableNow) {
+                // 有完全空闲的资源，立即切换
+                console.log(`      ✓ 发现空闲资源: ${bestOption.resource.name}，立即切换资源（无需等待）`);
+                resource = bestOption.resource;
+                resourceId = bestOption.resource.id;
+                hasConflict = false; // 重置冲突标记，使用新资源重新检查
+                break; // 退出冲突检查循环，重新开始
+              } else {
+                // 没有空闲资源，比较等待时间
+                const waitAlternativeHours = bestOption.waitTime / (1000 * 60 * 60);
+                console.log(`      ⚖️ 等待时间比较:`);
+                console.log(`        - 等待${resource.name}（当前资源）: ${waitCurrentHours.toFixed(1)}小时`);
+                console.log(`        - 等待${bestOption.resource.name}: ${waitAlternativeHours.toFixed(1)}小时`);
+
+                if (waitAlternativeHours < waitCurrentHours) {
+                  // 切换到等待时间更短的资源
+                  console.log(`      ✓ 切换到${bestOption.resource.name}（节省${(waitCurrentHours - waitAlternativeHours).toFixed(1)}小时）`);
+                  resource = bestOption.resource;
+                  resourceId = bestOption.resource.id;
+                  taskStart = bestOption.adjustedTaskStart;
+                  hasConflict = false; // 重置冲突标记，使用新资源重新检查
+                  break; // 退出冲突检查循环，重新开始
+                } else {
+                  console.log(`      → 继续等待${resource.name}（等待时间更短）`);
+                }
+              }
             }
           }
 
@@ -1025,12 +1051,8 @@ export function generateSchedule(
             tasksDelayedByFixedResource.push(task.id);
           }
 
-          // 如果不允许切换或没有空闲资源，只能调整时间
-          if (!allowSwitch) {
-            console.log(`      → 策略不允许切换资源，调整开始时间为 ${scheduled.end.toLocaleString()}`);
-          } else {
-            console.log(`      → 没有空闲资源，调整开始时间为 ${scheduled.end.toLocaleString()}`);
-          }
+          // 调整开始时间为冲突任务的结束时间
+          console.log(`      → 调整开始时间为 ${scheduled.end.toLocaleString()}`);
           taskStart = new Date(scheduled.end);
           break;
         }
@@ -1210,6 +1232,164 @@ function areDependenciesSatisfied(task: Task, taskMap: Map<string, Task>): boole
 
   // 检查所有依赖任务是否都已被安排
   return task.dependencies.every(depId => taskMap.has(depId));
+}
+
+/**
+ * 查找最优资源（考虑等待时间）
+ * 如果有完全空闲的资源，优先选择空闲的
+ * 如果没有空闲资源，比较等待指定资源和其他资源的时间，选择等待时间更短的
+ */
+function findBestResourceWithWaitTime(
+  task: Task,
+  resources: Resource[],
+  taskStart: Date,
+  actualWorkHours: number,
+  workingHoursConfig: WorkingHoursConfig,
+  resourceSchedules: Map<string, Array<{ start: Date; end: Date }>>,
+  excludeResourceId?: string,
+  resourceLoad?: Map<string, number>
+): { 
+  resource: Resource | null; 
+  waitTime: number; 
+  isAvailableNow: boolean;
+  adjustedTaskStart: Date;
+  adjustedTaskEnd: Date;
+} {
+  // 找出所有匹配的资源（相同工作类型且是人类资源）
+  const matchingResources = resources.filter(r =>
+    r.type === 'human' &&
+    r.workType === task.taskType &&
+    r.id !== excludeResourceId // 排除当前资源
+  );
+
+  if (matchingResources.length === 0) {
+    return { resource: null, waitTime: Infinity, isAvailableNow: false, adjustedTaskStart: taskStart, adjustedTaskEnd: calculateEndDate(taskStart, actualWorkHours, workingHoursConfig) };
+  }
+
+  // 计算任务的结束时间（用于检测重叠）
+  const originalTaskEnd = calculateEndDate(taskStart, actualWorkHours, workingHoursConfig);
+
+  // 评估每个资源的等待时间
+  const resourceOptions = matchingResources.map(resource => {
+    const schedule = resourceSchedules.get(resource.id) || [];
+    
+    // 找出所有与任务时间重叠的已安排任务
+    const overlappingTasks = schedule.filter(scheduled =>
+      taskStart < scheduled.end && originalTaskEnd > scheduled.start
+    );
+
+    // 如果没有重叠，资源立即可用
+    if (overlappingTasks.length === 0) {
+      return {
+        resource,
+        waitTime: 0,
+        isAvailableNow: true,
+        adjustedTaskStart: taskStart,
+        adjustedTaskEnd: originalTaskEnd
+      };
+    }
+
+    // 有重叠，计算最早可用时间
+    // 需要考虑所有重叠任务，找到最晚的结束时间
+    let latestEnd = overlappingTasks.reduce((max, task) => task.end > max ? task.end : max, new Date(0));
+    
+    // 如果当前开始时间比最晚结束时间还要晚，那就直接使用当前开始时间
+    let adjustedStart = taskStart > latestEnd ? taskStart : latestEnd;
+    
+    // 重新检查依赖关系：确保调整后的开始时间满足依赖
+    // （在调用此函数之前已经检查过依赖，这里假设依赖已经满足）
+    
+    // 计算调整后的结束时间
+    const efficiency = resource.efficiency || LEVEL_EFFICIENCY[resource.level as ResourceLevel] || 1.0;
+    const adjustedEnd = calculateEndDate(adjustedStart, actualWorkHours, workingHoursConfig);
+    
+    // 计算等待时间（从当前计划开始时间到实际开始时间）
+    const waitTime = adjustedStart.getTime() - taskStart.getTime();
+    
+    return {
+      resource,
+      waitTime,
+      isAvailableNow: false,
+      adjustedTaskStart: adjustedStart,
+      adjustedTaskEnd: adjustedEnd
+    };
+  });
+
+  // 先检查是否有立即可用的资源
+  const availableNow = resourceOptions.filter(opt => opt.isAvailableNow);
+  if (availableNow.length > 0) {
+    // 有空闲资源，使用综合评分选择最优的
+    const avgLoad = availableNow.reduce((sum, opt) => sum + (resourceLoad?.get(opt.resource.id) || 0), 0) / availableNow.length;
+
+    availableNow.sort((a, b) => {
+      const loadA = resourceLoad?.get(a.resource.id) || 0;
+      const loadB = resourceLoad?.get(b.resource.id) || 0;
+
+      const effA = a.resource.efficiency || LEVEL_EFFICIENCY[a.resource.level as ResourceLevel] || 1.0;
+      const effB = b.resource.efficiency || LEVEL_EFFICIENCY[b.resource.level as ResourceLevel] || 1.0;
+
+      const hoursScoreA = 100 - (loadA / (avgLoad + 1)) * 70;
+      const hoursScoreB = 100 - (loadB / (avgLoad + 1)) * 70;
+
+      const effScoreA = effA * 30;
+      const effScoreB = effB * 30;
+
+      const totalScoreA = hoursScoreA * 0.7 + effScoreA * 0.3;
+      const totalScoreB = hoursScoreB * 0.7 + effScoreB * 0.3;
+
+      return totalScoreB - totalScoreA;
+    });
+
+    const selected = availableNow[0];
+    console.log(`    ✓ 发现空闲资源: ${selected.resource.name}(累计工时:${resourceLoad?.get(selected.resource.id) || 0}h, 效率:${selected.resource.efficiency || LEVEL_EFFICIENCY[selected.resource.level as ResourceLevel] || 1.0})`);
+
+    return { 
+      resource: selected.resource, 
+      waitTime: 0, 
+      isAvailableNow: true,
+      adjustedTaskStart: taskStart,
+      adjustedTaskEnd: originalTaskEnd
+    };
+  }
+
+  // 没有空闲资源，选择等待时间最短的
+  resourceOptions.sort((a, b) => a.waitTime - b.waitTime);
+  
+  // 如果等待时间相同，使用综合评分
+  if (resourceOptions.length > 1 && resourceOptions[0].waitTime === resourceOptions[1].waitTime) {
+    const avgLoad = resourceOptions.reduce((sum, opt) => sum + (resourceLoad?.get(opt.resource.id) || 0), 0) / resourceOptions.length;
+
+    resourceOptions.sort((a, b) => {
+      const loadA = resourceLoad?.get(a.resource.id) || 0;
+      const loadB = resourceLoad?.get(b.resource.id) || 0;
+
+      const effA = a.resource.efficiency || LEVEL_EFFICIENCY[a.resource.level as ResourceLevel] || 1.0;
+      const effB = b.resource.efficiency || LEVEL_EFFICIENCY[b.resource.level as ResourceLevel] || 1.0;
+
+      const hoursScoreA = 100 - (loadA / (avgLoad + 1)) * 70;
+      const hoursScoreB = 100 - (loadB / (avgLoad + 1)) * 70;
+
+      const effScoreA = effA * 30;
+      const effScoreB = effB * 30;
+
+      const totalScoreA = hoursScoreA * 0.7 + effScoreA * 0.3;
+      const totalScoreB = hoursScoreB * 0.7 + effScoreB * 0.3;
+
+      return totalScoreB - totalScoreA;
+    });
+  }
+
+  const selected = resourceOptions[0];
+  const waitHours = selected.waitTime / (1000 * 60 * 60);
+  console.log(`    ⚠ 没有空闲资源，选择等待时间最短: ${selected.resource.name}(等待${waitHours.toFixed(1)}小时, 累计工时:${resourceLoad?.get(selected.resource.id) || 0}h, 效率:${selected.resource.efficiency || LEVEL_EFFICIENCY[selected.resource.level as ResourceLevel] || 1.0})`);
+
+  return { 
+    resource: selected.resource, 
+    waitTime: selected.waitTime, 
+    isAvailableNow: false,
+    adjustedTaskStart: selected.adjustedTaskStart,
+    adjustedTaskEnd: selected.adjustedTaskEnd
+  };
 }
 
 /**
