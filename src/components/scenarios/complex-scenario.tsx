@@ -608,8 +608,14 @@ export default function ComplexScenario() {
   const handleExportToExcel = () => {
     if (!scheduleResult) return;
 
+    // 根据当前选择的任务类型过滤数据
+    const filteredTasks = scheduleResult.tasks.filter(task =>
+      (activeProject === 'all' || task.projectId === activeProject) &&
+      (activeTaskType === 'all' || task.taskType === activeTaskType)
+    );
+
     // 准备导出数据
-    const exportData = scheduleResult.tasks.map(task => {
+    const exportData = filteredTasks.map(task => {
       const resource = sharedResources.find(r => r.id === task.assignedResources[0]);
       const project = getProjectById(task.projectId || '');
       return {
@@ -651,8 +657,9 @@ export default function ComplexScenario() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '排期表');
 
-    // 下载文件
-    const fileName = `复杂项目排期_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`;
+    // 根据当前选择的任务类型生成文件名
+    const taskTypeSuffix = activeTaskType === 'all' ? '' : `_${activeTaskType}`;
+    const fileName = `复杂项目排期${taskTypeSuffix}_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`;
     XLSX.writeFile(wb, fileName);
   };
 
@@ -1422,33 +1429,52 @@ export default function ComplexScenario() {
             {/* Task Table View */}
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>排期结果表格</CardTitle>
-                    <CardDescription>
-                      详细展示任务、负责人、时间段等信息
-                    </CardDescription>
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>排期结果表格</CardTitle>
+                      <CardDescription>
+                        详细展示任务、负责人、时间段等信息
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={handleAiOptimize}
+                        disabled={isAiOptimizing}
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                      >
+                        {isAiOptimizing ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-4 w-4" />
+                        )}
+                        {isAiOptimizing ? 'AI分析中...' : 'AI优化排期'}
+                      </Button>
+                      <Button onClick={handleExportToExcel} size="sm" variant="outline" className="gap-2">
+                        <Download className="h-4 w-4" />
+                        导出Excel
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      onClick={handleAiOptimize}
-                      disabled={isAiOptimizing}
-                      size="sm"
-                      variant="outline"
-                      className="gap-2"
-                    >
-                      {isAiOptimizing ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-4 w-4" />
-                      )}
-                      {isAiOptimizing ? 'AI分析中...' : 'AI优化排期'}
-                    </Button>
-                    <Button onClick={handleExportToExcel} size="sm" variant="outline" className="gap-2">
-                      <Download className="h-4 w-4" />
-                      导出Excel
-                    </Button>
-                  </div>
+                  {/* Task Type Filter */}
+                  <Tabs value={activeTaskType} onValueChange={(value) => setActiveTaskType(value as 'all' | '平面' | '后期' | '物料')} className="w-full">
+                    <TabsList className="grid w-full grid-cols-4">
+                      <TabsTrigger value="all">
+                        全部 ({scheduleResult.tasks.filter(task => activeProject === 'all' || task.projectId === activeProject).length})
+                      </TabsTrigger>
+                      <TabsTrigger value="平面">
+                        平面 ({scheduleResult.tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '平面').length})
+                      </TabsTrigger>
+                      <TabsTrigger value="后期">
+                        后期 ({scheduleResult.tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '后期').length})
+                      </TabsTrigger>
+                      <TabsTrigger value="物料">
+                        物料 ({scheduleResult.tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '物料').length})
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
                 </div>
               </CardHeader>
               <CardContent>
@@ -1470,7 +1496,10 @@ export default function ComplexScenario() {
                       </thead>
                       <tbody className="[&_tr:last-child]:border-0">
                         {scheduleResult.tasks
-                          .filter(task => activeProject === 'all' || task.projectId === activeProject)
+                          .filter(task =>
+                            (activeProject === 'all' || task.projectId === activeProject) &&
+                            (activeTaskType === 'all' || task.taskType === activeTaskType)
+                          )
                           .map(task => {
                           const project = getProjectById(task.projectId || '');
                           const resource = sharedResources.find(r => r.id === task.assignedResources[0]);

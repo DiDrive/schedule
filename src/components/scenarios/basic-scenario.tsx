@@ -363,8 +363,13 @@ export default function BasicScenario() {
   const handleExportToExcel = () => {
     if (!scheduleResult) return;
 
+    // 根据当前选择的任务类型过滤数据
+    const filteredTasks = scheduleResult.tasks.filter(task =>
+      activeTaskType === 'all' || task.taskType === activeTaskType
+    );
+
     // 准备导出数据
-    const exportData = scheduleResult.tasks.map(task => {
+    const exportData = filteredTasks.map(task => {
       const resource = resources.find(r => r.id === task.assignedResources[0]);
       return {
         '任务名称': task.name,
@@ -403,8 +408,9 @@ export default function BasicScenario() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '排期表');
 
-    // 下载文件
-    const fileName = `项目排期_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`;
+    // 根据当前选择的任务类型生成文件名
+    const taskTypeSuffix = activeTaskType === 'all' ? '' : `_${activeTaskType}`;
+    const fileName = `项目排期${taskTypeSuffix}_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`;
     XLSX.writeFile(wb, fileName);
   };
 
@@ -1084,142 +1090,157 @@ export default function BasicScenario() {
 
               {activeView === 'table' && (
                 <div>
-                  {(['平面', '后期', '物料'] as const).map(type => {
-                    const typeTasks = scheduleResult.tasks.filter(t => t.taskType === type);
-                    if (typeTasks.length === 0) return null;
+                  {/* Task Type Filter */}
+                  <Tabs value={activeTaskType} onValueChange={(value) => setActiveTaskType(value as 'all' | '平面' | '后期' | '物料')} className="mb-4">
+                    <TabsList className="grid w-full grid-cols-4">
+                      <TabsTrigger value="all">全部 ({scheduleResult.tasks.length})</TabsTrigger>
+                      <TabsTrigger value="平面">平面 ({scheduleResult.tasks.filter(task => task.taskType === '平面').length})</TabsTrigger>
+                      <TabsTrigger value="后期">后期 ({scheduleResult.tasks.filter(task => task.taskType === '后期').length})</TabsTrigger>
+                      <TabsTrigger value="物料">物料 ({scheduleResult.tasks.filter(task => task.taskType === '物料').length})</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
 
-                    return (
-                      <div key={type} className="mb-6">
-                        {/* 任务类型标题 */}
-                        <div className="flex items-center gap-2 mb-3 p-3 bg-slate-100 dark:bg-slate-800/50 rounded-lg">
-                          {type === '平面' && (
-                            <div className="w-3 h-3 rounded-full bg-green-500" />
-                          )}
-                          {type === '后期' && (
-                            <div className="w-3 h-3 rounded-full bg-blue-500" />
-                          )}
-                          {type === '物料' && (
-                            <div className="w-3 h-3 rotate-45 bg-amber-500" />
-                          )}
-                          <span className="font-semibold">{type}任务</span>
-                          <span className="text-sm text-slate-500">({typeTasks.length} 个)</span>
-                        </div>
+                  {/* 任务列表 */}
+                  {(() => {
+                    const typesToShow = activeTaskType === 'all' ? ['平面', '后期', '物料'] as const : [activeTaskType] as const;
 
-                        {/* 任务列表 */}
-                        <div className="rounded-md border">
-                          <div className="overflow-x-auto">
-                            <table className="w-full caption-bottom text-sm">
-                              <thead className="[&_tr]:border-b">
-                                <tr>
-                                  <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">任务名称</th>
-                                  <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">负责人</th>
-                                  <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">开始时间</th>
-                                  <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">结束时间</th>
-                                  <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">工时</th>
-                                  <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">状态</th>
-                                </tr>
-                              </thead>
-                              <tbody className="[&_tr:last-child]:border-0">
-                                {typeTasks.map(task => {
-                          const resource = resources.find(r => r.id === task.assignedResources[0]);
-                          return (
-                            <tr key={task.id} className="hover:bg-muted/50 border-b transition-colors">
-                              <td className="p-2 align-middle whitespace-nowrap">
-                                <div className="flex items-center gap-2">
-                                  {task.isCritical && (
-                                    <div className="w-2 h-2 rounded-full bg-red-500" />
-                                  )}
-                                  <span className="font-medium">{task.name}</span>
-                                  {task.taskType === '物料' && (
-                                    <Badge variant="outline" className="text-xs">物料</Badge>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="p-2 align-middle whitespace-nowrap min-w-[250px]">
-                                {task.taskType === '物料' ? (
-                                  <div className="flex items-center gap-2 text-sm text-slate-600">
-                                    <span>甲方提供</span>
-                                    {task.estimatedMaterialDate && (
-                                      <span className="text-xs">
-                                        （{formatDateTime(task.estimatedMaterialDate)}）
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : (
+                    return typesToShow.map(type => {
+                      const typeTasks = scheduleResult.tasks.filter(t => t.taskType === type);
+                      if (typeTasks.length === 0) return null;
+
+                      return (
+                        <div key={type} className="mb-6">
+                          {/* 任务类型标题 */}
+                          <div className="flex items-center gap-2 mb-3 p-3 bg-slate-100 dark:bg-slate-800/50 rounded-lg">
+                            {type === '平面' && (
+                              <div className="w-3 h-3 rounded-full bg-green-500" />
+                            )}
+                            {type === '后期' && (
+                              <div className="w-3 h-3 rounded-full bg-blue-500" />
+                            )}
+                            {type === '物料' && (
+                              <div className="w-3 h-3 rotate-45 bg-amber-500" />
+                            )}
+                            <span className="font-semibold">{type}任务</span>
+                            <span className="text-sm text-slate-500">({typeTasks.length} 个)</span>
+                          </div>
+
+                          {/* 任务列表 */}
+                          <div className="rounded-md border">
+                            <div className="overflow-x-auto">
+                              <table className="w-full caption-bottom text-sm">
+                                <thead className="[&_tr]:border-b">
+                                  <tr>
+                                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">任务名称</th>
+                                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">负责人</th>
+                                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">开始时间</th>
+                                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">结束时间</th>
+                                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">工时</th>
+                                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">状态</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="[&_tr:last-child]:border-0">
+                                  {typeTasks.map(task => {
+                            const resource = resources.find(r => r.id === task.assignedResources[0]);
+                            return (
+                              <tr key={task.id} className="hover:bg-muted/50 border-b transition-colors">
+                                <td className="p-2 align-middle whitespace-nowrap">
                                   <div className="flex items-center gap-2">
-                                    <Select
-                                      value={task.assignedResources[0] || 'none'}
-                                      onValueChange={(value) => handleUpdateTaskResource(task.id, value !== 'none' ? value : '')}
-                                    >
-                                      <SelectTrigger className="h-8 min-w-[160px]">
-                                        <SelectValue>
-                                          {resource ? (
-                                            <div className="flex items-center gap-2">
-                                              <div
-                                                className="w-3 h-3 rounded-full flex-shrink-0"
-                                                style={{ backgroundColor: resource.color }}
-                                              />
-                                              <span className="text-sm">{resource.name}</span>
-                                            </div>
-                                          ) : (
-                                            <span className="text-slate-400 text-sm">未分配</span>
-                                          )}
-                                        </SelectValue>
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="none">未分配</SelectItem>
-                                        {resources
-                                          .filter(r => r.type === 'human' && (!task.taskType || r.workType === task.taskType))
-                                          .map(r => (
-                                          <SelectItem key={r.id} value={r.id}>
-                                            <div className="flex items-center gap-2">
-                                              <div
-                                                className="w-3 h-3 rounded-full"
-                                                style={{ backgroundColor: r.color }}
-                                              />
-                                              <span>{r.name}</span>
-                                              <span className="text-xs text-slate-500">
-                                                ({r.level === 'senior' ? '高级' : r.level === 'junior' ? '初级' : '助理'})
-                                              </span>
-                                            </div>
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                    {resource && (
-                                      <Badge className={getLevelBadgeColor(resource.level || 'junior')} variant="secondary" style={{ fontSize: '10px', padding: '2px 6px' }} title={resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}>
-                                        {resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}
-                                      </Badge>
+                                    {task.isCritical && (
+                                      <div className="w-2 h-2 rounded-full bg-red-500" />
+                                    )}
+                                    <span className="font-medium">{task.name}</span>
+                                    {task.taskType === '物料' && (
+                                      <Badge variant="outline" className="text-xs">物料</Badge>
                                     )}
                                   </div>
-                                )}
-                              </td>
-                              <td className="p-2 align-middle whitespace-nowrap text-sm">
-                                {task.startDate && formatDateTime(task.startDate)}
-                              </td>
-                              <td className="p-2 align-middle whitespace-nowrap text-sm">
-                                {task.endDate && formatDateTime(task.endDate)}
-                              </td>
-                              <td className="p-2 align-middle whitespace-nowrap">
-                                <span className="text-sm font-medium">{task.estimatedHours}h</span>
-                              </td>
-                              <td className="p-2 align-middle whitespace-nowrap">
-                                {task.isCritical ? (
-                                  <Badge variant="destructive">关键路径</Badge>
-                                ) : (
-                                  <Badge variant="outline">普通</Badge>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                                </td>
+                                <td className="p-2 align-middle whitespace-nowrap min-w-[250px]">
+                                  {task.taskType === '物料' ? (
+                                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                                      <span>甲方提供</span>
+                                      {task.estimatedMaterialDate && (
+                                        <span className="text-xs">
+                                          （{formatDateTime(task.estimatedMaterialDate)}）
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2">
+                                      <Select
+                                        value={task.assignedResources[0] || 'none'}
+                                        onValueChange={(value) => handleUpdateTaskResource(task.id, value !== 'none' ? value : '')}
+                                      >
+                                        <SelectTrigger className="h-8 min-w-[160px]">
+                                          <SelectValue>
+                                            {resource ? (
+                                              <div className="flex items-center gap-2">
+                                                <div
+                                                  className="w-3 h-3 rounded-full flex-shrink-0"
+                                                  style={{ backgroundColor: resource.color }}
+                                                />
+                                                <span className="text-sm">{resource.name}</span>
+                                              </div>
+                                            ) : (
+                                              <span className="text-slate-400 text-sm">未分配</span>
+                                            )}
+                                          </SelectValue>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="none">未分配</SelectItem>
+                                          {resources
+                                            .filter(r => r.type === 'human' && (!task.taskType || r.workType === task.taskType))
+                                            .map(r => (
+                                            <SelectItem key={r.id} value={r.id}>
+                                              <div className="flex items-center gap-2">
+                                                <div
+                                                  className="w-3 h-3 rounded-full"
+                                                  style={{ backgroundColor: r.color }}
+                                                />
+                                                <span>{r.name}</span>
+                                                <span className="text-xs text-slate-500">
+                                                  ({r.level === 'senior' ? '高级' : r.level === 'junior' ? '初级' : '助理'})
+                                                </span>
+                                              </div>
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      {resource && (
+                                        <Badge className={getLevelBadgeColor(resource.level || 'junior')} variant="secondary" style={{ fontSize: '10px', padding: '2px 6px' }} title={resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}>
+                                          {resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="p-2 align-middle whitespace-nowrap text-sm">
+                                  {task.startDate && formatDateTime(task.startDate)}
+                                </td>
+                                <td className="p-2 align-middle whitespace-nowrap text-sm">
+                                  {task.endDate && formatDateTime(task.endDate)}
+                                </td>
+                                <td className="p-2 align-middle whitespace-nowrap">
+                                  <span className="text-sm font-medium">{task.estimatedHours}h</span>
+                                </td>
+                                <td className="p-2 align-middle whitespace-nowrap">
+                                  {task.isCritical ? (
+                                    <Badge variant="destructive">关键路径</Badge>
+                                  ) : (
+                                    <Badge variant="outline">普通</Badge>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
                       </div>
                     );
-                  })}
+                  });
+                  })()}
                 </div>
               )}
 
