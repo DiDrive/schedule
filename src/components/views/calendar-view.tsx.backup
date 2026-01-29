@@ -234,6 +234,76 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
     return tasksInMonth;
   }, [scheduledTasks, currentDate]);
 
+        // 计算这一天的实际工作时间
+        const dayStart = new Date(currentDate);
+        dayStart.setHours(Math.floor(startWorkHour), (startWorkHour % 1) * 60, 0, 0);
+
+        const dayEnd = new Date(currentDate);
+        dayEnd.setHours(Math.floor(endWorkHour), (endWorkHour % 1) * 60, 0, 0);
+
+        const lunchStartTime = new Date(currentDate);
+        lunchStartTime.setHours(Math.floor(lunchStart), (lunchStart % 1) * 60, 0, 0);
+
+        const lunchEndTime = new Date(currentDate);
+        lunchEndTime.setHours(Math.floor(lunchEnd), (lunchEnd % 1) * 60, 0, 0);
+
+        // 确定任务在当天的实际工作时段
+        let actualTaskStart = new Date(currentDate);
+        if (currentDate.getTime() < dayStart.getTime()) {
+          actualTaskStart = dayStart;
+        }
+
+        let actualTaskEnd = new Date(endDate);
+        if (actualTaskEnd.getTime() > dayEnd.getTime()) {
+          actualTaskEnd = dayEnd;
+        }
+
+        // 计算这一天的实际工作小时数（考虑午休）
+        let dailyWorkHours = 0;
+
+        // 如果任务在午休前开始
+        if (actualTaskStart < lunchStartTime && actualTaskEnd > lunchStartTime) {
+          // 午休前的工作时间
+          const workBeforeLunch = Math.min(lunchStartTime.getTime(), actualTaskEnd.getTime()) - actualTaskStart.getTime();
+          dailyWorkHours += workBeforeLunch;
+
+          // 午休后的工作时间
+          if (actualTaskEnd > lunchEndTime) {
+            const workAfterLunch = actualTaskEnd.getTime() - lunchEndTime.getTime();
+            dailyWorkHours += workAfterLunch;
+          }
+        } else if (actualTaskStart >= lunchEndTime) {
+          // 在午休后工作
+          dailyWorkHours = actualTaskEnd.getTime() - actualTaskStart.getTime();
+        } else if (actualTaskEnd <= lunchStartTime) {
+          // 在午休前工作
+          dailyWorkHours = actualTaskEnd.getTime() - actualTaskStart.getTime();
+        }
+
+        // 转换为小时
+        dailyWorkHours = dailyWorkHours / (1000 * 60 * 60);
+
+        // 只有当天有实际工作时间（>0）才显示任务
+        if (dailyWorkHours > 0 && isSameMonth(currentDate, currentDate)) {
+          const dateKey = format(currentDate, 'yyyy-MM-dd');
+          if (!tasksInMonth[dateKey]) {
+            tasksInMonth[dateKey] = [];
+          }
+          // 避免重复添加同一任务
+          if (!tasksInMonth[dateKey].find(t => t.id === scheduledTask.id)) {
+            tasksInMonth[dateKey].push(scheduledTask);
+          }
+        }
+
+        // 移动到下一天
+        currentDate.setDate(currentDate.getDate() + 1);
+        currentDate.setHours(0, 0, 0, 0);
+      }
+    });
+
+    return tasksInMonth;
+  }, [scheduledTasks, currentDate]);
+
   // 获取任务对应的资源
   const getResource = (resourceId: string) => {
     return resources.find(r => r.id === resourceId);
