@@ -280,6 +280,8 @@ export default function ComplexScenario() {
   const [conflictStrategy, setConflictStrategy] = useState<ResourceConflictStrategy>('auto-switch');
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [pendingConflicts, setPendingConflicts] = useState<Map<string, ConflictTask[]>>(new Map());
+  const [justResolvedConflict, setJustResolvedConflict] = useState(false);
+  const [savedResolutions, setSavedResolutions] = useState<Map<string, 'switch' | 'delay'> | null>(null);
   const [deadlineWarningCount, setDeadlineWarningCount] = useState(0);
   const [showDeadlineWarningDialog, setShowDeadlineWarningDialog] = useState(false);
 
@@ -387,7 +389,22 @@ export default function ComplexScenario() {
   const handleGenerateSchedule = () => {
     setIsComputing(true);
 
-    // 先检测资源冲突（如果有旧排期结果，基于实际排期检测；否则基于原始任务检测）
+    // 如果刚刚解决过冲突，直接生成排期（跳过冲突检测）
+    if (justResolvedConflict && savedResolutions) {
+      setTimeout(() => {
+        const result = generateSchedule(tasks, sharedResources, new Date(), defaultWorkingHours, conflictStrategy, savedResolutions);
+        setScheduleResult(result);
+
+        // 基于新生成的排期结果重新检测冲突，更新 pendingConflicts
+        const newConflicts = detectResourceConflicts(result.tasks, sharedResources, result);
+        setPendingConflicts(newConflicts);
+
+        setIsComputing(false);
+      }, 500);
+      return;
+    }
+
+    // 否则，检测资源冲突
     const conflicts = detectResourceConflicts(tasks, sharedResources, scheduleResult || undefined);
 
     if (conflicts.size > 0) {
@@ -412,6 +429,8 @@ export default function ComplexScenario() {
 
   const handleConflictResolution = (resolutions: Map<string, 'switch' | 'delay'>) => {
     setIsComputing(true);
+    setJustResolvedConflict(true); // 标记刚刚解决了冲突
+    setSavedResolutions(resolutions); // 保存用户的选择
     setTimeout(() => {
       // 根据用户的选择生成排期
       const result = generateSchedule(tasks, sharedResources, new Date(), defaultWorkingHours, conflictStrategy, resolutions);
@@ -426,6 +445,9 @@ export default function ComplexScenario() {
   };
 
   const handleTaskChange = (taskId: string, field: keyof Task, value: any) => {
+    setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
+    setSavedResolutions(null); // 重置保存的解决方案
+    setPendingConflicts(new Map()); // 清除待处理的冲突
     setTasks(tasks.map(t => {
       if (t.id !== taskId) return t;
 
@@ -445,6 +467,8 @@ export default function ComplexScenario() {
 
   const handleDeleteTask = (taskId: string) => {
     setShowDeadlineWarningDialog(false); // 关闭预警弹窗
+    setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
+    setSavedResolutions(null); // 重置保存的解决方案
     setPendingConflicts(new Map()); // 清除待处理的冲突
     setTasks(tasks.filter(t => t.id !== taskId));
     // 同时从其他任务的依赖中移除该任务
@@ -455,6 +479,8 @@ export default function ComplexScenario() {
   };
 
   const handleAddTask = () => {
+    setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
+    setSavedResolutions(null); // 重置保存的解决方案
     setPendingConflicts(new Map()); // 清除待处理的冲突
     const newTask: Task = {
       id: `task-${Date.now()}`,
