@@ -13,10 +13,17 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2, Calendar } from 'lucide-react';
+import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2, Calendar, MoreVertical } from 'lucide-react';
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import * as XLSX from 'xlsx';
 import { defaultWorkingHours } from '@/lib/sample-data';
@@ -203,75 +210,6 @@ const defaultTasks: Task[] = [
     status: 'pending',
     taskType: '后期',
     dependencies: ['task-p3-2']
-  }
-];
-
-// 示例冲突任务数据（用于演示冲突检测功能）
-const exampleConflictTasks: Task[] = [
-  {
-    id: 'conflict-1',
-    name: '示例冲突任务1-张设计师',
-    description: '演示资源冲突 - 指定张设计师',
-    estimatedHours: 24,
-    assignedResources: [],
-    fixedResourceId: 'res-1', // 指定张设计师
-    projectId: 'proj-1',
-    priority: 'high',
-    status: 'pending',
-    taskType: '平面',
-    dependencies: []
-  },
-  {
-    id: 'conflict-2',
-    name: '示例冲突任务2-张设计师',
-    description: '演示资源冲突 - 指定张设计师（与任务1冲突）',
-    estimatedHours: 16,
-    assignedResources: [],
-    fixedResourceId: 'res-1', // 指定张设计师
-    projectId: 'proj-2',
-    priority: 'high',
-    status: 'pending',
-    taskType: '平面',
-    dependencies: []
-  },
-  {
-    id: 'conflict-3',
-    name: '示例冲突任务3-张设计师',
-    description: '演示资源冲突 - 指定张设计师（与任务1、2冲突）',
-    estimatedHours: 20,
-    assignedResources: [],
-    fixedResourceId: 'res-1', // 指定张设计师
-    projectId: 'proj-1',
-    priority: 'normal',
-    status: 'pending',
-    taskType: '平面',
-    dependencies: []
-  },
-  {
-    id: 'conflict-4',
-    name: '示例冲突任务4-李后期',
-    description: '演示资源冲突 - 指定李后期',
-    estimatedHours: 32,
-    assignedResources: [],
-    fixedResourceId: 'res-2', // 指定李后期
-    projectId: 'proj-3',
-    priority: 'high',
-    status: 'pending',
-    taskType: '后期',
-    dependencies: []
-  },
-  {
-    id: 'conflict-5',
-    name: '示例冲突任务5-李后期',
-    description: '演示资源冲突 - 指定李后期（与任务4冲突）',
-    estimatedHours: 24,
-    assignedResources: [],
-    fixedResourceId: 'res-2', // 指定李后期
-    projectId: 'proj-1',
-    priority: 'normal',
-    status: 'pending',
-    taskType: '后期',
-    dependencies: []
   }
 ];
 
@@ -561,7 +499,7 @@ export default function ComplexScenario() {
     setTasks(updatedTasks);
   };
 
-  const handleAddTask = () => {
+  const handleAddTask = (taskType: '平面' | '后期' | '物料' = '平面') => {
     setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
     setSavedResolutions(null); // 重置保存的解决方案
     setPendingConflicts(new Map()); // 清除待处理的冲突
@@ -569,13 +507,13 @@ export default function ComplexScenario() {
       id: `task-${Date.now()}`,
       name: `新任务 ${tasks.length + 1}`,
       description: '',
-      estimatedHours: 8,
+      estimatedHours: taskType === '物料' ? 0 : 8,
       assignedResources: [], // 自动分配
       priority: 'normal',
       status: 'pending',
       projectId: activeProject === 'all' ? projects[0]?.id : activeProject,
       dependencies: [],
-      taskType: '平面' // 默认为平面
+      taskType
     };
     setTasks([...tasks, newTask]);
   };
@@ -637,16 +575,6 @@ export default function ComplexScenario() {
 
   const handleDeleteResource = (resourceId: string) => {
     setSharedResources(sharedResources.filter(r => r.id !== resourceId));
-  };
-
-  const handleAddConflictExampleTasks = () => {
-    if (!confirm('确定要添加示例冲突任务吗？这将添加5个演示资源冲突的任务。')) return;
-    
-    // 添加示例冲突任务到现有任务列表
-    setTasks([...tasks, ...exampleConflictTasks]);
-    // 清除排期结果，让用户重新生成
-    setScheduleResult(null);
-    setPendingConflicts(new Map());
   };
 
   const handleResourceChange = (resourceId: string, field: keyof Resource, value: any) => {
@@ -822,10 +750,6 @@ export default function ComplexScenario() {
               <Button onClick={handleAddResource} size="sm" variant="outline" className="gap-2">
                 <Plus className="h-4 w-4" />
                 添加成员
-              </Button>
-              <Button onClick={handleAddConflictExampleTasks} size="sm" variant="outline" className="gap-2 text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300">
-                <AlertTriangle className="h-4 w-4" />
-                添加示例冲突任务
               </Button>
             </div>
           </div>
@@ -1046,15 +970,30 @@ export default function ComplexScenario() {
           </Badge>
         </div>
         <div className="flex gap-2">
-          <Button 
-            onClick={handleAddTask} 
-            variant="outline"
-            size="sm"
-            className="gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            添加任务
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                <Plus className="h-4 w-4" />
+                添加任务
+                <MoreVertical className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => handleAddTask('平面')}>
+                <span className="mr-2">🎨</span>
+                添加平面任务
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddTask('后期')}>
+                <span className="mr-2">🎬</span>
+                添加后期任务
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handleAddTask('物料')}>
+                <span className="mr-2">📦</span>
+                添加物料任务
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button 
             onClick={handleGenerateSchedule} 
             disabled={isComputing}
