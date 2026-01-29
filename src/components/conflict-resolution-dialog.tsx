@@ -159,7 +159,7 @@ export function ConflictResolutionDialog({
               <div className="w-6 h-6 rounded bg-blue-600 flex items-center justify-center">
                 <span className="text-xs text-white font-bold">★</span>
               </div>
-              <span className="text-slate-700 dark:text-slate-300">最高优先级任务自动保留原资源</span>
+              <span className="text-slate-700 dark:text-slate-300">综合最高优先级任务自动保留原资源</span>
             </div>
           </div>
         </div>
@@ -208,7 +208,7 @@ export function ConflictResolutionDialog({
                             )}
             {isHighestScore && (
                               <Badge variant="default" className="bg-blue-600">
-                                最高优先级（保留）
+                                综合最高优先级（保留）
                               </Badge>
                             )}
                           </div>
@@ -293,7 +293,7 @@ export function ConflictResolutionDialog({
         <DialogFooter className="px-6 py-4 border-t bg-slate-50 dark:bg-slate-900/50">
           <div className="flex w-full items-center justify-between">
             <div className="text-sm text-slate-600 dark:text-slate-400">
-              <span className="text-slate-500 dark:text-slate-400 mr-2">已自动保留最高优先级任务，</span>
+              <span className="text-slate-500 dark:text-slate-400 mr-2">已自动保留综合最高优先级任务，</span>
               需要选择 <span className="font-bold text-base text-blue-600 dark:text-blue-400">
                 {Array.from(conflicts.values()).flat().length - highestScoreTaskIds.size}
               </span> / <span className="font-bold text-base">
