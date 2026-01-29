@@ -271,6 +271,7 @@ export default function BasicScenario() {
   const handleAddTask = (taskType: '平面' | '后期' | '物料' = '平面') => {
     setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
     setSavedResolutions(null); // 重置保存的解决方案
+    setPendingConflicts(new Map()); // 清除待处理的冲突
     const newTask: Task = {
       id: `task-${Date.now()}`,
       name: `新任务 ${tasks.length + 1}`,
@@ -288,12 +289,14 @@ export default function BasicScenario() {
     setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
     setSavedResolutions(null); // 重置保存的解决方案
     setShowDeadlineWarningDialog(false); // 关闭预警弹窗
+    setPendingConflicts(new Map()); // 清除待处理的冲突
     setTasks(tasks.filter(t => t.id !== taskId));
   };
 
   const handleTaskChange = (taskId: string, field: keyof Task, value: any) => {
     setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
     setSavedResolutions(null); // 重置保存的解决方案
+    setPendingConflicts(new Map()); // 清除待处理的冲突
     setTasks(tasks.map(t => {
       if (t.id !== taskId) return t;
 

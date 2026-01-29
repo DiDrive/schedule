@@ -443,6 +443,7 @@ export default function ComplexScenario() {
 
   const handleDeleteTask = (taskId: string) => {
     setShowDeadlineWarningDialog(false); // 关闭预警弹窗
+    setPendingConflicts(new Map()); // 清除待处理的冲突
     setTasks(tasks.filter(t => t.id !== taskId));
     // 同时从其他任务的依赖中移除该任务
     setTasks(tasks.map(t => ({
@@ -452,6 +453,7 @@ export default function ComplexScenario() {
   };
 
   const handleAddTask = () => {
+    setPendingConflicts(new Map()); // 清除待处理的冲突
     const newTask: Task = {
       id: `task-${Date.now()}`,
       name: `新任务 ${tasks.length + 1}`,
