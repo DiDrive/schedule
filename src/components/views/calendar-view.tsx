@@ -41,7 +41,7 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
 
   // 按日期分组任务（只包括工作日，且只显示真正有工作的日期）
   const tasksByDate = useMemo(() => {
-    const grouped: Record<string, Task[]> = {};
+    const grouped: Record<string, Array<{ task: Task; timeRanges: string[] }>> = {};
 
     scheduledTasks.forEach(scheduledTask => {
       const startDate = new Date(scheduledTask.startDate!);
@@ -89,6 +89,7 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
 
         // 计算这一天的实际工作小时数（考虑午休）
         let dailyWorkHours = 0;
+        const timeRanges: string[] = [];
 
         // 如果任务在午休前开始
         if (actualTaskStart < lunchStartTime && actualTaskEnd > lunchStartTime) {
@@ -96,31 +97,47 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
           const workBeforeLunch = Math.min(lunchStartTime.getTime(), actualTaskEnd.getTime()) - actualTaskStart.getTime();
           dailyWorkHours += workBeforeLunch;
 
+          if (workBeforeLunch > 0) {
+            const workBeforeEnd = new Date(actualTaskStart.getTime() + workBeforeLunch);
+            timeRanges.push(`${format(actualTaskStart, 'HH:mm')}-${format(workBeforeEnd, 'HH:mm')}`);
+          }
+
           // 午休后的工作时间
           if (actualTaskEnd > lunchEndTime) {
             const workAfterLunch = actualTaskEnd.getTime() - lunchEndTime.getTime();
             dailyWorkHours += workAfterLunch;
+
+            if (workAfterLunch > 0) {
+              const workAfterEnd = new Date(lunchEndTime.getTime() + workAfterLunch);
+              timeRanges.push(`${format(lunchEndTime, 'HH:mm')}-${format(workAfterEnd, 'HH:mm')}`);
+            }
           }
         } else if (actualTaskStart >= lunchEndTime) {
           // 在午休后工作
           dailyWorkHours = actualTaskEnd.getTime() - actualTaskStart.getTime();
+          if (dailyWorkHours > 0) {
+            timeRanges.push(`${format(actualTaskStart, 'HH:mm')}-${format(actualTaskEnd, 'HH:mm')}`);
+          }
         } else if (actualTaskEnd <= lunchStartTime) {
           // 在午休前工作
           dailyWorkHours = actualTaskEnd.getTime() - actualTaskStart.getTime();
+          if (dailyWorkHours > 0) {
+            timeRanges.push(`${format(actualTaskStart, 'HH:mm')}-${format(actualTaskEnd, 'HH:mm')}`);
+          }
         }
 
         // 转换为小时
         dailyWorkHours = dailyWorkHours / (1000 * 60 * 60);
 
         // 只有当天有实际工作时间（>0）才显示任务
-        if (dailyWorkHours > 0) {
+        if (dailyWorkHours > 0 && timeRanges.length > 0) {
           const dateKey = format(currentDate, 'yyyy-MM-dd');
           if (!grouped[dateKey]) {
             grouped[dateKey] = [];
           }
           // 避免重复添加同一任务
-          if (!grouped[dateKey].find(t => t.id === scheduledTask.id)) {
-            grouped[dateKey].push(scheduledTask);
+          if (!grouped[dateKey].find(t => t.task.id === scheduledTask.id)) {
+            grouped[dateKey].push({ task: scheduledTask, timeRanges });
           }
         }
 
@@ -134,8 +151,8 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
   }, [scheduledTasks]);
 
   // 获取当月范围的任务日期（只包括工作日，且只显示真正有工作的日期）
-  const monthTasks: Record<string, Task[]> = useMemo(() => {
-    const tasksInMonth: Record<string, Task[]> = {};
+  const monthTasks: Record<string, Array<{ task: Task; timeRanges: string[] }>> = useMemo(() => {
+    const tasksInMonth: Record<string, Array<{ task: Task; timeRanges: string[] }>> = {};
 
     scheduledTasks.forEach(scheduledTask => {
       const startDate = new Date(scheduledTask.startDate!);
@@ -190,6 +207,7 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
 
         // 计算这一天的实际工作小时数（考虑午休）
         let dailyWorkHours = 0;
+        const timeRanges: string[] = [];
 
         // 如果任务在午休前开始
         if (actualTaskStart < lunchStartTime && actualTaskEnd > lunchStartTime) {
@@ -197,31 +215,47 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
           const workBeforeLunch = Math.min(lunchStartTime.getTime(), actualTaskEnd.getTime()) - actualTaskStart.getTime();
           dailyWorkHours += workBeforeLunch;
 
+          if (workBeforeLunch > 0) {
+            const workBeforeEnd = new Date(actualTaskStart.getTime() + workBeforeLunch);
+            timeRanges.push(`${format(actualTaskStart, 'HH:mm')}-${format(workBeforeEnd, 'HH:mm')}`);
+          }
+
           // 午休后的工作时间
           if (actualTaskEnd > lunchEndTime) {
             const workAfterLunch = actualTaskEnd.getTime() - lunchEndTime.getTime();
             dailyWorkHours += workAfterLunch;
+
+            if (workAfterLunch > 0) {
+              const workAfterEnd = new Date(lunchEndTime.getTime() + workAfterLunch);
+              timeRanges.push(`${format(lunchEndTime, 'HH:mm')}-${format(workAfterEnd, 'HH:mm')}`);
+            }
           }
         } else if (actualTaskStart >= lunchEndTime) {
           // 在午休后工作
           dailyWorkHours = actualTaskEnd.getTime() - actualTaskStart.getTime();
+          if (dailyWorkHours > 0) {
+            timeRanges.push(`${format(actualTaskStart, 'HH:mm')}-${format(actualTaskEnd, 'HH:mm')}`);
+          }
         } else if (actualTaskEnd <= lunchStartTime) {
           // 在午休前工作
           dailyWorkHours = actualTaskEnd.getTime() - actualTaskStart.getTime();
+          if (dailyWorkHours > 0) {
+            timeRanges.push(`${format(actualTaskStart, 'HH:mm')}-${format(actualTaskEnd, 'HH:mm')}`);
+          }
         }
 
         // 转换为小时
         dailyWorkHours = dailyWorkHours / (1000 * 60 * 60);
 
         // 只有当天有实际工作时间（>0）才显示任务
-        if (dailyWorkHours > 0 && isSameMonth(taskDate, currentDate)) {
+        if (dailyWorkHours > 0 && timeRanges.length > 0 && isSameMonth(taskDate, currentDate)) {
           const dateKey = format(taskDate, 'yyyy-MM-dd');
           if (!tasksInMonth[dateKey]) {
             tasksInMonth[dateKey] = [];
           }
           // 避免重复添加同一任务
-          if (!tasksInMonth[dateKey].find(t => t.id === scheduledTask.id)) {
-            tasksInMonth[dateKey].push(scheduledTask);
+          if (!tasksInMonth[dateKey].find(t => t.task.id === scheduledTask.id)) {
+            tasksInMonth[dateKey].push({ task: scheduledTask, timeRanges });
           }
         }
 
@@ -318,7 +352,7 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
                 {/* 只在工作日显示任务 */}
                 {!isWeekend && (
                   <div className="space-y-1 overflow-y-auto max-h-[80px]">
-                    {dayTasks.map((scheduledTask, taskIndex) => {
+                    {dayTasks.map(({ task: scheduledTask, timeRanges }, taskIndex) => {
                       const task = getTaskDetails(scheduledTask);
                       const resource = getResource(scheduledTask.assignedResources[0]!);
                       const isMultiDay = isMultiDayTask(scheduledTask, day);
@@ -328,14 +362,14 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
                       return (
                         <div
                           key={taskIndex}
-                          className={`text-xs p-1.5 rounded cursor-pointer truncate ${
+                          className={`text-xs p-1.5 rounded cursor-pointer ${
                             task.taskType === '平面'
                               ? 'bg-green-100 text-green-800 hover:bg-green-200'
                               : task.taskType === '后期'
                               ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
                               : 'bg-orange-100 text-orange-800 hover:bg-orange-200'
                           }`}
-                          title={`${task.name}\n负责人: ${resource?.name || '未分配'}\n${format(new Date(scheduledTask.startDate!), 'HH:mm')} - ${format(new Date(scheduledTask.endDate!), 'HH:mm')}`}
+                          title={`${task.name}\n负责人: ${resource?.name || '未分配'}\n时间: ${timeRanges.join(', ')}`}
                         >
                           <div className="flex items-center justify-between">
                             <span className="truncate flex-1">{task.name}</span>
@@ -346,6 +380,9 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
                               {resource.name}
                             </div>
                           )}
+                          <div className="truncate text-[10px] opacity-75 mt-0.5">
+                            {timeRanges.join(', ')}
+                          </div>
                         </div>
                       );
                     })}
