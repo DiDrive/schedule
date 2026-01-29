@@ -1058,9 +1058,26 @@ export default function BasicScenario() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* Task Type Filter for Gantt/Calendar View */}
+              {(activeView === 'gantt' || activeView === 'calendar') && (
+                <Tabs value={activeTaskType} onValueChange={(value) => setActiveTaskType(value as 'all' | '平面' | '后期' | '物料')} className="mb-4">
+                  <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="all">全部 ({scheduleResult.tasks.length})</TabsTrigger>
+                    <TabsTrigger value="平面">平面 ({scheduleResult.tasks.filter(task => task.taskType === '平面').length})</TabsTrigger>
+                    <TabsTrigger value="后期">后期 ({scheduleResult.tasks.filter(task => task.taskType === '后期').length})</TabsTrigger>
+                    <TabsTrigger value="物料">物料 ({scheduleResult.tasks.filter(task => task.taskType === '物料').length})</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              )}
+
               {activeView === 'gantt' && (
                 <GanttChart
-                  scheduleResult={scheduleResult}
+                  scheduleResult={{
+                    ...scheduleResult,
+                    tasks: scheduleResult.tasks.filter(task =>
+                      activeTaskType === 'all' || task.taskType === activeTaskType
+                    )
+                  }}
                   resources={resources}
                 />
               )}
@@ -1208,9 +1225,13 @@ export default function BasicScenario() {
 
               {activeView === 'calendar' && (
                 <CalendarView
-                  scheduledTasks={scheduleResult.tasks}
+                  scheduledTasks={scheduleResult.tasks.filter(task =>
+                    activeTaskType === 'all' || task.taskType === activeTaskType
+                  )}
                   resources={resources}
-                  tasks={tasks}
+                  tasks={tasks.filter(task =>
+                    activeTaskType === 'all' || task.taskType === activeTaskType
+                  )}
                 />
               )}
             </CardContent>

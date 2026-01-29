@@ -1358,6 +1358,16 @@ export default function ComplexScenario() {
               </Card>
             </div>
 
+            {/* Task Type Filter for Gantt/Calendar View */}
+            <Tabs value={activeTaskType} onValueChange={(value) => setActiveTaskType(value as 'all' | '平面' | '后期' | '物料')} className="mb-4">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="all">全部 ({scheduleResult.tasks.filter(task => activeProject === 'all' || task.projectId === activeProject).length})</TabsTrigger>
+                <TabsTrigger value="平面">平面 ({scheduleResult.tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '平面').length})</TabsTrigger>
+                <TabsTrigger value="后期">后期 ({scheduleResult.tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '后期').length})</TabsTrigger>
+                <TabsTrigger value="物料">物料 ({scheduleResult.tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '物料').length})</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
             {/* View: Gantt or Calendar */}
             {activeView === 'gantt' ? (
               <Card>
@@ -1371,7 +1381,10 @@ export default function ComplexScenario() {
                   <GanttChart
                     scheduleResult={{
                       ...scheduleResult,
-                      tasks: scheduleResult.tasks.filter(task => activeProject === 'all' || task.projectId === activeProject)
+                      tasks: scheduleResult.tasks.filter(task =>
+                        (activeProject === 'all' || task.projectId === activeProject) &&
+                        (activeTaskType === 'all' || task.taskType === activeTaskType)
+                      )
                     }}
                     resources={sharedResources}
                     projects={projects.map(p => ({
@@ -1392,9 +1405,15 @@ export default function ComplexScenario() {
                 </CardHeader>
                 <CardContent>
                   <CalendarView
-                    scheduledTasks={scheduleResult.tasks.filter(task => activeProject === 'all' || task.projectId === activeProject)}
+                    scheduledTasks={scheduleResult.tasks.filter(task =>
+                      (activeProject === 'all' || task.projectId === activeProject) &&
+                      (activeTaskType === 'all' || task.taskType === activeTaskType)
+                    )}
                     resources={sharedResources}
-                    tasks={tasks.filter(task => activeProject === 'all' || task.projectId === activeProject)}
+                    tasks={tasks.filter(task =>
+                      (activeProject === 'all' || task.projectId === activeProject) &&
+                      (activeTaskType === 'all' || task.taskType === activeTaskType)
+                    )}
                   />
                 </CardContent>
               </Card>
