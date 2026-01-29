@@ -90,13 +90,12 @@ export function ConflictResolutionDialog({
     return initialResolutions;
   });
 
-  const handleToggleResolution = (taskId: string) => {
+  const handleSetResolution = (taskId: string, resolution: 'switch' | 'delay') => {
     // 不允许切换最高评分的任务
     if (highestScoreTaskIds.has(taskId)) return;
     
     const newResolutions = new Map(resolutions);
-    const current = newResolutions.get(taskId);
-    newResolutions.set(taskId, current === 'switch' ? 'delay' : 'switch');
+    newResolutions.set(taskId, resolution);
     setResolutions(newResolutions);
   };
 
@@ -255,7 +254,7 @@ export function ConflictResolutionDialog({
                                 <Button
                                   variant={resolution === 'switch' ? 'default' : 'outline'}
                                   size="sm"
-                                  onClick={() => handleToggleResolution(conflictTask.task.id)}
+                                  onClick={() => handleSetResolution(conflictTask.task.id, 'switch')}
                                   className={resolution === 'switch' 
                                     ? 'bg-blue-600 hover:bg-blue-700 h-7 px-2' 
                                     : 'border hover:border-blue-300 h-7 px-2'
@@ -267,7 +266,7 @@ export function ConflictResolutionDialog({
                                 <Button
                                   variant={resolution === 'delay' ? 'default' : 'outline'}
                                   size="sm"
-                                  onClick={() => handleToggleResolution(conflictTask.task.id)}
+                                  onClick={() => handleSetResolution(conflictTask.task.id, 'delay')}
                                   className={resolution === 'delay'
                                     ? 'bg-orange-600 hover:bg-orange-700 h-7 px-2'
                                     : 'border hover:border-orange-300 h-7 px-2'

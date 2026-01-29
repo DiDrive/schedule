@@ -180,7 +180,6 @@ export default function BasicScenario() {
 
     // 如果刚刚解决过冲突，直接生成排期（跳过冲突检测）
     if (justResolvedConflict) {
-      setJustResolvedConflict(false); // 重置标记
       setTimeout(() => {
         const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy);
         setScheduleResult(result);
