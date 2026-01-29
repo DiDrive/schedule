@@ -13,9 +13,11 @@ import { Play, Plus, Trash2, CheckCircle, TrendingUp, Settings, Calendar, Downlo
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import * as XLSX from 'xlsx';
 import { defaultWorkingHours } from '@/lib/sample-data';
-import { Task, Resource, ScheduleResult, ResourceLevel, ResourceConflictStrategy } from '@/types/schedule';
+import { Task, Resource, ScheduleResult, ResourceLevel, ResourceConflictStrategy, ConflictTask } from '@/types/schedule';
 import GanttChart from '@/components/gantt-chart';
 import { CalendarView } from '@/components/views/calendar-view';
+import { ConflictResolutionDialog } from '@/components/conflict-resolution-dialog';
+import { detectResourceConflicts } from '@/lib/schedule-algorithms';
 
 // 辅助函数：将 Date 或字符串转换为 YYYY-MM-DD 格式
 const formatDateToInputValue = (date: Date | string | undefined): string => {
@@ -104,6 +106,8 @@ export default function BasicScenario() {
   const [aiSuggestion, setAiSuggestion] = useState<string>('');
   const [isAiOptimizing, setIsAiOptimizing] = useState(false);
   const [conflictStrategy, setConflictStrategy] = useState<ResourceConflictStrategy>('auto-switch');
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const [pendingConflicts, setPendingConflicts] = useState<Map<string, ConflictTask[]>>(new Map());
 
   // 使用 ref 跟踪是否已经加载过数据，避免重复加载
   const hasLoadedData = useRef(false);
@@ -164,8 +168,30 @@ export default function BasicScenario() {
 
   const handleGenerateSchedule = () => {
     setIsComputing(true);
+
+    // 先检测资源冲突
+    const conflicts = detectResourceConflicts(tasks, resources);
+
+    if (conflicts.size > 0) {
+      // 有冲突，显示对话框
+      setPendingConflicts(conflicts);
+      setConflictDialogOpen(true);
+      setIsComputing(false);
+    } else {
+      // 没有冲突，直接生成排期
+      setTimeout(() => {
+        const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy);
+        setScheduleResult(result);
+        setIsComputing(false);
+      }, 500);
+    }
+  };
+
+  const handleConflictResolution = (resolutions: Map<string, 'switch' | 'delay'>) => {
+    setIsComputing(true);
     setTimeout(() => {
-      const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy);
+      // 根据用户的选择生成排期
+      const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy, resolutions);
       setScheduleResult(result);
       setIsComputing(false);
     }, 500);
@@ -1154,6 +1180,15 @@ export default function BasicScenario() {
           )}
         </>
       )}
+      
+      {/* 资源冲突处理对话框 */}
+      {/* 资源冲突处理对话框 */}
+      <ConflictResolutionDialog
+        isOpen={conflictDialogOpen}
+        conflicts={pendingConflicts}
+        onConfirm={handleConflictResolution}
+        onClose={() => setConflictDialogOpen(false)}
+      />
     </div>
   );
 }

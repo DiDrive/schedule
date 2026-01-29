@@ -1,4 +1,4 @@
-import { Task, Resource, ScheduleResult, ResourceConflict, WorkingHoursConfig, ResourceLevel, ResourceConflictStrategy } from '@/types/schedule';
+import { Task, Resource, ScheduleResult, ResourceConflict, WorkingHoursConfig, ResourceLevel, ResourceConflictStrategy, ConflictTask } from '@/types/schedule';
 
 // 默认工作时间配置
 const DEFAULT_WORKING_HOURS: WorkingHoursConfig = {
@@ -587,79 +587,6 @@ export function calculateCriticalPath(tasks: Task[]): string[] {
 }
 
 /**
- * 检测资源冲突
- */
-export function detectResourceConflicts(
-  tasks: Task[],
-  resources: Resource[]
-): ResourceConflict[] {
-  const conflicts: ResourceConflict[] = [];
-
-  // 为每个任务计算具体的时间窗口
-  const taskTimeWindows = new Map<string, { start: number; end: number }>();
-
-  tasks.forEach(task => {
-    if (task.startDate && task.endDate) {
-      const start = task.startDate.getTime();
-      const end = task.endDate.getTime();
-      taskTimeWindows.set(task.id, { start, end });
-    }
-  });
-
-  // 检查每个资源的分配情况
-  resources.forEach(resource => {
-    const assignedTasks = tasks.filter(t => t.assignedResources.includes(resource.id));
-
-    if (assignedTasks.length < 2) return;
-
-    // 检查每对任务是否有时间重叠
-    for (let i = 0; i < assignedTasks.length; i++) {
-      for (let j = i + 1; j < assignedTasks.length; j++) {
-        const task1 = assignedTasks[i];
-        const task2 = assignedTasks[j];
-
-        const window1 = taskTimeWindows.get(task1.id);
-        const window2 = taskTimeWindows.get(task2.id);
-
-        if (!window1 || !window2) continue;
-
-        // 检查时间重叠
-        const hasOverlap = window1.start < window2.end && window2.start < window1.end;
-
-        if (hasOverlap) {
-          const overlapStart = new Date(Math.max(window1.start, window2.start));
-          const overlapEnd = new Date(Math.min(window1.end, window2.end));
-          const overlapDuration = (overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60);
-
-          // 根据重叠时长确定严重程度
-          const severity = overlapDuration > task1.estimatedHours * 0.5 ? 'high' :
-            overlapDuration > task1.estimatedHours * 0.2 ? 'medium' : 'low';
-
-          const existingConflict = conflicts.find(
-            c => c.resourceId === resource.id &&
-            c.tasks.includes(task1.id) &&
-            c.tasks.includes(task2.id)
-          );
-
-          if (!existingConflict) {
-            conflicts.push({
-              resourceId: resource.id,
-              resourceName: resource.name,
-              tasks: [task1.id, task2.id],
-              timeRange: { start: overlapStart, end: overlapEnd },
-              severity,
-              suggestedResolution: `建议将任务"${task1.name}"或"${task2.name}"调整为非重叠时间段，或增加${resource.name}的可用性`
-            });
-          }
-        }
-      }
-    }
-  });
-
-  return conflicts;
-}
-
-/**
  * 计算资源利用率
  * 说明：
  * - 任务预估工时是"标准人"（效率1.0）完成所需时间
@@ -790,6 +717,75 @@ export function getResourceBalancingRecommendations(
 }
 
 /**
+ * 检测资源冲突（在调度前）
+ * 返回所有指定资源的任务冲突
+ */
+export function detectResourceConflicts(
+  tasks: Task[],
+  resources: Resource[]
+): Map<string, ConflictTask[]> {
+  const conflictsMap = new Map<string, ConflictTask[]>();
+
+  // 找出所有有指定资源的任务
+  const tasksWithFixedResource = tasks.filter(t => t.fixedResourceId && t.taskType !== '物料');
+
+  // 按资源分组
+  tasksWithFixedResource.forEach(task => {
+    const resourceId = task.fixedResourceId!;
+    if (!conflictsMap.has(resourceId)) {
+      conflictsMap.set(resourceId, []);
+    }
+
+    // 假设任务都在同一天开始（简化处理，实际需要根据依赖关系计算）
+    const taskStart = new Date();
+    taskStart.setHours(9, 30, 0, 0); // 默认从 9:30 开始
+
+    const resource = resources.find(r => r.id === resourceId);
+    const efficiency = resource?.efficiency || LEVEL_EFFICIENCY[resource?.level as ResourceLevel] || 1.0;
+    const actualWorkHours = task.estimatedHours / efficiency;
+    const taskEnd = calculateEndDate(taskStart, actualWorkHours);
+
+    conflictsMap.get(resourceId)!.push({
+      task,
+      startTime: taskStart,
+      endTime: taskEnd,
+      resourceId,
+      resourceName: resource?.name || '未知资源'
+    });
+  });
+
+  // 检查每个资源的任务是否有时间冲突
+  const actualConflicts = new Map<string, ConflictTask[]>();
+
+  conflictsMap.forEach((conflictTasks, resourceId) => {
+    // 如果只有一个任务，没有冲突
+    if (conflictTasks.length <= 1) return;
+
+    // 检查所有任务的时间是否重叠
+    let hasConflict = false;
+    for (let i = 0; i < conflictTasks.length; i++) {
+      for (let j = i + 1; j < conflictTasks.length; j++) {
+        const task1 = conflictTasks[i];
+        const task2 = conflictTasks[j];
+
+        // 检查时间重叠
+        if (task1.startTime < task2.endTime && task1.endTime > task2.startTime) {
+          hasConflict = true;
+          break;
+        }
+      }
+      if (hasConflict) break;
+    }
+
+    if (hasConflict) {
+      actualConflicts.set(resourceId, conflictTasks);
+    }
+  });
+
+  return actualConflicts;
+}
+
+/**
  * 生成排期结果（修复依赖关系）
  */
 export function generateSchedule(
@@ -797,7 +793,8 @@ export function generateSchedule(
   resources: Resource[],
   startDate: Date = new Date(),
   workingHoursConfig: WorkingHoursConfig = DEFAULT_WORKING_HOURS,
-  conflictStrategy: ResourceConflictStrategy = 'auto-switch'
+  conflictStrategy: ResourceConflictStrategy = 'auto-switch',
+  taskConflictResolutions?: Map<string, 'switch' | 'delay'> // 任务ID -> 处理方式
 ): ScheduleResult {
   // 1. 自动分配资源（如果任务没有分配资源）
   const tasksWithResources = autoAssignResources(tasks, resources);
@@ -907,6 +904,9 @@ export function generateSchedule(
 
     console.log(`  调度开始: 任务 ${task.name}, 原始资源: ${resource.name} (类型: ${resource.workType})`);
 
+    // 检查用户是否为该任务选择了处理方式
+    const userResolution = taskConflictResolutions?.get(task.id);
+
     while (hasConflict && iteration < maxIterations) {
       hasConflict = false;
       iteration++;
@@ -965,10 +965,11 @@ export function generateSchedule(
           }
 
           // 根据冲突处理策略决定是否允许切换资源
-          const allowSwitch = conflictStrategy === 'auto-switch';
+          // 优先使用用户的选择，如果没有则使用默认策略
+      const allowSwitch = userResolution === 'switch' || (userResolution === undefined && conflictStrategy === 'auto-switch');
 
-          // 如果允许切换且没有指定资源，尝试切换到其他空闲资源
-          if (allowSwitch) {
+      // 如果允许切换且没有指定资源，尝试切换到其他空闲资源
+      if (allowSwitch) {
             const alternativeResource = findAvailableResource(
               task,
               resources,
@@ -1062,10 +1063,14 @@ export function generateSchedule(
   const warnings: string[] = [];
   const recommendations: string[] = [];
 
-  if (conflicts.length > 0) {
-    warnings.push(`检测到 ${conflicts.length} 个资源冲突，需要解决`);
-    conflicts.forEach(conflict => {
-      recommendations.push(conflict.suggestedResolution || '');
+  const totalConflicts = Array.from(conflicts.values()).flat().length;
+  if (totalConflicts > 0) {
+    warnings.push(`检测到 ${totalConflicts} 个资源冲突，需要解决`);
+    conflicts.forEach((conflictTasks) => {
+      conflictTasks.forEach(conflictTask => {
+        const resourceId = conflictTask.resourceId;
+        recommendations.push(`资源 ${conflictTask.resourceName} 的任务 "${conflictTask.task.name}" 存在时间冲突`);
+      });
     });
   }
 
@@ -1092,12 +1097,31 @@ export function generateSchedule(
     recommendations.push(`建议：检查这些任务的指定人员，考虑调整为自动分配或更改指定人员`);
   }
 
+  // 将 Map<string, ConflictTask[]> 转换为 ResourceConflict[]
+  const resourceConflicts: ResourceConflict[] = [];
+  conflicts.forEach((conflictTasks, resourceId) => {
+    if (conflictTasks.length > 1) {
+      const resource = resources.find(r => r.id === resourceId);
+      resourceConflicts.push({
+        resourceId,
+        resourceName: resource?.name || '未知资源',
+        tasks: conflictTasks.map(ct => ct.task.id),
+        timeRange: {
+          start: conflictTasks[0].startTime,
+          end: conflictTasks[conflictTasks.length - 1].endTime
+        },
+        severity: 'high',
+        suggestedResolution: `多个任务指定了同一人员 ${resource?.name || '未知资源'}，需要调整资源分配或任务时间`
+      });
+    }
+  });
+
   return {
     tasks: scheduledTasks,
     projects: [],
     criticalPath,
     criticalChain: criticalPath,
-    resourceConflicts: conflicts,
+    resourceConflicts,
     resourceUtilization: utilization,
     totalDuration,
     totalHours,

@@ -12,8 +12,10 @@ import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Tra
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import * as XLSX from 'xlsx';
 import { defaultWorkingHours } from '@/lib/sample-data';
-import { Task, ScheduleResult, Project, Resource, ResourceLevel, ResourceConflictStrategy } from '@/types/schedule';
+import { Task, ScheduleResult, Project, Resource, ResourceLevel, ResourceConflictStrategy, ConflictTask } from '@/types/schedule';
 import GanttChart from '@/components/gantt-chart';
+import { ConflictResolutionDialog } from '@/components/conflict-resolution-dialog';
+import { detectResourceConflicts } from '@/lib/schedule-algorithms';
 
 // 辅助函数：将 Date 或字符串转换为 YYYY-MM-DD 格式
 const formatDateToInputValue = (date: Date | string | undefined): string => {
@@ -266,6 +268,8 @@ export default function ComplexScenario() {
   const [aiSuggestion, setAiSuggestion] = useState<string>('');
   const [isAiOptimizing, setIsAiOptimizing] = useState(false);
   const [conflictStrategy, setConflictStrategy] = useState<ResourceConflictStrategy>('auto-switch');
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const [pendingConflicts, setPendingConflicts] = useState<Map<string, ConflictTask[]>>(new Map());
 
   // 使用 ref 跟踪是否已经加载过数据，避免重复加载
   const hasLoadedData = useRef(false);
@@ -346,8 +350,30 @@ export default function ComplexScenario() {
 
   const handleGenerateSchedule = () => {
     setIsComputing(true);
+
+    // 先检测资源冲突
+    const conflicts = detectResourceConflicts(tasks, sharedResources);
+
+    if (conflicts.size > 0) {
+      // 有冲突，显示对话框
+      setPendingConflicts(conflicts);
+      setConflictDialogOpen(true);
+      setIsComputing(false);
+    } else {
+      // 没有冲突，直接生成排期
+      setTimeout(() => {
+        const result = generateSchedule(tasks, sharedResources, new Date(), defaultWorkingHours, conflictStrategy);
+        setScheduleResult(result);
+        setIsComputing(false);
+      }, 500);
+    }
+  };
+
+  const handleConflictResolution = (resolutions: Map<string, 'switch' | 'delay'>) => {
+    setIsComputing(true);
     setTimeout(() => {
-      const result = generateSchedule(tasks, sharedResources, new Date(), defaultWorkingHours, conflictStrategy);
+      // 根据用户的选择生成排期
+      const result = generateSchedule(tasks, sharedResources, new Date(), defaultWorkingHours, conflictStrategy, resolutions);
       setScheduleResult(result);
       setIsComputing(false);
     }, 500);
@@ -1543,6 +1569,14 @@ export default function ComplexScenario() {
           </TabsContent>
         </Tabs>
       )}
+      
+      {/* 资源冲突处理对话框 */}
+      <ConflictResolutionDialog
+        isOpen={conflictDialogOpen}
+        conflicts={pendingConflicts}
+        onConfirm={handleConflictResolution}
+        onClose={() => setConflictDialogOpen(false)}
+      />
     </div>
   );
 }
