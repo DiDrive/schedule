@@ -125,10 +125,13 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
       }
     }
 
-    // 如果任务已有分配，跳过
-    if (task.assignedResources && task.assignedResources.length > 0) {
-      return task;
-    }
+    console.log(`  📋 任务 ${task.name} (${task.estimatedHours}h, 优先级: ${task.priority})`);
+
+    // 移除"如果任务已有分配，跳过"的逻辑，始终重新分配以实现负载均衡
+    // 注释掉以下代码：
+    // if (task.assignedResources && task.assignedResources.length > 0) {
+    //   return task;
+    // }
 
     // 根据任务类型筛选匹配的资源
     const taskType = task.taskType;
@@ -174,6 +177,10 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
       // 综合得分
       const totalScoreA = hoursScoreA * 0.7 + effScoreA * 0.3;
       const totalScoreB = hoursScoreB * 0.7 + effScoreB * 0.3;
+
+      // 添加调试日志
+      console.log(`    ${a.name}: 负载=${loadA}h, 工时得分=${hoursScoreA.toFixed(1)}, 效率=${effA}, 效率得分=${effScoreA.toFixed(1)}, 总分=${totalScoreA.toFixed(1)}`);
+      console.log(`    ${b.name}: 负载=${loadB}h, 工时得分=${hoursScoreB.toFixed(1)}, 效率=${effB}, 效率得分=${effScoreB.toFixed(1)}, 总分=${totalScoreB.toFixed(1)}`);
 
       return totalScoreB - totalScoreA; // 得分高的排在前面
     });
