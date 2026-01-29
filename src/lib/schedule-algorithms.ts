@@ -151,21 +151,24 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
     const totalLoad = Array.from(resourceLoad.values()).reduce((sum, load) => sum + load, 0);
     const avgLoad = totalLoad / humanResources.length;
 
-    // ★★★ 核心修改：直接选择负载最低的资源，而不是评分★★★
-    // 按负载从低到高排序，优先选择负载最低的资源
+    // ★★★ 核心修改：综合负载和效率进行资源分配 ★★★
+    // 策略：负载差距大时优先选择负载更低的，负载差距不大时优先选择效率更高的
     const sortedResources = [...resourcesToScore].sort((a, b) => {
       const loadA = resourceLoad.get(a.id) || 0;
       const loadB = resourceLoad.get(b.id) || 0;
 
-      // 负载优先：负载越低越优先
-      if (loadA !== loadB) {
+      // 负载差距阈值：超过这个阈值，优先选择负载更低的
+      const loadThreshold = 8; // 8小时工时差距
+
+      // 负载优先：负载差距大时，优先选择负载更低的
+      if (Math.abs(loadA - loadB) > loadThreshold) {
         return loadA - loadB;
       }
 
-      // 负载相同时，优先选择效率低的（实现负载均衡，避免所有任务都集中到高效率人员）
+      // 负载差距不大时，优先选择效率更高的
       const effA = a.efficiency || LEVEL_EFFICIENCY[a.level as ResourceLevel] || 1.0;
       const effB = b.efficiency || LEVEL_EFFICIENCY[b.level as ResourceLevel] || 1.0;
-      return effA - effB; // 效率低的排在前面
+      return effB - effA; // 效率高的排在前面
     });
 
     // 选择负载最低的资源
@@ -1213,21 +1216,28 @@ function findAvailableResource(
 
   console.log(`    📋 可用资源列表: ${availableResources.map(r => `${r.name}(任务数:${resourceSchedules.get(r.id)?.length || 0}, 效率:${r.efficiency || LEVEL_EFFICIENCY[r.level as ResourceLevel] || 1.0})`).join(', ')}`);
 
-  // ★★★ 优先选择负载最低的资源，负载相同时选择效率低的 ★★★
-  // 计算每个资源的负载（已安排任务数）
+  // ★★★ 综合负载和效率进行资源选择 ★★★
+  // 策略：负载差距大时优先选择负载更低的，负载差距不大时优先选择效率更高的
   availableResources.sort((a, b) => {
     const scheduleA = resourceSchedules.get(a.id) || [];
     const scheduleB = resourceSchedules.get(b.id) || [];
 
-    // 负载优先：任务数少的优先
-    if (scheduleA.length !== scheduleB.length) {
-      return scheduleA.length - scheduleB.length;
+    // 计算负载：用已安排任务的数量作为负载指标
+    const loadA = scheduleA.length;
+    const loadB = scheduleB.length;
+
+    // 负载差距阈值：超过这个阈值，优先选择负载更低的
+    const loadThreshold = 2; // 2个任务差距
+
+    // 负载优先：负载差距大时，优先选择负载更低的
+    if (Math.abs(loadA - loadB) > loadThreshold) {
+      return loadA - loadB;
     }
 
-    // 负载相同时，优先选择效率低的（实现负载均衡）
+    // 负载差距不大时，优先选择效率更高的
     const effA = a.efficiency || LEVEL_EFFICIENCY[a.level as ResourceLevel] || 1.0;
     const effB = b.efficiency || LEVEL_EFFICIENCY[b.level as ResourceLevel] || 1.0;
-    return effA - effB; // 效率低的排在前面
+    return effB - effA; // 效率高的排在前面
   });
 
   const selected = availableResources[0];
