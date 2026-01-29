@@ -156,30 +156,30 @@ export function ConflictResolutionDialog({
                           </div>
 
                           {/* 操作按钮 */}
-                          <div className="flex flex-col gap-2 min-w-[280px]">
+                          <div className="flex flex-shrink-0 gap-2.5 items-center">
                             <Button
                               variant={resolution === 'switch' ? 'default' : 'outline'}
-                              size="lg"
+                              size="sm"
                               onClick={() => handleToggleResolution(conflictTask.task.id)}
                               className={resolution === 'switch' 
-                                ? 'bg-blue-600 hover:bg-blue-700 border-blue-700' 
-                                : 'border-2 hover:border-blue-300'
+                                ? 'bg-blue-600 hover:bg-blue-700 border-blue-700 h-9' 
+                                : 'border-2 hover:border-blue-300 h-9'
                               }
                             >
-                              <ArrowRightLeft className="h-4 w-4 mr-2" />
-                              <span className="font-medium">自动切换空闲资源</span>
+                              <ArrowRightLeft className="h-3.5 w-3.5 mr-1.5" />
+                              <span className="font-medium text-xs">自动切换</span>
                             </Button>
                             <Button
                               variant={resolution === 'delay' ? 'default' : 'outline'}
-                              size="lg"
+                              size="sm"
                               onClick={() => handleToggleResolution(conflictTask.task.id)}
                               className={resolution === 'delay'
-                                ? 'bg-orange-600 hover:bg-orange-700 border-orange-700'
-                                : 'border-2 hover:border-orange-300'
+                                ? 'bg-orange-600 hover:bg-orange-700 border-orange-700 h-9'
+                                : 'border-2 hover:border-orange-300 h-9'
                               }
                             >
-                              <Clock4 className="h-4 w-4 mr-2" />
-                              <span className="font-medium">延期等待指定人员</span>
+                              <Clock4 className="h-3.5 w-3.5 mr-1.5" />
+                              <span className="font-medium text-xs">延期等待</span>
                             </Button>
                           </div>
                         </div>

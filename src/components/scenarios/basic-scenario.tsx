@@ -433,31 +433,6 @@ export default function BasicScenario() {
               <CardDescription>
                 管理团队成员，设置等级和效率，系统会自动分配任务
               </CardDescription>
-              <div className="mt-2 flex items-center gap-2 text-sm">
-                <span className="text-slate-600 dark:text-slate-400">冲突策略:</span>
-                <Select
-                  value={conflictStrategy}
-                  onValueChange={(value: ResourceConflictStrategy) => setConflictStrategy(value)}
-                >
-                  <SelectTrigger className="h-7 w-[200px] text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto-switch">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-medium">自动切换空闲资源</span>
-                        <span className="text-[10px] text-slate-500">冲突时自动切换到其他空闲人员</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="delay-only">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-medium">延后执行时间</span>
-                        <span className="text-[10px] text-slate-500">指定人员冲突时延后时间，不切换</span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
             <Button onClick={handleAddResource} size="sm" variant="outline" className="gap-2">
               <Plus className="h-4 w-4" />
