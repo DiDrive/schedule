@@ -166,8 +166,13 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
 
     // ★★★ 综合评分公式：累计工时 + 效率 ★★★
     // 评分 = 工时得分 + 效率得分
-    // 工时得分：累计工时越接近平均值得分越高，累计工时越低得分越高（权重：70%）
-    // 效率得分：效率越高得分越高（权重：30%）
+    // 工时得分（权重：70%）：累计工时越低得分越高
+    //   - 得分范围：0-100
+    //   - 公式：100 - (累计工时 / 平均工时 + 1) * 70
+    //   - 如果所有资源工时都是0，得分为100
+    //   - 差异1小时的工时会导致约7分的差异
+    // 效率得分（权重：30%）：效率越高得分越高
+    //   - 得分范围：30-60（效率1.0-2.0）
 
     const sortedResources = [...resourcesToScore].sort((a, b) => {
       const loadA = resourceLoad.get(a.id) || 0;
@@ -176,9 +181,9 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
       const effA = a.efficiency || LEVEL_EFFICIENCY[a.level as ResourceLevel] || 1.0;
       const effB = b.efficiency || LEVEL_EFFICIENCY[b.level as ResourceLevel] || 1.0;
 
-      // 工时得分：累计工时越接近平均值得分越高，累计工时越低得分越高
-      const hoursScoreA = 100 - (loadA / Math.max(avgLoad, 1)) * 70;
-      const hoursScoreB = 100 - (loadB / Math.max(avgLoad, 1)) * 70;
+      // 工时得分：累计工时越低得分越高（使用更平滑的公式）
+      const hoursScoreA = 100 - (loadA / (avgLoad + 1)) * 70;
+      const hoursScoreB = 100 - (loadB / (avgLoad + 1)) * 70;
 
       // 效率得分：效率越高得分越高
       const effScoreA = effA * 30;
@@ -990,7 +995,8 @@ export function generateSchedule(
 
           // 根据冲突处理策略决定是否允许切换资源
           // 优先使用用户的选择，如果没有则使用默认策略
-      const allowSwitch = userResolution === 'switch' || (userResolution === undefined && conflictStrategy === 'auto-switch' && !task.fixedResourceId);
+          // ★★★ 修复：移除 !task.fixedResourceId 条件，允许指定资源的任务也能自动切换 ★★★
+          const allowSwitch = userResolution === 'switch' || (userResolution === undefined && conflictStrategy === 'auto-switch');
 
       // 如果允许切换，尝试切换到其他空闲资源
       if (allowSwitch) {
@@ -1270,14 +1276,19 @@ function findAvailableResource(
     const effA = a.efficiency || LEVEL_EFFICIENCY[a.level as ResourceLevel] || 1.0;
     const effB = b.efficiency || LEVEL_EFFICIENCY[b.level as ResourceLevel] || 1.0;
 
-    // ★★★ 综合评分公式（与 autoAssignResources 一致）★★★
+    // ★★★ 综合评分公式（修复：更合理的评分逻辑）★★★
     // 评分 = 工时得分 + 效率得分
-    // 工时得分：累计工时越接近平均值得分越高，累计工时越低得分越高（权重：70%）
-    // 效率得分：效率越高得分越高（权重：30%）
+    // 工时得分（权重：70%）：累计工时越低得分越高
+    //   - 得分范围：0-100
+    //   - 公式：100 - (累计工时 / 平均工时 + 1) * 70
+    //   - 如果所有资源工时都是0，得分为100
+    //   - 差异1小时的工时会导致约7分的差异
+    // 效率得分（权重：30%）：效率越高得分越高
+    //   - 得分范围：30-60（效率1.0-2.0）
 
-    // 工时得分：累计工时越接近平均值得分越高，累计工时越低得分越高
-    const hoursScoreA = 100 - (loadA / Math.max(avgLoad, 1)) * 70;
-    const hoursScoreB = 100 - (loadB / Math.max(avgLoad, 1)) * 70;
+    // 工时得分：累计工时越低得分越高（使用更平滑的公式）
+    const hoursScoreA = 100 - (loadA / (avgLoad + 1)) * 70;
+    const hoursScoreB = 100 - (loadB / (avgLoad + 1)) * 70;
 
     // 效率得分：效率越高得分越高
     const effScoreA = effA * 30;
