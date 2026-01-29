@@ -17,7 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, Plus, Trash2, CheckCircle, TrendingUp, Settings, Calendar, Download, Sparkles, Loader2, MoreVertical, AlertTriangle } from 'lucide-react';
+import { Play, Plus, Trash2, CheckCircle, TrendingUp, Settings, Calendar, Download, Sparkles, Loader2, MoreVertical, AlertTriangle, GitBranch } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,6 +32,7 @@ import { Task, Resource, ScheduleResult, ResourceLevel, ResourceConflictStrategy
 import GanttChart from '@/components/gantt-chart';
 import { CalendarView } from '@/components/views/calendar-view';
 import { ConflictResolutionDialog } from '@/components/conflict-resolution-dialog';
+import { ProcessManager } from '@/components/process-manager';
 import { detectResourceConflicts } from '@/lib/schedule-algorithms';
 
 // 辅助函数：将 Date 或字符串转换为 YYYY-MM-DD 格式
@@ -128,6 +129,9 @@ export default function BasicScenario() {
   const [savedResolutions, setSavedResolutions] = useState<Map<string, 'switch' | 'delay'> | null>(null);
   const [deadlineWarningCount, setDeadlineWarningCount] = useState(0);
   const [showDeadlineWarningDialog, setShowDeadlineWarningDialog] = useState(false);
+
+  // 流程管理对话框状态
+  const [processManagerTaskId, setProcessManagerTaskId] = useState<string | null>(null);
 
   // 使用 ref 跟踪是否已经加载过数据，避免重复加载
   const hasLoadedData = useRef(false);
@@ -354,6 +358,24 @@ export default function BasicScenario() {
       ...scheduleResult,
       tasks: updatedTasks
     });
+
+    // 同步更新原始任务列表
+    setTasks(tasks.map(t => t.id === taskId ? { ...t, assignedResources: newResourceId ? [newResourceId] : [] } : t));
+  };
+
+  // 处理流程变更
+  const handleProcessesChange = (taskId: string, newProcesses: any[]) => {
+    // 更新原始任务列表
+    setTasks(tasks.map(t => t.id === taskId ? { ...t, processes: newProcesses } : t));
+
+    // 同时更新排期结果中的任务
+    if (scheduleResult) {
+      setScheduleResult({
+        ...scheduleResult,
+        tasks: scheduleResult.tasks.map(t => t.id === taskId ? { ...t, processes: newProcesses } : t)
+      });
+    }
+  };
 
     // 同步更新原始任务列表
     setTasks(tasks.map(t => t.id === taskId ? { ...t, assignedResources: newResourceId ? [newResourceId] : [] } : t));
@@ -882,7 +904,7 @@ export default function BasicScenario() {
                                         </svg>
                                       </button>
                                     </Badge>
-                                  );
+                                  )}
                                 })
                               ) : (
                                 <span className="text-xs text-slate-400">无依赖</span>
@@ -968,7 +990,7 @@ export default function BasicScenario() {
 
                   return (
                     <div key={resource.id} className="flex items-start gap-2">
-                      <span className={`${colorClass} font-bold min-w-[60px]}`}>{resource.name}</span>
+                      <span className={`${colorClass} font-bold min-w-[60px]`}>{resource.name}</span>
                       <span>效率{eff.toFixed(1)}倍，{baseHours}小时任务实际用时{actualHours.toFixed(1)}小时（{efficiencyLabel}效率）</span>
                     </div>
                   );
@@ -1137,6 +1159,7 @@ export default function BasicScenario() {
                                     <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">结束时间</th>
                                     <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">工时</th>
                                     <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">状态</th>
+                                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">流程</th>
                                   </tr>
                                 </thead>
                                 <tbody className="[&_tr:last-child]:border-0">
@@ -1210,9 +1233,9 @@ export default function BasicScenario() {
                                         <Badge className={getLevelBadgeColor(resource.level || 'junior')} variant="secondary" style={{ fontSize: '10px', padding: '2px 6px' }} title={resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}>
                                           {resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}
                                         </Badge>
-                                      )}
+                                      )
                                     </div>
-                                  )}
+                                  )
                                 </td>
                                 <td className="p-2 align-middle whitespace-nowrap text-sm">
                                   {task.startDate && formatDateTime(task.startDate)}
@@ -1228,7 +1251,22 @@ export default function BasicScenario() {
                                     <Badge variant="destructive">关键路径</Badge>
                                   ) : (
                                     <Badge variant="outline">普通</Badge>
-                                  )}
+                                  )
+                                </td>
+                                <td className="p-2 align-middle whitespace-nowrap">
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="secondary" className="text-xs">
+                                      {(task.processes || []).length} 个流程
+                                    </Badge>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setProcessManagerTaskId(task.id)}
+                                      className="h-8 px-2"
+                                    >
+                                      <GitBranch className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -1403,6 +1441,30 @@ export default function BasicScenario() {
         onConfirm={handleConflictResolution}
         onClose={() => setConflictDialogOpen(false)}
       />
+
+      {/* 流程管理对话框 */}
+      <Dialog open={!!processManagerTaskId} onOpenChange={(open) => !open && setProcessManagerTaskId(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>流程管理</DialogTitle>
+            <DialogDescription>
+              为任务添加和管理流程节点
+            </DialogDescription>
+          </DialogHeader>
+          {processManagerTaskId && (
+            <ProcessManager
+              processes={tasks.find(t => t.id === processManagerTaskId)?.processes || []}
+              onProcessesChange={(newProcesses) => handleProcessesChange(processManagerTaskId, newProcesses)}
+              taskDeadline={tasks.find(t => t.id === processManagerTaskId)?.deadline}
+            />
+          )}
+          <DialogFooter>
+            <Button onClick={() => setProcessManagerTaskId(null)}>
+              完成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
