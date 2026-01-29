@@ -951,24 +951,11 @@ export function generateSchedule(
           const overlapEnd = taskEnd < scheduled.end ? taskEnd : scheduled.end;
           console.log(`      ⚠ 检测到冲突: 重叠时间 ${overlapStart.toLocaleString()} - ${overlapEnd.toLocaleString()}`);
 
-          // ★★★ 关键改进：如果任务有指定资源，不允许切换，只能延后时间 ★★★
-          if (task.fixedResourceId) {
-            console.log(`      → 任务 ${task.name} 已指定资源 ${resource.name}，不允许切换，调整开始时间为 ${scheduled.end.toLocaleString()}`);
-            taskStart = new Date(scheduled.end);
-
-            // 记录因为指定资源冲突而延后的任务
-            if (!tasksDelayedByFixedResource.includes(task.id)) {
-              tasksDelayedByFixedResource.push(task.id);
-            }
-
-            break;
-          }
-
           // 根据冲突处理策略决定是否允许切换资源
           // 优先使用用户的选择，如果没有则使用默认策略
-      const allowSwitch = userResolution === 'switch' || (userResolution === undefined && conflictStrategy === 'auto-switch');
+      const allowSwitch = userResolution === 'switch' || (userResolution === undefined && conflictStrategy === 'auto-switch' && !task.fixedResourceId);
 
-      // 如果允许切换且没有指定资源，尝试切换到其他空闲资源
+      // 如果允许切换，尝试切换到其他空闲资源
       if (allowSwitch) {
             const alternativeResource = findAvailableResource(
               task,
@@ -987,6 +974,11 @@ export function generateSchedule(
               hasConflict = false; // 重置冲突标记，使用新资源重新检查
               break; // 退出冲突检查循环，重新开始
             }
+          }
+
+          // 记录因为冲突而延后的任务
+          if (!tasksDelayedByFixedResource.includes(task.id)) {
+            tasksDelayedByFixedResource.push(task.id);
           }
 
           // 如果不允许切换或没有空闲资源，只能调整时间
@@ -1086,15 +1078,15 @@ export function generateSchedule(
   const totalDuration = Math.ceil((latestEndDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
   const totalHours = scheduledTasks.reduce((sum, task) => sum + task.estimatedHours, 0);
 
-  // 生成关于指定资源冲突的警告
+  // 生成关于冲突延后的警告
   if (tasksDelayedByFixedResource.length > 0) {
     const delayedTaskNames = tasksDelayedByFixedResource
       .map(taskId => scheduledTasks.find(t => t.id === taskId)?.name)
       .filter(Boolean)
       .join(', ');
 
-    warnings.push(`以下任务因为指定人员时间冲突而延后：${delayedTaskNames}`);
-    recommendations.push(`建议：检查这些任务的指定人员，考虑调整为自动分配或更改指定人员`);
+    warnings.push(`以下任务因为资源冲突而延后：${delayedTaskNames}`);
+    recommendations.push(`建议：检查这些任务的资源分配，考虑调整处理策略或增加资源`);
   }
 
   // 将 Map<string, ConflictTask[]> 转换为 ResourceConflict[]
