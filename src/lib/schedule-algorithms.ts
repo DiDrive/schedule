@@ -805,6 +805,9 @@ export function generateSchedule(
   const taskMap = new Map<string, Task>();
   const scheduledTasks: Task[] = [];
 
+  // 记录哪些任务因为指定资源冲突而延后了
+  const tasksDelayedByFixedResource: string[] = [];
+
   // 为每个资源记录已安排的任务时间
   const resourceSchedules = new Map<string, Array<{ start: Date; end: Date }>>();
   resources.forEach(resource => {
@@ -947,7 +950,20 @@ export function generateSchedule(
           const overlapEnd = taskEnd < scheduled.end ? taskEnd : scheduled.end;
           console.log(`      ⚠ 检测到冲突: 重叠时间 ${overlapStart.toLocaleString()} - ${overlapEnd.toLocaleString()}`);
 
-          // ★★★ 关键改进：尝试切换到其他空闲资源 ★★★
+          // ★★★ 关键改进：如果任务有指定资源，不允许切换，只能延后时间 ★★★
+          if (task.fixedResourceId) {
+            console.log(`      → 任务 ${task.name} 已指定资源 ${resource.name}，不允许切换，调整开始时间为 ${scheduled.end.toLocaleString()}`);
+            taskStart = new Date(scheduled.end);
+
+            // 记录因为指定资源冲突而延后的任务
+            if (!tasksDelayedByFixedResource.includes(task.id)) {
+              tasksDelayedByFixedResource.push(task.id);
+            }
+
+            break;
+          }
+
+          // 如果没有指定资源，尝试切换到其他空闲资源
           const alternativeResource = findAvailableResource(
             task,
             resources,
@@ -1054,6 +1070,17 @@ export function generateSchedule(
 
   const totalDuration = Math.ceil((latestEndDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
   const totalHours = scheduledTasks.reduce((sum, task) => sum + task.estimatedHours, 0);
+
+  // 生成关于指定资源冲突的警告
+  if (tasksDelayedByFixedResource.length > 0) {
+    const delayedTaskNames = tasksDelayedByFixedResource
+      .map(taskId => scheduledTasks.find(t => t.id === taskId)?.name)
+      .filter(Boolean)
+      .join(', ');
+
+    warnings.push(`以下任务因为指定人员时间冲突而延后：${delayedTaskNames}`);
+    recommendations.push(`建议：检查这些任务的指定人员，考虑调整为自动分配或更改指定人员`);
+  }
 
   return {
     tasks: scheduledTasks,
