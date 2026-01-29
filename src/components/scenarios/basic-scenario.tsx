@@ -214,6 +214,11 @@ export default function BasicScenario() {
       // 根据用户的选择生成排期
       const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy, resolutions);
       setScheduleResult(result);
+
+      // 基于新生成的排期结果重新检测冲突
+      const newConflicts = detectResourceConflicts(result.tasks, resources, result);
+      setPendingConflicts(newConflicts);
+
       setIsComputing(false);
     }, 500);
   };

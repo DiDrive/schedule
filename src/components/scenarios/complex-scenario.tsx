@@ -375,6 +375,11 @@ export default function ComplexScenario() {
       // 根据用户的选择生成排期
       const result = generateSchedule(tasks, sharedResources, new Date(), defaultWorkingHours, conflictStrategy, resolutions);
       setScheduleResult(result);
+
+      // 基于新生成的排期结果重新检测冲突
+      const newConflicts = detectResourceConflicts(result.tasks, sharedResources, result);
+      setPendingConflicts(newConflicts);
+
       setIsComputing(false);
     }, 500);
   };

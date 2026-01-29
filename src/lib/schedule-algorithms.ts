@@ -1112,12 +1112,42 @@ export function generateSchedule(
     }
   });
 
+  // 基于最终的排期结果重新检测冲突
+  const finalConflictsMap = detectResourceConflicts(scheduledTasks, resources);
+  
+  // 将 Map 转换为 ResourceConflict 数组
+  const finalConflicts: ResourceConflict[] = [];
+  finalConflictsMap.forEach((conflictTasks, resourceId) => {
+    if (conflictTasks.length > 1) {
+      const resource = resources.find(r => r.id === resourceId);
+      const taskIds = conflictTasks.map(ct => ct.task.id);
+      
+      // 计算冲突的时间范围（所有任务的重叠部分）
+      let start = conflictTasks[0].startTime;
+      let end = conflictTasks[0].endTime;
+      
+      conflictTasks.forEach(ct => {
+        if (ct.startTime > start) start = ct.startTime;
+        if (ct.endTime < end) end = ct.endTime;
+      });
+      
+      finalConflicts.push({
+        resourceId,
+        resourceName: resource?.name || '未知资源',
+        tasks: taskIds,
+        timeRange: { start, end },
+        severity: 'high',
+        suggestedResolution: `多个任务指定了同一人员 ${resource?.name || '未知资源'}，需要调整资源分配或任务时间`
+      });
+    }
+  });
+
   return {
     tasks: scheduledTasks,
     projects: [],
     criticalPath,
     criticalChain: criticalPath,
-    resourceConflicts,
+    resourceConflicts: finalConflicts,
     resourceUtilization: utilization,
     totalDuration,
     totalHours,
