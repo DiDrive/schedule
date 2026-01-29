@@ -158,7 +158,7 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
       const loadB = resourceLoad.get(b.id) || 0;
 
       // 负载差距阈值：超过这个阈值，优先选择负载更低的
-      const loadThreshold = 4; // 4小时工时差距
+      const loadThreshold = 2; // 2小时工时差距
 
       // 负载优先：负载差距大时，优先选择负载更低的
       if (Math.abs(loadA - loadB) > loadThreshold) {
