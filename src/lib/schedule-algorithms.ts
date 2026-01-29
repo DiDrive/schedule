@@ -1207,8 +1207,11 @@ function findAvailableResource(
   });
 
   if (availableResources.length === 0) {
+    console.log(`    ⚠ 没有可用的空闲资源`);
     return null;
   }
+
+  console.log(`    📋 可用资源列表: ${availableResources.map(r => `${r.name}(任务数:${resourceSchedules.get(r.id)?.length || 0}, 效率:${r.efficiency || LEVEL_EFFICIENCY[r.level as ResourceLevel] || 1.0})`).join(', ')}`);
 
   // ★★★ 优先选择负载最低的资源，而不是效率最高的资源 ★★★
   // 计算每个资源的负载（已安排任务数）
@@ -1227,5 +1230,8 @@ function findAvailableResource(
     return effB - effA;
   });
 
-  return availableResources[0];
+  const selected = availableResources[0];
+  console.log(`    ✓ 最终选择: ${selected.name}(任务数:${resourceSchedules.get(selected.id)?.length || 0}, 效率:${selected.efficiency || LEVEL_EFFICIENCY[selected.level as ResourceLevel] || 1.0})`);
+
+  return selected;
 }
