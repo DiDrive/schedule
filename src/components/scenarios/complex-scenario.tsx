@@ -364,6 +364,11 @@ export default function ComplexScenario() {
       setTimeout(() => {
         const result = generateSchedule(tasks, sharedResources, new Date(), defaultWorkingHours, conflictStrategy);
         setScheduleResult(result);
+        
+        // 基于 scheduleResult 重新检测冲突，确保 pendingConflicts 同步
+        const newConflicts = detectResourceConflicts(result.tasks, sharedResources, result);
+        setPendingConflicts(newConflicts);
+        
         setIsComputing(false);
       }, 500);
     }

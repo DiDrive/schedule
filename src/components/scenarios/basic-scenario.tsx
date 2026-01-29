@@ -184,6 +184,11 @@ export default function BasicScenario() {
       setTimeout(() => {
         const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy);
         setScheduleResult(result);
+        
+        // 基于新生成的排期结果重新检测冲突，更新 pendingConflicts
+        const newConflicts = detectResourceConflicts(result.tasks, resources, result);
+        setPendingConflicts(newConflicts);
+        
         setIsComputing(false);
       }, 500);
       return;
@@ -202,6 +207,11 @@ export default function BasicScenario() {
       setTimeout(() => {
         const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy);
         setScheduleResult(result);
+        
+        // 基于 scheduleResult 重新检测冲突，确保 pendingConflicts 同步
+        const newConflicts = detectResourceConflicts(result.tasks, resources, result);
+        setPendingConflicts(newConflicts);
+        
         setIsComputing(false);
       }, 500);
     }
@@ -214,11 +224,11 @@ export default function BasicScenario() {
       // 根据用户的选择生成排期
       const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy, resolutions);
       setScheduleResult(result);
-
-      // 基于新生成的排期结果重新检测冲突
+      
+      // 基于新生成的排期结果重新检测冲突，更新 pendingConflicts
       const newConflicts = detectResourceConflicts(result.tasks, resources, result);
       setPendingConflicts(newConflicts);
-
+      
       setIsComputing(false);
     }, 500);
   };
