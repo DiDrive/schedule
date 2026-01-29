@@ -1210,8 +1210,18 @@ function findAvailableResource(
     return null;
   }
 
-  // 优先选择效率高的资源
+  // ★★★ 优先选择负载最低的资源，而不是效率最高的资源 ★★★
+  // 计算每个资源的负载（已安排任务数）
   availableResources.sort((a, b) => {
+    const scheduleA = resourceSchedules.get(a.id) || [];
+    const scheduleB = resourceSchedules.get(b.id) || [];
+
+    // 负载优先：任务数少的优先
+    if (scheduleA.length !== scheduleB.length) {
+      return scheduleA.length - scheduleB.length;
+    }
+
+    // 负载相同时，考虑效率（作为次要因素）
     const effA = a.efficiency || LEVEL_EFFICIENCY[a.level as ResourceLevel] || 1.0;
     const effB = b.efficiency || LEVEL_EFFICIENCY[b.level as ResourceLevel] || 1.0;
     return effB - effA;
