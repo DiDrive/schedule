@@ -16,12 +16,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2 } from 'lucide-react';
+import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2, Calendar } from 'lucide-react';
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import * as XLSX from 'xlsx';
 import { defaultWorkingHours } from '@/lib/sample-data';
 import { Task, ScheduleResult, Project, Resource, ResourceLevel, ResourceConflictStrategy, ConflictTask } from '@/types/schedule';
 import GanttChart from '@/components/gantt-chart';
+import { CalendarView } from '@/components/views/calendar-view';
 import { ConflictResolutionDialog } from '@/components/conflict-resolution-dialog';
 import { detectResourceConflicts } from '@/lib/schedule-algorithms';
 
@@ -273,6 +274,7 @@ export default function ComplexScenario() {
   const [scheduleResult, setScheduleResult] = useState<ScheduleResult | null>(null);
   const [isComputing, setIsComputing] = useState(false);
   const [activeProject, setActiveProject] = useState<string>('all');
+  const [activeView, setActiveView] = useState<'gantt' | 'calendar'>('gantt');
   const [aiSuggestion, setAiSuggestion] = useState<string>('');
   const [isAiOptimizing, setIsAiOptimizing] = useState(false);
   const [conflictStrategy, setConflictStrategy] = useState<ResourceConflictStrategy>('auto-switch');
@@ -1215,6 +1217,30 @@ export default function ComplexScenario() {
           </TabsList>
 
           <TabsContent value={activeProject} className="space-y-6">
+            {/* View Controls */}
+            <div className="flex items-center justify-between">
+              <div className="flex gap-2">
+                <Button
+                  variant={activeView === 'gantt' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setActiveView('gantt')}
+                  className="gap-2"
+                >
+                  <GitBranch className="h-4 w-4" />
+                  甘特图
+                </Button>
+                <Button
+                  variant={activeView === 'calendar' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setActiveView('calendar')}
+                  className="gap-2"
+                >
+                  <Calendar className="h-4 w-4" />
+                  日历视图
+                </Button>
+              </div>
+            </div>
+
             {/* Summary Stats */}
             <div className="grid gap-4 md:grid-cols-4">
               <Card>
@@ -1245,26 +1271,44 @@ export default function ComplexScenario() {
               </Card>
             </div>
 
-            {/* Multi-Project Gantt */}
-            <Card>
-              <CardHeader>
-                <CardTitle>多项目综合甘特图</CardTitle>
-                <CardDescription>
-                  {activeProject === 'all' ? '所有项目时间线' : getProjectById(activeProject)?.name} 可视化（工作时间：9:30 - 19:00）
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <GanttChart
-                  scheduleResult={scheduleResult}
-                  resources={sharedResources}
-                  projects={projects.map(p => ({
-                    id: p.id,
-                    color: p.color || '#3b82f6',
-                    name: p.name
-                  }))}
-                />
-              </CardContent>
-            </Card>
+            {/* View: Gantt or Calendar */}
+            {activeView === 'gantt' ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>多项目综合甘特图</CardTitle>
+                  <CardDescription>
+                    {activeProject === 'all' ? '所有项目时间线' : getProjectById(activeProject)?.name} 可视化（工作时间：9:30 - 19:00）
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <GanttChart
+                    scheduleResult={scheduleResult}
+                    resources={sharedResources}
+                    projects={projects.map(p => ({
+                      id: p.id,
+                      color: p.color || '#3b82f6',
+                      name: p.name
+                    }))}
+                  />
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>日历视图</CardTitle>
+                  <CardDescription>
+                    {activeProject === 'all' ? '所有项目时间线' : getProjectById(activeProject)?.name} 日历展示
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <CalendarView
+                    scheduledTasks={scheduleResult.tasks}
+                    resources={sharedResources}
+                    tasks={tasks}
+                  />
+                </CardContent>
+              </Card>
+            )}
 
             {/* Task Table View */}
             <Card>
