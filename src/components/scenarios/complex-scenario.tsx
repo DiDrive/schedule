@@ -89,14 +89,15 @@ const defaultProjects: Project[] = [
   }
 ];
 
-// 默认任务数据（自动分配资源）
+// 默认任务数据（包含指定资源，用于演示冲突检测）
 const defaultTasks: Task[] = [
   {
     id: 'task-p1-1',
     name: '概念设计',
     description: '设计视频整体风格和创意',
     estimatedHours: 16,
-    assignedResources: [], // 自动分配
+    assignedResources: [],
+    fixedResourceId: 'res-1', // 指定张设计师
     projectId: 'proj-1',
     priority: 'high',
     status: 'pending',
@@ -108,7 +109,8 @@ const defaultTasks: Task[] = [
     name: '分镜设计',
     description: '绘制详细的分镜脚本',
     estimatedHours: 40,
-    assignedResources: [], // 自动分配
+    assignedResources: [],
+    fixedResourceId: 'res-1', // 指定张设计师（与task-p2-1冲突）
     projectId: 'proj-1',
     priority: 'high',
     status: 'pending',
@@ -120,7 +122,8 @@ const defaultTasks: Task[] = [
     name: '视频剪辑',
     description: '完成视频剪辑和拼接',
     estimatedHours: 64,
-    assignedResources: [], // 自动分配
+    assignedResources: [],
+    fixedResourceId: 'res-2', // 指定李后期（与task-p3-1冲突）
     projectId: 'proj-1',
     priority: 'normal',
     status: 'pending',
@@ -132,7 +135,8 @@ const defaultTasks: Task[] = [
     name: '品牌VI设计',
     description: '设计品牌视觉识别',
     estimatedHours: 24,
-    assignedResources: [], // 自动分配
+    assignedResources: [],
+    fixedResourceId: 'res-1', // 指定张设计师（与task-p1-2冲突）
     projectId: 'proj-2',
     priority: 'urgent',
     status: 'pending',
@@ -144,7 +148,8 @@ const defaultTasks: Task[] = [
     name: '产品包装设计',
     description: '完成产品包装设计',
     estimatedHours: 40,
-    assignedResources: [], // 自动分配
+    assignedResources: [],
+    fixedResourceId: 'res-3', // 指定王平面
     projectId: 'proj-2',
     priority: 'high',
     status: 'pending',
@@ -156,7 +161,8 @@ const defaultTasks: Task[] = [
     name: '特效制作',
     description: '制作视频特效和动画',
     estimatedHours: 80,
-    assignedResources: [], // 自动分配
+    assignedResources: [],
+    fixedResourceId: 'res-4', // 指定赵后期
     projectId: 'proj-2',
     priority: 'high',
     status: 'pending',
@@ -168,7 +174,8 @@ const defaultTasks: Task[] = [
     name: '采访拍摄',
     description: '进行人物采访拍摄',
     estimatedHours: 32,
-    assignedResources: [], // 自动分配
+    assignedResources: [],
+    fixedResourceId: 'res-2', // 指定李后期（与task-p1-3冲突）
     projectId: 'proj-3',
     priority: 'high',
     status: 'pending',
@@ -180,7 +187,8 @@ const defaultTasks: Task[] = [
     name: '字幕制作',
     description: '制作视频字幕和图示',
     estimatedHours: 48,
-    assignedResources: [], // 自动分配
+    assignedResources: [],
+    fixedResourceId: 'res-5', // 指定小助理
     projectId: 'proj-3',
     priority: 'high',
     status: 'pending',
@@ -192,7 +200,8 @@ const defaultTasks: Task[] = [
     name: '调色和音频处理',
     description: '完成画面调色和音频处理',
     estimatedHours: 56,
-    assignedResources: [], // 自动分配
+    assignedResources: [],
+    fixedResourceId: 'res-2', // 指定李后期（与task-p3-1、task-p1-3冲突）
     projectId: 'proj-3',
     priority: 'normal',
     status: 'pending',
