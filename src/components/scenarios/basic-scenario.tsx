@@ -116,6 +116,7 @@ export default function BasicScenario() {
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [pendingConflicts, setPendingConflicts] = useState<Map<string, ConflictTask[]>>(new Map());
   const [activeTaskType, setActiveTaskType] = useState<'all' | '平面' | '后期' | '物料'>('all');
+  const [justResolvedConflict, setJustResolvedConflict] = useState(false);
 
   // 使用 ref 跟踪是否已经加载过数据，避免重复加载
   const hasLoadedData = useRef(false);
@@ -177,8 +178,19 @@ export default function BasicScenario() {
   const handleGenerateSchedule = () => {
     setIsComputing(true);
 
-    // 先检测资源冲突（如果有旧排期结果，基于实际排期检测；否则基于原始任务检测）
-    const conflicts = detectResourceConflicts(tasks, resources, scheduleResult || undefined);
+    // 如果刚刚解决过冲突，直接生成排期（跳过冲突检测）
+    if (justResolvedConflict) {
+      setJustResolvedConflict(false); // 重置标记
+      setTimeout(() => {
+        const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy);
+        setScheduleResult(result);
+        setIsComputing(false);
+      }, 500);
+      return;
+    }
+
+    // 否则，检测资源冲突
+    const conflicts = detectResourceConflicts(tasks, resources);
 
     if (conflicts.size > 0) {
       // 有冲突，显示对话框
@@ -197,6 +209,7 @@ export default function BasicScenario() {
 
   const handleConflictResolution = (resolutions: Map<string, 'switch' | 'delay'>) => {
     setIsComputing(true);
+    setJustResolvedConflict(true); // 标记刚刚解决了冲突
     setTimeout(() => {
       // 根据用户的选择生成排期
       const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy, resolutions);
@@ -206,6 +219,7 @@ export default function BasicScenario() {
   };
 
   const handleAddTask = (taskType: '平面' | '后期' | '物料' = '平面') => {
+    setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
     const newTask: Task = {
       id: `task-${Date.now()}`,
       name: `新任务 ${tasks.length + 1}`,
@@ -220,10 +234,12 @@ export default function BasicScenario() {
   };
 
   const handleDeleteTask = (taskId: string) => {
+    setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
     setTasks(tasks.filter(t => t.id !== taskId));
   };
 
   const handleTaskChange = (taskId: string, field: keyof Task, value: any) => {
+    setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
     setTasks(tasks.map(t => {
       if (t.id !== taskId) return t;
 
