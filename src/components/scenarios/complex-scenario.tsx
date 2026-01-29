@@ -1063,21 +1063,50 @@ export default function ComplexScenario() {
       {/* Task Type Tabs */}
       <Tabs value={activeTaskType} onValueChange={(value) => setActiveTaskType(value as 'all' | '平面' | '后期' | '物料')} className="mb-4">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="all">全部 ({tasks.length})</TabsTrigger>
-          <TabsTrigger value="平面">平面 ({tasks.filter(t => t.taskType === '平面').length})</TabsTrigger>
-          <TabsTrigger value="后期">后期 ({tasks.filter(t => t.taskType === '后期').length})</TabsTrigger>
-          <TabsTrigger value="物料">物料 ({tasks.filter(t => t.taskType === '物料').length})</TabsTrigger>
+          <TabsTrigger value="all">
+            全部 ({tasks.filter(task => activeProject === 'all' || task.projectId === activeProject).length})
+          </TabsTrigger>
+          <TabsTrigger value="平面">
+            平面 ({tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '平面').length})
+          </TabsTrigger>
+          <TabsTrigger value="后期">
+            后期 ({tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '后期').length})
+          </TabsTrigger>
+          <TabsTrigger value="物料">
+            物料 ({tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '物料').length})
+          </TabsTrigger>
         </TabsList>
       </Tabs>
 
       {/* Task Management Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <GitBranch className="h-5 w-5 text-purple-500" />
-            任务管理
-          </CardTitle>
-          <CardDescription>管理所有项目的任务，支持跨项目依赖</CardDescription>
+          <div className="flex flex-col gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <GitBranch className="h-5 w-5 text-purple-500" />
+                任务管理
+              </CardTitle>
+              <CardDescription>管理所有项目的任务，支持跨项目依赖</CardDescription>
+            </div>
+            {/* Project Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-600">项目筛选：</span>
+              <Select value={activeProject} onValueChange={setActiveProject}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="选择项目" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部项目</SelectItem>
+                  {projects.map(project => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="rounded-md border">
@@ -1089,7 +1118,10 @@ export default function ComplexScenario() {
                   <TableHead>任务类型</TableHead>
                   <TableHead>指定人员</TableHead>
                   <TableHead>
-                    {tasks.filter(t => activeTaskType === 'all' || t.taskType === activeTaskType).some(t => t.taskType === '物料') ? '工时/提供时间' : '预估工时'}
+                    {tasks.filter(t =>
+                      (activeProject === 'all' || t.projectId === activeProject) &&
+                      (activeTaskType === 'all' || t.taskType === activeTaskType)
+                    ).some(t => t.taskType === '物料') ? '工时/提供时间' : '预估工时'}
                   </TableHead>
                   <TableHead>优先级</TableHead>
                   <TableHead>截止日期</TableHead>
@@ -1098,7 +1130,10 @@ export default function ComplexScenario() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tasks.filter(task => activeTaskType === 'all' || task.taskType === activeTaskType).map(task => {
+                {tasks.filter(task =>
+                  (activeProject === 'all' || task.projectId === activeProject) &&
+                  (activeTaskType === 'all' || task.taskType === activeTaskType)
+                ).map(task => {
                   const project = getProjectById(task.projectId || '');
 
                   return (
@@ -1114,6 +1149,7 @@ export default function ComplexScenario() {
                         <Select
                           value={task.projectId || 'none'}
                           onValueChange={(value) => handleTaskChange(task.id, 'projectId', value !== 'none' ? value : '')}
+                          disabled={activeProject !== 'all'}
                         >
                           <SelectTrigger className="h-8">
                             <SelectValue />
