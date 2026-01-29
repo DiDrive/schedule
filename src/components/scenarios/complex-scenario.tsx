@@ -89,15 +89,14 @@ const defaultProjects: Project[] = [
   }
 ];
 
-// 默认任务数据（包含指定资源，用于演示冲突检测）
+// 默认任务数据（自动分配资源）
 const defaultTasks: Task[] = [
   {
     id: 'task-p1-1',
     name: '概念设计',
     description: '设计视频整体风格和创意',
     estimatedHours: 16,
-    assignedResources: [],
-    fixedResourceId: 'res-1', // 指定张设计师
+    assignedResources: [], // 自动分配
     projectId: 'proj-1',
     priority: 'high',
     status: 'pending',
@@ -109,8 +108,7 @@ const defaultTasks: Task[] = [
     name: '分镜设计',
     description: '绘制详细的分镜脚本',
     estimatedHours: 40,
-    assignedResources: [],
-    fixedResourceId: 'res-1', // 指定张设计师（与task-p2-1冲突）
+    assignedResources: [], // 自动分配
     projectId: 'proj-1',
     priority: 'high',
     status: 'pending',
@@ -122,8 +120,7 @@ const defaultTasks: Task[] = [
     name: '视频剪辑',
     description: '完成视频剪辑和拼接',
     estimatedHours: 64,
-    assignedResources: [],
-    fixedResourceId: 'res-2', // 指定李后期（与task-p3-1冲突）
+    assignedResources: [], // 自动分配
     projectId: 'proj-1',
     priority: 'normal',
     status: 'pending',
@@ -135,8 +132,7 @@ const defaultTasks: Task[] = [
     name: '品牌VI设计',
     description: '设计品牌视觉识别',
     estimatedHours: 24,
-    assignedResources: [],
-    fixedResourceId: 'res-1', // 指定张设计师（与task-p1-2冲突）
+    assignedResources: [], // 自动分配
     projectId: 'proj-2',
     priority: 'urgent',
     status: 'pending',
@@ -148,8 +144,7 @@ const defaultTasks: Task[] = [
     name: '产品包装设计',
     description: '完成产品包装设计',
     estimatedHours: 40,
-    assignedResources: [],
-    fixedResourceId: 'res-3', // 指定王平面
+    assignedResources: [], // 自动分配
     projectId: 'proj-2',
     priority: 'high',
     status: 'pending',
@@ -161,8 +156,7 @@ const defaultTasks: Task[] = [
     name: '特效制作',
     description: '制作视频特效和动画',
     estimatedHours: 80,
-    assignedResources: [],
-    fixedResourceId: 'res-4', // 指定赵后期
+    assignedResources: [], // 自动分配
     projectId: 'proj-2',
     priority: 'high',
     status: 'pending',
@@ -174,8 +168,7 @@ const defaultTasks: Task[] = [
     name: '采访拍摄',
     description: '进行人物采访拍摄',
     estimatedHours: 32,
-    assignedResources: [],
-    fixedResourceId: 'res-2', // 指定李后期（与task-p1-3冲突）
+    assignedResources: [], // 自动分配
     projectId: 'proj-3',
     priority: 'high',
     status: 'pending',
@@ -187,8 +180,7 @@ const defaultTasks: Task[] = [
     name: '字幕制作',
     description: '制作视频字幕和图示',
     estimatedHours: 48,
-    assignedResources: [],
-    fixedResourceId: 'res-5', // 指定小助理
+    assignedResources: [], // 自动分配
     projectId: 'proj-3',
     priority: 'high',
     status: 'pending',
@@ -200,13 +192,81 @@ const defaultTasks: Task[] = [
     name: '调色和音频处理',
     description: '完成画面调色和音频处理',
     estimatedHours: 56,
-    assignedResources: [],
-    fixedResourceId: 'res-2', // 指定李后期（与task-p3-1、task-p1-3冲突）
+    assignedResources: [], // 自动分配
     projectId: 'proj-3',
     priority: 'normal',
     status: 'pending',
     taskType: '后期',
     dependencies: ['task-p3-2']
+  }
+];
+
+// 示例冲突任务数据（用于演示冲突检测功能）
+const exampleConflictTasks: Task[] = [
+  {
+    id: 'conflict-1',
+    name: '示例冲突任务1-张设计师',
+    description: '演示资源冲突 - 指定张设计师',
+    estimatedHours: 24,
+    assignedResources: [],
+    fixedResourceId: 'res-1', // 指定张设计师
+    projectId: 'proj-1',
+    priority: 'high',
+    status: 'pending',
+    taskType: '平面',
+    dependencies: []
+  },
+  {
+    id: 'conflict-2',
+    name: '示例冲突任务2-张设计师',
+    description: '演示资源冲突 - 指定张设计师（与任务1冲突）',
+    estimatedHours: 16,
+    assignedResources: [],
+    fixedResourceId: 'res-1', // 指定张设计师
+    projectId: 'proj-2',
+    priority: 'high',
+    status: 'pending',
+    taskType: '平面',
+    dependencies: []
+  },
+  {
+    id: 'conflict-3',
+    name: '示例冲突任务3-张设计师',
+    description: '演示资源冲突 - 指定张设计师（与任务1、2冲突）',
+    estimatedHours: 20,
+    assignedResources: [],
+    fixedResourceId: 'res-1', // 指定张设计师
+    projectId: 'proj-1',
+    priority: 'normal',
+    status: 'pending',
+    taskType: '平面',
+    dependencies: []
+  },
+  {
+    id: 'conflict-4',
+    name: '示例冲突任务4-李后期',
+    description: '演示资源冲突 - 指定李后期',
+    estimatedHours: 32,
+    assignedResources: [],
+    fixedResourceId: 'res-2', // 指定李后期
+    projectId: 'proj-3',
+    priority: 'high',
+    status: 'pending',
+    taskType: '后期',
+    dependencies: []
+  },
+  {
+    id: 'conflict-5',
+    name: '示例冲突任务5-李后期',
+    description: '演示资源冲突 - 指定李后期（与任务4冲突）',
+    estimatedHours: 24,
+    assignedResources: [],
+    fixedResourceId: 'res-2', // 指定李后期
+    projectId: 'proj-1',
+    priority: 'normal',
+    status: 'pending',
+    taskType: '后期',
+    dependencies: []
   }
 ];
 
@@ -565,27 +625,14 @@ export default function ComplexScenario() {
     setSharedResources(sharedResources.filter(r => r.id !== resourceId));
   };
 
-  const handleResetData = () => {
-    if (!confirm('确定要重置所有数据吗？这将清除所有自定义任务并恢复默认数据。')) return;
+  const handleAddConflictExampleTasks = () => {
+    if (!confirm('确定要添加示例冲突任务吗？这将添加5个演示资源冲突的任务。')) return;
     
-    // 清除 localStorage
-    localStorage.removeItem('complex-scenario-projects');
-    localStorage.removeItem('complex-scenario-tasks');
-    localStorage.removeItem('complex-scenario-resources');
-    localStorage.removeItem('complex-scenario-schedule-result');
-    
-    // 重置为默认数据
-    setProjects(defaultProjects);
-    setTasks(defaultTasks);
-    setSharedResources(defaultResources);
+    // 添加示例冲突任务到现有任务列表
+    setTasks([...tasks, ...exampleConflictTasks]);
+    // 清除排期结果，让用户重新生成
     setScheduleResult(null);
     setPendingConflicts(new Map());
-    setJustResolvedConflict(false);
-    setSavedResolutions(null);
-    setAiSuggestion('');
-    setDeadlineWarningCount(0);
-    setShowDeadlineWarningDialog(false);
-    setConflictDialogOpen(false);
   };
 
   const handleResourceChange = (resourceId: string, field: keyof Resource, value: any) => {
@@ -762,9 +809,9 @@ export default function ComplexScenario() {
                 <Plus className="h-4 w-4" />
                 添加成员
               </Button>
-              <Button onClick={handleResetData} size="sm" variant="outline" className="gap-2 text-orange-600 hover:text-orange-700">
-                <Settings className="h-4 w-4" />
-                重置数据
+              <Button onClick={handleAddConflictExampleTasks} size="sm" variant="outline" className="gap-2 text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300">
+                <AlertTriangle className="h-4 w-4" />
+                添加示例冲突任务
               </Button>
             </div>
           </div>
