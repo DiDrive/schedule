@@ -819,6 +819,12 @@ export function generateSchedule(
     resourceSchedules.set(resource.id, []);
   });
 
+  // 为每个资源记录累计工时
+  const resourceLoad = new Map<string, number>();
+  resources.forEach(resource => {
+    resourceLoad.set(resource.id, 0);
+  });
+
   // 创建任务集合，用于快速查找未安排的任务
   const unscheduledTasks = new Set(tasksWithResources.map(t => t.id));
 
@@ -971,7 +977,8 @@ export function generateSchedule(
               actualWorkHours,
               workingHoursConfig,
               resourceSchedules,
-              resourceId // 排除当前资源
+              resourceId, // 排除当前资源
+              resourceLoad // 传入累计工时信息
             );
 
             if (alternativeResource) {
@@ -1035,6 +1042,10 @@ export function generateSchedule(
       end: taskEnd
     });
     resourceSchedules.set(resourceId, finalResourceSchedule);
+
+    // 更新累计工时
+    const currentLoad = resourceLoad.get(resourceId) || 0;
+    resourceLoad.set(resourceId, currentLoad + task.estimatedHours);
 
       taskMap.set(task.id, scheduledTask);
       scheduledTasks.push(scheduledTask);
@@ -1181,7 +1192,8 @@ function findAvailableResource(
   actualWorkHours: number,
   workingHoursConfig: WorkingHoursConfig,
   resourceSchedules: Map<string, Array<{ start: Date; end: Date }>>,
-  excludeResourceId?: string
+  excludeResourceId?: string,
+  resourceLoad?: Map<string, number> // 资源的累计工时
 ): Resource | null {
   // 找出所有匹配的资源（相同工作类型且是人类资源）
   const matchingResources = resources.filter(r =>
@@ -1214,20 +1226,17 @@ function findAvailableResource(
     return null;
   }
 
-  console.log(`    📋 可用资源列表: ${availableResources.map(r => `${r.name}(任务数:${resourceSchedules.get(r.id)?.length || 0}, 效率:${r.efficiency || LEVEL_EFFICIENCY[r.level as ResourceLevel] || 1.0})`).join(', ')}`);
+  console.log(`    📋 可用资源列表: ${availableResources.map(r => `${r.name}(累计工时:${resourceLoad?.get(r.id) || 0}h, 效率:${r.efficiency || LEVEL_EFFICIENCY[r.level as ResourceLevel] || 1.0})`).join(', ')}`);
 
-  // ★★★ 综合负载和效率进行资源选择 ★★★
-  // 策略：负载差距大时优先选择负载更低的，负载差距不大时优先选择效率更高的
+  // ★★★ 综合累计工时和效率进行资源选择 ★★★
+  // 策略：累计工时差距大时优先选择工时更低的，差距不大时优先选择效率更高的
   availableResources.sort((a, b) => {
-    const scheduleA = resourceSchedules.get(a.id) || [];
-    const scheduleB = resourceSchedules.get(b.id) || [];
-
-    // 计算负载：用已安排任务的数量作为负载指标
-    const loadA = scheduleA.length;
-    const loadB = scheduleB.length;
+    // 获取累计工时
+    const loadA = resourceLoad?.get(a.id) || 0;
+    const loadB = resourceLoad?.get(b.id) || 0;
 
     // 负载差距阈值：超过这个阈值，优先选择负载更低的
-    const loadThreshold = 2; // 2个任务差距
+    const loadThreshold = 2; // 2小时工时差距
 
     // 负载优先：负载差距大时，优先选择负载更低的
     if (Math.abs(loadA - loadB) > loadThreshold) {
