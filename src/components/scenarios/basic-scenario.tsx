@@ -9,7 +9,14 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, Plus, Trash2, CheckCircle, TrendingUp, Settings, Calendar, Download, Sparkles, Loader2 } from 'lucide-react';
+import { Play, Plus, Trash2, CheckCircle, TrendingUp, Settings, Calendar, Download, Sparkles, Loader2, MoreVertical } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import * as XLSX from 'xlsx';
 import { defaultWorkingHours } from '@/lib/sample-data';
@@ -108,6 +115,7 @@ export default function BasicScenario() {
   const [conflictStrategy, setConflictStrategy] = useState<ResourceConflictStrategy>('auto-switch');
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [pendingConflicts, setPendingConflicts] = useState<Map<string, ConflictTask[]>>(new Map());
+  const [activeTaskType, setActiveTaskType] = useState<'all' | '平面' | '后期' | '物料'>('all');
 
   // 使用 ref 跟踪是否已经加载过数据，避免重复加载
   const hasLoadedData = useRef(false);
@@ -197,16 +205,16 @@ export default function BasicScenario() {
     }, 500);
   };
 
-  const handleAddTask = () => {
+  const handleAddTask = (taskType: '平面' | '后期' | '物料' = '平面') => {
     const newTask: Task = {
       id: `task-${Date.now()}`,
       name: `新任务 ${tasks.length + 1}`,
       description: '',
-      estimatedHours: 8,
+      estimatedHours: taskType === '物料' ? 0 : 8,
       assignedResources: [],
       priority: 'normal',
       status: 'pending',
-      taskType: '平面' // 默认为平面
+      taskType: taskType
     };
     setTasks([...tasks, newTask]);
   };
@@ -575,10 +583,30 @@ export default function BasicScenario() {
         </CardHeader>
         <CardContent>
           <div className="mb-4 flex gap-2">
-            <Button onClick={handleAddTask} size="sm" variant="outline" className="gap-2">
-              <Plus className="h-4 w-4" />
-              添加任务
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  添加任务
+                  <MoreVertical className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={() => handleAddTask('平面')}>
+                  <span className="mr-2">🎨</span>
+                  添加平面任务
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleAddTask('后期')}>
+                  <span className="mr-2">🎬</span>
+                  添加后期任务
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => handleAddTask('物料')}>
+                  <span className="mr-2">📦</span>
+                  添加物料任务
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <div className="flex items-center gap-2 ml-auto">
               <label className="text-sm font-medium">开始时间:</label>
               <Input
@@ -598,6 +626,16 @@ export default function BasicScenario() {
             </Button>
           </div>
 
+          {/* 任务类型标签页 */}
+          <Tabs value={activeTaskType} onValueChange={(value) => setActiveTaskType(value as 'all' | '平面' | '后期' | '物料')} className="mb-4">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="all">全部 ({tasks.length})</TabsTrigger>
+              <TabsTrigger value="平面">平面 ({tasks.filter(t => t.taskType === '平面').length})</TabsTrigger>
+              <TabsTrigger value="后期">后期 ({tasks.filter(t => t.taskType === '后期').length})</TabsTrigger>
+              <TabsTrigger value="物料">物料 ({tasks.filter(t => t.taskType === '物料').length})</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -606,7 +644,7 @@ export default function BasicScenario() {
                   <TableHead>任务类型</TableHead>
                   <TableHead>指定人员</TableHead>
                   <TableHead>
-                    {tasks.some(t => t.taskType === '物料') ? '工时/提供时间' : '预估工时'}
+                    {tasks.filter(t => activeTaskType === 'all' || t.taskType === activeTaskType).some(t => t.taskType === '物料') ? '工时/提供时间' : '预估工时'}
                   </TableHead>
                   <TableHead>优先级</TableHead>
                   <TableHead>截止日期</TableHead>
@@ -615,7 +653,7 @@ export default function BasicScenario() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tasks.map(task => (
+                {tasks.filter(task => activeTaskType === 'all' || task.taskType === activeTaskType).map(task => (
                   <TableRow key={task.id}>
                     <TableCell>
                       <Input
