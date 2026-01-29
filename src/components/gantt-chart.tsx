@@ -290,6 +290,15 @@ export default function GanttChart({
       }))
     : [{ project: null, tasks: scheduleResult.tasks }];
 
+  // 按任务类型分组任务（平面/后期/物料）
+  const groupTasksByType = (tasks: Task[]) => {
+    const types = ['平面', '后期', '物料'];
+    return types.map(type => ({
+      type,
+      tasks: tasks.filter(t => t.taskType === type)
+    })).filter(group => group.tasks.length > 0);
+  };
+
   return (
     <div className="w-full overflow-x-auto">
       <div className="min-w-[1000px]">
@@ -400,8 +409,33 @@ export default function GanttChart({
 
                 {/* 任务行 */}
                 {showTaskLevel && (
-                  <div className="divide-y dark:divide-slate-700">
-                    {projectTasks.map(task => {
+                  <div>
+                    {groupTasksByType(projectTasks).map((typeGroup, typeIndex) => (
+                      <div key={typeIndex}>
+                        {/* 任务类型标题行 */}
+                        <div className="flex bg-slate-100 dark:bg-slate-800/50 border-b dark:border-slate-700">
+                          <div className="w-52 flex-shrink-0 p-2 border-r dark:border-slate-700">
+                            <div className="text-sm font-semibold flex items-center gap-2">
+                              {typeGroup.type === '平面' && (
+                                <div className="w-2 h-2 rounded-full bg-green-500" />
+                              )}
+                              {typeGroup.type === '后期' && (
+                                <div className="w-2 h-2 rounded-full bg-blue-500" />
+                              )}
+                              {typeGroup.type === '物料' && (
+                                <div className="w-2 h-2 rotate-45 bg-amber-500" />
+                              )}
+                              {typeGroup.type}任务
+                            </div>
+                          </div>
+                          <div className="flex-1 p-2 text-xs text-slate-500">
+                            共 {typeGroup.tasks.length} 个任务
+                          </div>
+                        </div>
+
+                        {/* 任务列表 */}
+                        <div className="divide-y dark:divide-slate-700">
+                          {typeGroup.tasks.map(task => {
                       const isCritical = scheduleResult.criticalPath.includes(task.id);
                       const isMaterial = task.taskType === '物料';
 
@@ -532,6 +566,9 @@ export default function GanttChart({
                         </div>
                       );
                     })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

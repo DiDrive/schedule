@@ -926,6 +926,7 @@ export default function ComplexScenario() {
                   <TableHead className="w-[200px]">任务名称</TableHead>
                   <TableHead>项目</TableHead>
                   <TableHead>任务类型</TableHead>
+                  <TableHead>指定人员</TableHead>
                   <TableHead>
                     {tasks.some(t => t.taskType === '物料') ? '工时/提供时间' : '预估工时'}
                   </TableHead>
@@ -980,6 +981,28 @@ export default function ComplexScenario() {
                             <SelectItem value="物料">物料</SelectItem>
                           </SelectContent>
                         </Select>
+                      </TableCell>
+                      <TableCell>
+                        {task.taskType === '物料' ? (
+                          <span className="text-slate-400">-</span>
+                        ) : (
+                          <Select
+                            value={task.fixedResourceId || 'none'}
+                            onValueChange={(value) => handleTaskChange(task.id, 'fixedResourceId', value !== 'none' ? value : undefined)}
+                          >
+                            <SelectTrigger className="h-8">
+                              <SelectValue placeholder="自动分配" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">自动分配</SelectItem>
+                              {sharedResources.filter(r => r.workType === task.taskType).map(resource => (
+                                <SelectItem key={resource.id} value={resource.id}>
+                                  {resource.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </TableCell>
                       {task.taskType === '物料' ? (
                         <>

@@ -37,6 +37,7 @@ export interface Task {
   priority: 'urgent' | 'high' | 'normal' | 'low';
   status: 'pending' | 'in-progress' | 'completed' | 'blocked';
   taskType?: ResourceWorkType; // 任务类型：平面/后期/物料
+  fixedResourceId?: string; // 指定的资源ID（如果指定，则优先使用该资源，不进行自动分配）
 
   // 复杂场景扩展
   projectId?: string;

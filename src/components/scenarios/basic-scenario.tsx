@@ -15,6 +15,7 @@ import * as XLSX from 'xlsx';
 import { defaultWorkingHours } from '@/lib/sample-data';
 import { Task, Resource, ScheduleResult, ResourceLevel } from '@/types/schedule';
 import GanttChart from '@/components/gantt-chart';
+import { CalendarView } from '@/components/views/calendar-view';
 
 // 辅助函数：将 Date 或字符串转换为 YYYY-MM-DD 格式
 const formatDateToInputValue = (date: Date | string | undefined): string => {
@@ -98,7 +99,7 @@ export default function BasicScenario() {
   const [resources, setResources] = useState<Resource[]>([]);
   const [scheduleResult, setScheduleResult] = useState<ScheduleResult | null>(null);
   const [isComputing, setIsComputing] = useState(false);
-  const [activeView, setActiveView] = useState<'gantt' | 'table'>('gantt');
+  const [activeView, setActiveView] = useState<'gantt' | 'table' | 'calendar'>('gantt');
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [aiSuggestion, setAiSuggestion] = useState<string>('');
   const [isAiOptimizing, setIsAiOptimizing] = useState(false);
@@ -562,6 +563,7 @@ export default function BasicScenario() {
                 <TableRow>
                   <TableHead className="w-[200px]">任务名称</TableHead>
                   <TableHead>任务类型</TableHead>
+                  <TableHead>指定人员</TableHead>
                   <TableHead>
                     {tasks.some(t => t.taskType === '物料') ? '工时/提供时间' : '预估工时'}
                   </TableHead>
@@ -596,6 +598,28 @@ export default function BasicScenario() {
                           <SelectItem value="物料">物料</SelectItem>
                         </SelectContent>
                       </Select>
+                    </TableCell>
+                    <TableCell>
+                      {task.taskType === '物料' ? (
+                        <span className="text-slate-400">-</span>
+                      ) : (
+                        <Select
+                          value={task.fixedResourceId || 'none'}
+                          onValueChange={(value) => handleTaskChange(task.id, 'fixedResourceId', value !== 'none' ? value : undefined)}
+                        >
+                          <SelectTrigger className="h-8">
+                            <SelectValue placeholder="自动分配" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">自动分配</SelectItem>
+                            {resources.filter(r => r.workType === task.taskType).map(resource => (
+                              <SelectItem key={resource.id} value={resource.id}>
+                                {resource.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </TableCell>
                     {task.taskType === '物料' ? (
                       <>
@@ -856,6 +880,10 @@ export default function BasicScenario() {
                         <Calendar className="h-4 w-4 mr-2" />
                         列表视图
                       </TabsTrigger>
+                      <TabsTrigger value="calendar">
+                        <Calendar className="h-4 w-4 mr-2" />
+                        日历视图
+                      </TabsTrigger>
                     </TabsList>
                   </Tabs>
                   <div className="flex items-center gap-2">
@@ -890,21 +918,44 @@ export default function BasicScenario() {
               )}
 
               {activeView === 'table' && (
-                <div className="rounded-md border">
-                  <div className="overflow-x-auto">
-                    <table className="w-full caption-bottom text-sm">
-                      <thead className="[&_tr]:border-b">
-                        <tr>
-                          <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">任务名称</th>
-                          <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">负责人</th>
-                          <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">开始时间</th>
-                          <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">结束时间</th>
-                          <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">工时</th>
-                          <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">状态</th>
-                        </tr>
-                      </thead>
-                      <tbody className="[&_tr:last-child]:border-0">
-                        {scheduleResult.tasks.map(task => {
+                <div>
+                  {(['平面', '后期', '物料'] as const).map(type => {
+                    const typeTasks = scheduleResult.tasks.filter(t => t.taskType === type);
+                    if (typeTasks.length === 0) return null;
+
+                    return (
+                      <div key={type} className="mb-6">
+                        {/* 任务类型标题 */}
+                        <div className="flex items-center gap-2 mb-3 p-3 bg-slate-100 dark:bg-slate-800/50 rounded-lg">
+                          {type === '平面' && (
+                            <div className="w-3 h-3 rounded-full bg-green-500" />
+                          )}
+                          {type === '后期' && (
+                            <div className="w-3 h-3 rounded-full bg-blue-500" />
+                          )}
+                          {type === '物料' && (
+                            <div className="w-3 h-3 rotate-45 bg-amber-500" />
+                          )}
+                          <span className="font-semibold">{type}任务</span>
+                          <span className="text-sm text-slate-500">({typeTasks.length} 个)</span>
+                        </div>
+
+                        {/* 任务列表 */}
+                        <div className="rounded-md border">
+                          <div className="overflow-x-auto">
+                            <table className="w-full caption-bottom text-sm">
+                              <thead className="[&_tr]:border-b">
+                                <tr>
+                                  <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">任务名称</th>
+                                  <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">负责人</th>
+                                  <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">开始时间</th>
+                                  <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">结束时间</th>
+                                  <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">工时</th>
+                                  <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">状态</th>
+                                </tr>
+                              </thead>
+                              <tbody className="[&_tr:last-child]:border-0">
+                                {typeTasks.map(task => {
                           const resource = resources.find(r => r.id === task.assignedResources[0]);
                           return (
                             <tr key={task.id} className="hover:bg-muted/50 border-b transition-colors">
@@ -1001,6 +1052,18 @@ export default function BasicScenario() {
                     </table>
                   </div>
                 </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {activeView === 'calendar' && (
+                <CalendarView
+                  scheduledTasks={scheduleResult.tasks}
+                  resources={resources}
+                  tasks={tasks}
+                />
               )}
             </CardContent>
           </Card>
