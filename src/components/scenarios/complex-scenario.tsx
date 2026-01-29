@@ -55,6 +55,11 @@ const formatDateTime = (date: Date | string): string => {
   return `${month}/${day} ${hours}:${minutes}`;
 };
 
+const formatDate = (date: Date | string): string => {
+  const d = date instanceof Date ? date : new Date(date);
+  return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+};
+
 // 默认项目数据
 const defaultProjects: Project[] = [
   {
@@ -343,6 +348,7 @@ export default function ComplexScenario() {
   const [scheduleResult, setScheduleResult] = useState<ScheduleResult | null>(null);
   const [isComputing, setIsComputing] = useState(false);
   const [activeProject, setActiveProject] = useState<string>('all');
+  const [activeTaskType, setActiveTaskType] = useState<'all' | '平面' | '后期' | '物料'>('all');
   const [activeView, setActiveView] = useState<'gantt' | 'calendar'>('gantt');
   const [aiSuggestion, setAiSuggestion] = useState<string>('');
   const [isAiOptimizing, setIsAiOptimizing] = useState(false);
@@ -1108,6 +1114,16 @@ export default function ComplexScenario() {
         </CardContent>
       </Card>
 
+      {/* Task Type Tabs */}
+      <Tabs value={activeTaskType} onValueChange={(value) => setActiveTaskType(value as 'all' | '平面' | '后期' | '物料')} className="mb-4">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="all">全部 ({tasks.length})</TabsTrigger>
+          <TabsTrigger value="平面">平面 ({tasks.filter(t => t.taskType === '平面').length})</TabsTrigger>
+          <TabsTrigger value="后期">后期 ({tasks.filter(t => t.taskType === '后期').length})</TabsTrigger>
+          <TabsTrigger value="物料">物料 ({tasks.filter(t => t.taskType === '物料').length})</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {/* Task Management Table */}
       <Card>
         <CardHeader>
@@ -1127,15 +1143,16 @@ export default function ComplexScenario() {
                   <TableHead>任务类型</TableHead>
                   <TableHead>指定人员</TableHead>
                   <TableHead>
-                    {tasks.some(t => t.taskType === '物料') ? '工时/提供时间' : '预估工时'}
+                    {tasks.filter(t => activeTaskType === 'all' || t.taskType === activeTaskType).some(t => t.taskType === '物料') ? '工时/提供时间' : '预估工时'}
                   </TableHead>
                   <TableHead>优先级</TableHead>
+                  <TableHead>截止日期</TableHead>
                   <TableHead>依赖任务</TableHead>
                   <TableHead className="w-[100px]">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tasks.map(task => {
+                {tasks.filter(task => activeTaskType === 'all' || task.taskType === activeTaskType).map(task => {
                   const project = getProjectById(task.projectId || '');
 
                   return (
@@ -1252,6 +1269,18 @@ export default function ComplexScenario() {
                                 <SelectItem value="low">低</SelectItem>
                               </SelectContent>
                             </Select>
+                          </TableCell>
+                          <TableCell>
+                            {(task.taskType as string) === '物料' ? (
+                              <span className="text-slate-400">-</span>
+                            ) : (
+                              <Input
+                                type="date"
+                                value={formatDateToInputValue(task.deadline)}
+                                onChange={(e) => handleTaskChange(task.id, 'deadline', new Date(e.target.value))}
+                                className="w-36 h-8"
+                              />
+                            )}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -1401,7 +1430,10 @@ export default function ComplexScenario() {
                 </CardHeader>
                 <CardContent>
                   <GanttChart
-                    scheduleResult={scheduleResult}
+                    scheduleResult={{
+                      ...scheduleResult,
+                      tasks: scheduleResult.tasks.filter(task => activeProject === 'all' || task.projectId === activeProject)
+                    }}
                     resources={sharedResources}
                     projects={projects.map(p => ({
                       id: p.id,
@@ -1421,9 +1453,9 @@ export default function ComplexScenario() {
                 </CardHeader>
                 <CardContent>
                   <CalendarView
-                    scheduledTasks={scheduleResult.tasks}
+                    scheduledTasks={scheduleResult.tasks.filter(task => activeProject === 'all' || task.projectId === activeProject)}
                     resources={sharedResources}
-                    tasks={tasks}
+                    tasks={tasks.filter(task => activeProject === 'all' || task.projectId === activeProject)}
                   />
                 </CardContent>
               </Card>
@@ -1473,6 +1505,7 @@ export default function ComplexScenario() {
                           <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">负责人</th>
                           <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">开始时间</th>
                           <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">结束时间</th>
+                          <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">截止日期</th>
                           <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">工时</th>
                           <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">状态</th>
                         </tr>
@@ -1566,6 +1599,15 @@ export default function ComplexScenario() {
                               </td>
                               <td className="p-2 align-middle whitespace-nowrap">
                                 {task.endDate ? formatDateTime(task.endDate) : '-'}
+                              </td>
+                              <td className="p-2 align-middle whitespace-nowrap">
+                                {task.taskType === '物料' ? (
+                                  <span className="text-slate-400">-</span>
+                                ) : task.deadline ? (
+                                  formatDate(task.deadline)
+                                ) : (
+                                  <span className="text-slate-400">-</span>
+                                )}
                               </td>
                               <td className="p-2 align-middle whitespace-nowrap">{task.estimatedHours}h</td>
                               <td className="p-2 align-middle whitespace-nowrap">
