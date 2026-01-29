@@ -5,14 +5,6 @@ export type ResourceLevel = 'assistant' | 'junior' | 'senior';
 export type ResourceType = 'human' | 'material' | 'equipment';
 export type ResourceWorkType = '平面' | '后期' | '物料';
 
-// 流程类型
-export interface Process {
-  id: string;
-  name: string;
-  deadline?: Date; // 流程截止日期
-  description?: string;
-}
-
 // 资源冲突处理策略
 export type ResourceConflictStrategy = 'auto-switch' | 'delay-only' | 'ask-each';
 
@@ -75,9 +67,6 @@ export interface Task {
   // 物料任务专用字段
   estimatedMaterialDate?: Date; // 物料预估提供日期
   actualMaterialDate?: Date; // 物料实际提供日期（可能提前）
-
-  // 流程管理（一个任务可以有 >=0 个流程）
-  processes?: Process[]; // 流程列表
 
   // 排期结果（精确到小时）
   startDate?: Date;
