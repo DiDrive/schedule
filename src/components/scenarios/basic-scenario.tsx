@@ -117,6 +117,7 @@ export default function BasicScenario() {
   const [pendingConflicts, setPendingConflicts] = useState<Map<string, ConflictTask[]>>(new Map());
   const [activeTaskType, setActiveTaskType] = useState<'all' | '平面' | '后期' | '物料'>('all');
   const [justResolvedConflict, setJustResolvedConflict] = useState(false);
+  const [savedResolutions, setSavedResolutions] = useState<Map<string, 'switch' | 'delay'> | null>(null);
 
   // 使用 ref 跟踪是否已经加载过数据，避免重复加载
   const hasLoadedData = useRef(false);
@@ -179,15 +180,15 @@ export default function BasicScenario() {
     setIsComputing(true);
 
     // 如果刚刚解决过冲突，直接生成排期（跳过冲突检测）
-    if (justResolvedConflict) {
+    if (justResolvedConflict && savedResolutions) {
       setTimeout(() => {
-        const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy);
+        const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy, savedResolutions);
         setScheduleResult(result);
-        
+
         // 基于新生成的排期结果重新检测冲突，更新 pendingConflicts
         const newConflicts = detectResourceConflicts(result.tasks, resources, result);
         setPendingConflicts(newConflicts);
-        
+
         setIsComputing(false);
       }, 500);
       return;
@@ -206,11 +207,11 @@ export default function BasicScenario() {
       setTimeout(() => {
         const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy);
         setScheduleResult(result);
-        
+
         // 基于 scheduleResult 重新检测冲突，确保 pendingConflicts 同步
         const newConflicts = detectResourceConflicts(result.tasks, resources, result);
         setPendingConflicts(newConflicts);
-        
+
         setIsComputing(false);
       }, 500);
     }
@@ -219,21 +220,23 @@ export default function BasicScenario() {
   const handleConflictResolution = (resolutions: Map<string, 'switch' | 'delay'>) => {
     setIsComputing(true);
     setJustResolvedConflict(true); // 标记刚刚解决了冲突
+    setSavedResolutions(resolutions); // 保存用户的选择
     setTimeout(() => {
       // 根据用户的选择生成排期
       const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy, resolutions);
       setScheduleResult(result);
-      
+
       // 基于新生成的排期结果重新检测冲突，更新 pendingConflicts
       const newConflicts = detectResourceConflicts(result.tasks, resources, result);
       setPendingConflicts(newConflicts);
-      
+
       setIsComputing(false);
     }, 500);
   };
 
   const handleAddTask = (taskType: '平面' | '后期' | '物料' = '平面') => {
     setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
+    setSavedResolutions(null); // 重置保存的解决方案
     const newTask: Task = {
       id: `task-${Date.now()}`,
       name: `新任务 ${tasks.length + 1}`,
@@ -249,11 +252,13 @@ export default function BasicScenario() {
 
   const handleDeleteTask = (taskId: string) => {
     setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
+    setSavedResolutions(null); // 重置保存的解决方案
     setTasks(tasks.filter(t => t.id !== taskId));
   };
 
   const handleTaskChange = (taskId: string, field: keyof Task, value: any) => {
     setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
+    setSavedResolutions(null); // 重置保存的解决方案
     setTasks(tasks.map(t => {
       if (t.id !== taskId) return t;
 
