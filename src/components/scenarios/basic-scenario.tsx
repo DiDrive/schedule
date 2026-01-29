@@ -220,7 +220,7 @@ export default function BasicScenario() {
         setScheduleResult(result);
 
         // 基于新生成的排期结果重新检测冲突，更新 pendingConflicts
-        const newConflicts = detectResourceConflicts(result.tasks, resources, result);
+        const newConflicts = detectResourceConflicts(result.tasks, resources, undefined);
         setPendingConflicts(newConflicts);
 
         setIsComputing(false);
@@ -228,8 +228,8 @@ export default function BasicScenario() {
       return;
     }
 
-    // 否则，检测资源冲突
-    const conflicts = detectResourceConflicts(tasks, resources);
+    // 否则，检测资源冲突（始终使用当前正在编辑的任务列表）
+    const conflicts = detectResourceConflicts(tasks, resources, undefined);
 
     if (conflicts.size > 0) {
       // 有冲突，显示对话框
@@ -243,7 +243,7 @@ export default function BasicScenario() {
         setScheduleResult(result);
 
         // 基于 scheduleResult 重新检测冲突，确保 pendingConflicts 同步
-        const newConflicts = detectResourceConflicts(result.tasks, resources, result);
+        const newConflicts = detectResourceConflicts(result.tasks, resources, undefined);
         setPendingConflicts(newConflicts);
 
         setIsComputing(false);
@@ -261,7 +261,7 @@ export default function BasicScenario() {
       setScheduleResult(result);
 
       // 基于新生成的排期结果重新检测冲突，更新 pendingConflicts
-      const newConflicts = detectResourceConflicts(result.tasks, resources, result);
+      const newConflicts = detectResourceConflicts(result.tasks, resources, undefined);
       setPendingConflicts(newConflicts);
 
       setIsComputing(false);
