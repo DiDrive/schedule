@@ -151,24 +151,31 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
     const totalLoad = Array.from(resourceLoad.values()).reduce((sum, load) => sum + load, 0);
     const avgLoad = totalLoad / humanResources.length;
 
-    // ★★★ 核心修改：综合负载和效率进行资源分配 ★★★
-    // 策略：负载差距大时优先选择负载更低的，负载差距不大时优先选择效率更高的
+    // ★★★ 综合评分公式：累计工时 + 效率 ★★★
+    // 评分 = 工时得分 + 效率得分
+    // 工时得分：累计工时越接近平均值得分越高，累计工时越低得分越高（权重：70%）
+    // 效率得分：效率越高得分越高（权重：30%）
+
     const sortedResources = [...resourcesToScore].sort((a, b) => {
       const loadA = resourceLoad.get(a.id) || 0;
       const loadB = resourceLoad.get(b.id) || 0;
 
-      // 负载差距阈值：超过这个阈值，优先选择负载更低的
-      const loadThreshold = 2; // 2小时工时差距
-
-      // 负载优先：负载差距大时，优先选择负载更低的
-      if (Math.abs(loadA - loadB) > loadThreshold) {
-        return loadA - loadB;
-      }
-
-      // 负载差距不大时，优先选择效率更高的
       const effA = a.efficiency || LEVEL_EFFICIENCY[a.level as ResourceLevel] || 1.0;
       const effB = b.efficiency || LEVEL_EFFICIENCY[b.level as ResourceLevel] || 1.0;
-      return effB - effA; // 效率高的排在前面
+
+      // 工时得分：累计工时越接近平均值得分越高，累计工时越低得分越高
+      const hoursScoreA = 100 - (loadA / Math.max(avgLoad, 1)) * 70;
+      const hoursScoreB = 100 - (loadB / Math.max(avgLoad, 1)) * 70;
+
+      // 效率得分：效率越高得分越高
+      const effScoreA = effA * 30;
+      const effScoreB = effB * 30;
+
+      // 综合得分
+      const totalScoreA = hoursScoreA * 0.7 + effScoreA * 0.3;
+      const totalScoreB = hoursScoreB * 0.7 + effScoreB * 0.3;
+
+      return totalScoreB - totalScoreA; // 得分高的排在前面
     });
 
     // 选择负载最低的资源
@@ -1226,27 +1233,53 @@ function findAvailableResource(
     return null;
   }
 
-  console.log(`    📋 可用资源列表: ${availableResources.map(r => `${r.name}(累计工时:${resourceLoad?.get(r.id) || 0}h, 效率:${r.efficiency || LEVEL_EFFICIENCY[r.level as ResourceLevel] || 1.0})`).join(', ')}`);
+  console.log(`    📋 可用资源列表: ${availableResources.map(r => `${r.name}(任务数:${resourceSchedules.get(r.id)?.length || 0}, 累计工时:${resourceLoad?.get(r.id) || 0}h, 效率:${r.efficiency || LEVEL_EFFICIENCY[r.level as ResourceLevel] || 1.0})`).join(', ')}`);
 
-  // ★★★ 综合累计工时和效率进行资源选择 ★★★
-  // 策略：累计工时差距大时优先选择工时更低的，差距不大时优先选择效率更高的
+  // ★★★ 综合评分公式：负载 + 累计工时 + 效率 ★★★
+  // 计算每个资源的综合得分，得分越高越优先
+
+  // 计算平均累计工时
+  const avgLoad = availableResources.length > 0
+    ? Array.from(availableResources).reduce((sum, r) => sum + (resourceLoad?.get(r.id) || 0), 0) / availableResources.length
+    : 0;
+
   availableResources.sort((a, b) => {
-    // 获取累计工时
+    const scheduleA = resourceSchedules.get(a.id) || [];
+    const scheduleB = resourceSchedules.get(b.id) || [];
     const loadA = resourceLoad?.get(a.id) || 0;
     const loadB = resourceLoad?.get(b.id) || 0;
 
-    // 负载差距阈值：超过这个阈值，优先选择负载更低的
-    const loadThreshold = 2; // 2小时工时差距
-
-    // 负载优先：负载差距大时，优先选择负载更低的
-    if (Math.abs(loadA - loadB) > loadThreshold) {
-      return loadA - loadB;
-    }
-
-    // 负载差距不大时，优先选择效率更高的
     const effA = a.efficiency || LEVEL_EFFICIENCY[a.level as ResourceLevel] || 1.0;
     const effB = b.efficiency || LEVEL_EFFICIENCY[b.level as ResourceLevel] || 1.0;
-    return effB - effA; // 效率高的排在前面
+
+    // ★★★ 综合评分公式 ★★★
+    // 评分 = 负载得分 + 工时得分 + 效率得分
+    // 负载得分：任务数越少得分越高（权重：40%）
+    // 工时得分：累计工时越接近平均值得分越高（权重：40%）
+    // 效率得分：效率越高得分越高（权重：20%）
+
+    // 负载得分：任务数越少得分越高
+    const loadScoreA = 100 - scheduleA.length * 20;
+    const loadScoreB = 100 - scheduleB.length * 20;
+
+    // 工时得分：累计工时越接近平均值得分越高，累计工时越低得分越高
+    const hoursScoreA = 100 - (loadA / Math.max(avgLoad, 1)) * 40;
+    const hoursScoreB = 100 - (loadB / Math.max(avgLoad, 1)) * 40;
+
+    // 效率得分：效率越高得分越高
+    const effScoreA = effA * 20;
+    const effScoreB = effB * 20;
+
+    // 综合得分
+    const totalScoreA = loadScoreA * 0.4 + hoursScoreA * 0.4 + effScoreA * 0.2;
+    const totalScoreB = loadScoreB * 0.4 + hoursScoreB * 0.4 + effScoreB * 0.2;
+
+    const selected = totalScoreB - totalScoreA;
+
+    console.log(`    ${a.name}: 综合得分=${totalScoreA.toFixed(2)} (负载:${loadScoreA.toFixed(1)} 工时:${hoursScoreA.toFixed(1)} 效率:${effScoreA.toFixed(1)})`);
+    console.log(`    ${b.name}: 综合得分=${totalScoreB.toFixed(2)} (负载:${loadScoreB.toFixed(1)} 工时:${hoursScoreB.toFixed(1)} 效率:${effScoreB.toFixed(1)})`);
+
+    return selected; // 得分高的排在前面
   });
 
   const selected = availableResources[0];
