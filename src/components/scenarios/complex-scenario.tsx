@@ -539,12 +539,16 @@ export default function ComplexScenario() {
     setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
     setSavedResolutions(null); // 重置保存的解决方案
     setPendingConflicts(new Map()); // 清除待处理的冲突
-    setTasks(tasks.filter(t => t.id !== taskId));
-    // 同时从其他任务的依赖中移除该任务
-    setTasks(tasks.map(t => ({
-      ...t,
-      dependencies: t.dependencies?.filter(d => d !== taskId)
-    })));
+    
+    // 同时从其他任务的依赖中移除该任务，然后删除任务本身
+    const updatedTasks = tasks
+      .map(t => ({
+        ...t,
+        dependencies: t.dependencies?.filter(d => d !== taskId)
+      }))
+      .filter(t => t.id !== taskId);
+    
+    setTasks(updatedTasks);
   };
 
   const handleAddTask = () => {

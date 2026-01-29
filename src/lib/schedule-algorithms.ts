@@ -1233,10 +1233,13 @@ function findAvailableResource(
     return null;
   }
 
-  console.log(`    📋 可用资源列表: ${availableResources.map(r => `${r.name}(任务数:${resourceSchedules.get(r.id)?.length || 0}, 累计工时:${resourceLoad?.get(r.id) || 0}h, 效率:${r.efficiency || LEVEL_EFFICIENCY[r.level as ResourceLevel] || 1.0})`).join(', ')}`);
+  console.log(`    📋 可用资源列表: ${availableResources.map(r => `${r.name}(累计工时:${resourceLoad?.get(r.id) || 0}h, 效率:${r.efficiency || LEVEL_EFFICIENCY[r.level as ResourceLevel] || 1.0})`).join(', ')}`);
 
-  // ★★★ 综合评分公式：负载 + 累计工时 + 效率 ★★★
+  // ★★★ 综合评分公式：累计工时 + 效率（与 autoAssignResources 一致）★★★
   // 计算每个资源的综合得分，得分越高越优先
+  // 评分 = 工时得分 + 效率得分
+  // 工时得分：累计工时越接近平均值得分越高，累计工时越低得分越高（权重：70%）
+  // 效率得分：效率越高得分越高（权重：30%）
 
   // 计算平均累计工时
   const avgLoad = availableResources.length > 0
@@ -1244,46 +1247,34 @@ function findAvailableResource(
     : 0;
 
   availableResources.sort((a, b) => {
-    const scheduleA = resourceSchedules.get(a.id) || [];
-    const scheduleB = resourceSchedules.get(b.id) || [];
     const loadA = resourceLoad?.get(a.id) || 0;
     const loadB = resourceLoad?.get(b.id) || 0;
 
     const effA = a.efficiency || LEVEL_EFFICIENCY[a.level as ResourceLevel] || 1.0;
     const effB = b.efficiency || LEVEL_EFFICIENCY[b.level as ResourceLevel] || 1.0;
 
-    // ★★★ 综合评分公式 ★★★
-    // 评分 = 负载得分 + 工时得分 + 效率得分
-    // 负载得分：任务数越少得分越高（权重：40%）
-    // 工时得分：累计工时越接近平均值得分越高（权重：40%）
-    // 效率得分：效率越高得分越高（权重：20%）
-
-    // 负载得分：任务数越少得分越高
-    const loadScoreA = 100 - scheduleA.length * 20;
-    const loadScoreB = 100 - scheduleB.length * 20;
+    // ★★★ 综合评分公式（与 autoAssignResources 一致）★★★
+    // 评分 = 工时得分 + 效率得分
+    // 工时得分：累计工时越接近平均值得分越高，累计工时越低得分越高（权重：70%）
+    // 效率得分：效率越高得分越高（权重：30%）
 
     // 工时得分：累计工时越接近平均值得分越高，累计工时越低得分越高
-    const hoursScoreA = 100 - (loadA / Math.max(avgLoad, 1)) * 40;
-    const hoursScoreB = 100 - (loadB / Math.max(avgLoad, 1)) * 40;
+    const hoursScoreA = 100 - (loadA / Math.max(avgLoad, 1)) * 70;
+    const hoursScoreB = 100 - (loadB / Math.max(avgLoad, 1)) * 70;
 
     // 效率得分：效率越高得分越高
-    const effScoreA = effA * 20;
-    const effScoreB = effB * 20;
+    const effScoreA = effA * 30;
+    const effScoreB = effB * 30;
 
     // 综合得分
-    const totalScoreA = loadScoreA * 0.4 + hoursScoreA * 0.4 + effScoreA * 0.2;
-    const totalScoreB = loadScoreB * 0.4 + hoursScoreB * 0.4 + effScoreB * 0.2;
+    const totalScoreA = hoursScoreA * 0.7 + effScoreA * 0.3;
+    const totalScoreB = hoursScoreB * 0.7 + effScoreB * 0.3;
 
-    const selected = totalScoreB - totalScoreA;
-
-    console.log(`    ${a.name}: 综合得分=${totalScoreA.toFixed(2)} (负载:${loadScoreA.toFixed(1)} 工时:${hoursScoreA.toFixed(1)} 效率:${effScoreA.toFixed(1)})`);
-    console.log(`    ${b.name}: 综合得分=${totalScoreB.toFixed(2)} (负载:${loadScoreB.toFixed(1)} 工时:${hoursScoreB.toFixed(1)} 效率:${effScoreB.toFixed(1)})`);
-
-    return selected; // 得分高的排在前面
+    return totalScoreB - totalScoreA; // 得分高的排在前面
   });
 
   const selected = availableResources[0];
-  console.log(`    ✓ 最终选择: ${selected.name}(任务数:${resourceSchedules.get(selected.id)?.length || 0}, 效率:${selected.efficiency || LEVEL_EFFICIENCY[selected.level as ResourceLevel] || 1.0})`);
+  console.log(`    ✓ 最终选择: ${selected.name}(累计工时:${resourceLoad?.get(selected.id) || 0}h, 效率:${selected.efficiency || LEVEL_EFFICIENCY[selected.level as ResourceLevel] || 1.0})`);
 
   return selected;
 }
