@@ -67,17 +67,17 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
       days.forEach(day => {
         if (isSameMonth(day, currentDate)) {
           const dateKey = format(day, 'yyyy-MM-dd');
-          if (!monthTasks[dateKey]) {
-            monthTasks[dateKey] = [];
+          if (!tasksInMonth[dateKey]) {
+            tasksInMonth[dateKey] = [];
           }
-          if (!monthTasks[dateKey].includes(scheduledTask)) {
-            monthTasks[dateKey].push(scheduledTask);
+          if (!tasksInMonth[dateKey].includes(scheduledTask)) {
+            tasksInMonth[dateKey].push(scheduledTask);
           }
         }
       });
     });
 
-    return monthTasks;
+    return tasksInMonth;
   }, [scheduledTasks, currentDate]);
 
   // 获取任务对应的资源
