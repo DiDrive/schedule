@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, User, Clock, ArrowRightLeft, Clock4 } from 'lucide-react';
-import { ConflictTask } from '@/types/schedule';
+import { ConflictTask, Task } from '@/types/schedule';
 
 interface ConflictResolutionDialogProps {
   isOpen: boolean;
@@ -29,41 +29,70 @@ export function ConflictResolutionDialog({
 }: ConflictResolutionDialogProps) {
   // 优先级权重
   const priorityWeight: Record<string, number> = {
-    urgent: 4,
-    high: 3,
-    normal: 2,
-    low: 1,
+    urgent: 3,
+    high: 2,
+    normal: 1,
+    low: 0.5,
   };
 
-  // 找出每个资源的最高优先级任务
-  const highestPriorityTaskIds = new Set<string>();
+  // 计算任务得分（与autoAssignResources中的逻辑一致）
+  const calculateTaskScore = (task: Task, allTasks: Task[]): number => {
+    let score = 0;
+    
+    // 1. 被依赖数权重
+    const dependentsCount = allTasks.filter(t => t.dependencies?.includes(task.id)).length;
+    score += dependentsCount * 2000;
+    
+    // 2. 优先级权重
+    score += (priorityWeight[task.priority] || 1) * 1000;
+    
+    // 3. 截止日期权重（越接近截止日期，分数越高）
+    if (task.deadline) {
+      const daysToDeadline = Math.max(0, (task.deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      if (daysToDeadline < 7) {
+        score += (7 - daysToDeadline) * 200;
+      } else if (daysToDeadline < 30) {
+        score += (30 - daysToDeadline) * 50;
+      }
+    }
+    
+    // 4. 任务工时权重（小任务优先）
+    score += 100 / (task.estimatedHours || 1);
+    
+    return score;
+  };
+
+  // 找出每个资源的最高评分任务
+  const highestScoreTaskIds = new Set<string>();
+  const allTasks = Array.from(conflicts.values()).flat().map(ct => ct.task);
+  
   conflicts.forEach((conflictTasks) => {
     if (conflictTasks.length === 0) return;
     
-    // 按优先级排序，找出最高优先级的任务
+    // 按评分排序，找出最高评分的任务
     const sortedTasks = [...conflictTasks].sort((a, b) => {
-      const weightA = priorityWeight[a.task.priority] || 2;
-      const weightB = priorityWeight[b.task.priority] || 2;
-      return weightB - weightA; // 降序排列
+      const scoreA = calculateTaskScore(a.task, allTasks);
+      const scoreB = calculateTaskScore(b.task, allTasks);
+      return scoreB - scoreA; // 降序排列
     });
     
-    // 保留最高优先级的任务
-    highestPriorityTaskIds.add(sortedTasks[0].task.id);
+    // 保留最高评分的任务
+    highestScoreTaskIds.add(sortedTasks[0].task.id);
   });
 
   // 为每个任务存储用户的选择
   const [resolutions, setResolutions] = useState<Map<string, 'switch' | 'delay'>>(() => {
-    // 初始化：为最高优先级的任务自动设置为"delay"（保留原资源）
+    // 初始化：为最高评分的任务自动设置为"delay"（保留原资源）
     const initialResolutions = new Map<string, 'switch' | 'delay'>();
-    highestPriorityTaskIds.forEach(taskId => {
+    highestScoreTaskIds.forEach(taskId => {
       initialResolutions.set(taskId, 'delay');
     });
     return initialResolutions;
   });
 
   const handleToggleResolution = (taskId: string) => {
-    // 不允许切换最高优先级的任务
-    if (highestPriorityTaskIds.has(taskId)) return;
+    // 不允许切换最高评分的任务
+    if (highestScoreTaskIds.has(taskId)) return;
     
     const newResolutions = new Map(resolutions);
     const current = newResolutions.get(taskId);
@@ -72,13 +101,13 @@ export function ConflictResolutionDialog({
   };
 
   const allTasksResolved = () => {
-    // 计算需要用户选择的任务数（排除最高优先级任务）
+    // 计算需要用户选择的任务数（排除最高评分任务）
     const totalTasks = Array.from(conflicts.values()).flat().length;
-    const userSelectableTasks = totalTasks - highestPriorityTaskIds.size;
+    const userSelectableTasks = totalTasks - highestScoreTaskIds.size;
     
     // 计算用户已经选择的任务数
     const userSelectedTasks = Array.from(resolutions.entries()).filter(
-      ([taskId]) => !highestPriorityTaskIds.has(taskId)
+      ([taskId]) => !highestScoreTaskIds.has(taskId)
     ).length;
     
     return userSelectedTasks === userSelectableTasks;
@@ -130,7 +159,7 @@ export function ConflictResolutionDialog({
               <div className="w-6 h-6 rounded bg-blue-600 flex items-center justify-center">
                 <span className="text-xs text-white font-bold">★</span>
               </div>
-              <span className="text-slate-700 dark:text-slate-300">最高优先级任务自动保留原资源</span>
+              <span className="text-slate-700 dark:text-slate-300">最高评分任务自动保留原资源</span>
             </div>
           </div>
         </div>
@@ -157,12 +186,13 @@ export function ConflictResolutionDialog({
                 <div className="p-4 space-y-3">
                   {conflictTasks.map((conflictTask) => {
                     const resolution = resolutions.get(conflictTask.task.id);
-                    const isHighestPriority = highestPriorityTaskIds.has(conflictTask.task.id);
+                    const isHighestScore = highestScoreTaskIds.has(conflictTask.task.id);
+                    const taskScore = calculateTaskScore(conflictTask.task, allTasks);
                     return (
                       <div
                         key={conflictTask.task.id}
                         className={`border rounded-lg p-4 ${
-                          isHighestPriority 
+                          isHighestScore 
                             ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' 
                             : 'bg-slate-50 dark:bg-slate-800/50'
                         }`}
@@ -176,9 +206,9 @@ export function ConflictResolutionDialog({
                                 {conflictTask.task.taskType}
                               </Badge>
                             )}
-                            {isHighestPriority && (
+                            {isHighestScore && (
                               <Badge variant="default" className="bg-blue-600">
-                                最高优先级（保留）
+                                最高评分 {taskScore.toFixed(0)}（保留）
                               </Badge>
                             )}
                           </div>
@@ -214,8 +244,8 @@ export function ConflictResolutionDialog({
 
                           {/* 操作按钮 */}
                           <div className="flex flex-shrink-0 flex-col gap-1.5">
-                            {isHighestPriority ? (
-                              // 最高优先级任务：显示提示，禁用选择
+                            {isHighestScore ? (
+                              // 最高评分任务：显示提示，禁用选择
                               <div className="h-7 w-28 flex items-center justify-center text-xs text-slate-500 dark:text-slate-400">
                                 自动保留原资源
                               </div>
@@ -263,11 +293,11 @@ export function ConflictResolutionDialog({
         <DialogFooter className="px-6 py-4 border-t bg-slate-50 dark:bg-slate-900/50">
           <div className="flex w-full items-center justify-between">
             <div className="text-sm text-slate-600 dark:text-slate-400">
-              <span className="text-slate-500 dark:text-slate-400 mr-2">已自动保留最高优先级任务，</span>
+              <span className="text-slate-500 dark:text-slate-400 mr-2">已自动保留最高评分任务，</span>
               需要选择 <span className="font-bold text-base text-blue-600 dark:text-blue-400">
-                {Array.from(conflicts.values()).flat().length - highestPriorityTaskIds.size}
+                {Array.from(conflicts.values()).flat().length - highestScoreTaskIds.size}
               </span> / <span className="font-bold text-base">
-                {Array.from(conflicts.values()).flat().length - highestPriorityTaskIds.size}
+                {Array.from(conflicts.values()).flat().length - highestScoreTaskIds.size}
               </span> 个任务
             </div>
             <div className="flex gap-3">
