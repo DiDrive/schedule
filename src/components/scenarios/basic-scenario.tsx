@@ -287,6 +287,7 @@ export default function BasicScenario() {
   const handleDeleteTask = (taskId: string) => {
     setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
     setSavedResolutions(null); // 重置保存的解决方案
+    setShowDeadlineWarningDialog(false); // 关闭预警弹窗
     setTasks(tasks.filter(t => t.id !== taskId));
   };
 
@@ -938,50 +939,40 @@ export default function BasicScenario() {
             <div className="font-medium mb-2">效率系数影响任务实际完成时间：</div>
             <div className="grid gap-2 md:grid-cols-3">
               {(() => {
-                // 动态计算各等级的实际效率值（取该等级资源的平均效率）
-                const getLevelEfficiency = (level: ResourceLevel) => {
-                  const levelResources = resources.filter(r => r.level === level);
-                  if (levelResources.length === 0) return 0;
-                  const totalEfficiency = levelResources.reduce((sum, r) => sum + (r.efficiency || 1.0), 0);
-                  return totalEfficiency / levelResources.length;
-                };
+                // 按效率分组显示，不按等级分组
+                const resourcesByEfficiency = resources.filter(r => r.type === 'human');
+                if (resourcesByEfficiency.length === 0) return null;
 
-                const seniorEff = getLevelEfficiency('senior');
-                const juniorEff = getLevelEfficiency('junior');
-                const assistantEff = getLevelEfficiency('assistant');
+                const sortedResources = [...resourcesByEfficiency].sort((a, b) => {
+                  const effA = a.efficiency || 1.0;
+                  const effB = b.efficiency || 1.0;
+                  return effB - effA;
+                });
 
                 const baseHours = 8; // 示例：8小时任务
 
-                return (
-                  <>
-                    {seniorEff > 0 && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-purple-500 font-bold min-w-[60px]">高级</span>
-                        <span>效率{seniorEff.toFixed(1)}倍，{baseHours}小时任务实际只需{(baseHours / seniorEff).toFixed(1)}小时完成</span>
-                      </div>
-                    )}
-                    {juniorEff > 0 && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-blue-500 font-bold min-w-[60px]">初级</span>
-                        <span>效率{juniorEff.toFixed(1)}倍，{baseHours}小时任务实际用时{(baseHours / juniorEff).toFixed(1)}小时</span>
-                      </div>
-                    )}
-                    {assistantEff > 0 && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-slate-500 font-bold min-w-[60px]">助理</span>
-                        <span>效率{assistantEff.toFixed(1)}倍，{baseHours}小时任务实际需要{(baseHours / assistantEff).toFixed(1)}小时</span>
-                      </div>
-                    )}
-                  </>
-                );
+                return sortedResources.map(resource => {
+                  const eff = resource.efficiency || 1.0;
+                  const actualHours = baseHours / eff;
+                  const efficiencyLabel = eff >= 1.5 ? '高' : eff >= 1.0 ? '中' : '低';
+                  const colorClass = eff >= 1.5 ? 'text-purple-500' : eff >= 1.0 ? 'text-blue-500' : 'text-slate-500';
+
+                  return (
+                    <div key={resource.id} className="flex items-start gap-2">
+                      <span className={`${colorClass} font-bold min-w-[60px]}`}>{resource.name}</span>
+                      <span>效率{eff.toFixed(1)}倍，{baseHours}小时任务实际用时{actualHours.toFixed(1)}小时（{efficiencyLabel}效率）</span>
+                    </div>
+                  );
+                });
               })()}
             </div>
             <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
-              <strong>影响体现：</strong>
+              <strong>说明：</strong>
               <ul className="list-disc list-inside mt-1 space-y-1">
-                <li>甘特图任务条长度反映实际完成时间</li>
-                <li>高效率人员的任务条更短</li>
-                <li>资源利用率计算考虑效率加成</li>
+                <li>效率越高，完成任务用时越短（实际工时 = 预估工时 / 效率）</li>
+                <li>等级（高级/初级/助理）仅作为默认效率值的参考，可以自定义</li>
+                <li>甘特图任务条长度反映实际完成时间，高效率人员的任务条更短</li>
+                <li>资源分配会综合考虑累计工时和效率，确保负载均衡</li>
               </ul>
             </div>
           </div>
