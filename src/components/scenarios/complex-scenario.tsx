@@ -424,7 +424,11 @@ export default function ComplexScenario() {
   useEffect(() => {
     // 始终保存数据，即使数量为0也要保存
     localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
+    
+    // 保存任务时，保留所有 assignedResources（包括手动分配的）
+    // 在下次重新生成排期时，autoAssignResources 会清除并重新分配
     localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
+    
     localStorage.setItem('complex-scenario-resources', JSON.stringify(sharedResources));
     if (scheduleResult) {
       localStorage.setItem('complex-scenario-schedule-result', JSON.stringify(scheduleResult));

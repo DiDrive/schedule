@@ -41,9 +41,19 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
   const humanResources = resources.filter(r => r.type === 'human');
   console.log(`人类资源: ${humanResources.map(r => `${r.name}(${r.workType})`).join(', ')}`);
 
+  // 清除所有任务的自动分配资源（保留指定资源）
+  const cleanedTasks = tasks.map(task => {
+    if (task.fixedResourceId) {
+      // 有指定资源的任务，保留 fixedResourceId，但清除 assignedResources
+      return { ...task, assignedResources: [] };
+    }
+    // 没有指定资源的任务，清除所有分配信息
+    return { ...task, assignedResources: [] };
+  });
+
   // 构建任务依赖关系图（用于计算被依赖数）
   const dependentsMap = new Map<string, string[]>();
-  tasks.forEach(task => {
+  cleanedTasks.forEach(task => {
     const deps = task.dependencies || [];
     deps.forEach(depId => {
       const list = dependentsMap.get(depId) || [];
@@ -56,7 +66,7 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
   // 1. 被依赖数（越多越优先，避免阻塞）
   // 2. 优先级（urgent > high > normal > low）
   // 3. 工时（高工时优先）
-  const sortedTasks = [...tasks].sort((a, b) => {
+  const sortedTasks = [...cleanedTasks].sort((a, b) => {
     const aDependents = (dependentsMap.get(a.id) || []).length;
     const bDependents = (dependentsMap.get(b.id) || []).length;
 
