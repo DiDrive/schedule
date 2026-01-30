@@ -373,7 +373,7 @@ export function CalendarView({ scheduledTasks, resources, tasks, onTaskClick }: 
                               : 'bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-200'
                           }`}
                           title={`${scheduledTask.name}\n负责人: ${resource?.name || '未分配'}\n时间: ${timeRanges.join(', ')}${isOverdue ? '\n⚠️ 已超期' : ''}`}
-                          onClick={() => onTaskClick && onTaskClick(scheduledTask)}
+                          onClick={() => isOverdue && onTaskClick && onTaskClick(scheduledTask)}
                         >
                           <div className="flex items-center justify-between">
                             <span className="truncate flex-1 font-medium">{scheduledTask.name}</span>

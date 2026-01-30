@@ -565,7 +565,7 @@ export default function GanttChart({
                                 backgroundColor: isOverdue ? '#fee2e2' : taskColor
                               }}
                               title={`${task.name}: ${formatDateTime(task.startDate || startDayTime)} - ${formatDateTime(task.endDate || endDayTime)}${isOverdue ? ' (已超期)' : ''}`}
-                              onClick={() => onTaskClick && onTaskClick(task)}
+                              onClick={() => isOverdue && onTaskClick && onTaskClick(task)}
                             />
 
                             {/* 工时标记 */}
