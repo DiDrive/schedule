@@ -583,14 +583,23 @@ export default function ComplexScenario() {
       .filter(t => t.id !== selectedTaskForSplit.id);
 
     // 添加子任务和汇总任务
-    setTasks([...updatedTasks, ...newSubTasks, summaryTask]);
+    const finalTasks = [...updatedTasks, ...newSubTasks, summaryTask];
+    setTasks(finalTasks);
     setShowTaskSplitDialog(false);
     setSelectedTaskForSplit(null);
 
-    // 自动重新排期
+    // 直接生成排期，不使用 handleGenerateSchedule 避免循环
+    setIsComputing(true);
     setTimeout(() => {
-      handleGenerateSchedule();
-    }, 100);
+      const result = generateSchedule(finalTasks, sharedResources, new Date(), defaultWorkingHours, conflictStrategy);
+      setScheduleResult(result);
+
+      // 重新检测冲突
+      const newConflicts = detectResourceConflicts(result.tasks, sharedResources, undefined);
+      setPendingConflicts(newConflicts);
+
+      setIsComputing(false);
+    }, 500);
   };
 
   // 打开任务拆分弹窗
