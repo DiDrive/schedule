@@ -137,10 +137,10 @@ export function ConflictResolutionDialog({
             <div className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/30">
               <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             </div>
-            资源冲突处理
+            人员冲突处理
           </DialogTitle>
           <DialogDescription className="text-sm mt-1.5">
-            检测到 {conflicts.size} 个资源存在时间冲突，需要为每个任务选择处理方式
+            检测到 {conflicts.size} 个人员存在时间冲突，需要为每个任务选择处理方式
           </DialogDescription>
         </DialogHeader>
 
@@ -151,7 +151,7 @@ export function ConflictResolutionDialog({
               <div className="p-0.5 rounded bg-blue-100 dark:bg-blue-900/30">
                 <ArrowRightLeft className="h-3 w-3 text-blue-600 dark:text-blue-400" />
               </div>
-              <span className="text-slate-700 dark:text-slate-300">自动切换：分配给其他空闲资源</span>
+              <span className="text-slate-700 dark:text-slate-300">自动切换：分配给其他空闲人员</span>
             </div>
             <div className="flex items-center gap-1.5">
               <div className="p-0.5 rounded bg-orange-100 dark:bg-orange-900/30">
@@ -163,7 +163,7 @@ export function ConflictResolutionDialog({
               <div className="w-4 h-4 rounded bg-blue-600 flex items-center justify-center">
                 <span className="text-[9px] text-white font-bold">★</span>
               </div>
-              <span className="text-slate-700 dark:text-slate-300">最高优先级任务自动保留原资源</span>
+              <span className="text-slate-700 dark:text-slate-300">最高优先级任务自动保留原人员</span>
             </div>
           </div>
         </div>
@@ -251,7 +251,7 @@ export function ConflictResolutionDialog({
                             {isHighestScore ? (
                               // 最高评分任务：显示提示，禁用选择
                               <div className="h-6 w-24 flex items-center justify-center text-xs text-slate-500 dark:text-slate-400">
-                                自动保留原资源
+                                自动保留原人员
                               </div>
                             ) : (
                               // 其他任务：显示选择按钮

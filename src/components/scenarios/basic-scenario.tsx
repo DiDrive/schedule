@@ -646,7 +646,7 @@ export default function BasicScenario() {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Settings className="h-5 w-5 text-blue-500" />
-                可用资源池
+                可用人员池
               </CardTitle>
               <CardDescription>
                 管理团队成员，设置等级和效率，系统会自动分配任务
@@ -754,15 +754,15 @@ export default function BasicScenario() {
         </CardContent>
       </Card>
 
-      {/* 资源属性说明 */}
+      {/* 人员属性说明 */}
       <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
         <CardContent className="pt-6">
-          <h4 className="font-semibold mb-3 text-blue-900 dark:text-blue-100">📖 资源属性说明</h4>
+          <h4 className="font-semibold mb-3 text-blue-900 dark:text-blue-100">📖 人员属性说明</h4>
           <div className="grid gap-3 md:grid-cols-3 text-sm">
             <div>
               <div className="font-medium text-blue-800 dark:text-blue-200 mb-1">效率系数</div>
               <div className="text-blue-700 dark:text-blue-300">
-                表示员工的工作效率，用于资源分配评分。例如：效率1.5的员工完成任务速度是效率1.0员工的1.5倍。数值越高，效率越高。
+                表示员工的工作效率，用于人员分配评分。例如：效率1.5的员工完成任务速度是效率1.0员工的1.5倍。数值越高，效率越高。
               </div>
             </div>
             <div>
@@ -1072,16 +1072,16 @@ export default function BasicScenario() {
               </div>
             </div>
             <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-800">
-              <strong>分配策略：</strong>系统会综合计算每个任务的"优先级权重 × 预估工时"，按得分高低自动分配资源。
+              <strong>分配策略：</strong>系统会综合计算每个任务的"优先级权重 × 预估工时"，按得分高低自动分配人员。
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* 资源效率说明 */}
+      {/* 人员效率说明 */}
       <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
         <CardContent className="pt-6">
-          <h4 className="font-semibold mb-3 text-blue-900 dark:text-blue-100">⚡ 资源效率说明</h4>
+          <h4 className="font-semibold mb-3 text-blue-900 dark:text-blue-100">⚡ 人员效率说明</h4>
           <div className="text-sm text-blue-700 dark:text-blue-300">
             <div className="font-medium mb-2">效率系数影响任务实际完成时间：</div>
             <div className="grid gap-2 md:grid-cols-3">
@@ -1119,7 +1119,7 @@ export default function BasicScenario() {
                 <li>效率越高，完成任务用时越短（实际工时 = 预估工时 / 效率）</li>
                 <li>等级（高级/初级/助理）仅作为默认效率值的参考，可以自定义</li>
                 <li>甘特图任务条长度反映实际完成时间，高效率人员的任务条更短</li>
-                <li>资源分配会综合考虑累计工时和效率，确保负载均衡</li>
+                <li>人员分配会综合考虑累计工时和效率，确保负载均衡</li>
               </ul>
             </div>
           </div>
@@ -1596,7 +1596,7 @@ export default function BasicScenario() {
         </DialogContent>
       </Dialog>
 
-      {/* 资源冲突处理对话框 */}
+      {/* 人员冲突处理对话框 */}
       <ConflictResolutionDialog
         isOpen={conflictDialogOpen}
         conflicts={pendingConflicts}

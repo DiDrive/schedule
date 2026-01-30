@@ -31,7 +31,7 @@ export default function ProjectScheduleSystem() {
                   唯变项目排期系统
                 </h1>
                 <p className="text-sm text-slate-600 dark:text-slate-400">
-                  智能排期 · 资源优化 · 风险管控
+                  智能排期 · 人员优化 · 风险管控
                 </p>
               </div>
             </div>

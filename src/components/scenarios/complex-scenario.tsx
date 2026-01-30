@@ -907,10 +907,10 @@ export default function ComplexScenario() {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Settings className="h-5 w-5 text-blue-500" />
-                共享资源池
+                共享人员池
               </CardTitle>
               <CardDescription>
-                所有项目共享的资源，系统会根据效率、优先级和工时自动分配
+                所有项目共享的人员，系统会根据效率、优先级和工时自动分配
               </CardDescription>
             </div>
             <div className="flex gap-2">
@@ -1017,10 +1017,10 @@ export default function ComplexScenario() {
         </CardContent>
       </Card>
 
-      {/* 资源效率说明 */}
+      {/* 人员效率说明 */}
       <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
         <CardContent className="pt-6">
-          <h4 className="font-semibold mb-3 text-blue-900 dark:text-blue-100">⚡ 资源效率说明</h4>
+          <h4 className="font-semibold mb-3 text-blue-900 dark:text-blue-100">⚡ 人员效率说明</h4>
           <div className="text-sm text-blue-700 dark:text-blue-300">
             <div className="font-medium mb-2">效率系数影响任务实际完成时间：</div>
             <div className="grid gap-2 md:grid-cols-3">
@@ -1058,7 +1058,7 @@ export default function ComplexScenario() {
                 <li>效率越高，完成任务用时越短（实际工时 = 预估工时 / 效率）</li>
                 <li>等级（高级/初级/助理）仅作为默认效率值的参考，可以自定义</li>
                 <li>甘特图任务条长度反映实际完成时间，高效率人员的任务条更短</li>
-                <li>资源分配会综合考虑累计工时和效率，确保负载均衡</li>
+                <li>人员分配会综合考虑累计工时和效率，确保负载均衡</li>
               </ul>
             </div>
           </div>
@@ -1084,7 +1084,7 @@ export default function ComplexScenario() {
             </Button>
           </CardTitle>
           <CardDescription>
-            当前管理 {projects.length} 个并行项目，共享资源池
+            当前管理 {projects.length} 个并行项目，共享人员池
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1196,7 +1196,7 @@ export default function ComplexScenario() {
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="gap-1">
             <Users className="h-3 w-3" />
-            共享资源: {sharedResources.length} 个
+            共享人员: {sharedResources.length} 个
           </Badge>
           <Badge variant="outline" className="gap-1">
             <GitBranch className="h-3 w-3" />
@@ -2047,7 +2047,7 @@ export default function ComplexScenario() {
         </DialogContent>
       </Dialog>
 
-      {/* 资源冲突处理对话框 */}
+      {/* 人员冲突处理对话框 */}
       <ConflictResolutionDialog
         isOpen={conflictDialogOpen}
         conflicts={pendingConflicts}

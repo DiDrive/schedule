@@ -470,7 +470,7 @@ export function TaskSplitDialog({
                   </Label>
                 </div>
                 <p className="text-xs text-slate-500 ml-6">
-                  根据资源负载和效率自动分配，优先选择负载较轻、效率较高的资源
+                  根据人员负载和效率自动分配，优先选择负载较轻、效率较高的人员
                 </p>
                 <div className="flex items-center space-x-2 mt-2">
                   <RadioGroupItem value="manual" id="manual" />

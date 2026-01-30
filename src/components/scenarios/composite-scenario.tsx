@@ -124,7 +124,7 @@ export default function CompositeScenario() {
           <TabsList>
             <TabsTrigger value="schedule">排期结果</TabsTrigger>
             <TabsTrigger value="optimization">智能优化</TabsTrigger>
-            <TabsTrigger value="resources">资源分配</TabsTrigger>
+            <TabsTrigger value="resources">人员分配</TabsTrigger>
             <TabsTrigger value="risks">风险评估</TabsTrigger>
             <TabsTrigger value="tradeoffs">权衡分析</TabsTrigger>
           </TabsList>

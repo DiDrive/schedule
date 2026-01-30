@@ -620,7 +620,7 @@ export default function GanttChart({
           )}
           {resources && resources.length > 0 && !projects && (
             <div className="flex items-center gap-2">
-              <span>不同颜色代表不同资源</span>
+              <span>不同颜色代表不同人员</span>
             </div>
           )}
         </div>
