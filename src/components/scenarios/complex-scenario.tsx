@@ -550,7 +550,10 @@ export default function ComplexScenario() {
       priority: 'high', // 拆分任务设为高优先级
       status: 'pending',
       projectId: selectedTaskForSplit.projectId,
-      dependencies: selectedTaskForSplit.dependencies || [], // 继承原任务的依赖
+      dependencies: [
+        ...(selectedTaskForSplit.dependencies || []), // 继承原任务的依赖
+        ...(subTask.dependencies || []) // 子任务之间的依赖关系
+      ],
       taskType: selectedTaskForSplit.taskType,
       deadline: selectedTaskForSplit.deadline, // 继承截止日期
       fixedResourceId: subTask.assignedResource || undefined, // 如果手动指定，则固定资源

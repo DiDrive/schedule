@@ -15,7 +15,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Clock, Users, TrendingUp } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { AlertTriangle, Clock, Users, TrendingUp, ArrowRight } from 'lucide-react';
 import { Task, Resource } from '@/types/schedule';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -29,6 +30,7 @@ interface SubTask {
   resource: Resource | null;
   estimatedStart: Date;
   estimatedEnd: Date;
+  dependencies: string[]; // 依赖的其他子任务ID列表
 }
 
 interface TaskSplitDialogProps {
@@ -83,6 +85,7 @@ export function TaskSplitDialog({
         resource: null,
         estimatedStart: new Date(),
         estimatedEnd: new Date(),
+        dependencies: [], // 初始为空依赖
       });
     }
 
@@ -224,6 +227,28 @@ export function TaskSplitDialog({
   const handleNameChange = (index: number, value: string) => {
     const newSubTasks = [...subTasks];
     newSubTasks[index] = { ...newSubTasks[index], name: value };
+    setSubTasks(newSubTasks);
+  };
+
+  // 处理依赖关系变更
+  const handleDependencyChange = (index: number, dependencyId: string, checked: boolean) => {
+    const newSubTasks = [...subTasks];
+    const currentDeps = [...newSubTasks[index].dependencies];
+
+    if (checked) {
+      // 添加依赖
+      if (!currentDeps.includes(dependencyId)) {
+        currentDeps.push(dependencyId);
+      }
+    } else {
+      // 移除依赖
+      const idx = currentDeps.indexOf(dependencyId);
+      if (idx > -1) {
+        currentDeps.splice(idx, 1);
+      }
+    }
+
+    newSubTasks[index] = { ...newSubTasks[index], dependencies: currentDeps };
     setSubTasks(newSubTasks);
   };
 
@@ -406,6 +431,50 @@ export function TaskSplitDialog({
                       </Badge>
                     </div>
                   )}
+                </div>
+
+                {/* 依赖其他子任务 */}
+                <div>
+                  <Label className="text-sm">依赖其他子任务</Label>
+                  <div className="mt-2 space-y-2">
+                    {subTasks.map((otherSubTask, otherIndex) => {
+                      // 不能依赖自己
+                      if (otherIndex === index) return null;
+
+                      // 不能形成循环依赖（简单检查：如果其他任务已经依赖当前任务，则不能选择）
+                      const wouldCreateCycle = otherSubTask.dependencies.includes(subTask.id);
+                      const isChecked = subTask.dependencies.includes(otherSubTask.id);
+
+                      return (
+                        <div key={otherSubTask.id} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`dep-${index}-${otherIndex}`}
+                            checked={isChecked}
+                            disabled={wouldCreateCycle}
+                            onCheckedChange={(checked) =>
+                              handleDependencyChange(index, otherSubTask.id, checked as boolean)
+                            }
+                          />
+                          <Label
+                            htmlFor={`dep-${index}-${otherIndex}`}
+                            className={`text-sm font-normal cursor-pointer ${
+                              wouldCreateCycle ? 'text-slate-400' : 'text-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            依赖子任务 {otherIndex + 1}：{otherSubTask.name}
+                            {wouldCreateCycle && (
+                              <span className="ml-2 text-xs text-orange-600">
+                                (会形成循环依赖)
+                              </span>
+                            )}
+                          </Label>
+                        </div>
+                      );
+                    })}
+                    {subTasks.length === 1 && (
+                      <p className="text-xs text-slate-500">只有一个子任务，无法设置依赖关系</p>
+                    )}
+                  </div>
                 </div>
 
                 {subTask.resource && (
