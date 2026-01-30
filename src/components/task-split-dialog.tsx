@@ -220,6 +220,13 @@ export function TaskSplitDialog({
     setSubTasks(newSubTasks);
   };
 
+  // 处理名称变更
+  const handleNameChange = (index: number, value: string) => {
+    const newSubTasks = [...subTasks];
+    newSubTasks[index] = { ...newSubTasks[index], name: value };
+    setSubTasks(newSubTasks);
+  };
+
   // 处理确认
   const handleConfirm = () => {
     setIsLoading(true);
@@ -337,16 +344,21 @@ export function TaskSplitDialog({
             <Label className="text-base font-medium">子任务分配</Label>
             {subTasks.map((subTask, index) => (
               <div key={subTask.id} className="border rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">子任务 {index + 1}</Badge>
-                    <span className="text-sm font-medium">{subTask.name}</span>
                   </div>
-                  {subTask.resource && (
-                    <Badge className="bg-blue-100 text-blue-800">
-                      {subTask.resource.name}
-                    </Badge>
-                  )}
+                  <div>
+                    <Label htmlFor={`name-${index}`} className="text-sm">子任务名称</Label>
+                    <Input
+                      id={`name-${index}`}
+                      type="text"
+                      value={subTask.name}
+                      onChange={(e) => handleNameChange(index, e.target.value)}
+                      className="mt-1"
+                      placeholder="输入子任务名称"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -382,6 +394,16 @@ export function TaskSplitDialog({
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                  )}
+
+                  {/* 显示当前分配的资源 */}
+                  {subTask.resource && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-600 dark:text-slate-400">当前负责人：</span>
+                      <Badge className="bg-blue-100 text-blue-800">
+                        {subTask.resource.name}
+                      </Badge>
                     </div>
                   )}
                 </div>
