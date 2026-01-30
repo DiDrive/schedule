@@ -490,6 +490,9 @@ export default function GanttChart({
                       const position = getTaskPosition(task);
                       const taskColor = getTaskColor(task, isCritical);
 
+                      // 检查任务是否超期
+                      const isOverdue = task.deadline && task.endDate && task.endDate > task.deadline;
+
                       return (
                         <div
                           key={task.id}
@@ -514,6 +517,11 @@ export default function GanttChart({
                             {isCritical && (
                               <Badge variant="destructive" className="text-xs ml-4 mt-1">
                                 关键路径
+                              </Badge>
+                            )}
+                            {isOverdue && (
+                              <Badge className="text-xs ml-4 mt-1 bg-red-600 hover:bg-red-700">
+                                超期
                               </Badge>
                             )}
                             {resources && (
@@ -546,13 +554,15 @@ export default function GanttChart({
 
                             {/* 任务条 */}
                             <div
-                              className="absolute top-1/2 -translate-y-1/2 h-5 rounded shadow-sm cursor-pointer hover:shadow-md transition-all hover:h-6"
+                              className={`absolute top-1/2 -translate-y-1/2 h-5 rounded shadow-sm cursor-pointer hover:shadow-md transition-all hover:h-6 ${
+                                isOverdue ? 'border-2 border-red-600 shadow-lg' : ''
+                              }`}
                               style={{
                                 left: `${position.left}%`,
                                 width: `${Math.max(position.width, 0.3)}%`,
-                                backgroundColor: taskColor
+                                backgroundColor: isOverdue ? '#fee2e2' : taskColor
                               }}
-                              title={`${task.name}: ${formatDateTime(task.startDate || startDayTime)} - ${formatDateTime(task.endDate || endDayTime)}`}
+                              title={`${task.name}: ${formatDateTime(task.startDate || startDayTime)} - ${formatDateTime(task.endDate || endDayTime)}${isOverdue ? ' (已超期)' : ''}`}
                             />
 
                             {/* 工时标记 */}
@@ -585,6 +595,10 @@ export default function GanttChart({
           <div className="flex items-center gap-2">
             <Badge variant="destructive" className="text-xs py-0 px-2">关键路径</Badge>
             <span>关键路径任务</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded bg-red-100 border-2 border-red-600" />
+            <span>超期任务</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rotate-45 bg-amber-500 border-2 border-amber-300" />
