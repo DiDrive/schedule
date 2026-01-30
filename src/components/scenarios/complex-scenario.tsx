@@ -365,7 +365,20 @@ export default function ComplexScenario() {
           endDate: t.endDate ? new Date(t.endDate) : undefined
         };
       });
-      setTasks(tasksWithDates);
+
+      // 去重：移除重复的任务ID，保留第一个出现的
+      const uniqueTasks: Task[] = [];
+      const seenIds = new Set<string>();
+      for (const task of tasksWithDates) {
+        if (!seenIds.has(task.id)) {
+          seenIds.add(task.id);
+          uniqueTasks.push(task);
+        } else {
+          console.warn(`发现重复的任务ID: ${task.id}，已移除`);
+        }
+      }
+
+      setTasks(uniqueTasks);
     }
     if (savedResources) {
       setSharedResources(JSON.parse(savedResources));
@@ -373,21 +386,35 @@ export default function ComplexScenario() {
     if (savedScheduleResult) {
       const parsed = JSON.parse(savedScheduleResult);
       // 将日期字符串转换回 Date 对象
+      const tasksWithDates = parsed.tasks.map((t: Task) => {
+        const deadline = t.deadline ? new Date(t.deadline) : undefined;
+        // 统一将截止日期时间设置为18:30:00（下班时间）
+        if (deadline) {
+          deadline.setHours(18, 30, 0, 0);
+        }
+        return {
+          ...t,
+          deadline,
+          startDate: t.startDate ? new Date(t.startDate) : undefined,
+          endDate: t.endDate ? new Date(t.endDate) : undefined
+        };
+      });
+
+      // 去重：移除重复的任务ID，保留第一个出现的
+      const uniqueTasks: Task[] = [];
+      const seenIds = new Set<string>();
+      for (const task of tasksWithDates) {
+        if (!seenIds.has(task.id)) {
+          seenIds.add(task.id);
+          uniqueTasks.push(task);
+        } else {
+          console.warn(`发现重复的任务ID: ${task.id}，已移除`);
+        }
+      }
+
       const scheduleResultWithDates = {
         ...parsed,
-        tasks: parsed.tasks.map((t: Task) => {
-          const deadline = t.deadline ? new Date(t.deadline) : undefined;
-          // 统一将截止日期时间设置为18:30:00（下班时间）
-          if (deadline) {
-            deadline.setHours(18, 30, 0, 0);
-          }
-          return {
-            ...t,
-            deadline,
-            startDate: t.startDate ? new Date(t.startDate) : undefined,
-            endDate: t.endDate ? new Date(t.endDate) : undefined
-          };
-        }),
+        tasks: uniqueTasks,
         resourceConflicts: parsed.resourceConflicts.map((rc: any) => ({
           ...rc,
           timeRange: {
