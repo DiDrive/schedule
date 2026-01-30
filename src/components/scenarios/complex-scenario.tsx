@@ -351,6 +351,7 @@ export default function ComplexScenario() {
     }
     if (savedTasks) {
       const parsed = JSON.parse(savedTasks);
+
       // 将日期字符串转换回 Date 对象
       const tasksWithDates = parsed.map((t: Task) => {
         const deadline = t.deadline ? new Date(t.deadline) : undefined;
@@ -370,6 +371,15 @@ export default function ComplexScenario() {
       const uniqueTasks: Task[] = [];
       const seenIds = new Set<string>();
       for (const task of tasksWithDates) {
+        // 检测是否是旧的嵌套格式ID（包含多个 -sub- 或 -summary）
+        const subCount = (task.id.match(/-sub-/g) || []).length;
+        const hasOldFormat = subCount > 1 || task.id.includes('-summary');
+
+        if (hasOldFormat) {
+          console.warn(`发现旧的嵌套格式ID: ${task.id}，已跳过加载`);
+          continue;
+        }
+
         if (!seenIds.has(task.id)) {
           seenIds.add(task.id);
           uniqueTasks.push(task);
@@ -404,6 +414,15 @@ export default function ComplexScenario() {
       const uniqueTasks: Task[] = [];
       const seenIds = new Set<string>();
       for (const task of tasksWithDates) {
+        // 检测是否是旧的嵌套格式ID（包含多个 -sub- 或 -summary）
+        const subCount = (task.id.match(/-sub-/g) || []).length;
+        const hasOldFormat = subCount > 1 || task.id.includes('-summary');
+
+        if (hasOldFormat) {
+          console.warn(`发现旧的嵌套格式ID: ${task.id}，已跳过加载`);
+          continue;
+        }
+
         if (!seenIds.has(task.id)) {
           seenIds.add(task.id);
           uniqueTasks.push(task);
