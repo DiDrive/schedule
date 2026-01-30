@@ -1017,6 +1017,54 @@ export default function ComplexScenario() {
         </CardContent>
       </Card>
 
+      {/* 资源效率说明 */}
+      <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+        <CardContent className="pt-6">
+          <h4 className="font-semibold mb-3 text-blue-900 dark:text-blue-100">⚡ 资源效率说明</h4>
+          <div className="text-sm text-blue-700 dark:text-blue-300">
+            <div className="font-medium mb-2">效率系数影响任务实际完成时间：</div>
+            <div className="grid gap-2 md:grid-cols-3">
+              {(() => {
+                // 按效率分组显示，不按等级分组
+                const resourcesByEfficiency = sharedResources.filter(r => r.type === 'human');
+                if (resourcesByEfficiency.length === 0) return null;
+
+                const sortedResources = [...resourcesByEfficiency].sort((a, b) => {
+                  const effA = a.efficiency || 1.0;
+                  const effB = b.efficiency || 1.0;
+                  return effB - effA;
+                });
+
+                const baseHours = 8; // 示例：8小时任务
+
+                return sortedResources.map(resource => {
+                  const eff = resource.efficiency || 1.0;
+                  const actualHours = baseHours / eff;
+                  const efficiencyLabel = eff >= 1.5 ? '高' : eff >= 1.0 ? '中' : '低';
+                  const colorClass = eff >= 1.5 ? 'text-purple-500' : eff >= 1.0 ? 'text-blue-500' : 'text-slate-500';
+
+                  return (
+                    <div key={resource.id} className="flex items-start gap-2">
+                      <span className={`${colorClass} font-bold min-w-[60px]}`}>{resource.name}</span>
+                      <span>效率{eff.toFixed(1)}倍，{baseHours}小时任务实际用时{actualHours.toFixed(1)}小时（{efficiencyLabel}效率）</span>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+            <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+              <strong>说明：</strong>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li>效率越高，完成任务用时越短（实际工时 = 预估工时 / 效率）</li>
+                <li>等级（高级/初级/助理）仅作为默认效率值的参考，可以自定义</li>
+                <li>甘特图任务条长度反映实际完成时间，高效率人员的任务条更短</li>
+                <li>资源分配会综合考虑累计工时和效率，确保负载均衡</li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Projects Overview */}
       <Card>
         <CardHeader>
@@ -1180,8 +1228,8 @@ export default function ComplexScenario() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button 
-            onClick={handleGenerateSchedule} 
+          <Button
+            onClick={handleGenerateSchedule}
             disabled={isComputing}
             className="gap-2"
           >
@@ -1191,58 +1239,10 @@ export default function ComplexScenario() {
         </div>
       </div>
 
-      {/* 资源效率说明 */}
-      <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
-        <CardContent className="pt-6">
-          <h4 className="font-semibold mb-3 text-blue-900 dark:text-blue-100">⚡ 资源效率说明</h4>
-          <div className="text-sm text-blue-700 dark:text-blue-300">
-            <div className="font-medium mb-2">效率系数影响任务实际完成时间：</div>
-            <div className="grid gap-2 md:grid-cols-3">
-              {(() => {
-                // 按效率分组显示，不按等级分组
-                const resourcesByEfficiency = sharedResources.filter(r => r.type === 'human');
-                if (resourcesByEfficiency.length === 0) return null;
-
-                const sortedResources = [...resourcesByEfficiency].sort((a, b) => {
-                  const effA = a.efficiency || 1.0;
-                  const effB = b.efficiency || 1.0;
-                  return effB - effA;
-                });
-
-                const baseHours = 8; // 示例：8小时任务
-
-                return sortedResources.map(resource => {
-                  const eff = resource.efficiency || 1.0;
-                  const actualHours = baseHours / eff;
-                  const efficiencyLabel = eff >= 1.5 ? '高' : eff >= 1.0 ? '中' : '低';
-                  const colorClass = eff >= 1.5 ? 'text-purple-500' : eff >= 1.0 ? 'text-blue-500' : 'text-slate-500';
-
-                  return (
-                    <div key={resource.id} className="flex items-start gap-2">
-                      <span className={`${colorClass} font-bold min-w-[60px]}`}>{resource.name}</span>
-                      <span>效率{eff.toFixed(1)}倍，{baseHours}小时任务实际用时{actualHours.toFixed(1)}小时（{efficiencyLabel}效率）</span>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-            <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
-              <strong>说明：</strong>
-              <ul className="list-disc list-inside mt-1 space-y-1">
-                <li>效率越高，完成任务用时越短（实际工时 = 预估工时 / 效率）</li>
-                <li>等级（高级/初级/助理）仅作为默认效率值的参考，可以自定义</li>
-                <li>甘特图任务条长度反映实际完成时间，高效率人员的任务条更短</li>
-                <li>资源分配会综合考虑累计工时和效率，确保负载均衡</li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Task Management Table */}
+      {/* Task Management Card */}
       <Card>
         <CardHeader>
-          <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <GitBranch className="h-5 w-5 text-purple-500" />
