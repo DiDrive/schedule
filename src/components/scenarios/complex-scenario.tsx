@@ -1124,8 +1124,27 @@ export default function ComplexScenario() {
         </CardContent>
       </Card>
 
+
+      {/* Task Type Tabs */}
+      <Tabs value={activeTaskType} onValueChange={(value) => setActiveTaskType(value as 'all' | '平面' | '后期' | '物料')} className="mb-4">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="all">
+            全部 ({tasks.filter(task => activeProject === 'all' || task.projectId === activeProject).length})
+          </TabsTrigger>
+          <TabsTrigger value="平面">
+            平面 ({tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '平面').length})
+          </TabsTrigger>
+          <TabsTrigger value="后期">
+            后期 ({tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '后期').length})
+          </TabsTrigger>
+          <TabsTrigger value="物料">
+            物料 ({tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '物料').length})
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {/* Action Bar */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="gap-1">
             <Users className="h-3 w-3" />
@@ -1171,72 +1190,6 @@ export default function ComplexScenario() {
           </Button>
         </div>
       </div>
-
-      {/* 资源效率说明 */}
-      <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
-        <CardContent className="pt-6">
-          <h4 className="font-semibold mb-3 text-blue-900 dark:text-blue-100">⚡ 资源效率说明</h4>
-          <div className="text-sm text-blue-700 dark:text-blue-300">
-            <div className="font-medium mb-2">效率系数影响任务实际完成时间：</div>
-            <div className="grid gap-2 md:grid-cols-3">
-              {(() => {
-                // 按效率分组显示，不按等级分组
-                const resourcesByEfficiency = sharedResources.filter(r => r.type === 'human');
-                if (resourcesByEfficiency.length === 0) return null;
-
-                const sortedResources = [...resourcesByEfficiency].sort((a, b) => {
-                  const effA = a.efficiency || 1.0;
-                  const effB = b.efficiency || 1.0;
-                  return effB - effA;
-                });
-
-                const baseHours = 8; // 示例：8小时任务
-
-                return sortedResources.map(resource => {
-                  const eff = resource.efficiency || 1.0;
-                  const actualHours = baseHours / eff;
-                  const efficiencyLabel = eff >= 1.5 ? '高' : eff >= 1.0 ? '中' : '低';
-                  const colorClass = eff >= 1.5 ? 'text-purple-500' : eff >= 1.0 ? 'text-blue-500' : 'text-slate-500';
-
-                  return (
-                    <div key={resource.id} className="flex items-start gap-2">
-                      <span className={`${colorClass} font-bold min-w-[60px]}`}>{resource.name}</span>
-                      <span>效率{eff.toFixed(1)}倍，{baseHours}小时任务实际用时{actualHours.toFixed(1)}小时（{efficiencyLabel}效率）</span>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-            <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
-              <strong>说明：</strong>
-              <ul className="list-disc list-inside mt-1 space-y-1">
-                <li>效率越高，完成任务用时越短（实际工时 = 预估工时 / 效率）</li>
-                <li>等级（高级/初级/助理）仅作为默认效率值的参考，可以自定义</li>
-                <li>甘特图任务条长度反映实际完成时间，高效率人员的任务条更短</li>
-                <li>资源分配会综合考虑累计工时和效率，确保负载均衡</li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Task Type Tabs */}
-      <Tabs value={activeTaskType} onValueChange={(value) => setActiveTaskType(value as 'all' | '平面' | '后期' | '物料')} className="mb-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="all">
-            全部 ({tasks.filter(task => activeProject === 'all' || task.projectId === activeProject).length})
-          </TabsTrigger>
-          <TabsTrigger value="平面">
-            平面 ({tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '平面').length})
-          </TabsTrigger>
-          <TabsTrigger value="后期">
-            后期 ({tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '后期').length})
-          </TabsTrigger>
-          <TabsTrigger value="物料">
-            物料 ({tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '物料').length})
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
 
       {/* Task Management Table */}
       <Card>
@@ -1838,164 +1791,7 @@ export default function ComplexScenario() {
               </CardContent>
             </Card>
 
-            {/* Dependency Visualization */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <GitBranch className="h-5 w-5 text-purple-500" />
-                  任务依赖关系
-                </CardTitle>
-                <CardDescription>展示任务间的前置依赖关系</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {filteredTasks
-                    .filter(task => task.dependencies && task.dependencies.length > 0)
-                    .map(task => (
-                      <div key={task.id} className="rounded-lg border p-3">
-                        <div className="mb-2 flex items-center gap-2">
-                          <span className="font-medium">{task.name}</span>
-                          <Badge variant="outline" className="text-xs">依赖于</Badge>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {task.dependencies?.map(depId => {
-                            const depTask = tasks.find(t => t.id === depId);
-                            if (!depTask) return null;
-                            return (
-                              <Badge key={depId} variant="secondary">
-                                {depTask.name}
-                              </Badge>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </CardContent>
-            </Card>
 
-            {/* Resource Conflicts */}
-            {scheduleResult.resourceConflicts.length > 0 && (
-              <Card className="border-orange-200 dark:border-orange-900">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-orange-600">
-                    <AlertTriangle className="h-5 w-5" />
-                    跨项目资源冲突
-                  </CardTitle>
-                  <CardDescription>
-                    检测到 {scheduleResult.resourceConflicts.length} 个资源在不同项目间的冲突
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {scheduleResult.resourceConflicts.map((conflict, index) => (
-                      <div key={index} className="rounded-lg border border-orange-200 bg-orange-50 p-4 dark:border-orange-900 dark:bg-orange-950">
-                        <div className="mb-2 flex items-center gap-2">
-                          <Badge variant={conflict.severity === 'high' ? 'destructive' : 'secondary'}>
-                            {conflict.severity === 'high' ? '高' : conflict.severity === 'medium' ? '中' : '低'}
-                          </Badge>
-                          <span className="font-medium">{conflict.resourceName}</span>
-                        </div>
-                        <div className="mb-2 flex flex-wrap gap-2">
-                          {conflict.tasks.map(taskId => {
-                            const task = tasks.find(t => t.id === taskId);
-                            const project = task ? getProjectById(task.projectId || '') : null;
-                            return (
-                              <Badge key={taskId} variant="outline">
-                                {task?.name} {project && `(${project.name})`}
-                              </Badge>
-                            );
-                          })}
-                        </div>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">
-                          {conflict.suggestedResolution}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Resource Utilization */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-blue-500" />
-                  资源利用率分析
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {sharedResources.map(resource => {
-                    const utilization = scheduleResult.resourceUtilization[resource.id] || 0;
-                    const utilizationPercent = Math.round(utilization * 100);
-                    
-                    return (
-                      <div key={resource.id} className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="font-medium">{resource.name}</span>
-                          <span className={utilizationPercent > 90 ? 'text-red-500' : utilizationPercent < 50 ? 'text-orange-500' : 'text-green-500'}>
-                            {utilizationPercent}%
-                          </span>
-                        </div>
-                        <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-700">
-                          <div
-                            className={`h-2 rounded-full ${
-                              utilizationPercent > 90 ? 'bg-red-500' : 
-                              utilizationPercent < 50 ? 'bg-orange-500' : 'bg-green-500'
-                            }`}
-                            style={{ width: `${utilizationPercent}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Recommendations */}
-            {scheduleResult.recommendations.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    优化建议
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {scheduleResult.recommendations.map((rec, index) => (
-                      <div key={index} className="flex items-start gap-2 text-sm">
-                        <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0" />
-                        <span className="text-slate-700 dark:text-slate-300">{rec}</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* AI Optimization Suggestions */}
-            {aiSuggestion && (
-              <Card className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 border-purple-200 dark:border-purple-800">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-purple-900 dark:text-purple-100">
-                    <Sparkles className="h-5 w-5 text-purple-600" />
-                    AI智能优化建议
-                  </CardTitle>
-                  <CardDescription className="text-purple-700 dark:text-purple-300">
-                    基于大语言模型分析，为您提供最高效率的排期优化方案
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="prose prose-sm max-w-none dark:prose-invert">
-                    <div className="whitespace-pre-wrap">{aiSuggestion}</div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </TabsContent>
         </Tabs>
       )}
