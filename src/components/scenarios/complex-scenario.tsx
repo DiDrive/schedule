@@ -533,7 +533,7 @@ export default function ComplexScenario() {
   };
 
   // 处理任务拆分
-  const handleTaskSplit = (subTasks: any[]) => {
+  const handleTaskSplit = (subTasks: any[], summaryHours: number) => {
     if (!selectedTaskForSplit) return;
 
     setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
@@ -560,8 +560,8 @@ export default function ComplexScenario() {
     const summaryTask: Task = {
       id: `${selectedTaskForSplit.id}-summary`,
       name: `${selectedTaskForSplit.name}（汇总）`,
-      description: '等待所有子任务完成',
-      estimatedHours: 0,
+      description: summaryHours > 0 ? `等待所有子任务完成并进行整合（需要 ${summaryHours} 小时）` : '等待所有子任务完成',
+      estimatedHours: summaryHours || 0,
       assignedResources: [],
       priority: 'high',
       status: 'pending',

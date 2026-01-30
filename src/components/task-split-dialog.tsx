@@ -36,7 +36,7 @@ interface TaskSplitDialogProps {
   resources: Resource[];
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (subTasks: SubTask[]) => void;
+  onConfirm: (subTasks: SubTask[], summaryHours: number) => void;
 }
 
 export function TaskSplitDialog({
@@ -49,6 +49,7 @@ export function TaskSplitDialog({
   const [segmentCount, setSegmentCount] = useState<number>(3);
   const [assignmentMode, setAssignmentMode] = useState<'auto' | 'manual'>('auto');
   const [subTasks, setSubTasks] = useState<SubTask[]>([]);
+  const [summaryHours, setSummaryHours] = useState<number>(0); // 汇总任务工时
   const [isLoading, setIsLoading] = useState(false);
   const isAutoAssigning = useRef(false); // 跟踪是否正在自动分配
 
@@ -174,8 +175,13 @@ export function TaskSplitDialog({
       }
     });
 
+    // 加上汇总任务的工时
+    if (summaryHours > 0) {
+      maxEndDate = calculateEndDate(maxEndDate, summaryHours);
+    }
+
     return maxEndDate;
-  }, [subTasks, task]);
+  }, [subTasks, task, summaryHours]);
 
   // 检查是否能在截止日期前完成
   const canMeetDeadline = useMemo(() => {
@@ -228,7 +234,7 @@ export function TaskSplitDialog({
   const handleConfirm = () => {
     setIsLoading(true);
     setTimeout(() => {
-      onConfirm(subTasks);
+      onConfirm(subTasks, summaryHours);
       setIsLoading(false);
       onClose();
     }, 500);
@@ -241,48 +247,50 @@ export function TaskSplitDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[85vh]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 text-lg">
             <Users className="h-5 w-5" />
             任务拆分
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-sm">
             将任务 "{task.name}" 拆分为多个子任务，由多人并行完成，争取在截止日期前完成
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* 任务信息 */}
-          <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Badge variant={task.taskType === '平面' ? 'default' : task.taskType === '后期' ? 'secondary' : 'outline'}>
-                  {task.taskType}任务
-                </Badge>
-                <span className="font-medium">{task.name}</span>
+        <div className="flex flex-col overflow-hidden" style={{ maxHeight: 'calc(85vh - 120px)' }}>
+          <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+            {/* 任务信息 */}
+            <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-lg space-y-2">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant={task.taskType === '平面' ? 'default' : task.taskType === '后期' ? 'secondary' : 'outline'} className="text-xs">
+                    {task.taskType}任务
+                  </Badge>
+                  <span className="font-medium text-sm">{task.name}</span>
+                </div>
+                {remainingTime !== null && remainingTime < task.estimatedHours && (
+                  <Badge variant="destructive" className="flex items-center gap-1 text-xs">
+                    <AlertTriangle className="h-3 w-3" />
+                    超期 {(task.estimatedHours - remainingTime).toFixed(1)}h
+                  </Badge>
+                )}
               </div>
-              {remainingTime !== null && remainingTime < task.estimatedHours && (
-                <Badge variant="destructive" className="flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3" />
-                  超期 {(task.estimatedHours - remainingTime).toFixed(1)}h
-                </Badge>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-slate-500" />
-                <span className="text-slate-600 dark:text-slate-400">预估工时：</span>
-                <span className="font-medium">{task.estimatedHours}h</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-slate-500" />
-                <span className="text-slate-600 dark:text-slate-400">截止日期：</span>
-                <span className="font-medium">{task.deadline ? format(task.deadline, 'yyyy-MM-dd HH:mm', { locale: zhCN }) : '-'}</span>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3 text-slate-500" />
+                  <span className="text-slate-600 dark:text-slate-400">预估工时：</span>
+                  <span className="font-medium">{task.estimatedHours}h</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3 text-slate-500" />
+                  <span className="text-slate-600 dark:text-slate-400">截止日期：</span>
+                  <span className="font-medium">{task.deadline ? format(task.deadline, 'yyyy-MM-dd HH:mm', { locale: zhCN }) : '-'}</span>
+                </div>
               </div>
             </div>
             {remainingTime !== null && (
-              <div className="text-sm">
+              <div className="text-xs">
                 <span className="text-slate-600 dark:text-slate-400">剩余可用时间：</span>
                 <span className={remainingTime < task.estimatedHours ? 'text-red-600 font-medium' : 'text-green-600 font-medium'}>
                   {remainingTime.toFixed(1)}h
@@ -292,11 +300,11 @@ export function TaskSplitDialog({
           </div>
 
           {/* 拆分设置 */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div>
-              <Label className="text-base font-medium">拆分段数</Label>
+              <Label className="text-sm font-medium">拆分段数</Label>
               <Select value={segmentCount.toString()} onValueChange={(value) => setSegmentCount(parseInt(value))}>
-                <SelectTrigger className="w-full mt-2">
+                <SelectTrigger className="w-full mt-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -306,13 +314,10 @@ export function TaskSplitDialog({
                   <SelectItem value="5">5段（5人并行）</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-slate-500 mt-1">
-                将任务拆分为 {segmentCount} 个子任务，由 {segmentCount} 人并行完成
-              </p>
             </div>
 
             <div>
-              <Label className="text-base font-medium">分配方式</Label>
+              <Label className="text-sm font-medium">分配方式</Label>
               <RadioGroup value={assignmentMode} onValueChange={(value) => setAssignmentMode(value as 'auto' | 'manual')} className="mt-2">
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="auto" id="auto" />
@@ -337,35 +342,36 @@ export function TaskSplitDialog({
           </div>
 
           {/* 子任务列表 */}
-          <div className="space-y-3">
-            <Label className="text-base font-medium">子任务分配</Label>
-            {subTasks.map((subTask, index) => (
-              <div key={subTask.id} className="border rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">子任务 {index + 1}</Badge>
-                    <span className="text-sm font-medium">{subTask.name}</span>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">子任务分配</Label>
+            <div className="space-y-2">
+              {subTasks.map((subTask, index) => (
+                <div key={subTask.id} className="border rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">子任务 {index + 1}</Badge>
+                      <span className="text-xs font-medium">{subTask.name}</span>
+                    </div>
+                    {subTask.resource && (
+                      <Badge className="bg-blue-100 text-blue-800 text-xs">
+                        {subTask.resource.name}
+                      </Badge>
+                    )}
                   </div>
-                  {subTask.resource && (
-                    <Badge className="bg-blue-100 text-blue-800">
-                      {subTask.resource.name}
-                    </Badge>
-                  )}
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor={`hours-${index}`} className="text-sm">预估工时（小时）</Label>
-                    <Input
-                      id={`hours-${index}`}
-                      type="number"
-                      step="0.5"
-                      min="0.5"
-                      value={subTask.estimatedHours}
-                      onChange={(e) => handleHoursChange(index, e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label htmlFor={`hours-${index}`} className="text-xs">预估工时（小时）</Label>
+                      <Input
+                        id={`hours-${index}`}
+                        type="number"
+                        step="0.5"
+                        min="0.5"
+                        value={subTask.estimatedHours}
+                        onChange={(e) => handleHoursChange(index, e.target.value)}
+                        className="mt-1 h-8 text-sm"
+                      />
+                    </div>
 
                   {assignmentMode === 'manual' && (
                     <div>
@@ -396,26 +402,51 @@ export function TaskSplitDialog({
                   </div>
                 )}
               </div>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          {/* 汇总任务设置 */}
+          <div className="border-t pt-3 space-y-2">
+            <Label className="text-sm font-medium">汇总任务设置</Label>
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <Label htmlFor="summary-hours" className="text-xs">汇总工时（用于整合子任务）</Label>
+                <Input
+                  id="summary-hours"
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  value={summaryHours}
+                  onChange={(e) => setSummaryHours(parseFloat(e.target.value) || 0)}
+                  className="mt-1 h-8 text-sm"
+                  placeholder="可选，默认0小时"
+                />
+              </div>
+              <div className="text-xs text-slate-500 flex-1">
+                <p>如果子任务完成后需要额外时间进行整合，请设置汇总工时</p>
+                <p className="mt-1">例如：代码合并、测试、文档整理等</p>
+              </div>
+            </div>
           </div>
 
           {/* 预估结果 */}
-          <div className={`p-4 rounded-lg border ${canMeetDeadline ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'}`}>
-            <div className="flex items-start gap-3">
+          <div className={`p-3 rounded-lg border ${canMeetDeadline ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'}`}>
+            <div className="flex items-start gap-2">
               {canMeetDeadline ? (
                 <div className="text-green-600">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
               ) : (
-                <AlertTriangle className="h-6 w-6 text-red-600" />
+                <AlertTriangle className="h-5 w-5 text-red-600" />
               )}
               <div className="flex-1">
-                <div className={`font-medium ${canMeetDeadline ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
+                <div className={`font-medium text-sm ${canMeetDeadline ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
                   {canMeetDeadline ? '可在截止日期前完成' : '仍然超期，建议调整方案'}
                 </div>
-                <div className="text-sm mt-1 space-y-1">
+                <div className="text-xs mt-1 space-y-1">
                   <div>
                     <span className="text-slate-600 dark:text-slate-400">预估完成时间：</span>
                     <span className="font-medium">
@@ -423,8 +454,8 @@ export function TaskSplitDialog({
                     </span>
                   </div>
                   {timeSaved !== null && timeSaved > 0 && (
-                    <div className="flex items-center gap-2 text-green-600">
-                      <TrendingUp className="h-4 w-4" />
+                    <div className="flex items-center gap-1 text-green-600">
+                      <TrendingUp className="h-3 w-3" />
                       <span>节省约 {timeSaved.toFixed(1)} 小时</span>
                     </div>
                   )}
