@@ -17,7 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, Plus, Trash2, CheckCircle, TrendingUp, Settings, Calendar, Download, Sparkles, Loader2, MoreVertical, AlertTriangle } from 'lucide-react';
+import { Play, Plus, Trash2, CheckCircle, TrendingUp, Settings, Calendar, Download, Sparkles, Loader2, MoreVertical, AlertTriangle, Users } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -343,6 +343,93 @@ export default function BasicScenario() {
 
       return { ...t, [field]: value };
     }));
+  };
+
+  // 处理任务拆分
+  const handleTaskSplit = (subTasks: any[], summaryHours: number) => {
+    if (!selectedTaskForSplit) return;
+
+    setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
+    setSavedResolutions(null); // 重置保存的解决方案
+    setPendingConflicts(new Map()); // 清除待处理的冲突
+
+    // 创建子任务
+    const newSubTasks: Task[] = subTasks.map((subTask, index) => ({
+      id: subTask.id,
+      name: subTask.name,
+      description: `任务拆分 - ${selectedTaskForSplit.name} 的第 ${index + 1} 部分`,
+      estimatedHours: subTask.estimatedHours,
+      assignedResources: subTask.assignedResource ? [subTask.assignedResource] : [],
+      priority: 'high', // 拆分任务设为高优先级
+      status: 'pending',
+      dependencies: [
+        ...(selectedTaskForSplit.dependencies || []), // 继承原任务的依赖
+        ...(subTask.dependencies || []) // 子任务之间的依赖关系
+      ],
+      taskType: selectedTaskForSplit.taskType,
+      deadline: selectedTaskForSplit.deadline, // 继承截止日期
+      fixedResourceId: subTask.assignedResource || undefined, // 如果手动指定，则固定资源
+    }));
+
+    // 创建一个汇总任务（用于等待所有子任务完成）
+    const summaryTask: Task = {
+      id: `${selectedTaskForSplit.id}-summary`,
+      name: `${selectedTaskForSplit.name}（汇总）`,
+      description: summaryHours > 0 ? `等待所有子任务完成并进行整合（需要 ${summaryHours} 小时）` : '等待所有子任务完成',
+      estimatedHours: summaryHours || 0,
+      assignedResources: [],
+      priority: 'high',
+      status: 'pending',
+      dependencies: newSubTasks.map(t => t.id), // 依赖所有子任务
+      taskType: selectedTaskForSplit.taskType,
+      deadline: selectedTaskForSplit.deadline,
+    };
+
+    // 更新依赖这个任务的其他任务
+    const dependentTasks = tasks.filter(t => t.dependencies?.includes(selectedTaskForSplit.id));
+
+    // 删除原任务
+    const updatedTasks = tasks
+      .map(t => ({
+        ...t,
+        dependencies: t.dependencies?.map(d => d === selectedTaskForSplit.id ? `${selectedTaskForSplit.id}-summary` : d)
+      }))
+      .filter(t => t.id !== selectedTaskForSplit.id);
+
+    // 添加子任务和汇总任务
+    const finalTasks = [...updatedTasks, ...newSubTasks, summaryTask];
+    setTasks(finalTasks);
+    setShowTaskSplitDialog(false);
+    setShowDeadlineWarningDialog(false); // 关闭预警弹窗
+    setSelectedTaskForSplit(null);
+
+    // 直接生成排期，不使用 handleGenerateSchedule 避免循环
+    setIsComputing(true);
+    setTimeout(() => {
+      const result = generateSchedule(finalTasks, resources, new Date(), defaultWorkingHours, conflictStrategy);
+      setScheduleResult(result);
+
+      // 重新检测冲突
+      const newConflicts = detectResourceConflicts(result.tasks, resources, undefined);
+      setPendingConflicts(newConflicts);
+
+      setIsComputing(false);
+    }, 500);
+  };
+
+  // 打开任务拆分弹窗
+  const openTaskSplitDialog = (task: Task) => {
+    setSelectedTaskForSplit(task);
+    setShowTaskSplitDialog(true);
+  };
+
+  // 处理任务点击事件（用于甘特图和日历视图）
+  const handleTaskClick = (task: Task) => {
+    // 只有超期任务才能点击拆分
+    if (task.deadline && task.endDate && task.endDate > task.deadline) {
+      setSelectedTaskForSplit(task);
+      setShowTaskSplitDialog(true);
+    }
   };
 
   const handleAddResource = () => {
@@ -1123,6 +1210,7 @@ export default function BasicScenario() {
                     )
                   }}
                   resources={resources}
+                  onTaskClick={handleTaskClick}
                 />
               )}
 
@@ -1291,6 +1379,7 @@ export default function BasicScenario() {
                   tasks={tasks.filter(task =>
                     activeTaskType === 'all' || task.taskType === activeTaskType
                   )}
+                  onTaskClick={handleTaskClick}
                 />
               )}
             </CardContent>
@@ -1421,6 +1510,17 @@ export default function BasicScenario() {
                             </div>
                           </div>
                         </div>
+                        {/* 拆分任务按钮 - 只有超期任务才显示 */}
+                        {daysToDeadline < 0 && (
+                          <Button
+                            size="sm"
+                            onClick={() => openTaskSplitDialog(task)}
+                            className="gap-1"
+                          >
+                            <Users className="h-4 w-4" />
+                            拆分任务
+                          </Button>
+                        )}
                       </div>
                     </div>
                   );
@@ -1440,6 +1540,15 @@ export default function BasicScenario() {
         conflicts={pendingConflicts}
         onConfirm={handleConflictResolution}
         onClose={() => setConflictDialogOpen(false)}
+      />
+
+      {/* 任务拆分对话框 */}
+      <TaskSplitDialog
+        task={selectedTaskForSplit}
+        resources={resources}
+        isOpen={showTaskSplitDialog}
+        onClose={() => setShowTaskSplitDialog(false)}
+        onConfirm={handleTaskSplit}
       />
     </div>
   );

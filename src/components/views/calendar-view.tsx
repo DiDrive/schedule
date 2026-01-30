@@ -163,7 +163,7 @@ export function CalendarView({ scheduledTasks, resources, tasks, onTaskClick }: 
       // 只添加真正有实际工作且在当前月份的日期
       let taskDate = new Date(startDate);
       const startWorkHour = 9.5; // 9:30
-      const endWorkHour = 19; // 19:00
+      const endWorkHour = 18.5; // 18:30
       const lunchStart = 12; // 12:00
       const lunchEnd = 13.5; // 13:30
 
