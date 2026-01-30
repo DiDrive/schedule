@@ -2055,15 +2055,17 @@ export default function ComplexScenario() {
                             </div>
                           </div>
                         </div>
-                        {/* 拆分任务按钮 */}
-                        <Button
-                          size="sm"
-                          onClick={() => openTaskSplitDialog(task)}
-                          className="gap-1"
-                        >
-                          <Users className="h-4 w-4" />
-                          拆分任务
-                        </Button>
+                        {/* 拆分任务按钮 - 只有超期任务才显示 */}
+                        {daysToDeadline < 0 && (
+                          <Button
+                            size="sm"
+                            onClick={() => openTaskSplitDialog(task)}
+                            className="gap-1"
+                          >
+                            <Users className="h-4 w-4" />
+                            拆分任务
+                          </Button>
+                        )}
                       </div>
                     </div>
                   );
