@@ -3,7 +3,7 @@ import { Task, Resource, ScheduleResult, ResourceConflict, WorkingHoursConfig, R
 // 默认工作时间配置
 const DEFAULT_WORKING_HOURS: WorkingHoursConfig = {
   startHour: 9.5, // 9:30
-  endHour: 19, // 19:00
+  endHour: 18.5, // 18:30
   workDays: [1, 2, 3, 4, 5], // 周一到周五
   lunchBreakStart: 12, // 12:00 午休开始
   lunchBreakEnd: 13.5 // 13:30 午休结束

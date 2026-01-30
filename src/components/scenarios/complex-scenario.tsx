@@ -87,7 +87,7 @@ const defaultProjects: Project[] = [
     name: '宣传片项目',
     description: '企业宣传视频制作',
     priority: 9,
-    deadline: new Date('2024-04-30T19:00:00'),
+    deadline: new Date('2024-04-30T18:30:00'),
     resourcePool: ['res-1', 'res-2', 'res-3', 'res-4'],
     color: '#3b82f6',
     tasks: []
@@ -97,7 +97,7 @@ const defaultProjects: Project[] = [
     name: '广告片项目',
     description: '产品广告视频制作',
     priority: 8,
-    deadline: new Date('2024-05-15T19:00:00'),
+    deadline: new Date('2024-05-15T18:30:00'),
     resourcePool: ['res-1', 'res-3'],
     color: '#10b981',
     tasks: []
@@ -107,7 +107,7 @@ const defaultProjects: Project[] = [
     name: '纪录片项目',
     description: '企业纪录片制作',
     priority: 7,
-    deadline: new Date('2024-06-01T19:00:00'),
+    deadline: new Date('2024-06-01T18:30:00'),
     resourcePool: ['res-2', 'res-5'],
     color: '#f59e0b',
     tasks: []
@@ -337,9 +337,9 @@ export default function ComplexScenario() {
       // 将日期字符串转换回 Date 对象
       const projectsWithDates = parsed.map((p: Project) => {
         const deadline = p.deadline ? new Date(p.deadline) : undefined;
-        // 统一将截止日期时间设置为19:00:00（下班时间）
+        // 统一将截止日期时间设置为18:30:00（下班时间）
         if (deadline) {
-          deadline.setHours(19, 0, 0, 0);
+          deadline.setHours(18, 30, 0, 0);
         }
         return {
           ...p,
@@ -354,9 +354,9 @@ export default function ComplexScenario() {
       // 将日期字符串转换回 Date 对象
       const tasksWithDates = parsed.map((t: Task) => {
         const deadline = t.deadline ? new Date(t.deadline) : undefined;
-        // 统一将截止日期时间设置为19:00:00（下班时间）
+        // 统一将截止日期时间设置为18:30:00（下班时间）
         if (deadline) {
-          deadline.setHours(19, 0, 0, 0);
+          deadline.setHours(18, 30, 0, 0);
         }
         return {
           ...t,
@@ -377,9 +377,9 @@ export default function ComplexScenario() {
         ...parsed,
         tasks: parsed.tasks.map((t: Task) => {
           const deadline = t.deadline ? new Date(t.deadline) : undefined;
-          // 统一将截止日期时间设置为19:00:00（下班时间）
+          // 统一将截止日期时间设置为18:30:00（下班时间）
           if (deadline) {
-            deadline.setHours(19, 0, 0, 0);
+            deadline.setHours(18, 30, 0, 0);
           }
           return {
             ...t,
@@ -397,9 +397,9 @@ export default function ComplexScenario() {
         })),
         projects: parsed.projects.map((p: Project) => {
           const deadline = p.deadline ? new Date(p.deadline) : undefined;
-          // 统一将截止日期时间设置为19:00:00（下班时间）
+          // 统一将截止日期时间设置为18:30:00（下班时间）
           if (deadline) {
-            deadline.setHours(19, 0, 0, 0);
+            deadline.setHours(18, 30, 0, 0);
           }
           return {
             ...p,
@@ -534,11 +534,11 @@ export default function ComplexScenario() {
     setTasks(tasks.map(t => {
       if (t.id !== taskId) return t;
 
-      // 如果修改的是截止日期，将时间设置为19:00（下班时间）
-      const WORK_END_HOUR = 19; // 19:00
+      // 如果修改的是截止日期，将时间设置为18:30（下班时间）
+      const WORK_END_HOUR = 18.5; // 18:30
       if (field === 'deadline' && value instanceof Date) {
         const deadline = new Date(value);
-        deadline.setHours(WORK_END_HOUR, 0, 0, 0); // 设置为19:00:00
+        deadline.setHours(WORK_END_HOUR, 30, 0, 0); // 设置为18:30:00
         value = deadline;
       }
 
@@ -691,11 +691,11 @@ export default function ComplexScenario() {
   };
 
   const handleProjectChange = (projectId: string, field: keyof Project, value: any) => {
-    // 如果修改的是截止日期，将时间设置为19:00（下班时间）
-    const WORK_END_HOUR = 19; // 19:00
+    // 如果修改的是截止日期，将时间设置为18:30（下班时间）
+    const WORK_END_HOUR = 18.5; // 18:30
     if (field === 'deadline' && value instanceof Date) {
       const deadline = new Date(value);
-      deadline.setHours(WORK_END_HOUR, 0, 0, 0); // 设置为19:00:00
+      deadline.setHours(WORK_END_HOUR, 30, 0, 0); // 设置为18:30:00
       value = deadline;
     }
     setProjects(projects.map(p => p.id === projectId ? { ...p, [field]: value } : p));
@@ -1416,12 +1416,15 @@ export default function ComplexScenario() {
                             {(task.taskType as string) === '物料' ? (
                               <span className="text-slate-400">-</span>
                             ) : (
-                              <Input
-                                type="date"
-                                value={formatDateToInputValue(task.deadline)}
-                                onChange={(e) => handleTaskChange(task.id, 'deadline', new Date(e.target.value))}
-                                className="w-36 h-8"
-                              />
+                              <div className="space-y-1">
+                                <Input
+                                  type="date"
+                                  value={formatDateToInputValue(task.deadline)}
+                                  onChange={(e) => handleTaskChange(task.id, 'deadline', new Date(e.target.value))}
+                                  className="w-36 h-8"
+                                />
+                                <p className="text-[10px] text-slate-500">默认到当天18:30</p>
+                              </div>
                             )}
                           </TableCell>
                           <TableCell>
