@@ -37,6 +37,8 @@ import { detectResourceConflicts } from '@/lib/schedule-algorithms';
 const formatDateToInputValue = (date: Date | string | undefined): string => {
   if (!date) return '';
   const d = date instanceof Date ? date : new Date(date);
+  // 检查日期是否有效
+  if (isNaN(d.getTime())) return '';
   return d.toISOString().split('T')[0];
 };
 
@@ -44,6 +46,8 @@ const formatDateToInputValue = (date: Date | string | undefined): string => {
 const formatDateTimeToInputValue = (date: Date | string | undefined): string => {
   if (!date) return '';
   const d = date instanceof Date ? date : new Date(date);
+  // 检查日期是否有效
+  if (isNaN(d.getTime())) return '';
   const year = d.getFullYear();
   const month = (d.getMonth() + 1).toString().padStart(2, '0');
   const day = d.getDate().toString().padStart(2, '0');
@@ -55,6 +59,8 @@ const formatDateTimeToInputValue = (date: Date | string | undefined): string => 
 // 辅助函数：格式化日期时间
 const formatDateTime = (date: Date | string): string => {
   const d = date instanceof Date ? date : new Date(date);
+  // 检查日期是否有效
+  if (isNaN(d.getTime())) return '';
   const hours = d.getHours().toString().padStart(2, '0');
   const minutes = d.getMinutes().toString().padStart(2, '0');
   const month = (d.getMonth() + 1).toString().padStart(2, '0');
@@ -64,6 +70,8 @@ const formatDateTime = (date: Date | string): string => {
 
 const formatDate = (date: Date | string): string => {
   const d = date instanceof Date ? date : new Date(date);
+  // 检查日期是否有效
+  if (isNaN(d.getTime())) return '';
   return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
 };
 
