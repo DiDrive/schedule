@@ -40,7 +40,11 @@ const formatDateToInputValue = (date: Date | string | undefined): string => {
   const d = date instanceof Date ? date : new Date(date);
   // 检查日期是否有效
   if (isNaN(d.getTime())) return '';
-  return d.toISOString().split('T')[0];
+  // 使用本地时间，避免时区问题
+  const year = d.getFullYear();
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 // 辅助函数：将 Date 或字符串转换为 YYYY-MM-DDTHH:mm 格式（用于datetime-local）
@@ -333,8 +337,8 @@ export default function ComplexScenario() {
       // 将日期字符串转换回 Date 对象
       const projectsWithDates = parsed.map((p: Project) => {
         const deadline = p.deadline ? new Date(p.deadline) : undefined;
-        // 如果截止日期是00:00:00（午夜），设置为19:00:00（下班时间）
-        if (deadline && deadline.getHours() === 0 && deadline.getMinutes() === 0) {
+        // 统一将截止日期时间设置为19:00:00（下班时间）
+        if (deadline) {
           deadline.setHours(19, 0, 0, 0);
         }
         return {
@@ -350,8 +354,8 @@ export default function ComplexScenario() {
       // 将日期字符串转换回 Date 对象
       const tasksWithDates = parsed.map((t: Task) => {
         const deadline = t.deadline ? new Date(t.deadline) : undefined;
-        // 如果截止日期是00:00:00（午夜），设置为19:00:00（下班时间）
-        if (deadline && deadline.getHours() === 0 && deadline.getMinutes() === 0) {
+        // 统一将截止日期时间设置为19:00:00（下班时间）
+        if (deadline) {
           deadline.setHours(19, 0, 0, 0);
         }
         return {
@@ -373,8 +377,8 @@ export default function ComplexScenario() {
         ...parsed,
         tasks: parsed.tasks.map((t: Task) => {
           const deadline = t.deadline ? new Date(t.deadline) : undefined;
-          // 如果截止日期是00:00:00（午夜），设置为19:00:00（下班时间）
-          if (deadline && deadline.getHours() === 0 && deadline.getMinutes() === 0) {
+          // 统一将截止日期时间设置为19:00:00（下班时间）
+          if (deadline) {
             deadline.setHours(19, 0, 0, 0);
           }
           return {
@@ -393,8 +397,8 @@ export default function ComplexScenario() {
         })),
         projects: parsed.projects.map((p: Project) => {
           const deadline = p.deadline ? new Date(p.deadline) : undefined;
-          // 如果截止日期是00:00:00（午夜），设置为19:00:00（下班时间）
-          if (deadline && deadline.getHours() === 0 && deadline.getMinutes() === 0) {
+          // 统一将截止日期时间设置为19:00:00（下班时间）
+          if (deadline) {
             deadline.setHours(19, 0, 0, 0);
           }
           return {
