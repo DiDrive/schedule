@@ -35,7 +35,7 @@ export default function GanttChart({
 
   // 工作时间配置
   const WORK_START_HOUR = 9.5; // 9:30
-  const WORK_END_HOUR = 19; // 19:00
+  const WORK_END_HOUR = 18.5; // 18:30
   const LUNCH_BREAK_START = 12; // 12:00
   const LUNCH_BREAK_END = 13.5; // 13:30
   const WORK_DAYS = [1, 2, 3, 4, 5]; // 周一到周五

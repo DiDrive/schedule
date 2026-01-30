@@ -32,13 +32,20 @@ import { Task, Resource, ScheduleResult, ResourceLevel, ResourceConflictStrategy
 import GanttChart from '@/components/gantt-chart';
 import { CalendarView } from '@/components/views/calendar-view';
 import { ConflictResolutionDialog } from '@/components/conflict-resolution-dialog';
+import { TaskSplitDialog } from '@/components/task-split-dialog';
 import { detectResourceConflicts } from '@/lib/schedule-algorithms';
 
 // 辅助函数：将 Date 或字符串转换为 YYYY-MM-DD 格式
 const formatDateToInputValue = (date: Date | string | undefined): string => {
   if (!date) return '';
   const d = date instanceof Date ? date : new Date(date);
-  return d.toISOString().split('T')[0];
+  // 检查日期是否有效
+  if (isNaN(d.getTime())) return '';
+  // 使用本地时间，避免时区问题
+  const year = d.getFullYear();
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 // 辅助函数：将 Date 或字符串转换为 YYYY-MM-DDTHH:mm 格式（用于datetime-local）
@@ -128,6 +135,8 @@ export default function BasicScenario() {
   const [savedResolutions, setSavedResolutions] = useState<Map<string, 'switch' | 'delay'> | null>(null);
   const [deadlineWarningCount, setDeadlineWarningCount] = useState(0);
   const [showDeadlineWarningDialog, setShowDeadlineWarningDialog] = useState(false);
+  const [showTaskSplitDialog, setShowTaskSplitDialog] = useState(false);
+  const [selectedTaskForSplit, setSelectedTaskForSplit] = useState<Task | null>(null);
 
   // 使用 ref 跟踪是否已经加载过数据，避免重复加载
   const hasLoadedData = useRef(false);
@@ -147,12 +156,19 @@ export default function BasicScenario() {
     if (savedTasks) {
       const parsed = JSON.parse(savedTasks);
       // 将日期字符串转换回 Date 对象
-      const tasksWithDates = parsed.map((t: Task) => ({
-        ...t,
-        deadline: t.deadline ? new Date(t.deadline) : undefined,
-        startDate: t.startDate ? new Date(t.startDate) : undefined,
-        endDate: t.endDate ? new Date(t.endDate) : undefined
-      }));
+      const tasksWithDates = parsed.map((t: Task) => {
+        const deadline = t.deadline ? new Date(t.deadline) : undefined;
+        // 统一将截止日期时间设置为18:30:00（下班时间）
+        if (deadline) {
+          deadline.setHours(18, 30, 0, 0);
+        }
+        return {
+          ...t,
+          deadline,
+          startDate: t.startDate ? new Date(t.startDate) : undefined,
+          endDate: t.endDate ? new Date(t.endDate) : undefined
+        };
+      });
       setTasks(tasksWithDates);
     }
     if (savedResources) {
@@ -163,12 +179,19 @@ export default function BasicScenario() {
     if (savedScheduleResult) {
       const parsed = JSON.parse(savedScheduleResult);
       // 将日期字符串转换回 Date 对象
-      const tasksWithDates = parsed.tasks.map((t: Task) => ({
-        ...t,
-        deadline: t.deadline ? new Date(t.deadline) : undefined,
-        startDate: t.startDate ? new Date(t.startDate) : undefined,
-        endDate: t.endDate ? new Date(t.endDate) : undefined
-      }));
+      const tasksWithDates = parsed.tasks.map((t: Task) => {
+        const deadline = t.deadline ? new Date(t.deadline) : undefined;
+        // 统一将截止日期时间设置为18:30:00（下班时间）
+        if (deadline) {
+          deadline.setHours(18, 30, 0, 0);
+        }
+        return {
+          ...t,
+          deadline,
+          startDate: t.startDate ? new Date(t.startDate) : undefined,
+          endDate: t.endDate ? new Date(t.endDate) : undefined
+        };
+      });
       setScheduleResult({ ...parsed, tasks: tasksWithDates });
     }
     if (savedStartDate) {
@@ -299,6 +322,14 @@ export default function BasicScenario() {
     setPendingConflicts(new Map()); // 清除待处理的冲突
     setTasks(tasks.map(t => {
       if (t.id !== taskId) return t;
+
+      // 如果修改的是截止日期，将时间设置为18:30（下班时间）
+      const WORK_END_HOUR = 18.5; // 18:30
+      if (field === 'deadline' && value instanceof Date) {
+        const deadline = new Date(value);
+        deadline.setHours(WORK_END_HOUR, 30, 0, 0); // 设置为18:30:00
+        value = deadline;
+      }
 
       // 如果修改的是任务类型，检查当前的 fixedResourceId 是否匹配新的类型
       if (field === 'taskType' && t.fixedResourceId) {
@@ -833,12 +864,19 @@ export default function BasicScenario() {
                           </Select>
                         </TableCell>
                         <TableCell>
-                          <Input
-                            type="date"
-                            value={formatDateToInputValue(task.deadline)}
-                            onChange={(e) => handleTaskChange(task.id, 'deadline', new Date(e.target.value))}
-                            className="w-36 h-8"
-                          />
+                          {(task.taskType as string) === '物料' ? (
+                            <span className="text-slate-400">-</span>
+                          ) : (
+                            <div className="space-y-1">
+                              <Input
+                                type="date"
+                                value={formatDateToInputValue(task.deadline)}
+                                onChange={(e) => handleTaskChange(task.id, 'deadline', new Date(e.target.value))}
+                                className="w-36 h-8"
+                              />
+                              <p className="text-[10px] text-slate-500">默认到当天18:30</p>
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
