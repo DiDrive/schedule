@@ -377,7 +377,7 @@ export function TaskSplitDialog({
                           <SelectItem value="auto">自动选择</SelectItem>
                           {filteredResources.map(resource => (
                             <SelectItem key={resource.id} value={resource.id}>
-                              {resource.name}（效率 {resource.efficiency}，等级 {resource.level}）
+                              {resource.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -414,7 +414,6 @@ export function TaskSplitDialog({
               </div>
               <div className="text-sm text-slate-500 flex-1">
                 <p>如果子任务完成后需要额外时间进行整合，请设置汇总工时</p>
-                <p className="mt-1">例如：代码合并、测试、文档整理等</p>
               </div>
             </div>
           </div>
