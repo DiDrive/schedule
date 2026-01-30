@@ -385,8 +385,9 @@ export default function BasicScenario() {
     }));
 
     // 创建一个汇总任务（用于等待所有子任务完成）
+    const summaryTaskId = `task-summary-${Date.now()}`; // 使用时间戳生成唯一ID
     const summaryTask: Task = {
-      id: `${selectedTaskForSplit.id}-summary`,
+      id: summaryTaskId,
       name: `${selectedTaskForSplit.name}（汇总）`,
       description: summaryHours > 0 ? `等待所有子任务完成并进行整合（需要 ${summaryHours} 小时）` : '等待所有子任务完成',
       estimatedHours: summaryHours || 0,
@@ -405,7 +406,7 @@ export default function BasicScenario() {
     const updatedTasks = tasks
       .map(t => ({
         ...t,
-        dependencies: t.dependencies?.map(d => d === selectedTaskForSplit.id ? `${selectedTaskForSplit.id}-summary` : d)
+        dependencies: t.dependencies?.map(d => d === selectedTaskForSplit.id ? summaryTaskId : d)
       }))
       .filter(t => t.id !== selectedTaskForSplit.id);
 

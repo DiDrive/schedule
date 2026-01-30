@@ -86,13 +86,14 @@ export function TaskSplitDialog({
 
     const hoursPerSegment = Math.ceil(task.estimatedHours / segmentCount);
     const newSubTasks: SubTask[] = [];
+    const timestamp = Date.now(); // 使用时间戳确保ID唯一
 
     for (let i = 0; i < segmentCount; i++) {
       const isLast = i === segmentCount - 1;
       const hours = isLast ? task.estimatedHours - hoursPerSegment * (segmentCount - 1) : hoursPerSegment;
 
       newSubTasks.push({
-        id: `${task.id}-sub-${i}`,
+        id: `task-split-${timestamp}-${i}`, // 使用时间戳生成唯一ID
         name: `${task.name} - 第${i + 1}部分`,
         estimatedHours: hours,
         assignedResource: null,
