@@ -351,7 +351,6 @@ export default function ComplexScenario() {
     }
     if (savedTasks) {
       const parsed = JSON.parse(savedTasks);
-
       // 将日期字符串转换回 Date 对象
       const tasksWithDates = parsed.map((t: Task) => {
         const deadline = t.deadline ? new Date(t.deadline) : undefined;
@@ -366,29 +365,7 @@ export default function ComplexScenario() {
           endDate: t.endDate ? new Date(t.endDate) : undefined
         };
       });
-
-      // 去重：移除重复的任务ID，保留第一个出现的
-      const uniqueTasks: Task[] = [];
-      const seenIds = new Set<string>();
-      for (const task of tasksWithDates) {
-        // 检测是否是旧的嵌套格式ID（包含多个 -sub- 或 -summary）
-        const subCount = (task.id.match(/-sub-/g) || []).length;
-        const hasOldFormat = subCount > 1 || task.id.includes('-summary');
-
-        if (hasOldFormat) {
-          console.warn(`发现旧的嵌套格式ID: ${task.id}，已跳过加载`);
-          continue;
-        }
-
-        if (!seenIds.has(task.id)) {
-          seenIds.add(task.id);
-          uniqueTasks.push(task);
-        } else {
-          console.warn(`发现重复的任务ID: ${task.id}，已移除`);
-        }
-      }
-
-      setTasks(uniqueTasks);
+      setTasks(tasksWithDates);
     }
     if (savedResources) {
       setSharedResources(JSON.parse(savedResources));
@@ -396,44 +373,21 @@ export default function ComplexScenario() {
     if (savedScheduleResult) {
       const parsed = JSON.parse(savedScheduleResult);
       // 将日期字符串转换回 Date 对象
-      const tasksWithDates = parsed.tasks.map((t: Task) => {
-        const deadline = t.deadline ? new Date(t.deadline) : undefined;
-        // 统一将截止日期时间设置为18:30:00（下班时间）
-        if (deadline) {
-          deadline.setHours(18, 30, 0, 0);
-        }
-        return {
-          ...t,
-          deadline,
-          startDate: t.startDate ? new Date(t.startDate) : undefined,
-          endDate: t.endDate ? new Date(t.endDate) : undefined
-        };
-      });
-
-      // 去重：移除重复的任务ID，保留第一个出现的
-      const uniqueTasks: Task[] = [];
-      const seenIds = new Set<string>();
-      for (const task of tasksWithDates) {
-        // 检测是否是旧的嵌套格式ID（包含多个 -sub- 或 -summary）
-        const subCount = (task.id.match(/-sub-/g) || []).length;
-        const hasOldFormat = subCount > 1 || task.id.includes('-summary');
-
-        if (hasOldFormat) {
-          console.warn(`发现旧的嵌套格式ID: ${task.id}，已跳过加载`);
-          continue;
-        }
-
-        if (!seenIds.has(task.id)) {
-          seenIds.add(task.id);
-          uniqueTasks.push(task);
-        } else {
-          console.warn(`发现重复的任务ID: ${task.id}，已移除`);
-        }
-      }
-
       const scheduleResultWithDates = {
         ...parsed,
-        tasks: uniqueTasks,
+        tasks: parsed.tasks.map((t: Task) => {
+          const deadline = t.deadline ? new Date(t.deadline) : undefined;
+          // 统一将截止日期时间设置为18:30:00（下班时间）
+          if (deadline) {
+            deadline.setHours(18, 30, 0, 0);
+          }
+          return {
+            ...t,
+            deadline,
+            startDate: t.startDate ? new Date(t.startDate) : undefined,
+            endDate: t.endDate ? new Date(t.endDate) : undefined
+          };
+        }),
         resourceConflicts: parsed.resourceConflicts.map((rc: any) => ({
           ...rc,
           timeRange: {
@@ -647,9 +601,8 @@ export default function ComplexScenario() {
     }));
 
     // 创建一个汇总任务（用于等待所有子任务完成）
-    const summaryTaskId = `task-summary-${Date.now()}`; // 使用时间戳生成唯一ID
     const summaryTask: Task = {
-      id: summaryTaskId,
+      id: `${selectedTaskForSplit.id}-summary`,
       name: `${selectedTaskForSplit.name}（汇总）`,
       description: summaryHours > 0 ? `等待所有子任务完成并进行整合（需要 ${summaryHours} 小时）` : '等待所有子任务完成',
       estimatedHours: summaryHours || 0,
@@ -669,7 +622,7 @@ export default function ComplexScenario() {
     const updatedTasks = tasks
       .map(t => ({
         ...t,
-        dependencies: t.dependencies?.map(d => d === selectedTaskForSplit.id ? summaryTaskId : d)
+        dependencies: t.dependencies?.map(d => d === selectedTaskForSplit.id ? `${selectedTaskForSplit.id}-summary` : d)
       }))
       .filter(t => t.id !== selectedTaskForSplit.id);
 
