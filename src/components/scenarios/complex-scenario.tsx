@@ -1904,6 +1904,16 @@ export default function ComplexScenario() {
                   );
                   return daysToDeadline < deadlineWarningDays;
                 })
+                .sort((a, b) => {
+                  const daysA = Math.ceil(
+                    (a.deadline!.getTime() - a.endDate!.getTime()) / (1000 * 60 * 60 * 24)
+                  );
+                  const daysB = Math.ceil(
+                    (b.deadline!.getTime() - b.endDate!.getTime()) / (1000 * 60 * 60 * 24)
+                  );
+                  // 超期任务（days < 0）排在前面，临近任务（days >= 0）排在后面
+                  return daysA - daysB;
+                })
                 .map(task => {
                   const resource = sharedResources.find(r => r.id === task.assignedResources[0]);
                   const project = projects.find(p => p.id === task.projectId);
