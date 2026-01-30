@@ -181,8 +181,8 @@ export function TaskSplitDialog({
     const taskStartDate = task.startDate || now;
     const actualStart = now > taskStartDate ? now : taskStartDate;
 
-    // 为每个子任务计算预估时间
-    const subTaskTimes = subTasks.map(subTask => {
+    // 为每个子任务计算预估时间（临时计算，不更新状态）
+    const subTaskTimes: SubTask[] = subTasks.map((subTask, index) => {
       const resource = subTask.resource;
       const efficiency = resource?.efficiency || 1.0;
       const actualHours = subTask.estimatedHours / efficiency;
@@ -191,9 +191,36 @@ export function TaskSplitDialog({
       let maxDependencyEndDate = actualStart;
       if (subTask.dependencies && subTask.dependencies.length > 0) {
         subTask.dependencies.forEach(depId => {
-          const depTask = subTasks.find(st => st.id === depId);
-          if (depTask && depTask.estimatedEnd && depTask.estimatedEnd > maxDependencyEndDate) {
-            maxDependencyEndDate = depTask.estimatedEnd;
+          const depIndex = subTasks.findIndex(st => st.id === depId);
+          // 只能依赖索引小于当前的任务，避免循环依赖
+          if (depIndex !== -1 && depIndex < index) {
+            const depTask = subTasks[depIndex];
+            // 递归计算依赖任务的完成时间
+            const depResource = depTask.resource;
+            const depEfficiency = depResource?.efficiency || 1.0;
+            const depActualHours = depTask.estimatedHours / depEfficiency;
+            
+            let depStart = actualStart;
+            if (depTask.dependencies && depTask.dependencies.length > 0) {
+              depTask.dependencies.forEach(depDepId => {
+                const depDepIndex = subTasks.findIndex(st => st.id === depDepId);
+                if (depDepIndex !== -1 && depDepIndex < depIndex) {
+                  const depDepTask = subTasks[depDepIndex];
+                  const depDepResource = depDepTask.resource;
+                  const depDepEfficiency = depDepResource?.efficiency || 1.0;
+                  const depDepActualHours = depDepTask.estimatedHours / depDepEfficiency;
+                  const depDepEnd = calculateEndDate(actualStart, depDepActualHours);
+                  if (depDepEnd > depStart) {
+                    depStart = depDepEnd;
+                  }
+                }
+              });
+            }
+            
+            const depEnd = calculateEndDate(depStart, depActualHours);
+            if (depEnd > maxDependencyEndDate) {
+              maxDependencyEndDate = depEnd;
+            }
           }
         });
       }
@@ -207,9 +234,6 @@ export function TaskSplitDialog({
         estimatedEnd: endDate
       };
     });
-
-    // 更新子任务的时间
-    setSubTasks(subTaskTimes);
 
     // 找出最晚的子任务完成时间
     let maxEndDate = subTaskTimes.reduce((max, st) => 
@@ -294,8 +318,66 @@ export function TaskSplitDialog({
   // 处理确认
   const handleConfirm = () => {
     setIsLoading(true);
+    
+    // 计算带有预估时间的子任务
+    const now = new Date();
+    const taskStartDate = task?.startDate || now;
+    const actualStart = now > taskStartDate ? now : taskStartDate;
+
+    const subTasksWithTime = subTasks.map((subTask, index) => {
+      const resource = subTask.resource;
+      const efficiency = resource?.efficiency || 1.0;
+      const actualHours = subTask.estimatedHours / efficiency;
+
+      // 找到所有依赖任务的最晚完成时间
+      let maxDependencyEndDate = actualStart;
+      if (subTask.dependencies && subTask.dependencies.length > 0) {
+        subTask.dependencies.forEach(depId => {
+          const depIndex = subTasks.findIndex(st => st.id === depId);
+          // 只能依赖索引小于当前的任务，避免循环依赖
+          if (depIndex !== -1 && depIndex < index) {
+            const depTask = subTasks[depIndex];
+            // 递归计算依赖任务的完成时间
+            const depResource = depTask.resource;
+            const depEfficiency = depResource?.efficiency || 1.0;
+            const depActualHours = depTask.estimatedHours / depEfficiency;
+            
+            let depStart = actualStart;
+            if (depTask.dependencies && depTask.dependencies.length > 0) {
+              depTask.dependencies.forEach(depDepId => {
+                const depDepIndex = subTasks.findIndex(st => st.id === depDepId);
+                if (depDepIndex !== -1 && depDepIndex < depIndex) {
+                  const depDepTask = subTasks[depDepIndex];
+                  const depDepResource = depDepTask.resource;
+                  const depDepEfficiency = depDepResource?.efficiency || 1.0;
+                  const depDepActualHours = depDepTask.estimatedHours / depDepEfficiency;
+                  const depDepEnd = calculateEndDate(actualStart, depDepActualHours);
+                  if (depDepEnd > depStart) {
+                    depStart = depDepEnd;
+                  }
+                }
+              });
+            }
+            
+            const depEnd = calculateEndDate(depStart, depActualHours);
+            if (depEnd > maxDependencyEndDate) {
+              maxDependencyEndDate = depEnd;
+            }
+          }
+        });
+      }
+
+      const endDate = calculateEndDate(maxDependencyEndDate, actualHours);
+      
+      return {
+        ...subTask,
+        estimatedStart: maxDependencyEndDate,
+        estimatedEnd: endDate
+      };
+    });
+
     setTimeout(() => {
-      onConfirm(subTasks, summaryHours);
+      onConfirm(subTasksWithTime, summaryHours);
       setIsLoading(false);
       onClose();
     }, 500);
