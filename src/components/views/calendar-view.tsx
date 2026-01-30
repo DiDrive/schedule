@@ -357,10 +357,10 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
                       const resource = getResource(scheduledTask.assignedResources[0]!);
                       const isMultiDay = isMultiDayTask(scheduledTask, day);
 
+                      if (!task) return null;
+
                       // 检查任务是否超期
                       const isOverdue = task.deadline && task.endDate && task.endDate > task.deadline;
-
-                      if (!task) return null;
 
                       return (
                         <div
