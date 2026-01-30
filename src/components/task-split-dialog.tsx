@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -50,6 +50,7 @@ export function TaskSplitDialog({
   const [assignmentMode, setAssignmentMode] = useState<'auto' | 'manual'>('auto');
   const [subTasks, setSubTasks] = useState<SubTask[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const isAutoAssigning = useRef(false); // 跟踪是否正在自动分配
 
   // 计算剩余时间（从当前时间到截止日期）
   const remainingTime = useMemo(() => {
@@ -62,6 +63,9 @@ export function TaskSplitDialog({
   // 初始化子任务
   useEffect(() => {
     if (!task) return;
+
+    // 清除自动分配标志，因为这是重新初始化
+    isAutoAssigning.current = false;
 
     const hoursPerSegment = Math.ceil(task.estimatedHours / segmentCount);
     const newSubTasks: SubTask[] = [];
@@ -86,7 +90,8 @@ export function TaskSplitDialog({
 
   // 自动分配资源
   useEffect(() => {
-    if (assignmentMode === 'auto' && subTasks.length > 0) {
+    if (assignmentMode === 'auto' && subTasks.length > 0 && !isAutoAssigning.current) {
+      isAutoAssigning.current = true;
       autoAssignResources();
     }
   }, [assignmentMode, subTasks, resources]);
@@ -143,6 +148,11 @@ export function TaskSplitDialog({
     });
 
     setSubTasks(newSubTasks);
+
+    // 清除自动分配标志，防止无限循环
+    setTimeout(() => {
+      isAutoAssigning.current = false;
+    }, 0);
   };
 
   // 计算预估完成时间
@@ -190,6 +200,11 @@ export function TaskSplitDialog({
     const newSubTasks = [...subTasks];
     newSubTasks[index] = { ...newSubTasks[index], estimatedHours: hours };
     setSubTasks(newSubTasks);
+
+    // 清除自动分配标志，防止无限循环
+    setTimeout(() => {
+      isAutoAssigning.current = false;
+    }, 0);
   };
 
   // 处理资源分配变更
@@ -202,6 +217,11 @@ export function TaskSplitDialog({
       resource: resource || null,
     };
     setSubTasks(newSubTasks);
+
+    // 清除自动分配标志，防止无限循环
+    setTimeout(() => {
+      isAutoAssigning.current = false;
+    }, 0);
   };
 
   // 处理确认
