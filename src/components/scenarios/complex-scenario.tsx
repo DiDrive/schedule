@@ -307,6 +307,8 @@ export default function ComplexScenario() {
   const [showDeadlineWarningDialog, setShowDeadlineWarningDialog] = useState(false);
   const [deadlineWarningDays, setDeadlineWarningDays] = useState(3); // 默认3天
   const [showDeadlineSettingsDialog, setShowDeadlineSettingsDialog] = useState(false);
+  const [nearDeadlineCount, setNearDeadlineCount] = useState(0); // 临近任务数
+  const [overdueCount, setOverdueCount] = useState(0); // 超期任务数
 
   // 使用 ref 跟踪是否已经加载过数据，避免重复加载
   const hasLoadedData = useRef(false);
@@ -393,6 +395,8 @@ export default function ComplexScenario() {
   useEffect(() => {
     if (!scheduleResult) {
       setDeadlineWarningCount(0);
+      setNearDeadlineCount(0);
+      setOverdueCount(0);
       return;
     }
 
@@ -407,7 +411,26 @@ export default function ComplexScenario() {
       return daysToDeadline < deadlineWarningDays;
     });
 
+    // 分别计算临近任务数和超期任务数
+    const nearTasks = warningTasks.filter(task => {
+      if (!task.deadline || !task.endDate) return false;
+      const daysToDeadline = Math.ceil(
+        (task.deadline.getTime() - task.endDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      return daysToDeadline >= 0 && daysToDeadline < deadlineWarningDays;
+    });
+
+    const overdueTasks = warningTasks.filter(task => {
+      if (!task.deadline || !task.endDate) return false;
+      const daysToDeadline = Math.ceil(
+        (task.deadline.getTime() - task.endDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      return daysToDeadline < 0;
+    });
+
     setDeadlineWarningCount(warningTasks.length);
+    setNearDeadlineCount(nearTasks.length);
+    setOverdueCount(overdueTasks.length);
   }, [scheduleResult, deadlineWarningDays]);
 
   const handleGenerateSchedule = () => {
@@ -1397,11 +1420,21 @@ export default function ComplexScenario() {
                   <div className="flex items-center justify-between">
                     <div className="cursor-pointer" onClick={() => setShowDeadlineWarningDialog(true)}>
                       <CardDescription>截止日期预警</CardDescription>
-                      <CardTitle className={`text-2xl ${deadlineWarningCount > 0 ? 'text-amber-500' : 'text-green-500'}`}>
-                        {deadlineWarningCount} 个
-                      </CardTitle>
-                      <div className="text-xs text-slate-500 mt-1">
-                        预警阈值：{deadlineWarningDays} 天
+                      <div className="flex items-baseline gap-2">
+                        <CardTitle className={`text-2xl ${overdueCount > 0 ? 'text-red-500' : nearDeadlineCount > 0 ? 'text-amber-500' : 'text-green-500'}`}>
+                          {deadlineWarningCount} 个
+                        </CardTitle>
+                      </div>
+                      <div className="text-xs text-slate-500 mt-1 space-y-1">
+                        <div>
+                          超期：<span className="text-red-500 font-medium">{overdueCount} 个</span>
+                        </div>
+                        <div>
+                          临近：<span className="text-amber-500 font-medium">{nearDeadlineCount} 个</span>
+                        </div>
+                        <div className="text-slate-400">
+                          预警阈值：{deadlineWarningDays} 天
+                        </div>
                       </div>
                     </div>
                     <Button
@@ -1897,7 +1930,7 @@ export default function ComplexScenario() {
                               <Badge variant="outline">{project.name}</Badge>
                             )}
                             {daysToDeadline < 0 && (
-                              <Badge variant="destructive">已超期</Badge>
+                              <Badge variant="destructive">超期</Badge>
                             )}
                             {daysToDeadline === 0 && (
                               <Badge className="bg-orange-500 hover:bg-orange-600">今日截止</Badge>
