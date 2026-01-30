@@ -55,13 +55,26 @@ export function TaskSplitDialog({
   const [isLoading, setIsLoading] = useState(false);
   const isAutoAssigning = useRef(false); // 跟踪是否正在自动分配
 
-  // 计算剩余时间（从当前时间到截止日期）
+  // 计算剩余时间（从任务开始时间或当前时间到截止日期）
   const remainingTime = useMemo(() => {
     if (!task || !task.deadline) return null;
+    
+    // 任务的实际开始时间：如果有 startDate 则使用，否则使用当前时间
+    // 但如果任务已经开始（startDate < now），应该使用 startDate 作为起点
     const now = new Date();
-    const remaining = calculateWorkHours(now, task.deadline);
+    const taskStartDate = task.startDate || now;
+    const actualStart = now > taskStartDate ? now : taskStartDate;
+    
+    const remaining = calculateWorkHours(actualStart, task.deadline);
     return remaining;
   }, [task]);
+
+  // 计算超期小时数
+  const overdueHours = useMemo(() => {
+    if (!task || remainingTime === null) return null;
+    // 如果剩余时间小于任务预估工时，则超期
+    return task.estimatedHours - remainingTime;
+  }, [task, remainingTime]);
 
   // 初始化子任务
   useEffect(() => {
@@ -159,24 +172,50 @@ export function TaskSplitDialog({
     }, 0);
   };
 
-  // 计算预估完成时间
+  // 计算预估完成时间（考虑依赖关系）
   const estimatedEndDate = useMemo(() => {
     if (!task || subTasks.length === 0) return null;
 
-    // 找出最晚的子任务完成时间
-    let maxEndDate = new Date();
+    // 计算每个子任务的开始和结束时间（考虑依赖关系）
     const now = new Date();
+    const taskStartDate = task.startDate || now;
+    const actualStart = now > taskStartDate ? now : taskStartDate;
 
-    subTasks.forEach(subTask => {
+    // 为每个子任务计算预估时间
+    const subTaskTimes = subTasks.map(subTask => {
       const resource = subTask.resource;
       const efficiency = resource?.efficiency || 1.0;
       const actualHours = subTask.estimatedHours / efficiency;
 
-      const endDate = calculateEndDate(now, actualHours);
-      if (endDate > maxEndDate) {
-        maxEndDate = endDate;
+      // 找到所有依赖任务的最晚完成时间
+      let maxDependencyEndDate = actualStart;
+      if (subTask.dependencies && subTask.dependencies.length > 0) {
+        subTask.dependencies.forEach(depId => {
+          const depTask = subTasks.find(st => st.id === depId);
+          if (depTask && depTask.estimatedEnd && depTask.estimatedEnd > maxDependencyEndDate) {
+            maxDependencyEndDate = depTask.estimatedEnd;
+          }
+        });
       }
+
+      // 从依赖任务完成后开始
+      const endDate = calculateEndDate(maxDependencyEndDate, actualHours);
+      
+      return {
+        ...subTask,
+        estimatedStart: maxDependencyEndDate,
+        estimatedEnd: endDate
+      };
     });
+
+    // 更新子任务的时间
+    setSubTasks(subTaskTimes);
+
+    // 找出最晚的子任务完成时间
+    let maxEndDate = subTaskTimes.reduce((max, st) => 
+      st.estimatedEnd > max ? st.estimatedEnd : max, 
+      subTaskTimes[0]?.estimatedEnd || actualStart
+    );
 
     // 加上汇总任务的工时
     if (summaryHours > 0) {
@@ -290,10 +329,10 @@ export function TaskSplitDialog({
                 </Badge>
                 <span className="font-medium">{task.name}</span>
               </div>
-              {remainingTime !== null && remainingTime < task.estimatedHours && (
+              {overdueHours !== null && overdueHours > 0 && (
                 <Badge variant="destructive" className="flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3" />
-                  超期 {(task.estimatedHours - remainingTime).toFixed(1)}h
+                  超期 {overdueHours.toFixed(1)}h
                 </Badge>
               )}
             </div>
