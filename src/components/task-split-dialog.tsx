@@ -397,8 +397,8 @@ export function TaskSplitDialog({
                     </div>
                   )}
 
-                  {/* 显示当前分配的资源 */}
-                  {subTask.resource && (
+                  {/* 手动分配模式下显示当前分配的资源 */}
+                  {assignmentMode === 'manual' && subTask.resource && (
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-slate-600 dark:text-slate-400">当前负责人：</span>
                       <Badge className="bg-blue-100 text-blue-800">
