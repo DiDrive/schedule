@@ -1605,7 +1605,7 @@ export default function ComplexScenario() {
                 <CardHeader>
                   <CardTitle>多项目综合甘特图</CardTitle>
                   <CardDescription>
-                    {activeProject === 'all' ? '所有项目时间线' : getProjectById(activeProject)?.name} 可视化（工作时间：9:30 - 19:00）
+                    {activeProject === 'all' ? '所有项目时间线' : getProjectById(activeProject)?.name} 可视化（工作时间：9:30 - 18:30）
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
