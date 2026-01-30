@@ -14,6 +14,7 @@ interface GanttChartProps {
   projects?: ProjectColor[];
   showHour?: boolean;
   showTaskLevel?: boolean;
+  onTaskClick?: (task: Task) => void;
 }
 
 export default function GanttChart({
@@ -21,7 +22,8 @@ export default function GanttChart({
   resources,
   projects,
   showHour = true,
-  showTaskLevel = true
+  showTaskLevel = true,
+  onTaskClick
 }: GanttChartProps) {
   if (scheduleResult.tasks.length === 0) {
     return (
@@ -563,6 +565,7 @@ export default function GanttChart({
                                 backgroundColor: isOverdue ? '#fee2e2' : taskColor
                               }}
                               title={`${task.name}: ${formatDateTime(task.startDate || startDayTime)} - ${formatDateTime(task.endDate || endDayTime)}${isOverdue ? ' (已超期)' : ''}`}
+                              onClick={() => onTaskClick && onTaskClick(task)}
                             />
 
                             {/* 工时标记 */}

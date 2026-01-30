@@ -31,6 +31,7 @@ import { Task, ScheduleResult, Project, Resource, ResourceLevel, ResourceConflic
 import GanttChart from '@/components/gantt-chart';
 import { CalendarView } from '@/components/views/calendar-view';
 import { ConflictResolutionDialog } from '@/components/conflict-resolution-dialog';
+import { TaskSplitDialog } from '@/components/task-split-dialog';
 import { detectResourceConflicts } from '@/lib/schedule-algorithms';
 
 // 辅助函数：将 Date 或字符串转换为 YYYY-MM-DD 格式
@@ -309,6 +310,8 @@ export default function ComplexScenario() {
   const [showDeadlineSettingsDialog, setShowDeadlineSettingsDialog] = useState(false);
   const [nearDeadlineCount, setNearDeadlineCount] = useState(0); // 临近任务数
   const [overdueCount, setOverdueCount] = useState(0); // 超期任务数
+  const [showTaskSplitDialog, setShowTaskSplitDialog] = useState(false);
+  const [selectedTaskForSplit, setSelectedTaskForSplit] = useState<Task | null>(null);
 
   // 使用 ref 跟踪是否已经加载过数据，避免重复加载
   const hasLoadedData = useRef(false);
@@ -517,7 +520,7 @@ export default function ComplexScenario() {
     setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
     setSavedResolutions(null); // 重置保存的解决方案
     setPendingConflicts(new Map()); // 清除待处理的冲突
-    
+
     // 同时从其他任务的依赖中移除该任务，然后删除任务本身
     const updatedTasks = tasks
       .map(t => ({
@@ -525,8 +528,75 @@ export default function ComplexScenario() {
         dependencies: t.dependencies?.filter(d => d !== taskId)
       }))
       .filter(t => t.id !== taskId);
-    
+
     setTasks(updatedTasks);
+  };
+
+  // 处理任务拆分
+  const handleTaskSplit = (subTasks: any[]) => {
+    if (!selectedTaskForSplit) return;
+
+    setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
+    setSavedResolutions(null); // 重置保存的解决方案
+    setPendingConflicts(new Map()); // 清除待处理的冲突
+
+    // 创建子任务
+    const newSubTasks: Task[] = subTasks.map((subTask, index) => ({
+      id: subTask.id,
+      name: subTask.name,
+      description: `任务拆分 - ${selectedTaskForSplit.name} 的第 ${index + 1} 部分`,
+      estimatedHours: subTask.estimatedHours,
+      assignedResources: subTask.assignedResource ? [subTask.assignedResource] : [],
+      priority: 'high', // 拆分任务设为高优先级
+      status: 'pending',
+      projectId: selectedTaskForSplit.projectId,
+      dependencies: selectedTaskForSplit.dependencies || [], // 继承原任务的依赖
+      taskType: selectedTaskForSplit.taskType,
+      deadline: selectedTaskForSplit.deadline, // 继承截止日期
+      fixedResourceId: subTask.assignedResource || undefined, // 如果手动指定，则固定资源
+    }));
+
+    // 创建一个汇总任务（用于等待所有子任务完成）
+    const summaryTask: Task = {
+      id: `${selectedTaskForSplit.id}-summary`,
+      name: `${selectedTaskForSplit.name}（汇总）`,
+      description: '等待所有子任务完成',
+      estimatedHours: 0,
+      assignedResources: [],
+      priority: 'high',
+      status: 'pending',
+      projectId: selectedTaskForSplit.projectId,
+      dependencies: newSubTasks.map(t => t.id), // 依赖所有子任务
+      taskType: selectedTaskForSplit.taskType,
+      deadline: selectedTaskForSplit.deadline,
+    };
+
+    // 更新依赖这个任务的其他任务
+    const dependentTasks = tasks.filter(t => t.dependencies?.includes(selectedTaskForSplit.id));
+
+    // 删除原任务
+    const updatedTasks = tasks
+      .map(t => ({
+        ...t,
+        dependencies: t.dependencies?.map(d => d === selectedTaskForSplit.id ? `${selectedTaskForSplit.id}-summary` : d)
+      }))
+      .filter(t => t.id !== selectedTaskForSplit.id);
+
+    // 添加子任务和汇总任务
+    setTasks([...updatedTasks, ...newSubTasks, summaryTask]);
+    setShowTaskSplitDialog(false);
+    setSelectedTaskForSplit(null);
+
+    // 自动重新排期
+    setTimeout(() => {
+      handleGenerateSchedule();
+    }, 100);
+  };
+
+  // 打开任务拆分弹窗
+  const openTaskSplitDialog = (task: Task) => {
+    setSelectedTaskForSplit(task);
+    setShowTaskSplitDialog(true);
   };
 
   const handleAddTask = (taskType: '平面' | '后期' | '物料' = '平面') => {
@@ -1490,6 +1560,7 @@ export default function ComplexScenario() {
                       color: p.color || '#3b82f6',
                       name: p.name
                     }))}
+                    onTaskClick={openTaskSplitDialog}
                   />
                 </CardContent>
               </Card>
@@ -1512,6 +1583,7 @@ export default function ComplexScenario() {
                       (activeProject === 'all' || task.projectId === activeProject) &&
                       (activeTaskType === 'all' || task.taskType === activeTaskType)
                     )}
+                    onTaskClick={openTaskSplitDialog}
                   />
                 </CardContent>
               </Card>
@@ -1974,6 +2046,15 @@ export default function ComplexScenario() {
                             </div>
                           </div>
                         </div>
+                        {/* 拆分任务按钮 */}
+                        <Button
+                          size="sm"
+                          onClick={() => openTaskSplitDialog(task)}
+                          className="gap-1"
+                        >
+                          <Users className="h-4 w-4" />
+                          拆分任务
+                        </Button>
                       </div>
                     </div>
                   );
@@ -2063,6 +2144,15 @@ export default function ComplexScenario() {
         conflicts={pendingConflicts}
         onConfirm={handleConflictResolution}
         onClose={() => setConflictDialogOpen(false)}
+      />
+
+      {/* 任务拆分对话框 */}
+      <TaskSplitDialog
+        task={selectedTaskForSplit}
+        resources={sharedResources}
+        isOpen={showTaskSplitDialog}
+        onClose={() => setShowTaskSplitDialog(false)}
+        onConfirm={handleTaskSplit}
       />
     </div>
   );

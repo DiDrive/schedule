@@ -12,9 +12,10 @@ interface CalendarViewProps {
   scheduledTasks: Task[];
   resources: Resource[];
   tasks: Task[];
+  onTaskClick?: (task: Task) => void;
 }
 
-export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewProps) {
+export function CalendarView({ scheduledTasks, resources, tasks, onTaskClick }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
@@ -372,6 +373,7 @@ export function CalendarView({ scheduledTasks, resources, tasks }: CalendarViewP
                               : 'bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-200'
                           }`}
                           title={`${scheduledTask.name}\n负责人: ${resource?.name || '未分配'}\n时间: ${timeRanges.join(', ')}${isOverdue ? '\n⚠️ 已超期' : ''}`}
+                          onClick={() => onTaskClick && onTaskClick(scheduledTask)}
                         >
                           <div className="flex items-center justify-between">
                             <span className="truncate flex-1 font-medium">{scheduledTask.name}</span>
