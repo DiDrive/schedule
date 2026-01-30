@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Clock, Users, TrendingUp, ArrowRight } from 'lucide-react';
 import { Task, Resource } from '@/types/schedule';
 import { format } from 'date-fns';
@@ -125,11 +126,19 @@ export function TaskSplitDialog({
     const taskType = task?.taskType || '平面';
     const filteredResources = resources.filter(r => r.workType === taskType);
 
-    if (filteredResources.length === 0) return;
+    if (filteredResources.length === 0) {
+      console.warn('没有可用的匹配人员');
+      return;
+    }
+
+    // 如果资源数量少于子任务数量，提示用户
+    if (filteredResources.length < subTasks.length) {
+      console.warn(`只有 ${filteredResources.length} 个可用人员，但有 ${subTasks.length} 个子任务，可能导致冲突`);
+    }
 
     const newSubTasks = [...subTasks];
 
-    // 为每个子任务分配资源
+    // 为每个子任务分配资源，确保不同时分配给同一人员
     newSubTasks.forEach((subTask, index) => {
       // 计算资源得分（综合考虑负载和效率）
       const resourceScores = filteredResources.map(resource => {
@@ -145,7 +154,7 @@ export function TaskSplitDialog({
         // 综合得分（负载70%，效率30%）
         const totalScore = loadScore * 0.7 + efficiencyScore * 0.3;
 
-        return { resource, score: totalScore };
+        return { resource, score: totalScore, load };
       });
 
       // 选择得分最高的资源
@@ -159,9 +168,8 @@ export function TaskSplitDialog({
         resource: bestResource,
       };
 
-      // 更新资源负载
-      const currentLoad = resourceLoad.get(bestResource.id) || 0;
-      resourceLoad.set(bestResource.id, currentLoad + subTask.estimatedHours);
+      // 更新资源负载（每个人员只能负责一个子任务，负载设为大值）
+      resourceLoad.set(bestResource.id, 9999);
     });
 
     setSubTasks(newSubTasks);
@@ -458,6 +466,22 @@ export function TaskSplitDialog({
               <p className="text-xs text-slate-500 mt-1">
                 将任务拆分为 {segmentCount} 个子任务，由 {segmentCount} 人并行完成
               </p>
+              {/* 资源数量警告 */}
+              {(() => {
+                const taskType = task?.taskType || '平面';
+                const availableResources = resources.filter(r => r.workType === taskType);
+                if (availableResources.length < segmentCount) {
+                  return (
+                    <Alert variant="destructive" className="mt-2">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>
+                        警告：只有 {availableResources.length} 个可用人员，需要 {segmentCount} 人，可能导致冲突或延期
+                      </AlertDescription>
+                    </Alert>
+                  );
+                }
+                return null;
+              })()}
             </div>
 
             <div>

@@ -416,18 +416,8 @@ export default function BasicScenario() {
     setShowDeadlineWarningDialog(false); // 关闭预警弹窗
     setSelectedTaskForSplit(null);
 
-    // 直接生成排期，不使用 handleGenerateSchedule 避免循环
-    setIsComputing(true);
-    setTimeout(() => {
-      const result = generateSchedule(finalTasks, resources, new Date(), defaultWorkingHours, conflictStrategy);
-      setScheduleResult(result);
-
-      // 重新检测冲突
-      const newConflicts = detectResourceConflicts(result.tasks, resources, undefined);
-      setPendingConflicts(newConflicts);
-
-      setIsComputing(false);
-    }, 500);
+    // 调用生成排期（触发冲突检测流程）
+    handleGenerateSchedule();
   };
 
   // 打开任务拆分弹窗
