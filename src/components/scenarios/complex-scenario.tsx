@@ -305,6 +305,8 @@ export default function ComplexScenario() {
   const [savedResolutions, setSavedResolutions] = useState<Map<string, 'switch' | 'delay'> | null>(null);
   const [deadlineWarningCount, setDeadlineWarningCount] = useState(0);
   const [showDeadlineWarningDialog, setShowDeadlineWarningDialog] = useState(false);
+  const [deadlineWarningDays, setDeadlineWarningDays] = useState(3); // 默认3天
+  const [showDeadlineSettingsDialog, setShowDeadlineSettingsDialog] = useState(false);
 
   // 使用 ref 跟踪是否已经加载过数据，避免重复加载
   const hasLoadedData = useRef(false);
@@ -387,15 +389,12 @@ export default function ComplexScenario() {
     }
   }, [projects, tasks, sharedResources, scheduleResult]);
 
-  // 计算快到截止日期的任务数量（距离DDL小于3天）
+  // 计算快到截止日期的任务数量
   useEffect(() => {
     if (!scheduleResult) {
       setDeadlineWarningCount(0);
       return;
     }
-
-    const today = new Date();
-    const warningDays = 3; // 3天内截止的任务视为预警
 
     const warningTasks = scheduleResult.tasks.filter(task => {
       if (!task.deadline || !task.endDate) return false;
@@ -404,12 +403,12 @@ export default function ComplexScenario() {
         (task.deadline.getTime() - task.endDate.getTime()) / (1000 * 60 * 60 * 24)
       );
 
-      // 如果任务的结束时间已经超过了截止日期，或者距离截止日期小于3天
-      return daysToDeadline < warningDays;
+      // 如果任务的结束时间已经超过了截止日期，或者距离截止日期小于设定的天数
+      return daysToDeadline < deadlineWarningDays;
     });
 
     setDeadlineWarningCount(warningTasks.length);
-  }, [scheduleResult]);
+  }, [scheduleResult, deadlineWarningDays]);
 
   const handleGenerateSchedule = () => {
     setIsComputing(true);
@@ -1393,12 +1392,27 @@ export default function ComplexScenario() {
                   <CardTitle className="text-2xl">{scheduleResult.totalHours} 小时</CardTitle>
                 </CardHeader>
               </Card>
-              <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setShowDeadlineWarningDialog(true)}>
+              <Card className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3">
-                  <CardDescription>截止日期预警</CardDescription>
-                  <CardTitle className={`text-2xl ${deadlineWarningCount > 0 ? 'text-amber-500' : 'text-green-500'}`}>
-                    {deadlineWarningCount} 个
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <div className="cursor-pointer" onClick={() => setShowDeadlineWarningDialog(true)}>
+                      <CardDescription>截止日期预警</CardDescription>
+                      <CardTitle className={`text-2xl ${deadlineWarningCount > 0 ? 'text-amber-500' : 'text-green-500'}`}>
+                        {deadlineWarningCount} 个
+                      </CardTitle>
+                      <div className="text-xs text-slate-500 mt-1">
+                        预警阈值：{deadlineWarningDays} 天
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowDeadlineSettingsDialog(true)}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </CardHeader>
               </Card>
               <Card>
@@ -1828,9 +1842,23 @@ export default function ComplexScenario() {
               </div>
               截止日期预警
             </DialogTitle>
-            <DialogDescription className="text-base mt-2">
-              以下任务的结束时间距离截止日期小于 3 天
-            </DialogDescription>
+            <div className="flex items-center justify-between mt-2">
+              <DialogDescription className="text-base">
+                以下任务的结束时间距离截止日期小于 {deadlineWarningDays} 天
+              </DialogDescription>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowDeadlineWarningDialog(false);
+                  setShowDeadlineSettingsDialog(true);
+                }}
+                className="gap-1"
+              >
+                <Settings className="h-4 w-4" />
+                设置预警天数
+              </Button>
+            </div>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto py-4">
@@ -1841,7 +1869,7 @@ export default function ComplexScenario() {
                   const daysToDeadline = Math.ceil(
                     (task.deadline.getTime() - task.endDate.getTime()) / (1000 * 60 * 60 * 24)
                   );
-                  return daysToDeadline < 3;
+                  return daysToDeadline < deadlineWarningDays;
                 })
                 .map(task => {
                   const resource = sharedResources.find(r => r.id === task.assignedResources[0]);
@@ -1912,6 +1940,76 @@ export default function ComplexScenario() {
 
           <DialogFooter>
             <Button onClick={() => setShowDeadlineWarningDialog(false)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 截止日期预警设置对话框 */}
+      <Dialog open={showDeadlineSettingsDialog} onOpenChange={setShowDeadlineSettingsDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                <Settings className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              设置截止日期预警天数
+            </DialogTitle>
+            <DialogDescription>
+              设置任务结束时间距离截止日期多少天时触发预警
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="warning-days" className="text-sm font-medium">
+                预警天数
+              </label>
+              <div className="flex items-center gap-3">
+                <Input
+                  id="warning-days"
+                  type="number"
+                  min="1"
+                  max="30"
+                  value={deadlineWarningDays}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value);
+                    if (value >= 1 && value <= 30) {
+                      setDeadlineWarningDays(value);
+                    }
+                  }}
+                  className="w-20"
+                />
+                <span className="text-sm text-slate-600">天</span>
+              </div>
+              <p className="text-xs text-slate-500">
+                当任务结束时间距离截止日期小于设定的天数时，系统会显示预警
+              </p>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3 space-y-2">
+              <p className="text-xs font-medium text-slate-700 dark:text-slate-300">常用设置：</p>
+              <div className="flex flex-wrap gap-2">
+                {[1, 3, 5, 7, 10, 14].map(days => (
+                  <Button
+                    key={days}
+                    variant={deadlineWarningDays === days ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setDeadlineWarningDays(days)}
+                  >
+                    {days} 天
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeadlineSettingsDialog(false)}>
+              取消
+            </Button>
+            <Button onClick={() => setShowDeadlineSettingsDialog(false)}>
+              确定
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
