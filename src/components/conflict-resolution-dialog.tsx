@@ -145,25 +145,25 @@ export function ConflictResolutionDialog({
         </DialogHeader>
 
         {/* 图例说明 */}
-        <div className="px-6 py-3 bg-slate-50 dark:bg-slate-900/50 border-b">
-          <div className="flex items-center gap-8 text-sm flex-wrap">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded bg-blue-100 dark:bg-blue-900/30">
-                <ArrowRightLeft className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+        <div className="px-6 py-2 bg-slate-50 dark:bg-slate-900/50 border-b">
+          <div className="flex items-center gap-4 text-xs flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <div className="p-1 rounded bg-blue-100 dark:bg-blue-900/30">
+                <ArrowRightLeft className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
               </div>
-              <span className="text-slate-700 dark:text-slate-300">自动切换：将任务分配给其他空闲的同类资源</span>
+              <span className="text-slate-700 dark:text-slate-300">自动切换：分配给其他空闲资源</span>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded bg-orange-100 dark:bg-orange-900/30">
-                <Clock4 className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+            <div className="flex items-center gap-1.5">
+              <div className="p-1 rounded bg-orange-100 dark:bg-orange-900/30">
+                <Clock4 className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400" />
               </div>
-              <span className="text-slate-700 dark:text-slate-300">延期等待：调整任务开始时间，等待指定人员</span>
+              <span className="text-slate-700 dark:text-slate-300">延期等待：调整开始时间等待</span>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded bg-blue-600 flex items-center justify-center">
-                <span className="text-xs text-white font-bold">★</span>
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded bg-blue-600 flex items-center justify-center">
+                <span className="text-[10px] text-white font-bold">★</span>
               </div>
-              <span className="text-slate-700 dark:text-slate-300">综合最高优先级任务自动保留原资源</span>
+              <span className="text-slate-700 dark:text-slate-300">最高优先级任务自动保留原资源</span>
             </div>
           </div>
         </div>
