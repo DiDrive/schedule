@@ -331,22 +331,36 @@ export default function ComplexScenario() {
     if (savedProjects) {
       const parsed = JSON.parse(savedProjects);
       // 将日期字符串转换回 Date 对象
-      const projectsWithDates = parsed.map((p: Project) => ({
-        ...p,
-        deadline: p.deadline ? new Date(p.deadline) : undefined,
-        startDate: p.startDate ? new Date(p.startDate) : undefined
-      }));
+      const projectsWithDates = parsed.map((p: Project) => {
+        const deadline = p.deadline ? new Date(p.deadline) : undefined;
+        // 如果截止日期是00:00:00（午夜），设置为19:00:00（下班时间）
+        if (deadline && deadline.getHours() === 0 && deadline.getMinutes() === 0) {
+          deadline.setHours(19, 0, 0, 0);
+        }
+        return {
+          ...p,
+          deadline,
+          startDate: p.startDate ? new Date(p.startDate) : undefined
+        };
+      });
       setProjects(projectsWithDates);
     }
     if (savedTasks) {
       const parsed = JSON.parse(savedTasks);
       // 将日期字符串转换回 Date 对象
-      const tasksWithDates = parsed.map((t: Task) => ({
-        ...t,
-        deadline: t.deadline ? new Date(t.deadline) : undefined,
-        startDate: t.startDate ? new Date(t.startDate) : undefined,
-        endDate: t.endDate ? new Date(t.endDate) : undefined
-      }));
+      const tasksWithDates = parsed.map((t: Task) => {
+        const deadline = t.deadline ? new Date(t.deadline) : undefined;
+        // 如果截止日期是00:00:00（午夜），设置为19:00:00（下班时间）
+        if (deadline && deadline.getHours() === 0 && deadline.getMinutes() === 0) {
+          deadline.setHours(19, 0, 0, 0);
+        }
+        return {
+          ...t,
+          deadline,
+          startDate: t.startDate ? new Date(t.startDate) : undefined,
+          endDate: t.endDate ? new Date(t.endDate) : undefined
+        };
+      });
       setTasks(tasksWithDates);
     }
     if (savedResources) {
@@ -357,12 +371,19 @@ export default function ComplexScenario() {
       // 将日期字符串转换回 Date 对象
       const scheduleResultWithDates = {
         ...parsed,
-        tasks: parsed.tasks.map((t: Task) => ({
-          ...t,
-          deadline: t.deadline ? new Date(t.deadline) : undefined,
-          startDate: t.startDate ? new Date(t.startDate) : undefined,
-          endDate: t.endDate ? new Date(t.endDate) : undefined
-        })),
+        tasks: parsed.tasks.map((t: Task) => {
+          const deadline = t.deadline ? new Date(t.deadline) : undefined;
+          // 如果截止日期是00:00:00（午夜），设置为19:00:00（下班时间）
+          if (deadline && deadline.getHours() === 0 && deadline.getMinutes() === 0) {
+            deadline.setHours(19, 0, 0, 0);
+          }
+          return {
+            ...t,
+            deadline,
+            startDate: t.startDate ? new Date(t.startDate) : undefined,
+            endDate: t.endDate ? new Date(t.endDate) : undefined
+          };
+        }),
         resourceConflicts: parsed.resourceConflicts.map((rc: any) => ({
           ...rc,
           timeRange: {
@@ -370,11 +391,18 @@ export default function ComplexScenario() {
             end: new Date(rc.timeRange.end)
           }
         })),
-        projects: parsed.projects.map((p: Project) => ({
-          ...p,
-          deadline: p.deadline ? new Date(p.deadline) : undefined,
-          startDate: p.startDate ? new Date(p.startDate) : undefined
-        }))
+        projects: parsed.projects.map((p: Project) => {
+          const deadline = p.deadline ? new Date(p.deadline) : undefined;
+          // 如果截止日期是00:00:00（午夜），设置为19:00:00（下班时间）
+          if (deadline && deadline.getHours() === 0 && deadline.getMinutes() === 0) {
+            deadline.setHours(19, 0, 0, 0);
+          }
+          return {
+            ...p,
+            deadline,
+            startDate: p.startDate ? new Date(p.startDate) : undefined
+          };
+        })
       };
       setScheduleResult(scheduleResultWithDates);
     }
