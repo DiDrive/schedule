@@ -41,25 +41,39 @@ export default function ProjectScheduleSystem() {
 
       try {
         const parsed = JSON.parse(data);
-        let hasDuplicateIds = false;
+        let taskList: Task[] = [];
 
-        // 检查任务数组中的重复ID
+        // 收集所有任务
         if (parsed.tasks && Array.isArray(parsed.tasks)) {
-          hasDuplicateIds = parsed.tasks.some((t: Task) => {
-            const subCount = (t.id.match(/-sub-/g) || []).length;
-            return subCount >= 2;
-          });
+          taskList = parsed.tasks;
         } else if (Array.isArray(parsed)) {
-          // 如果本身就是任务数组
-          hasDuplicateIds = parsed.some((t: Task) => {
-            const subCount = (t.id.match(/-sub-/g) || []).length;
-            return subCount >= 2;
-          });
+          taskList = parsed;
         }
 
-        if (hasDuplicateIds) {
-          console.warn(`发现重复ID数据: ${key}，将被清除`);
-          needsCleanup = true;
+        // 检查重复ID
+        if (taskList.length > 0) {
+          const idMap = new Map<string, number>();
+          let hasDuplicateIds = false;
+
+          taskList.forEach((t: Task) => {
+            const count = idMap.get(t.id) || 0;
+            idMap.set(t.id, count + 1);
+            if (count > 0) {
+              hasDuplicateIds = true;
+              console.warn(`发现重复任务ID: ${t.id}`);
+            }
+          });
+
+          // 检查多次拆分导致的嵌套ID
+          const hasNestedIds = taskList.some((t: Task) => {
+            const subCount = (t.id.match(/-sub-/g) || []).length;
+            return subCount >= 2;
+          });
+
+          if (hasDuplicateIds || hasNestedIds) {
+            console.warn(`发现数据问题: ${key}，将被清除`);
+            needsCleanup = true;
+          }
         }
       } catch (e) {
         console.error(`解析数据失败: ${key}`, e);
@@ -69,6 +83,7 @@ export default function ProjectScheduleSystem() {
     if (needsCleanup) {
       console.warn('清除所有旧数据以修复重复ID问题');
       keys.forEach(key => localStorage.removeItem(key));
+      alert('检测到数据异常，已自动清理旧数据。请重新开始。');
     }
   }, []);
 

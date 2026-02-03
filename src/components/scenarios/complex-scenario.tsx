@@ -317,6 +317,9 @@ export default function ComplexScenario() {
   const [showTaskSplitDialog, setShowTaskSplitDialog] = useState(false);
   const [selectedTaskForSplit, setSelectedTaskForSplit] = useState<Task | null>(null);
 
+  // 全局任务ID计数器，确保ID唯一
+  const taskIdCounter = useRef(Date.now());
+
   // 使用 ref 跟踪是否已经加载过数据，避免重复加载
   const hasLoadedData = useRef(false);
 
@@ -625,28 +628,32 @@ export default function ComplexScenario() {
     setSavedResolutions(null); // 重置保存的解决方案
     setPendingConflicts(new Map()); // 清除待处理的冲突
 
-    // 创建子任务
-    const newSubTasks: Task[] = subTasks.map((subTask, index) => ({
-      id: subTask.id,
-      name: subTask.name,
-      description: `任务拆分 - ${selectedTaskForSplit.name} 的第 ${index + 1} 部分`,
-      estimatedHours: subTask.estimatedHours,
-      assignedResources: subTask.assignedResource ? [subTask.assignedResource] : [],
-      priority: 'high', // 拆分任务设为高优先级
-      status: 'pending',
-      projectId: selectedTaskForSplit.projectId,
-      dependencies: [
-        ...(selectedTaskForSplit.dependencies || []), // 继承原任务的依赖
-        ...(subTask.dependencies || []) // 子任务之间的依赖关系
-      ],
-      taskType: selectedTaskForSplit.taskType,
-      deadline: selectedTaskForSplit.deadline, // 继承截止日期
-      fixedResourceId: subTask.assignedResource || undefined, // 如果手动指定，则固定资源
-    }));
+    // 创建子任务 - 使用全局计数器确保ID唯一
+    const newSubTasks: Task[] = subTasks.map((subTask, index) => {
+      taskIdCounter.current += 1; // 确保每个子任务ID唯一
+      return {
+        id: `task-${taskIdCounter.current}-sub-${index}`,
+        name: subTask.name,
+        description: `任务拆分 - ${selectedTaskForSplit.name} 的第 ${index + 1} 部分`,
+        estimatedHours: subTask.estimatedHours,
+        assignedResources: subTask.assignedResource ? [subTask.assignedResource] : [],
+        priority: 'high', // 拆分任务设为高优先级
+        status: 'pending',
+        projectId: selectedTaskForSplit.projectId,
+        dependencies: [
+          ...(selectedTaskForSplit.dependencies || []), // 继承原任务的依赖
+          ...(subTask.dependencies || []) // 子任务之间的依赖关系
+        ],
+        taskType: selectedTaskForSplit.taskType,
+        deadline: selectedTaskForSplit.deadline, // 继承截止日期
+        fixedResourceId: subTask.assignedResource || undefined, // 如果手动指定，则固定资源
+      };
+    });
 
     // 创建一个汇总任务（用于等待所有子任务完成）
+    taskIdCounter.current += 1;
     const summaryTask: Task = {
-      id: `${selectedTaskForSplit.id}-summary`,
+      id: `task-${taskIdCounter.current}-summary`,
       name: `${selectedTaskForSplit.name}（汇总）`,
       description: summaryHours > 0 ? `等待所有子任务完成并进行整合（需要 ${summaryHours} 小时）` : '等待所有子任务完成',
       estimatedHours: summaryHours || 0,
@@ -666,7 +673,7 @@ export default function ComplexScenario() {
     const updatedTasks = tasks
       .map(t => ({
         ...t,
-        dependencies: t.dependencies?.map(d => d === selectedTaskForSplit.id ? `${selectedTaskForSplit.id}-summary` : d)
+        dependencies: t.dependencies?.map(d => d === selectedTaskForSplit.id ? summaryTask.id : d)
       }))
       .filter(t => t.id !== selectedTaskForSplit.id);
 
@@ -690,8 +697,9 @@ export default function ComplexScenario() {
     setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
     setSavedResolutions(null); // 重置保存的解决方案
     setPendingConflicts(new Map()); // 清除待处理的冲突
+    taskIdCounter.current += 1; // 确保ID唯一
     const newTask: Task = {
-      id: `task-${Date.now()}`,
+      id: `task-${taskIdCounter.current}`,
       name: `新任务 ${tasks.length + 1}`,
       description: '',
       estimatedHours: taskType === '物料' ? 0 : 8,
