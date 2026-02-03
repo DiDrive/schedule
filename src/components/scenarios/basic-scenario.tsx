@@ -35,6 +35,34 @@ import { ConflictResolutionDialog } from '@/components/conflict-resolution-dialo
 import { TaskSplitDialog } from '@/components/task-split-dialog';
 import { detectResourceConflicts } from '@/lib/schedule-algorithms';
 
+// 默认任务数据
+const defaultTasks: Task[] = [
+  {
+    id: 'task-1',
+    name: '首页设计',
+    description: '设计网站首页UI',
+    estimatedHours: 8,
+    assignedResources: [],
+    priority: 'high',
+    status: 'pending',
+    dependencies: [],
+    taskType: '平面',
+    deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) // 5天后
+  },
+  {
+    id: 'task-2',
+    name: '产品页面设计',
+    description: '设计产品详情页',
+    estimatedHours: 6,
+    assignedResources: [],
+    priority: 'normal',
+    status: 'pending',
+    dependencies: ['task-1'],
+    taskType: '平面',
+    deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7天后
+  }
+];
+
 // 辅助函数：将 Date 或字符串转换为 YYYY-MM-DD 格式
 const formatDateToInputValue = (date: Date | string | undefined): string => {
   if (!date) return '';
@@ -159,6 +187,31 @@ export default function BasicScenario() {
 
     if (savedTasks) {
       const parsed = JSON.parse(savedTasks);
+      
+      // 检测重复ID问题（多次拆分导致的嵌套ID）
+      const hasDuplicateIds = parsed.some((t: Task) => {
+        // 如果任务ID包含多个 -sub-，说明被多次拆分
+        const subCount = (t.id.match(/-sub-/g) || []).length;
+        return subCount >= 2; // 允许1次拆分，但不允许多次
+      });
+
+      if (hasDuplicateIds) {
+        console.warn('检测到任务被多次拆分，清除旧数据并重新加载');
+        // 清除所有旧数据
+        localStorage.removeItem('basic-scenario-tasks');
+        localStorage.removeItem('basic-scenario-resources');
+        localStorage.removeItem('basic-scenario-schedule-result');
+        localStorage.removeItem('basic-scenario-start-date');
+        
+        // 使用默认数据
+        setTasks(defaultTasks);
+        setResources(defaultResources);
+        setScheduleResult(null);
+        setStartDate(new Date());
+        hasLoadedData.current = true;
+        return;
+      }
+      
       // 将日期字符串转换回 Date 对象
       const tasksWithDates = parsed.map((t: Task) => {
         const deadline = t.deadline ? new Date(t.deadline) : undefined;

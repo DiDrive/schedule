@@ -351,6 +351,31 @@ export default function ComplexScenario() {
     }
     if (savedTasks) {
       const parsed = JSON.parse(savedTasks);
+      
+      // 检测重复ID问题（多次拆分导致的嵌套ID）
+      const hasDuplicateIds = parsed.some((t: Task) => {
+        // 如果任务ID包含多个 -sub-，说明被多次拆分
+        const subCount = (t.id.match(/-sub-/g) || []).length;
+        return subCount >= 2; // 允许1次拆分，但不允许多次
+      });
+
+      if (hasDuplicateIds) {
+        console.warn('检测到任务被多次拆分，清除旧数据并重新加载');
+        // 清除所有旧数据
+        localStorage.removeItem('complex-scenario-projects');
+        localStorage.removeItem('complex-scenario-tasks');
+        localStorage.removeItem('complex-scenario-resources');
+        localStorage.removeItem('complex-scenario-schedule-result');
+        
+        // 使用默认数据
+        setProjects(defaultProjects);
+        setTasks(defaultTasks);
+        setSharedResources(defaultResources);
+        setScheduleResult(null);
+        hasLoadedData.current = true;
+        return;
+      }
+      
       // 将日期字符串转换回 Date 对象
       const tasksWithDates = parsed.map((t: Task) => {
         const deadline = t.deadline ? new Date(t.deadline) : undefined;
