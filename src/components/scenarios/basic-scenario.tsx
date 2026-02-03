@@ -191,14 +191,31 @@ export default function BasicScenario() {
     if (savedTasks || savedScheduleResult) {
       // 先检测是否有重复ID问题
       let hasDuplicateIds = false;
+      let duplicateIds: string[] = [];
+      
+      // 收集所有任务ID进行检查
+      const allTaskIds = new Map<string, number>();
       
       if (savedTasks) {
         const parsed = JSON.parse(savedTasks);
-        // 检测重复ID问题（多次拆分导致的嵌套ID）
-        hasDuplicateIds = parsed.some((t: Task) => {
-          // 如果任务ID包含多个 -sub-，说明被多次拆分
+        parsed.forEach((t: Task) => {
+          const count = allTaskIds.get(t.id) || 0;
+          allTaskIds.set(t.id, count + 1);
+          if (count > 0) {
+            hasDuplicateIds = true;
+            if (!duplicateIds.includes(t.id)) {
+              duplicateIds.push(t.id);
+            }
+          }
+          
+          // 检测多次拆分导致的嵌套ID
           const subCount = (t.id.match(/-sub-/g) || []).length;
-          return subCount >= 2; // 允许1次拆分，但不允许多次
+          if (subCount >= 2) {
+            hasDuplicateIds = true;
+            if (!duplicateIds.includes(t.id)) {
+              duplicateIds.push(t.id);
+            }
+          }
         });
       }
       
@@ -206,15 +223,30 @@ export default function BasicScenario() {
       if (!hasDuplicateIds && savedScheduleResult) {
         const parsed = JSON.parse(savedScheduleResult);
         if (parsed.tasks) {
-          hasDuplicateIds = parsed.tasks.some((t: Task) => {
+          parsed.tasks.forEach((t: Task) => {
+            const count = allTaskIds.get(t.id) || 0;
+            allTaskIds.set(t.id, count + 1);
+            if (count > 0) {
+              hasDuplicateIds = true;
+              if (!duplicateIds.includes(t.id)) {
+                duplicateIds.push(t.id);
+              }
+            }
+            
             const subCount = (t.id.match(/-sub-/g) || []).length;
-            return subCount >= 2;
+            if (subCount >= 2) {
+              hasDuplicateIds = true;
+              if (!duplicateIds.includes(t.id)) {
+                duplicateIds.push(t.id);
+              }
+            }
           });
         }
       }
 
       if (hasDuplicateIds) {
-        console.warn('检测到任务被多次拆分，清除旧数据并重新加载');
+        console.warn('检测到数据异常，重复的任务ID:', duplicateIds);
+        console.warn('清除旧数据并重新加载');
         // 清除所有旧数据
         localStorage.removeItem('basic-scenario-tasks');
         localStorage.removeItem('basic-scenario-resources');

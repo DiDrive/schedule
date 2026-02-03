@@ -34,6 +34,7 @@ export default function ProjectScheduleSystem() {
     ];
 
     let needsCleanup = false;
+    let problemTasks: string[] = [];
 
     for (const key of keys) {
       const data = localStorage.getItem(key);
@@ -61,6 +62,9 @@ export default function ProjectScheduleSystem() {
             if (count > 0) {
               hasDuplicateIds = true;
               console.warn(`发现重复任务ID: ${t.id}`);
+              if (!problemTasks.includes(t.id)) {
+                problemTasks.push(t.id);
+              }
             }
           });
 
@@ -82,6 +86,7 @@ export default function ProjectScheduleSystem() {
 
     if (needsCleanup) {
       console.warn('清除所有旧数据以修复重复ID问题');
+      console.warn('问题任务ID:', problemTasks);
       keys.forEach(key => localStorage.removeItem(key));
       alert('检测到数据异常，已自动清理旧数据。请重新开始。');
     }
