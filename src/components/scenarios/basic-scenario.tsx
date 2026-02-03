@@ -1562,8 +1562,8 @@ export default function BasicScenario() {
                             </div>
                           </div>
                         </div>
-                        {/* 拆分任务按钮 - 只有超期任务才显示 */}
-                        {daysToDeadline < 0 && (
+                        {/* 拆分任务按钮 - 只有超期任务才显示，并且不允许拆分已被拆分过的任务 */}
+                        {daysToDeadline < 0 && !task.id.includes('-sub-') && (
                           <Button
                             size="sm"
                             onClick={() => openTaskSplitDialog(task)}
