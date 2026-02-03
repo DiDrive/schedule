@@ -538,16 +538,17 @@ export default function ComplexScenario() {
     setOverdueCount(overdueTasks.length);
   }, [scheduleResult, deadlineWarningDays]);
 
-  const handleGenerateSchedule = (force = false) => {
+  const handleGenerateSchedule = (force = false, tasksOverride?: Task[]) => {
     setIsComputing(true);
 
-    console.log('[ComplexScenario] handleGenerateSchedule called, force:', force);
+    const tasksToUse = tasksOverride || tasks;
+    console.log('[ComplexScenario] handleGenerateSchedule called, force:', force, 'tasks count:', tasksToUse.length);
 
     // 如果刚刚解决过冲突，直接生成排期（跳过冲突检测）
     if (justResolvedConflict && savedResolutions) {
       setTimeout(() => {
         console.log('[ComplexScenario] 生成排期（使用保存的解决方案）');
-        const result = generateSchedule(tasks, sharedResources, new Date(), defaultWorkingHours, conflictStrategy, savedResolutions);
+        const result = generateSchedule(tasksToUse, sharedResources, new Date(), defaultWorkingHours, conflictStrategy, savedResolutions);
         setScheduleResult(result);
 
         // 基于新生成的排期结果重新检测冲突，更新 pendingConflicts
@@ -563,7 +564,7 @@ export default function ComplexScenario() {
     if (force) {
       setTimeout(() => {
         console.log('[ComplexScenario] 强制生成排期（跳过冲突检测）');
-        const result = generateSchedule(tasks, sharedResources, new Date(), defaultWorkingHours, conflictStrategy);
+        const result = generateSchedule(tasksToUse, sharedResources, new Date(), defaultWorkingHours, conflictStrategy);
         setScheduleResult(result);
 
         // 基于 scheduleResult 重新检测冲突，确保 pendingConflicts 同步
@@ -576,7 +577,7 @@ export default function ComplexScenario() {
     }
 
     // 否则，检测资源冲突（始终使用当前正在编辑的任务列表）
-    const conflicts = detectResourceConflicts(tasks, sharedResources, undefined);
+    const conflicts = detectResourceConflicts(tasksToUse, sharedResources, undefined);
 
     console.log('[ComplexScenario] 检测到冲突数量:', conflicts.size);
 
@@ -589,7 +590,7 @@ export default function ComplexScenario() {
       // 没有冲突，直接生成排期
       setTimeout(() => {
         console.log('[ComplexScenario] 生成排期（无冲突）');
-        const result = generateSchedule(tasks, sharedResources, new Date(), defaultWorkingHours, conflictStrategy);
+        const result = generateSchedule(tasksToUse, sharedResources, new Date(), defaultWorkingHours, conflictStrategy);
         setScheduleResult(result);
 
         // 基于 scheduleResult 重新检测冲突，确保 pendingConflicts 同步
@@ -741,9 +742,9 @@ export default function ComplexScenario() {
     setShowTaskSplitDialog(false);
     setSelectedTaskForSplit(null);
 
-    // 调用生成排期（强制生成，跳过冲突检测）
+    // 调用生成排期（强制生成，跳过冲突检测，使用最新的任务列表）
     console.log('[ComplexScenario] 调用生成排期（强制）');
-    handleGenerateSchedule(true);
+    handleGenerateSchedule(true, finalTasks);
   };
 
   // 打开任务拆分弹窗
