@@ -185,15 +185,30 @@ export default function BasicScenario() {
     const savedScheduleResult = localStorage.getItem('basic-scenario-schedule-result');
     const savedStartDate = localStorage.getItem('basic-scenario-start-date');
 
-    if (savedTasks) {
-      const parsed = JSON.parse(savedTasks);
+    if (savedTasks || savedScheduleResult) {
+      // 先检测是否有重复ID问题
+      let hasDuplicateIds = false;
       
-      // 检测重复ID问题（多次拆分导致的嵌套ID）
-      const hasDuplicateIds = parsed.some((t: Task) => {
-        // 如果任务ID包含多个 -sub-，说明被多次拆分
-        const subCount = (t.id.match(/-sub-/g) || []).length;
-        return subCount >= 2; // 允许1次拆分，但不允许多次
-      });
+      if (savedTasks) {
+        const parsed = JSON.parse(savedTasks);
+        // 检测重复ID问题（多次拆分导致的嵌套ID）
+        hasDuplicateIds = parsed.some((t: Task) => {
+          // 如果任务ID包含多个 -sub-，说明被多次拆分
+          const subCount = (t.id.match(/-sub-/g) || []).length;
+          return subCount >= 2; // 允许1次拆分，但不允许多次
+        });
+      }
+      
+      // 如果tasks中没有重复，再检查scheduleResult
+      if (!hasDuplicateIds && savedScheduleResult) {
+        const parsed = JSON.parse(savedScheduleResult);
+        if (parsed.tasks) {
+          hasDuplicateIds = parsed.tasks.some((t: Task) => {
+            const subCount = (t.id.match(/-sub-/g) || []).length;
+            return subCount >= 2;
+          });
+        }
+      }
 
       if (hasDuplicateIds) {
         console.warn('检测到任务被多次拆分，清除旧数据并重新加载');
@@ -211,6 +226,10 @@ export default function BasicScenario() {
         hasLoadedData.current = true;
         return;
       }
+    }
+    
+    if (savedTasks) {
+      const parsed = JSON.parse(savedTasks);
       
       // 将日期字符串转换回 Date 对象
       const tasksWithDates = parsed.map((t: Task) => {

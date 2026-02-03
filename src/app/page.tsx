@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,62 @@ import { Task, Resource, ScheduleResult } from '@/types/schedule';
 
 export default function ProjectScheduleSystem() {
   const [activeTab, setActiveTab] = useState('basic');
+
+  // 页面级别的一次性数据清理，确保清除所有旧数据
+  const hasCleanedUp = useRef(false);
+  useEffect(() => {
+    if (hasCleanedUp.current) return;
+    hasCleanedUp.current = true;
+
+    // 检查所有 localStorage 中的数据是否有重复ID
+    const keys = [
+      'basic-scenario-tasks',
+      'basic-scenario-resources',
+      'basic-scenario-schedule-result',
+      'complex-scenario-projects',
+      'complex-scenario-tasks',
+      'complex-scenario-resources',
+      'complex-scenario-schedule-result'
+    ];
+
+    let needsCleanup = false;
+
+    for (const key of keys) {
+      const data = localStorage.getItem(key);
+      if (!data) continue;
+
+      try {
+        const parsed = JSON.parse(data);
+        let hasDuplicateIds = false;
+
+        // 检查任务数组中的重复ID
+        if (parsed.tasks && Array.isArray(parsed.tasks)) {
+          hasDuplicateIds = parsed.tasks.some((t: Task) => {
+            const subCount = (t.id.match(/-sub-/g) || []).length;
+            return subCount >= 2;
+          });
+        } else if (Array.isArray(parsed)) {
+          // 如果本身就是任务数组
+          hasDuplicateIds = parsed.some((t: Task) => {
+            const subCount = (t.id.match(/-sub-/g) || []).length;
+            return subCount >= 2;
+          });
+        }
+
+        if (hasDuplicateIds) {
+          console.warn(`发现重复ID数据: ${key}，将被清除`);
+          needsCleanup = true;
+        }
+      } catch (e) {
+        console.error(`解析数据失败: ${key}`, e);
+      }
+    }
+
+    if (needsCleanup) {
+      console.warn('清除所有旧数据以修复重复ID问题');
+      keys.forEach(key => localStorage.removeItem(key));
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950">
