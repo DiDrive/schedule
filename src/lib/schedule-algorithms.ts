@@ -900,7 +900,17 @@ export function generateSchedule(
     );
 
     if (availableTasks.length === 0) {
+      // 找出未安排的任务及其依赖
+      const unscheduledTasksList = tasksWithResources.filter(task => unscheduledTasks.has(task.id));
       console.error('无法继续调度：存在循环依赖或无法满足的依赖');
+      console.error('未安排的任务:', unscheduledTasksList.map(t => `${t.name} (${t.id})`));
+      console.error('未安排任务的依赖:', unscheduledTasksList.map(t => ({
+        name: t.name,
+        id: t.id,
+        dependencies: t.dependencies,
+        satisfiedDeps: t.dependencies?.filter(depId => taskMap.has(depId)) || [],
+        unsatisfiedDeps: t.dependencies?.filter(depId => !taskMap.has(depId)) || []
+      })));
       break;
     }
 

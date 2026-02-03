@@ -359,10 +359,13 @@ export default function ComplexScenario() {
       
       // 收集所有任务ID进行检查
       const allTaskIds = new Map<string, number>();
+      const taskIdSet = new Set<string>(); // 用于检查依赖的有效性
       
+      // 第一遍扫描：收集所有任务ID
       if (savedTasks) {
         const parsed = JSON.parse(savedTasks);
         parsed.forEach((t: Task) => {
+          taskIdSet.add(t.id);
           const count = allTaskIds.get(t.id) || 0;
           allTaskIds.set(t.id, count + 1);
           if (count > 0) {
@@ -388,6 +391,7 @@ export default function ComplexScenario() {
         const parsed = JSON.parse(savedScheduleResult);
         if (parsed.tasks) {
           parsed.tasks.forEach((t: Task) => {
+            taskIdSet.add(t.id);
             const count = allTaskIds.get(t.id) || 0;
             allTaskIds.set(t.id, count + 1);
             if (count > 0) {
@@ -430,6 +434,10 @@ export default function ComplexScenario() {
     if (savedTasks) {
       const parsed = JSON.parse(savedTasks);
       
+      // 重新构建任务ID集合（因为之前可能因为重复ID而返回）
+      const taskIdSet = new Set<string>();
+      parsed.forEach((t: Task) => taskIdSet.add(t.id));
+      
       // 将日期字符串转换回 Date 对象
       const tasksWithDates = parsed.map((t: Task) => {
         const deadline = t.deadline ? new Date(t.deadline) : undefined;
@@ -437,11 +445,22 @@ export default function ComplexScenario() {
         if (deadline) {
           deadline.setHours(18, 30, 0, 0);
         }
+        
+        // 清理无效的依赖关系（指向不存在的任务ID）
+        const validDependencies = (t.dependencies || []).filter(depId => {
+          const isValid = taskIdSet.has(depId) && depId !== t.id; // 检查依赖是否存在且不是自依赖
+          if (!isValid && depId) {
+            console.warn(`发现无效依赖: 任务 ${t.name} (${t.id}) 依赖不存在的任务 ${depId}`);
+          }
+          return isValid;
+        });
+        
         return {
           ...t,
           deadline,
           startDate: t.startDate ? new Date(t.startDate) : undefined,
-          endDate: t.endDate ? new Date(t.endDate) : undefined
+          endDate: t.endDate ? new Date(t.endDate) : undefined,
+          dependencies: validDependencies
         };
       });
       setTasks(tasksWithDates);
