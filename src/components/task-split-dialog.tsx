@@ -326,7 +326,11 @@ export function TaskSplitDialog({
   // 处理确认
   const handleConfirm = () => {
     setIsLoading(true);
-    
+
+    console.log('[TaskSplitDialog] 开始拆分任务:', task?.name);
+    console.log('[TaskSplitDialog] 子任务数量:', subTasks.length);
+    console.log('[TaskSplitDialog] 汇总工时:', summaryHours);
+
     // 计算带有预估时间的子任务
     const now = new Date();
     const taskStartDate = task?.startDate || now;
@@ -349,7 +353,7 @@ export function TaskSplitDialog({
             const depResource = depTask.resource;
             const depEfficiency = depResource?.efficiency || 1.0;
             const depActualHours = depTask.estimatedHours / depEfficiency;
-            
+
             let depStart = actualStart;
             if (depTask.dependencies && depTask.dependencies.length > 0) {
               depTask.dependencies.forEach(depDepId => {
@@ -366,7 +370,7 @@ export function TaskSplitDialog({
                 }
               });
             }
-            
+
             const depEnd = calculateEndDate(depStart, depActualHours);
             if (depEnd > maxDependencyEndDate) {
               maxDependencyEndDate = depEnd;
@@ -376,7 +380,7 @@ export function TaskSplitDialog({
       }
 
       const endDate = calculateEndDate(maxDependencyEndDate, actualHours);
-      
+
       return {
         ...subTask,
         estimatedStart: maxDependencyEndDate,
@@ -384,7 +388,11 @@ export function TaskSplitDialog({
       };
     });
 
+    console.log('[TaskSplitDialog] 计算完成的子任务:', subTasksWithTime);
+
+    // 调用父组件的确认回调
     setTimeout(() => {
+      console.log('[TaskSplitDialog] 调用 onConfirm 回调');
       onConfirm(subTasksWithTime, summaryHours);
       setIsLoading(false);
       onClose();

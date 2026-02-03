@@ -675,6 +675,11 @@ export default function ComplexScenario() {
   const handleTaskSplit = (subTasks: any[], summaryHours: number) => {
     if (!selectedTaskForSplit) return;
 
+    console.log('[ComplexScenario] 开始处理任务拆分');
+    console.log('[ComplexScenario] 原任务:', selectedTaskForSplit);
+    console.log('[ComplexScenario] 子任务数量:', subTasks.length);
+    console.log('[ComplexScenario] 汇总工时:', summaryHours);
+
     setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
     setSavedResolutions(null); // 重置保存的解决方案
     setPendingConflicts(new Map()); // 清除待处理的冲突
@@ -701,6 +706,8 @@ export default function ComplexScenario() {
       };
     });
 
+    console.log('[ComplexScenario] 创建的子任务:', newSubTasks);
+
     // 创建一个汇总任务（用于等待所有子任务完成）
     taskIdCounter.current += 1;
     const summaryTask: Task = {
@@ -717,8 +724,11 @@ export default function ComplexScenario() {
       deadline: selectedTaskForSplit.deadline,
     };
 
+    console.log('[ComplexScenario] 创建的汇总任务:', summaryTask);
+
     // 更新依赖这个任务的其他任务
     const dependentTasks = tasks.filter(t => t.dependencies?.includes(selectedTaskForSplit.id));
+    console.log('[ComplexScenario] 依赖原任务的其他任务:', dependentTasks);
 
     // 删除原任务
     const updatedTasks = tasks
@@ -730,16 +740,21 @@ export default function ComplexScenario() {
 
     // 添加子任务和汇总任务
     const finalTasks = [...updatedTasks, ...newSubTasks, summaryTask];
+    console.log('[ComplexScenario] 最终任务列表数量:', finalTasks.length);
+    console.log('[ComplexScenario] 更新任务列表');
+
     setTasks(finalTasks);
     setShowTaskSplitDialog(false);
     setSelectedTaskForSplit(null);
 
     // 调用生成排期（触发冲突检测流程）
+    console.log('[ComplexScenario] 调用生成排期');
     handleGenerateSchedule();
   };
 
   // 打开任务拆分弹窗
   const openTaskSplitDialog = (task: Task) => {
+    console.log('[ComplexScenario] 打开任务拆分弹窗:', task.name);
     setSelectedTaskForSplit(task);
     setShowTaskSplitDialog(true);
   };
@@ -2050,7 +2065,10 @@ export default function ComplexScenario() {
                         {daysToDeadline < 0 && !task.id.includes('-sub-') && (
                           <Button
                             size="sm"
-                            onClick={() => openTaskSplitDialog(task)}
+                            onClick={(e) => {
+                              e.stopPropagation(); // 防止事件冒泡
+                              openTaskSplitDialog(task);
+                            }}
                             className="gap-1"
                           >
                             <Users className="h-4 w-4" />

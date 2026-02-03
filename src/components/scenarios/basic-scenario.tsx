@@ -553,6 +553,7 @@ export default function BasicScenario() {
 
   // 打开任务拆分弹窗
   const openTaskSplitDialog = (task: Task) => {
+    console.log('[BasicScenario] 打开任务拆分弹窗:', task.name);
     setSelectedTaskForSplit(task);
     setShowTaskSplitDialog(true);
   };
@@ -1697,7 +1698,10 @@ export default function BasicScenario() {
                         {daysToDeadline < 0 && !task.id.includes('-sub-') && (
                           <Button
                             size="sm"
-                            onClick={() => openTaskSplitDialog(task)}
+                            onClick={(e) => {
+                              e.stopPropagation(); // 防止事件冒泡
+                              openTaskSplitDialog(task);
+                            }}
                             className="gap-1"
                           >
                             <Users className="h-4 w-4" />
