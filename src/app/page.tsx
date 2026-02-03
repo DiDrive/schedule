@@ -22,62 +22,49 @@ export default function ProjectScheduleSystem() {
     if (hasCleanedUp.current) return;
     hasCleanedUp.current = true;
 
-    // 检查所有 localStorage 中的数据是否有重复ID
-    const keys = [
+    // 只检查任务相关的 key，避免跨 key 误判
+    const taskKeys = [
       'basic-scenario-tasks',
-      'basic-scenario-resources',
-      'basic-scenario-schedule-result',
-      'complex-scenario-projects',
-      'complex-scenario-tasks',
-      'complex-scenario-resources',
-      'complex-scenario-schedule-result'
+      'complex-scenario-tasks'
     ];
 
     let needsCleanup = false;
     let problemTasks: string[] = [];
 
-    for (const key of keys) {
+    for (const key of taskKeys) {
       const data = localStorage.getItem(key);
       if (!data) continue;
 
       try {
         const parsed = JSON.parse(data);
-        let taskList: Task[] = [];
 
-        // 收集所有任务
-        if (parsed.tasks && Array.isArray(parsed.tasks)) {
-          taskList = parsed.tasks;
-        } else if (Array.isArray(parsed)) {
-          taskList = parsed;
-        }
+        if (!Array.isArray(parsed)) continue;
 
         // 检查重复ID
-        if (taskList.length > 0) {
-          const idMap = new Map<string, number>();
-          let hasDuplicateIds = false;
+        const idMap = new Map<string, number>();
+        let hasDuplicateIds = false;
 
-          taskList.forEach((t: Task) => {
-            const count = idMap.get(t.id) || 0;
-            idMap.set(t.id, count + 1);
-            if (count > 0) {
-              hasDuplicateIds = true;
-              console.warn(`发现重复任务ID: ${t.id}`);
-              if (!problemTasks.includes(t.id)) {
-                problemTasks.push(t.id);
-              }
+        parsed.forEach((t: Task) => {
+          const count = idMap.get(t.id) || 0;
+          idMap.set(t.id, count + 1);
+          if (count > 0) {
+            hasDuplicateIds = true;
+            console.warn(`发现重复任务ID: ${t.id} (在 ${key} 中)`);
+            if (!problemTasks.includes(t.id)) {
+              problemTasks.push(t.id);
             }
-          });
-
-          // 检查多次拆分导致的嵌套ID
-          const hasNestedIds = taskList.some((t: Task) => {
-            const subCount = (t.id.match(/-sub-/g) || []).length;
-            return subCount >= 2;
-          });
-
-          if (hasDuplicateIds || hasNestedIds) {
-            console.warn(`发现数据问题: ${key}，将被清除`);
-            needsCleanup = true;
           }
+        });
+
+        // 检查多次拆分导致的嵌套ID
+        const hasNestedIds = parsed.some((t: Task) => {
+          const subCount = (t.id.match(/-sub-/g) || []).length;
+          return subCount >= 2;
+        });
+
+        if (hasDuplicateIds || hasNestedIds) {
+          console.warn(`发现数据问题: ${key}，将被清除`);
+          needsCleanup = true;
         }
       } catch (e) {
         console.error(`解析数据失败: ${key}`, e);
@@ -87,7 +74,15 @@ export default function ProjectScheduleSystem() {
     if (needsCleanup) {
       console.warn('清除所有旧数据以修复重复ID问题');
       console.warn('问题任务ID:', problemTasks);
-      keys.forEach(key => localStorage.removeItem(key));
+      // 清除所有场景的数据
+      localStorage.removeItem('basic-scenario-tasks');
+      localStorage.removeItem('basic-scenario-resources');
+      localStorage.removeItem('basic-scenario-schedule-result');
+      localStorage.removeItem('basic-scenario-start-date');
+      localStorage.removeItem('complex-scenario-projects');
+      localStorage.removeItem('complex-scenario-tasks');
+      localStorage.removeItem('complex-scenario-resources');
+      localStorage.removeItem('complex-scenario-schedule-result');
       alert('检测到数据异常，已自动清理旧数据。请重新开始。');
     }
   }, []);

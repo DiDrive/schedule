@@ -352,65 +352,34 @@ export default function ComplexScenario() {
       });
       setProjects(projectsWithDates);
     }
-    if (savedTasks || savedScheduleResult) {
-      // 先检测是否有重复ID问题
+    if (savedTasks) {
+      // 检测是否有重复ID问题（只检查 tasks 中的数据）
       let hasDuplicateIds = false;
       let duplicateIds: string[] = [];
-      
+
+      const parsed = JSON.parse(savedTasks);
+
       // 收集所有任务ID进行检查
       const allTaskIds = new Map<string, number>();
-      const taskIdSet = new Set<string>(); // 用于检查依赖的有效性
-      
-      // 第一遍扫描：收集所有任务ID
-      if (savedTasks) {
-        const parsed = JSON.parse(savedTasks);
-        parsed.forEach((t: Task) => {
-          taskIdSet.add(t.id);
-          const count = allTaskIds.get(t.id) || 0;
-          allTaskIds.set(t.id, count + 1);
-          if (count > 0) {
-            hasDuplicateIds = true;
-            if (!duplicateIds.includes(t.id)) {
-              duplicateIds.push(t.id);
-            }
+      parsed.forEach((t: Task) => {
+        const count = allTaskIds.get(t.id) || 0;
+        allTaskIds.set(t.id, count + 1);
+        if (count > 0) {
+          hasDuplicateIds = true;
+          if (!duplicateIds.includes(t.id)) {
+            duplicateIds.push(t.id);
           }
-          
-          // 检测多次拆分导致的嵌套ID
-          const subCount = (t.id.match(/-sub-/g) || []).length;
-          if (subCount >= 2) {
-            hasDuplicateIds = true;
-            if (!duplicateIds.includes(t.id)) {
-              duplicateIds.push(t.id);
-            }
-          }
-        });
-      }
-      
-      // 如果tasks中没有重复，再检查scheduleResult
-      if (!hasDuplicateIds && savedScheduleResult) {
-        const parsed = JSON.parse(savedScheduleResult);
-        if (parsed.tasks) {
-          parsed.tasks.forEach((t: Task) => {
-            taskIdSet.add(t.id);
-            const count = allTaskIds.get(t.id) || 0;
-            allTaskIds.set(t.id, count + 1);
-            if (count > 0) {
-              hasDuplicateIds = true;
-              if (!duplicateIds.includes(t.id)) {
-                duplicateIds.push(t.id);
-              }
-            }
-            
-            const subCount = (t.id.match(/-sub-/g) || []).length;
-            if (subCount >= 2) {
-              hasDuplicateIds = true;
-              if (!duplicateIds.includes(t.id)) {
-                duplicateIds.push(t.id);
-              }
-            }
-          });
         }
-      }
+
+        // 检测多次拆分导致的嵌套ID
+        const subCount = (t.id.match(/-sub-/g) || []).length;
+        if (subCount >= 2) {
+          hasDuplicateIds = true;
+          if (!duplicateIds.includes(t.id)) {
+            duplicateIds.push(t.id);
+          }
+        }
+      });
 
       if (hasDuplicateIds) {
         console.warn('检测到数据异常，重复的任务ID:', duplicateIds);
@@ -420,7 +389,7 @@ export default function ComplexScenario() {
         localStorage.removeItem('complex-scenario-tasks');
         localStorage.removeItem('complex-scenario-resources');
         localStorage.removeItem('complex-scenario-schedule-result');
-        
+
         // 使用默认数据
         setProjects(defaultProjects);
         setTasks(defaultTasks);
