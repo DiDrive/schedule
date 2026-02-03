@@ -170,6 +170,9 @@ export default function BasicScenario() {
   const [showTaskSplitDialog, setShowTaskSplitDialog] = useState(false);
   const [selectedTaskForSplit, setSelectedTaskForSplit] = useState<Task | null>(null);
 
+  // 标记是否需要强制生成排期（用于任务拆分后立即生成）
+  const forceGenerateSchedule = useRef(false);
+
   // 全局任务ID计数器，确保ID唯一
   const taskIdCounter = useRef(Date.now());
 
@@ -341,12 +344,15 @@ export default function BasicScenario() {
     setApproachingCount(warningTasks.length - overdueTasks.length);
   }, [scheduleResult, deadlineWarningDays]);
 
-  const handleGenerateSchedule = () => {
+  const handleGenerateSchedule = (force = false) => {
     setIsComputing(true);
+
+    console.log('[BasicScenario] handleGenerateSchedule called, force:', force);
 
     // 如果刚刚解决过冲突，直接生成排期（跳过冲突检测）
     if (justResolvedConflict && savedResolutions) {
       setTimeout(() => {
+        console.log('[BasicScenario] 生成排期（使用保存的解决方案）');
         const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy, savedResolutions);
         setScheduleResult(result);
 
@@ -359,8 +365,26 @@ export default function BasicScenario() {
       return;
     }
 
+    // 如果强制生成，跳过冲突检测
+    if (force) {
+      setTimeout(() => {
+        console.log('[BasicScenario] 强制生成排期（跳过冲突检测）');
+        const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy);
+        setScheduleResult(result);
+
+        // 基于 scheduleResult 重新检测冲突，确保 pendingConflicts 同步
+        const newConflicts = detectResourceConflicts(result.tasks, resources, undefined);
+        setPendingConflicts(newConflicts);
+
+        setIsComputing(false);
+      }, 500);
+      return;
+    }
+
     // 否则，检测资源冲突（始终使用当前正在编辑的任务列表）
     const conflicts = detectResourceConflicts(tasks, resources, undefined);
+
+    console.log('[BasicScenario] 检测到冲突数量:', conflicts.size);
 
     if (conflicts.size > 0) {
       // 有冲突，显示对话框
@@ -370,6 +394,7 @@ export default function BasicScenario() {
     } else {
       // 没有冲突，直接生成排期
       setTimeout(() => {
+        console.log('[BasicScenario] 生成排期（无冲突）');
         const result = generateSchedule(tasks, resources, startDate, defaultWorkingHours, conflictStrategy);
         setScheduleResult(result);
 
@@ -516,8 +541,9 @@ export default function BasicScenario() {
     setShowDeadlineWarningDialog(false); // 关闭预警弹窗
     setSelectedTaskForSplit(null);
 
-    // 调用生成排期（触发冲突检测流程）
-    handleGenerateSchedule();
+    // 调用生成排期（强制生成，跳过冲突检测）
+    console.log('[BasicScenario] 调用生成排期（强制）');
+    handleGenerateSchedule(true);
   };
 
   // 打开任务拆分弹窗
@@ -918,7 +944,7 @@ export default function BasicScenario() {
               />
             </div>
             <Button
-              onClick={handleGenerateSchedule}
+              onClick={() => handleGenerateSchedule()}
               disabled={isComputing || tasks.length === 0}
               className="gap-2"
             >
