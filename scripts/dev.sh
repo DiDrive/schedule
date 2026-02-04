@@ -30,4 +30,5 @@ echo "Clearing port ${PORT} before start."
 kill_port_if_listening
 echo "Starting HTTP service on port ${PORT} for dev..."
 
-npx next dev --webpack --port $PORT
+# 使用项目本地的 next，避免 npx 全局缓存导致 React 实例冲突
+pnpm next dev --webpack --port $PORT
