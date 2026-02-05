@@ -5,9 +5,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, GitBranch, BarChart3 } from 'lucide-react';
+import { Calendar, GitBranch, BarChart3, Globe } from 'lucide-react';
 import BasicScenario from '@/components/scenarios/basic-scenario';
 import ComplexScenario from '@/components/scenarios/complex-scenario';
+import FeishuIntegrationDialog from '@/components/feishu-integration-dialog';
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import { generateIntelligentAnalysis } from '@/lib/intelligent-analysis';
 import { basicScenarioSample, complexScenarioSample } from '@/lib/sample-data';
@@ -15,6 +16,73 @@ import { Task, Resource, ScheduleResult } from '@/types/schedule';
 
 export default function ProjectScheduleSystem() {
   const [activeTab, setActiveTab] = useState('basic');
+  const [showFeishuDialog, setShowFeishuDialog] = useState(false);
+
+  // 处理飞书同步
+  const handleFeishuSync = async () => {
+    const configStr = localStorage.getItem('feishu-config');
+    if (!configStr) {
+      alert('请先配置飞书集成信息');
+      return;
+    }
+
+    const config = JSON.parse(configStr);
+
+    // 获取基础场景数据
+    const basicTasksStr = localStorage.getItem('basic-scenario-tasks');
+    const basicResourcesStr = localStorage.getItem('basic-scenario-resources');
+    const basicScheduleStr = localStorage.getItem('basic-scenario-schedule-result');
+
+    const basicTasks = basicTasksStr ? JSON.parse(basicTasksStr) : [];
+    const basicResources = basicResourcesStr ? JSON.parse(basicResourcesStr) : [];
+    const basicSchedule = basicScheduleStr ? JSON.parse(basicScheduleStr) : [];
+
+    // 获取复杂场景数据
+    const complexTasksStr = localStorage.getItem('complex-scenario-tasks');
+    const complexResourcesStr = localStorage.getItem('complex-scenario-resources');
+    const complexProjectsStr = localStorage.getItem('complex-scenario-projects');
+    const complexScheduleStr = localStorage.getItem('complex-scenario-schedule-result');
+
+    const complexTasks = complexTasksStr ? JSON.parse(complexTasksStr) : [];
+    const complexResources = complexResourcesStr ? JSON.parse(complexResourcesStr) : [];
+    const complexProjects = complexProjectsStr ? JSON.parse(complexProjectsStr) : [];
+    const complexSchedule = complexScheduleStr ? JSON.parse(complexScheduleStr) : [];
+
+    // 合并数据
+    const systemData = {
+      resources: [...basicResources, ...complexResources],
+      projects: complexProjects,
+      tasks: [...basicTasks, ...complexTasks],
+      schedules: basicSchedule ? [basicSchedule] : (complexSchedule ? [complexSchedule] : []),
+    };
+
+    try {
+      const response = await fetch('/api/feishu/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          config,
+          systemData,
+          options: {
+            conflictResolution: 'feishu', // 以多维表为准
+          },
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`同步成功！\n\n统计：\n人员：${result.stats.resources.created} 创建, ${result.stats.resources.updated} 更新\n项目：${result.stats.projects.created} 创建, ${result.stats.projects.updated} 更新\n任务：${result.stats.tasks.created} 创建, ${result.stats.tasks.updated} 更新\n排期：${result.stats.schedules.created} 创建`);
+      } else {
+        alert(`同步失败：${result.message}\n\n错误详情：\n${result.errors.join('\n')}`);
+      }
+    } catch (error) {
+      console.error('飞书同步失败:', error);
+      alert('同步失败，请检查网络连接和配置信息');
+    }
+  };
 
   // 页面级别的一次性数据清理，确保清除所有旧数据
   const hasCleanedUp = useRef(false);
@@ -106,6 +174,14 @@ export default function ProjectScheduleSystem() {
                 </p>
               </div>
             </div>
+            <Button
+              variant="outline"
+              onClick={() => setShowFeishuDialog(true)}
+              className="gap-2"
+            >
+              <Globe className="h-4 w-4" />
+              飞书集成
+            </Button>
           </div>
         </div>
       </header>
@@ -135,6 +211,13 @@ export default function ProjectScheduleSystem() {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* 飞书集成对话框 */}
+      <FeishuIntegrationDialog
+        open={showFeishuDialog}
+        onOpenChange={setShowFeishuDialog}
+        onSync={handleFeishuSync}
+      />
     </div>
   );
 }
