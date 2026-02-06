@@ -5,10 +5,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, GitBranch, BarChart3, Globe } from 'lucide-react';
+import { Calendar, GitBranch, BarChart3, Globe, Info } from 'lucide-react';
 import BasicScenario from '@/components/scenarios/basic-scenario';
 import ComplexScenario from '@/components/scenarios/complex-scenario';
 import FeishuIntegrationDialog from '@/components/feishu-integration-dialog';
+import FeishuConfigHelper from '@/components/feishu-config-helper';
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import { generateIntelligentAnalysis } from '@/lib/intelligent-analysis';
 import { basicScenarioSample, complexScenarioSample } from '@/lib/sample-data';
@@ -17,6 +18,7 @@ import { Task, Resource, ScheduleResult } from '@/types/schedule';
 export default function ProjectScheduleSystem() {
   const [activeTab, setActiveTab] = useState('basic');
   const [showFeishuDialog, setShowFeishuDialog] = useState(false);
+  const [showConfigHelper, setShowConfigHelper] = useState(false);
 
   // 处理飞书同步
   const handleFeishuSync = async () => {
@@ -174,14 +176,24 @@ export default function ProjectScheduleSystem() {
                 </p>
               </div>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => setShowFeishuDialog(true)}
-              className="gap-2"
-            >
-              <Globe className="h-4 w-4" />
-              飞书集成
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowConfigHelper(true)}
+                className="gap-2"
+              >
+                <Info className="h-4 w-4" />
+                配置助手
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowFeishuDialog(true)}
+                className="gap-2"
+              >
+                <Globe className="h-4 w-4" />
+                飞书集成
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -217,6 +229,12 @@ export default function ProjectScheduleSystem() {
         open={showFeishuDialog}
         onOpenChange={setShowFeishuDialog}
         onSync={handleFeishuSync}
+      />
+
+      {/* 飞书配置助手 */}
+      <FeishuConfigHelper
+        open={showConfigHelper}
+        onOpenChange={setShowConfigHelper}
       />
     </div>
   );
