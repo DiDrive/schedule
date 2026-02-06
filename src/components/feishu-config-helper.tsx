@@ -13,8 +13,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, CheckCircle2, Copy, Download, Upload, Info, FileText } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Copy, Download, Upload, Info, FileText, AlertTriangle } from 'lucide-react';
 import { downloadTableTemplateMarkdown } from '@/lib/feishu-table-templates';
+import ExcelTemplateGenerator from './excel-template-generator';
 
 interface FeishuConfig {
   appId: string;
@@ -196,6 +197,33 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto py-4 space-y-6">
+          {/* 重要提示 */}
+          <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="h-5 w-5" />
+                重要提示
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <p className="text-amber-700 dark:text-amber-400">
+                <strong>您的 URL 看起来是飞书知识库链接，而不是多维表格！</strong>
+              </p>
+              <p className="text-amber-600 dark:text-amber-500">
+                正确的多维表格 URL 应该包含 <code className="px-1 py-0.5 bg-amber-200 dark:bg-amber-800 rounded">/base/</code> 而不是 <code className="px-1 py-0.5 bg-amber-200 dark:bg-amber-800 rounded">/wiki/</code>
+              </p>
+              <p className="text-amber-600 dark:text-amber-500">
+                请按以下步骤创建多维表格：
+              </p>
+              <ol className="list-decimal list-inside space-y-1 text-amber-600 dark:text-amber-500 ml-2">
+                <li>在飞书中点击左侧"云文档"</li>
+                <li>点击"新建" → "多维表格"（注意：不是"知识库"）</li>
+                <li>命名为"项目排期系统"</li>
+                <li>复制新创建的多维表格 URL</li>
+              </ol>
+            </CardContent>
+          </Card>
+
           {/* App Token 获取帮助 */}
           <Card>
             <CardHeader>
@@ -401,7 +429,7 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
                 保存或恢复您的配置
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col gap-3">
+            <CardContent className="space-y-4">
               <div className="flex gap-2">
                 <Button
                   variant="outline"
@@ -428,21 +456,24 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
                 />
               </div>
 
-              <div className="border-t pt-3">
+              <div className="border-t pt-4">
                 <Button
                   variant="outline"
                   onClick={downloadTableTemplateMarkdown}
                   className="w-full"
                 >
                   <FileText className="h-4 w-4 mr-2" />
-                  下载表格创建模板
+                  下载 Markdown 模板
                 </Button>
                 <p className="text-xs text-slate-500 mt-2 text-center">
-                  下载详细的表格字段配置文档，帮助您快速创建表格
+                  下载详细的表格字段配置文档（Markdown 格式）
                 </p>
               </div>
             </CardContent>
           </Card>
+
+          {/* Excel 模板生成器 */}
+          <ExcelTemplateGenerator />
         </div>
 
         <div className="flex gap-2 pt-4 border-t">
