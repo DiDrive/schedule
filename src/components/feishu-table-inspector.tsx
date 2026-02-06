@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, CheckCircle2, XCircle, Copy } from 'lucide-react';
-import { listFeishuRecords, initFeishuClient, type FeishuConfig } from '@/lib/feishu-client';
+import { type FeishuConfig } from '@/lib/feishu-client';
 
 interface FieldInfo {
   fieldId: string;
@@ -95,76 +95,37 @@ export default function FeishuTableInspector({ open, onOpenChange, config }: Fei
     setIsLoading(true);
     setTableInfo([]);
 
-    // 先初始化飞书客户端
     try {
-      initFeishuClient(config);
+      const response = await fetch('/api/feishu/inspect-tables', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          config,
+          expectedFields: {
+            resources: expectedFields.resources,
+            projects: expectedFields.projects,
+            tasks: expectedFields.tasks,
+            schedules: expectedFields.schedules,
+          },
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setTableInfo(data.tableInfo);
+      } else {
+        console.error('表格检测失败:', data.message);
+        alert(`表格检测失败: ${data.message}`);
+      }
     } catch (error) {
-      console.error('初始化飞书客户端失败:', error);
+      console.error('表格检测失败:', error);
+      alert('表格检测失败，请检查网络连接');
+    } finally {
       setIsLoading(false);
-      return;
     }
-
-    const tablesToCheck = [
-      { name: '人员表', id: config.tableIds.resources, expected: expectedFields.resources },
-      { name: '项目表', id: config.tableIds.projects, expected: expectedFields.projects },
-      { name: '任务表', id: config.tableIds.tasks, expected: expectedFields.tasks },
-      { name: '排期表', id: config.tableIds.schedules, expected: expectedFields.schedules },
-    ];
-
-    const results: TableInfo[] = [];
-
-    for (const table of tablesToCheck) {
-      if (!table.id) {
-        results.push({
-          tableName: table.name,
-          tableId: '',
-          fields: [],
-          sampleRecord: null,
-          hasError: true,
-          errorMessage: 'Table ID 未配置',
-        });
-        continue;
-      }
-
-      try {
-        const records = await listFeishuRecords(config.appToken, table.id, { pageSize: 1 });
-
-        // 获取字段信息
-        const sampleRecord = records.items[0] || null;
-        const fields: FieldInfo[] = [];
-
-        if (sampleRecord && sampleRecord.fields) {
-          Object.keys(sampleRecord.fields).forEach(fieldId => {
-            fields.push({
-              fieldId,
-              fieldName: fieldId, // 飞书 API 可能不返回字段名称
-              fieldType: typeof sampleRecord.fields[fieldId],
-              isRequired: Object.values(table.expected).includes(fieldId),
-            });
-          });
-        }
-
-        results.push({
-          tableName: table.name,
-          tableId: table.id,
-          fields,
-          sampleRecord,
-          hasError: false,
-        });
-      } catch (error) {
-        results.push({
-          tableName: table.name,
-          tableId: table.id,
-          fields: [],
-          sampleRecord: null,
-          hasError: true,
-          errorMessage: error instanceof Error ? error.message : '未知错误',
-        });
-      }
-    }
-
-    setTableInfo(results);
-    setIsLoading(false);
   };
 
   const copyFieldIds = () => {
