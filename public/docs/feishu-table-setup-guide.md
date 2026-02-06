@@ -307,12 +307,18 @@ https://xxxx.feishu.cn/base/bascnxxxxxxxxxxxx/appxxxxxxxx?table=tblxxxxxxxxxxxx
 
 | 表格名称 | App Token | Table ID |
 |---------|-----------|----------|
-| 人员表 | bascnxxxxxxxxxxxx | tblxxxxxxxxxxxx |
+| 人员表 | FovUbfThaa62nesBf0ZcPeO8nnb | tbl2d63n3DvpNwdb |
 | 项目表 | （同上） | tblxxxxxxxxxxxx |
 | 任务表 | （同上） | tblxxxxxxxxxxxx |
 | 排期表 | （同上） | tblxxxxxxxxxxxx |
 
 **注意**：同一个多维表中的所有表格共享同一个 App Token。
+
+**重要说明**：
+- App Token 通常位于 URL 的 `/base/` 和 `/app` 之间
+- App Token 可能以 `bascn` 开头，也可能是其他字母数字组合
+- App Token 长度通常在 20-30 位之间
+- Table ID 总是以 `tbl` 开头
 
 ---
 

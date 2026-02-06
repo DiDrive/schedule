@@ -55,6 +55,7 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
 
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [copied, setCopied] = useState(false);
+  const [inputUrl, setInputUrl] = useState('');
 
   // 从 localStorage 加载配置
   useEffect(() => {
@@ -90,8 +91,10 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
     // 验证 App Token
     if (!config.appToken) {
       errors.push('App Token 未填写');
-    } else if (!config.appToken.startsWith('bascn')) {
-      errors.push('App Token 格式不正确，应以 "bascn" 开头');
+    } else if (config.appToken.length < 10) {
+      errors.push('App Token 格式不正确，长度应不少于10位');
+    } else if (!/^[a-zA-Z0-9]+$/.test(config.appToken)) {
+      errors.push('App Token 格式不正确，只能包含字母和数字');
     }
 
     // 验证 Table IDs
@@ -175,6 +178,52 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
     }
   };
 
+  // 快速导入：从 URL 提取 App Token 和 Table ID
+  const handleQuickImport = () => {
+    const url = inputUrl.trim();
+    if (!url) {
+      alert('请先粘贴飞书多维表 URL');
+      return;
+    }
+
+    // 检查是否是有效的飞书多维表 URL（支持旧版和新版格式）
+    // 旧版：/base/FovUbfThaa62nesBf0ZcPeO8nnb
+    // 新版：/base/bascn5e1j2k3l4m5n6o7p8q
+    const baseMatch = url.match(/\/base\/([a-zA-Z0-9]+)/);
+    if (!baseMatch) {
+      alert('URL 格式不正确，请确保是飞书多维表 URL（应包含 /base/）');
+      return;
+    }
+
+    const appToken = baseMatch[1];
+
+    // 提取 Table ID（如果有）
+    const tableMatch = url.match(/table=(tbl[a-zA-Z0-9]+)/);
+    const tableId = tableMatch ? tableMatch[1] : '';
+
+    // 更新配置
+    const updatedConfig = {
+      ...config,
+      appToken,
+      tableIds: {
+        ...config.tableIds,
+        resources: tableId,
+        projects: '',
+        tasks: '',
+        schedules: '',
+      },
+    };
+
+    setConfig(updatedConfig);
+    localStorage.setItem('feishu-config', JSON.stringify(updatedConfig));
+
+    const message = tableId
+      ? `成功提取信息！\n\nApp Token: ${appToken}\nTable ID: ${tableId}\n\n注意：这是当前打开的表格 ID，请根据需要在下方填写其他表格的 ID`
+      : `成功提取 App Token！\n\nApp Token: ${appToken}\n\n未检测到 Table ID，请手动在下方填写`;
+
+    alert(message);
+  };
+
   const handleSave = () => {
     localStorage.setItem('feishu-config', JSON.stringify(config));
     alert('配置已保存！');
@@ -224,6 +273,57 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
             </CardContent>
           </Card>
 
+          {/* 快速导入 */}
+          <Card className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/10">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                <Info className="h-5 w-5" />
+                快速导入
+              </CardTitle>
+              <CardDescription>
+                粘贴您的飞书多维表 URL，自动提取 App Token 和 Table ID
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Input
+                  placeholder="粘贴飞书多维表 URL，例如：https://xxx.feishu.cn/base/bascnxxxx/appxxx?table=tblxxxx"
+                  value={inputUrl}
+                  onChange={(e) => setInputUrl(e.target.value)}
+                />
+                <Button
+                  onClick={handleQuickImport}
+                  className="w-full"
+                  disabled={!inputUrl}
+                >
+                  自动提取 App Token 和 Table ID
+                </Button>
+              </div>
+
+              {config.appToken && config.tableIds.resources && (
+                <div className="space-y-2 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                  <p className="text-sm font-medium text-green-700 dark:text-green-400 flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4" />
+                    已提取的信息
+                  </p>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600 dark:text-slate-400">App Token:</span>
+                      <span className="font-mono text-green-600 dark:text-green-400">{config.appToken}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600 dark:text-slate-400">Table ID:</span>
+                      <span className="font-mono text-green-600 dark:text-green-400">{config.tableIds.resources}</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                    注意：这是当前打开的表格 ID，请根据需要在下方填写其他表格的 ID
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* App Token 获取帮助 */}
           <Card>
             <CardHeader>
@@ -250,7 +350,7 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
               <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800 space-y-2">
                 <p className="text-sm font-medium">方法二：手动输入</p>
                 <p className="text-sm text-slate-600 dark:text-slate-400">
-                  App Token 位于多维表 URL 的 `/base/` 和 `/app` 之间，通常以 <code className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded">bascn</code> 开头
+                  App Token 位于多维表 URL 的 <code className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded">/base/</code> 和 <code className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded">/app</code> 之间，通常由字母和数字组成
                 </p>
                 <div className="flex gap-2">
                   <Input
@@ -275,10 +375,13 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
                   示例
                 </p>
                 <p className="text-sm text-slate-600 dark:text-slate-400 font-mono break-all">
-                  https://xxx.feishu.cn/base/<span className="bg-blue-200 dark:bg-blue-800 px-1 rounded">bascn5e1j2k3l4m5n6o7p8q</span>/appxxxxxxxx
+                  https://xxx.feishu.cn/base/<span className="bg-blue-200 dark:bg-blue-800 px-1 rounded">FovUbfThaa62nesBf0ZcPeO8nnb</span>/appxxxxxxxx?table=tbl2d63n3DvpNwdb
                 </p>
                 <p className="text-sm text-blue-600 dark:text-blue-400">
-                  App Token = bascn5e1j2k3l4m5n6o7p8q
+                  App Token = FovUbfThaa62nesBf0ZcPeO8nnb
+                </p>
+                <p className="text-sm text-blue-600 dark:text-blue-400">
+                  Table ID = tbl2d63n3DvpNwdb
                 </p>
               </div>
             </CardContent>
