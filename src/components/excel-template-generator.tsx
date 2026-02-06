@@ -181,8 +181,8 @@ export default function ExcelTemplateGenerator() {
           [FEISHU_FIELD_IDS.tasks.type]: task.workType === '平面' ? '平面设计' : task.workType === '后期' ? '后期制作' : '物料',
           [FEISHU_FIELD_IDS.tasks.estimated_hours]: task.estimatedHours,
           [FEISHU_FIELD_IDS.tasks.actual_hours]: task.actualHours || 0,
-          [FEISHU_FIELD_IDS.tasks.start_time]: task.startTime || '',
-          [FEISHU_FIELD_IDS.tasks.end_time]: task.endTime || '',
+          [FEISHU_FIELD_IDS.tasks.start_time]: task.startDate ? new Date(task.startDate).toISOString().slice(0, 19).replace('T', ' ') : '',
+          [FEISHU_FIELD_IDS.tasks.end_time]: task.endDate ? new Date(task.endDate).toISOString().slice(0, 19).replace('T', ' ') : '',
           [FEISHU_FIELD_IDS.tasks.deadline]: task.deadline || '',
           [FEISHU_FIELD_IDS.tasks.priority]: task.priority || '中',
           [FEISHU_FIELD_IDS.tasks.assignee]: task.assignedResources?.[0]?.name || '',
@@ -211,10 +211,10 @@ export default function ExcelTemplateGenerator() {
 
           // 获取最早和最晚任务时间
           const taskTimes = (sch.tasks || []).map((t: any) => {
-            const time = t.assignedStartTime || t.startTime;
+            const time = t.startDate; // 排期算法使用的是 startDate
             return time ? new Date(time).getTime() : 0;
           }).filter(t => t > 0);
-          
+
           const startTime = taskTimes.length > 0 ? Math.min(...taskTimes) : 0;
           const endTime = taskTimes.length > 0 ? Math.max(...taskTimes) : 0;
 
