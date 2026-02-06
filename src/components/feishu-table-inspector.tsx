@@ -166,31 +166,11 @@ export default function FeishuTableInspector({ open, onOpenChange, config }: Fei
           if (fieldDefinitions && missingFields.length > 0) {
             const fields = missingFields.map(fieldName => {
               const fieldType = fieldDefinitions[fieldName] || 'text';
-              let fieldNameCN = fieldName; // 默认使用字段 ID 作为名称
 
-              // 根据表格类型映射字段名称
-              if (table.tableName === '任务表') {
-                const fieldNameMap: Record<string, string> = {
-                  'project': '项目',
-                  'dependencies': '依赖任务',
-                };
-                fieldNameCN = fieldNameMap[fieldName] || fieldName;
-              } else if (table.tableName === '排期表') {
-                const fieldNameMap: Record<string, string> = {
-                  'project': '项目',
-                  'name': '排期名称',
-                  'version': '排期版本',
-                  'task_count': '任务总数',
-                  'total_hours': '总工时',
-                  'utilization': '资源利用率',
-                  'critical_path_count': '关键路径数量',
-                };
-                fieldNameCN = fieldNameMap[fieldName] || fieldName;
-              }
-
+              // 使用英文字段名称，避免中文可能的编码问题
               return {
                 fieldId: fieldName,
-                fieldName: fieldNameCN,
+                fieldName: fieldName, // 使用英文字段 ID 作为字段名称
                 fieldType,
               };
             });
