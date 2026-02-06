@@ -15,82 +15,38 @@ export default function ExcelTemplateGenerator() {
     setIsExportingSystemData(true);
 
     try {
-      // 从 localStorage 读取系统数据
-      const storedData = localStorage.getItem('projectScheduleSystem');
-      if (!storedData) {
-        alert('没有找到系统数据，请先在系统中添加一些人员、项目或任务');
-        setIsExportingSystemData(false);
-        return;
-      }
+      // 从 localStorage 读取系统数据（分场景存储）
+      const basicResourcesStr = localStorage.getItem('basic-scenario-resources');
+      const basicTasksStr = localStorage.getItem('basic-scenario-tasks');
+      const complexResourcesStr = localStorage.getItem('complex-scenario-resources');
+      const complexProjectsStr = localStorage.getItem('complex-scenario-projects');
+      const complexTasksStr = localStorage.getItem('complex-scenario-tasks');
 
-      const systemData = JSON.parse(storedData);
-      const { resources = [], projects = [], tasks = [] } = systemData;
+      // 解析数据
+      const basicResources = basicResourcesStr ? JSON.parse(basicResourcesStr) : [];
+      const basicTasks = basicTasksStr ? JSON.parse(basicTasksStr) : [];
+      const complexResources = complexResourcesStr ? JSON.parse(complexResourcesStr) : [];
+      const complexProjects = complexProjectsStr ? JSON.parse(complexProjectsStr) : [];
+      const complexTasks = complexTasksStr ? JSON.parse(complexTasksStr) : [];
+
+      // 合并所有资源（去重）
+      const allResources = [...basicResources, ...complexResources].filter((res, index, self) =>
+        index === self.findIndex(r => r.id === res.id)
+      );
+
+      // 合并所有项目
+      const allProjects = [...complexProjects];
+
+      // 合并所有任务（去重）
+      const allTasks = [...basicTasks, ...complexTasks].filter((task, index, self) =>
+        index === self.findIndex(t => t.id === task.id)
+      );
 
       // 创建工作簿
       const workbook = XLSX.utils.book_new();
 
-      // 1. 人员表数据
-      if (resources.length > 0) {
-        const resourcesData = resources.map((res: any) => ({
-          [FEISHU_FIELD_IDS.resources.id]: res.id,
-          [FEISHU_FIELD_IDS.resources.name]: res.name,
-          [FEISHU_FIELD_IDS.resources.type]: res.workType === '平面' ? '平面设计' : res.workType === '后期' ? '后期制作' : '物料',
-          [FEISHU_FIELD_IDS.resources.efficiency]: Number(res.efficiency || 1),
-          [FEISHU_FIELD_IDS.resources.feishu_user]: '',
-          [FEISHU_FIELD_IDS.resources.total_hours]: 0,
-          [FEISHU_FIELD_IDS.resources.created_at]: '',
-          [FEISHU_FIELD_IDS.resources.updated_at]: '',
-        }));
-        const resourcesSheet = XLSX.utils.json_to_sheet(resourcesData);
-        XLSX.utils.book_append_sheet(workbook, resourcesSheet, '人员表');
-      }
-
-      // 2. 项目表数据
-      if (projects.length > 0) {
-        const projectsData = projects.map((proj: any) => ({
-          [FEISHU_FIELD_IDS.projects.id]: proj.id,
-          [FEISHU_FIELD_IDS.projects.name]: proj.name,
-          [FEISHU_FIELD_IDS.projects.description]: proj.description || '',
-          [FEISHU_FIELD_IDS.projects.start_date]: proj.startDate ? proj.startDate.split(' ')[0] : '',
-          [FEISHU_FIELD_IDS.projects.end_date]: proj.deadline ? proj.deadline.split(' ')[0] : '',
-          [FEISHU_FIELD_IDS.projects.status]: '进行中',
-          [FEISHU_FIELD_IDS.projects.created_at]: '',
-          [FEISHU_FIELD_IDS.projects.updated_at]: '',
-        }));
-        const projectsSheet = XLSX.utils.json_to_sheet(projectsData);
-        XLSX.utils.book_append_sheet(workbook, projectsSheet, '项目表');
-      }
-
-      // 3. 任务表数据
-      if (tasks.length > 0) {
-        const tasksData = tasks.map((task: any) => ({
-          [FEISHU_FIELD_IDS.tasks.id]: task.id,
-          [FEISHU_FIELD_IDS.tasks.name]: task.name,
-          [FEISHU_FIELD_IDS.tasks.project]: task.projectId || '',
-          [FEISHU_FIELD_IDS.tasks.type]: task.workType === '平面' ? '平面设计' : task.workType === '后期' ? '后期制作' : '物料',
-          [FEISHU_FIELD_IDS.tasks.estimated_hours]: task.estimatedHours,
-          [FEISHU_FIELD_IDS.tasks.actual_hours]: task.actualHours || 0,
-          [FEISHU_FIELD_IDS.tasks.start_time]: task.startTime || '',
-          [FEISHU_FIELD_IDS.tasks.end_time]: task.endTime || '',
-          [FEISHU_FIELD_IDS.tasks.deadline]: task.deadline || '',
-          [FEISHU_FIELD_IDS.tasks.priority]: task.priority || '中',
-          [FEISHU_FIELD_IDS.tasks.assignee]: task.assignedResources?.[0]?.name || '',
-          [FEISHU_FIELD_IDS.tasks.dependencies]: task.dependencies?.join(', ') || '',
-          [FEISHU_FIELD_IDS.tasks.status]: '未开始',
-          [FEISHU_FIELD_IDS.tasks.is_overdue]: false,
-          [FEISHU_FIELD_IDS.tasks.feishu_version]: 1,
-          [FEISHU_FIELD_IDS.tasks.system_version]: 1,
-          [FEISHU_FIELD_IDS.tasks.last_synced_at]: '',
-          [FEISHU_FIELD_IDS.tasks.sync_source]: '系统',
-          [FEISHU_FIELD_IDS.tasks.created_at]: '',
-          [FEISHU_FIELD_IDS.tasks.updated_at]: '',
-        }));
-        const tasksSheet = XLSX.utils.json_to_sheet(tasksData);
-        XLSX.utils.book_append_sheet(workbook, tasksSheet, '任务表');
-      }
-
       // 如果没有任何数据，创建空模板
-      if (resources.length === 0 && projects.length === 0 && tasks.length === 0) {
+      if (allResources.length === 0 && allProjects.length === 0 && allTasks.length === 0) {
         // 创建空的人员表模板
         const emptyResources = [{
           [FEISHU_FIELD_IDS.resources.id]: 'res-001',
@@ -144,11 +100,77 @@ export default function ExcelTemplateGenerator() {
         }];
         const emptyTasksSheet = XLSX.utils.json_to_sheet(emptyTasks);
         XLSX.utils.book_append_sheet(workbook, emptyTasksSheet, '任务表');
+
+        // 生成文件
+        XLSX.writeFile(workbook, '飞书多维表数据.xlsx');
+        alert('导出成功！生成了示例数据模板。请将 Excel 文件导入到飞书多维表中');
+        setIsExportingSystemData(false);
+        return;
+      }
+
+      // 1. 人员表数据
+      if (allResources.length > 0) {
+        const resourcesData = allResources.map((res: any) => ({
+          [FEISHU_FIELD_IDS.resources.id]: res.id,
+          [FEISHU_FIELD_IDS.resources.name]: res.name,
+          [FEISHU_FIELD_IDS.resources.type]: res.workType === '平面' ? '平面设计' : res.workType === '后期' ? '后期制作' : '物料',
+          [FEISHU_FIELD_IDS.resources.efficiency]: Number(res.efficiency || 1),
+          [FEISHU_FIELD_IDS.resources.feishu_user]: '',
+          [FEISHU_FIELD_IDS.resources.total_hours]: 0,
+          [FEISHU_FIELD_IDS.resources.created_at]: '',
+          [FEISHU_FIELD_IDS.resources.updated_at]: '',
+        }));
+        const resourcesSheet = XLSX.utils.json_to_sheet(resourcesData);
+        XLSX.utils.book_append_sheet(workbook, resourcesSheet, '人员表');
+      }
+
+      // 2. 项目表数据
+      if (allProjects.length > 0) {
+        const projectsData = allProjects.map((proj: any) => ({
+          [FEISHU_FIELD_IDS.projects.id]: proj.id,
+          [FEISHU_FIELD_IDS.projects.name]: proj.name,
+          [FEISHU_FIELD_IDS.projects.description]: proj.description || '',
+          [FEISHU_FIELD_IDS.projects.start_date]: proj.startDate ? proj.startDate.split(' ')[0] : '',
+          [FEISHU_FIELD_IDS.projects.end_date]: proj.deadline ? proj.deadline.split(' ')[0] : '',
+          [FEISHU_FIELD_IDS.projects.status]: '进行中',
+          [FEISHU_FIELD_IDS.projects.created_at]: '',
+          [FEISHU_FIELD_IDS.projects.updated_at]: '',
+        }));
+        const projectsSheet = XLSX.utils.json_to_sheet(projectsData);
+        XLSX.utils.book_append_sheet(workbook, projectsSheet, '项目表');
+      }
+
+      // 3. 任务表数据
+      if (allTasks.length > 0) {
+        const tasksData = allTasks.map((task: any) => ({
+          [FEISHU_FIELD_IDS.tasks.id]: task.id,
+          [FEISHU_FIELD_IDS.tasks.name]: task.name,
+          [FEISHU_FIELD_IDS.tasks.project]: task.projectId || '',
+          [FEISHU_FIELD_IDS.tasks.type]: task.workType === '平面' ? '平面设计' : task.workType === '后期' ? '后期制作' : '物料',
+          [FEISHU_FIELD_IDS.tasks.estimated_hours]: task.estimatedHours,
+          [FEISHU_FIELD_IDS.tasks.actual_hours]: task.actualHours || 0,
+          [FEISHU_FIELD_IDS.tasks.start_time]: task.startTime || '',
+          [FEISHU_FIELD_IDS.tasks.end_time]: task.endTime || '',
+          [FEISHU_FIELD_IDS.tasks.deadline]: task.deadline || '',
+          [FEISHU_FIELD_IDS.tasks.priority]: task.priority || '中',
+          [FEISHU_FIELD_IDS.tasks.assignee]: task.assignedResources?.[0]?.name || '',
+          [FEISHU_FIELD_IDS.tasks.dependencies]: task.dependencies?.join(', ') || '',
+          [FEISHU_FIELD_IDS.tasks.status]: '未开始',
+          [FEISHU_FIELD_IDS.tasks.is_overdue]: false,
+          [FEISHU_FIELD_IDS.tasks.feishu_version]: 1,
+          [FEISHU_FIELD_IDS.tasks.system_version]: 1,
+          [FEISHU_FIELD_IDS.tasks.last_synced_at]: '',
+          [FEISHU_FIELD_IDS.tasks.sync_source]: '系统',
+          [FEISHU_FIELD_IDS.tasks.created_at]: '',
+          [FEISHU_FIELD_IDS.tasks.updated_at]: '',
+        }));
+        const tasksSheet = XLSX.utils.json_to_sheet(tasksData);
+        XLSX.utils.book_append_sheet(workbook, tasksSheet, '任务表');
       }
 
       // 生成文件
       XLSX.writeFile(workbook, '飞书多维表数据.xlsx');
-      alert('导出成功！请将 Excel 文件导入到飞书多维表中');
+      alert(`导出成功！\n人员: ${allResources.length} 个\n项目: ${allProjects.length} 个\n任务: ${allTasks.length} 个\n\n请将 Excel 文件导入到飞书多维表中`);
     } catch (error) {
       console.error('导出系统数据失败:', error);
       alert('导出系统数据失败');
