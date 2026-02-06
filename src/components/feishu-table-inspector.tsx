@@ -32,6 +32,7 @@ interface FeishuTableInspectorProps {
 
 export default function FeishuTableInspector({ open, onOpenChange, config }: FeishuTableInspectorProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [isFixing, setIsFixing] = useState(false);
   const [tableInfo, setTableInfo] = useState<TableInfo[]>([]);
   const [copied, setCopied] = useState(false);
 
@@ -139,6 +140,106 @@ export default function FeishuTableInspector({ open, onOpenChange, config }: Fei
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const fixMissingFields = async () => {
+    setIsFixing(true);
+
+    try {
+      // 收集需要创建的字段
+      const fieldsToCreate: Array<{
+        tableName: string;
+        tableId: string;
+        fields: Array<{ fieldId: string; fieldName: string; fieldType: string; options?: string[] }>;
+      }> = [];
+
+      const tableMappings: Record<string, any> = {
+        '人员表': expectedFields.resources,
+        '项目表': expectedFields.projects,
+        '任务表': expectedFields.tasks,
+        '排期表': expectedFields.schedules,
+      };
+
+      for (const table of tableInfo) {
+        if (table.hasError && table.errorMessage?.includes('缺少字段')) {
+          const missingFields = table.errorMessage.match(/缺少字段: (.+)/)?.[1].split(', ') || [];
+          const fieldDefinitions = tableMappings[table.tableName];
+
+          if (fieldDefinitions && missingFields.length > 0) {
+            const fields = missingFields.map(fieldName => {
+              const fieldType = fieldDefinitions[fieldName] || 'text';
+              let fieldNameCN = fieldName; // 默认使用字段 ID 作为名称
+
+              // 根据表格类型映射字段名称
+              if (table.tableName === '任务表') {
+                const fieldNameMap: Record<string, string> = {
+                  'project': '项目',
+                  'dependencies': '依赖任务',
+                };
+                fieldNameCN = fieldNameMap[fieldName] || fieldName;
+              } else if (table.tableName === '排期表') {
+                const fieldNameMap: Record<string, string> = {
+                  'project': '项目',
+                  'name': '排期名称',
+                  'version': '排期版本',
+                  'task_count': '任务总数',
+                  'total_hours': '总工时',
+                  'utilization': '资源利用率',
+                  'critical_path_count': '关键路径数量',
+                };
+                fieldNameCN = fieldNameMap[fieldName] || fieldName;
+              }
+
+              return {
+                fieldId: fieldName,
+                fieldName: fieldNameCN,
+                fieldType,
+              };
+            });
+
+            fieldsToCreate.push({
+              tableName: table.tableName,
+              tableId: table.tableId,
+              fields,
+            });
+          }
+        }
+      }
+
+      if (fieldsToCreate.length === 0) {
+        alert('没有需要创建的字段');
+        setIsFixing(false);
+        return;
+      }
+
+      const response = await fetch('/api/feishu/create-fields', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          config,
+          fieldsToCreate,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(data.message);
+        // 重新检测表格
+        await inspectTables();
+      } else {
+        const failedItems = data.results.filter((r: any) => !r.success);
+        const errorMessages = failedItems.map((r: any) => `${r.tableName} - ${r.fieldName}: ${r.message}`).join('\n');
+        alert(`部分字段创建失败：\n${errorMessages}`);
+      }
+    } catch (error) {
+      console.error('创建字段失败:', error);
+      alert('创建字段失败，请检查网络连接');
+    } finally {
+      setIsFixing(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
@@ -163,6 +264,27 @@ export default function FeishuTableInspector({ open, onOpenChange, config }: Fei
               </>
             )}
           </Button>
+
+          {tableInfo.length > 0 && tableInfo.some(t => t.hasError) && (
+            <Button
+              onClick={fixMissingFields}
+              disabled={isFixing || isLoading}
+              variant="destructive"
+              className="w-full"
+            >
+              {isFixing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  修复中...
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-4 w-4 mr-2" />
+                  自动修复缺失字段
+                </>
+              )}
+            </Button>
+          )}
 
           {tableInfo.length > 0 && (
             <>
@@ -202,8 +324,40 @@ export default function FeishuTableInspector({ open, onOpenChange, config }: Fei
                     </CardHeader>
                     <CardContent>
                       {table.hasError ? (
-                        <div className="text-red-600 dark:text-red-400">
-                          {table.errorMessage}
+                        <div className="space-y-3">
+                          <div className="text-red-600 dark:text-red-400 font-medium">
+                            {table.errorMessage}
+                          </div>
+                          {table.errorMessage?.includes('缺少字段') && (
+                            <div className="space-y-2">
+                              <h4 className="font-medium text-sm">缺失字段详情：</h4>
+                              {table.errorMessage.match(/缺少字段: (.+)/)?.[1].split(', ').map((missingFieldName) => {
+                                const tableName = table.tableName;
+                                let template: any = null;
+                                if (tableName === '人员表') {
+                                  template = expectedFields.resources;
+                                } else if (tableName === '项目表') {
+                                  template = expectedFields.projects;
+                                } else if (tableName === '任务表') {
+                                  template = expectedFields.tasks;
+                                } else if (tableName === '排期表') {
+                                  template = expectedFields.schedules;
+                                }
+                                const fieldType = template?.[missingFieldName] || 'text';
+                                return (
+                                  <div key={missingFieldName} className="bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded text-sm">
+                                    <div className="font-mono font-medium">{missingFieldName}</div>
+                                    <div className="text-xs text-slate-600 dark:text-slate-400">类型: {fieldType}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {table.tableId === '' && (
+                            <div className="text-sm text-slate-600 dark:text-slate-400">
+                              请先在飞书配置中设置 Table ID
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <>
@@ -212,7 +366,7 @@ export default function FeishuTableInspector({ open, onOpenChange, config }: Fei
                             <div className="flex flex-wrap gap-2">
                               {table.fields.map((field, fieldIndex) => (
                                 <Badge key={fieldIndex} variant={field.isRequired ? 'default' : 'outline'}>
-                                  {field.fieldId} ({field.fieldType})
+                                  {field.fieldName} ({field.fieldType})
                                 </Badge>
                               ))}
                             </div>
