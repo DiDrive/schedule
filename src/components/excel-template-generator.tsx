@@ -18,16 +18,20 @@ export default function ExcelTemplateGenerator() {
       // 从 localStorage 读取系统数据（分场景存储）
       const basicResourcesStr = localStorage.getItem('basic-scenario-resources');
       const basicTasksStr = localStorage.getItem('basic-scenario-tasks');
+      const basicScheduleStr = localStorage.getItem('basic-scenario-schedule-result');
       const complexResourcesStr = localStorage.getItem('complex-scenario-resources');
       const complexProjectsStr = localStorage.getItem('complex-scenario-projects');
       const complexTasksStr = localStorage.getItem('complex-scenario-tasks');
+      const complexScheduleStr = localStorage.getItem('complex-scenario-schedule-result');
 
       // 解析数据
       const basicResources = basicResourcesStr ? JSON.parse(basicResourcesStr) : [];
       const basicTasks = basicTasksStr ? JSON.parse(basicTasksStr) : [];
+      const basicSchedule = basicScheduleStr ? JSON.parse(basicScheduleStr) : [];
       const complexResources = complexResourcesStr ? JSON.parse(complexResourcesStr) : [];
       const complexProjects = complexProjectsStr ? JSON.parse(complexProjectsStr) : [];
       const complexTasks = complexTasksStr ? JSON.parse(complexTasksStr) : [];
+      const complexSchedule = complexScheduleStr ? JSON.parse(complexScheduleStr) : [];
 
       // 合并所有资源（去重）
       const allResources = [...basicResources, ...complexResources].filter((res, index, self) =>
@@ -42,11 +46,16 @@ export default function ExcelTemplateGenerator() {
         index === self.findIndex(t => t.id === task.id)
       );
 
+      // 合并所有排期结果（去重）
+      const allSchedules = [...basicSchedule, ...complexSchedule].filter((sch, index, self) =>
+        index === self.findIndex(s => s.id === sch.id)
+      );
+
       // 创建工作簿
       const workbook = XLSX.utils.book_new();
 
       // 如果没有任何数据，创建空模板
-      if (allResources.length === 0 && allProjects.length === 0 && allTasks.length === 0) {
+      if (allResources.length === 0 && allProjects.length === 0 && allTasks.length === 0 && allSchedules.length === 0) {
         // 创建空的人员表模板
         const emptyResources = [{
           [FEISHU_FIELD_IDS.resources.id]: 'res-001',
@@ -100,6 +109,25 @@ export default function ExcelTemplateGenerator() {
         }];
         const emptyTasksSheet = XLSX.utils.json_to_sheet(emptyTasks);
         XLSX.utils.book_append_sheet(workbook, emptyTasksSheet, '任务表');
+
+        // 创建空的排期表模板
+        const emptySchedules = [{
+          [FEISHU_FIELD_IDS.schedules.id]: 'sch-001',
+          [FEISHU_FIELD_IDS.schedules.project]: '',
+          [FEISHU_FIELD_IDS.schedules.name]: '示例排期',
+          [FEISHU_FIELD_IDS.schedules.version]: 1,
+          [FEISHU_FIELD_IDS.schedules.task_count]: 1,
+          [FEISHU_FIELD_IDS.schedules.total_hours]: 8,
+          [FEISHU_FIELD_IDS.schedules.utilization]: 100,
+          [FEISHU_FIELD_IDS.schedules.critical_path_count]: 0,
+          [FEISHU_FIELD_IDS.schedules.start_time]: '2024-01-01 09:30:00',
+          [FEISHU_FIELD_IDS.schedules.end_time]: '2024-01-01 18:30:00',
+          [FEISHU_FIELD_IDS.schedules.generated_at]: '2024-01-01 00:00:00',
+          [FEISHU_FIELD_IDS.schedules.created_at]: '',
+          [FEISHU_FIELD_IDS.schedules.updated_at]: '',
+        }];
+        const emptySchedulesSheet = XLSX.utils.json_to_sheet(emptySchedules);
+        XLSX.utils.book_append_sheet(workbook, emptySchedulesSheet, '排期表');
 
         // 生成文件
         XLSX.writeFile(workbook, '飞书多维表数据.xlsx');
@@ -168,9 +196,30 @@ export default function ExcelTemplateGenerator() {
         XLSX.utils.book_append_sheet(workbook, tasksSheet, '任务表');
       }
 
+      // 4. 排期表数据
+      if (allSchedules.length > 0) {
+        const schedulesData = allSchedules.map((sch: any) => ({
+          [FEISHU_FIELD_IDS.schedules.id]: sch.id,
+          [FEISHU_FIELD_IDS.schedules.project]: sch.projectId || '',
+          [FEISHU_FIELD_IDS.schedules.name]: sch.name || '排期',
+          [FEISHU_FIELD_IDS.schedules.version]: sch.version || 1,
+          [FEISHU_FIELD_IDS.schedules.task_count]: sch.tasks?.length || 0,
+          [FEISHU_FIELD_IDS.schedules.total_hours]: sch.totalHours || 0,
+          [FEISHU_FIELD_IDS.schedules.utilization]: Math.round((sch.utilization || 0) * 100) / 100,
+          [FEISHU_FIELD_IDS.schedules.critical_path_count]: sch.criticalPathCount || 0,
+          [FEISHU_FIELD_IDS.schedules.start_time]: sch.startTime || '',
+          [FEISHU_FIELD_IDS.schedules.end_time]: sch.endTime || '',
+          [FEISHU_FIELD_IDS.schedules.generated_at]: sch.generatedAt || '',
+          [FEISHU_FIELD_IDS.schedules.created_at]: '',
+          [FEISHU_FIELD_IDS.schedules.updated_at]: '',
+        }));
+        const schedulesSheet = XLSX.utils.json_to_sheet(schedulesData);
+        XLSX.utils.book_append_sheet(workbook, schedulesSheet, '排期表');
+      }
+
       // 生成文件
       XLSX.writeFile(workbook, '飞书多维表数据.xlsx');
-      alert(`导出成功！\n人员: ${allResources.length} 个\n项目: ${allProjects.length} 个\n任务: ${allTasks.length} 个\n\n请将 Excel 文件导入到飞书多维表中`);
+      alert(`导出成功！\n人员: ${allResources.length} 个\n项目: ${allProjects.length} 个\n任务: ${allTasks.length} 个\n排期: ${allSchedules.length} 个\n\n请将 Excel 文件导入到飞书多维表中`);
     } catch (error) {
       console.error('导出系统数据失败:', error);
       alert('导出系统数据失败');
