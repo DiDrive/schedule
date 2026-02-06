@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, CheckCircle2, XCircle, Copy } from 'lucide-react';
-import { listFeishuRecords, type FeishuConfig } from '@/lib/feishu-client';
+import { listFeishuRecords, initFeishuClient, type FeishuConfig } from '@/lib/feishu-client';
 
 interface FieldInfo {
   fieldId: string;
