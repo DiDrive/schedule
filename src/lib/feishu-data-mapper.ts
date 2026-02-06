@@ -123,11 +123,20 @@ Object.entries(FEISHU_OPTION_VALUES).forEach(([category, values]) => {
 });
 
 /**
- * 将日期对象转换为飞书日期格式（时间戳，毫秒）
+ * 将日期对象转换为飞书日期格式
+ * 对于不包含时间的日期字段，返回秒级时间戳
+ * 对于包含时间的日期字段，返回毫秒级时间戳
  */
-function dateToFeishuDate(date: Date | null | undefined): number {
+function dateToFeishuDate(date: Date | null | undefined, includeTime: boolean = false): number {
   if (!date) return 0;
-  return date.getTime();
+
+  if (includeTime) {
+    // 包含时间的日期：返回毫秒级时间戳
+    return date.getTime();
+  } else {
+    // 不包含时间的日期：返回秒级时间戳
+    return Math.floor(date.getTime() / 1000);
+  }
 }
 
 /**
@@ -146,11 +155,11 @@ export function resourceToFeishuRecord(resource: Resource): Record<string, any> 
     [FEISHU_FIELD_IDS.resources.id]: resource.id,
     [FEISHU_FIELD_IDS.resources.name]: resource.name,
     [FEISHU_FIELD_IDS.resources.type]: resource.workType === '平面' ? '平面设计' : resource.workType === '后期' ? '后期制作' : '物料',
-    [FEISHU_FIELD_IDS.resources.efficiency]: resource.efficiency || 1,
+    [FEISHU_FIELD_IDS.resources.efficiency]: Number(resource.efficiency || 1),
     [FEISHU_FIELD_IDS.resources.feishu_user]: [],
     [FEISHU_FIELD_IDS.resources.total_hours]: 0,
-    [FEISHU_FIELD_IDS.resources.created_at]: dateToFeishuDate(new Date()),
-    [FEISHU_FIELD_IDS.resources.updated_at]: dateToFeishuDate(new Date()),
+    [FEISHU_FIELD_IDS.resources.created_at]: dateToFeishuDate(new Date(), true),
+    [FEISHU_FIELD_IDS.resources.updated_at]: dateToFeishuDate(new Date(), true),
   };
 }
 
@@ -179,11 +188,11 @@ export function projectToFeishuRecord(project: Project): Record<string, any> {
     [FEISHU_FIELD_IDS.projects.id]: project.id,
     [FEISHU_FIELD_IDS.projects.name]: project.name,
     [FEISHU_FIELD_IDS.projects.description]: project.description || '',
-    [FEISHU_FIELD_IDS.projects.start_date]: dateToFeishuDate(project.startDate),
-    [FEISHU_FIELD_IDS.projects.end_date]: dateToFeishuDate(project.deadline),
+    [FEISHU_FIELD_IDS.projects.start_date]: dateToFeishuDate(project.startDate, false),
+    [FEISHU_FIELD_IDS.projects.end_date]: dateToFeishuDate(project.deadline, false),
     [FEISHU_FIELD_IDS.projects.status]: '进行中',
-    [FEISHU_FIELD_IDS.projects.created_at]: dateToFeishuDate(new Date()),
-    [FEISHU_FIELD_IDS.projects.updated_at]: dateToFeishuDate(new Date()),
+    [FEISHU_FIELD_IDS.projects.created_at]: dateToFeishuDate(new Date(), true),
+    [FEISHU_FIELD_IDS.projects.updated_at]: dateToFeishuDate(new Date(), true),
   };
 }
 
@@ -217,9 +226,9 @@ export function taskToFeishuRecord(task: Task): Record<string, any> {
     [FEISHU_FIELD_IDS.tasks.type]: task.taskType === '平面' ? '平面设计' : task.taskType === '后期' ? '后期制作' : '物料',
     [FEISHU_FIELD_IDS.tasks.estimated_hours]: task.estimatedHours,
     [FEISHU_FIELD_IDS.tasks.actual_hours]: 0,
-    [FEISHU_FIELD_IDS.tasks.start_time]: dateToFeishuDate(task.startDate),
-    [FEISHU_FIELD_IDS.tasks.end_time]: dateToFeishuDate(task.endDate),
-    [FEISHU_FIELD_IDS.tasks.deadline]: dateToFeishuDate(task.deadline),
+    [FEISHU_FIELD_IDS.tasks.start_time]: dateToFeishuDate(task.startDate, true),
+    [FEISHU_FIELD_IDS.tasks.end_time]: dateToFeishuDate(task.endDate, true),
+    [FEISHU_FIELD_IDS.tasks.deadline]: dateToFeishuDate(task.deadline, true),
     [FEISHU_FIELD_IDS.tasks.priority]: task.priority === 'urgent' || task.priority === 'high' ? '高' : task.priority === 'low' ? '低' : '中',
     [FEISHU_FIELD_IDS.tasks.assignee]: task.assignedResources || [],
     [FEISHU_FIELD_IDS.tasks.dependencies]: task.dependencies || [],
@@ -227,10 +236,10 @@ export function taskToFeishuRecord(task: Task): Record<string, any> {
     [FEISHU_FIELD_IDS.tasks.is_overdue]: false,
     [FEISHU_FIELD_IDS.tasks.feishu_version]: 0,
     [FEISHU_FIELD_IDS.tasks.system_version]: 0,
-    [FEISHU_FIELD_IDS.tasks.last_synced_at]: dateToFeishuDate(new Date()),
+    [FEISHU_FIELD_IDS.tasks.last_synced_at]: dateToFeishuDate(new Date(), true),
     [FEISHU_FIELD_IDS.tasks.sync_source]: '系统',
-    [FEISHU_FIELD_IDS.tasks.created_at]: dateToFeishuDate(new Date()),
-    [FEISHU_FIELD_IDS.tasks.updated_at]: dateToFeishuDate(new Date()),
+    [FEISHU_FIELD_IDS.tasks.created_at]: dateToFeishuDate(new Date(), true),
+    [FEISHU_FIELD_IDS.tasks.updated_at]: dateToFeishuDate(new Date(), true),
   };
 }
 
@@ -260,38 +269,37 @@ export function feishuRecordToTask(record: Record<string, any>, recordId: string
  * 将系统排期结果转换为飞书记录格式
  */
 export function scheduleToFeishuRecord(schedule: ScheduleResult): Record<string, any> {
+  // 确保 tasks 存在
+  const tasks = schedule.tasks || [];
+
   // 计算总工时
-  const totalHours = schedule.tasks.reduce((sum, task) => sum + task.estimatedHours, 0);
+  const totalHours = tasks.reduce((sum, task) => sum + task.estimatedHours, 0);
 
   // 计算资源利用率（简单计算）
-  const utilization = schedule.tasks.length > 0 ? 0.85 : 0;
+  const utilization = tasks.length > 0 ? 0.85 : 0;
 
   // 获取排期时间范围
-  const startTime = schedule.tasks.length > 0
-    ? schedule.tasks.reduce((min, task) => task.startDate && task.startDate < min ? task.startDate : min, schedule.tasks[0].startDate!)
+  const startTime = tasks.length > 0
+    ? tasks.reduce((min, task) => task.startDate && task.startDate < min ? task.startDate : min, tasks[0].startDate!)
     : null;
 
-  const endTime = schedule.tasks.length > 0
-    ? schedule.tasks.reduce((max, task) => task.endDate && task.endDate > max ? task.endDate : max, schedule.tasks[0].endDate!)
+  const endTime = tasks.length > 0
+    ? tasks.reduce((max, task) => task.endDate && task.endDate > max ? task.endDate : max, tasks[0].endDate!)
     : null;
 
   // 获取第一个任务的项目ID
-  const projectId = schedule.tasks[0]?.projectId || '';
+  const projectId = tasks[0]?.projectId || '';
 
   return {
     [FEISHU_FIELD_IDS.schedules.id]: `schedule-${Date.now()}`,
     [FEISHU_FIELD_IDS.schedules.project]: projectId ? [projectId] : [],
     [FEISHU_FIELD_IDS.schedules.name]: `排期 ${new Date().toLocaleString('zh-CN')}`,
     [FEISHU_FIELD_IDS.schedules.version]: 1,
-    [FEISHU_FIELD_IDS.schedules.task_count]: schedule.tasks.length,
+    [FEISHU_FIELD_IDS.schedules.task_count]: tasks.length,
     [FEISHU_FIELD_IDS.schedules.total_hours]: Math.round(totalHours * 10) / 10,
     [FEISHU_FIELD_IDS.schedules.utilization]: Math.round(utilization * 100),
     [FEISHU_FIELD_IDS.schedules.critical_path_count]: schedule.criticalPath.length,
-    [FEISHU_FIELD_IDS.schedules.start_time]: dateToFeishuDate(startTime),
-    [FEISHU_FIELD_IDS.schedules.end_time]: dateToFeishuDate(endTime),
-    [FEISHU_FIELD_IDS.schedules.generated_at]: dateToFeishuDate(new Date()),
-    [FEISHU_FIELD_IDS.schedules.created_at]: dateToFeishuDate(new Date()),
-    [FEISHU_FIELD_IDS.schedules.updated_at]: dateToFeishuDate(new Date()),
+
   };
 }
 
@@ -304,8 +312,11 @@ export function feishuRecordToSchedule(record: Record<string, any>, tasks: Task[
 
   if (!projectId) return null;
 
+  // 确保 tasks 存在
+  const validTasks = tasks || [];
+
   // 过滤出该项目的任务
-  const projectTasks = tasks.filter(t => t.projectId === projectId);
+  const projectTasks = validTasks.filter(t => t.projectId === projectId);
 
   // 计算关键路径（简化处理）
   const criticalPath = projectTasks.slice(0, Math.ceil(projectTasks.length * 0.3)).map(t => t.id);
