@@ -27,11 +27,11 @@ export default function ExcelTemplateGenerator() {
       // 解析数据
       const basicResources = basicResourcesStr ? JSON.parse(basicResourcesStr) : [];
       const basicTasks = basicTasksStr ? JSON.parse(basicTasksStr) : [];
-      const basicSchedule = basicScheduleStr ? JSON.parse(basicScheduleStr) : [];
+      const basicSchedule = basicScheduleStr ? JSON.parse(basicScheduleStr) : null;
       const complexResources = complexResourcesStr ? JSON.parse(complexResourcesStr) : [];
       const complexProjects = complexProjectsStr ? JSON.parse(complexProjectsStr) : [];
       const complexTasks = complexTasksStr ? JSON.parse(complexTasksStr) : [];
-      const complexSchedule = complexScheduleStr ? JSON.parse(complexScheduleStr) : [];
+      const complexSchedule = complexScheduleStr ? JSON.parse(complexScheduleStr) : null;
 
       // 合并所有资源（去重）
       const allResources = [...basicResources, ...complexResources].filter((res, index, self) =>
@@ -46,10 +46,14 @@ export default function ExcelTemplateGenerator() {
         index === self.findIndex(t => t.id === task.id)
       );
 
-      // 合并所有排期结果（去重）
-      const allSchedules = [...basicSchedule, ...complexSchedule].filter((sch, index, self) =>
-        index === self.findIndex(s => s.id === sch.id)
-      );
+      // 合并所有排期结果（排期结果可能是对象，包含数组）
+      const allSchedules: any[] = [];
+      if (basicSchedule && basicSchedule.tasks) {
+        allSchedules.push(basicSchedule);
+      }
+      if (complexSchedule && complexSchedule.tasks) {
+        allSchedules.push(complexSchedule);
+      }
 
       // 创建工作簿
       const workbook = XLSX.utils.book_new();
@@ -196,23 +200,36 @@ export default function ExcelTemplateGenerator() {
         XLSX.utils.book_append_sheet(workbook, tasksSheet, '任务表');
       }
 
-      // 4. 排期表数据
+      // 4. 排期表数据（从排期结果中提取）
       if (allSchedules.length > 0) {
-        const schedulesData = allSchedules.map((sch: any) => ({
-          [FEISHU_FIELD_IDS.schedules.id]: sch.id,
-          [FEISHU_FIELD_IDS.schedules.project]: sch.projectId || '',
-          [FEISHU_FIELD_IDS.schedules.name]: sch.name || '排期',
-          [FEISHU_FIELD_IDS.schedules.version]: sch.version || 1,
-          [FEISHU_FIELD_IDS.schedules.task_count]: sch.tasks?.length || 0,
-          [FEISHU_FIELD_IDS.schedules.total_hours]: sch.totalHours || 0,
-          [FEISHU_FIELD_IDS.schedules.utilization]: Math.round((sch.utilization || 0) * 100) / 100,
-          [FEISHU_FIELD_IDS.schedules.critical_path_count]: sch.criticalPathCount || 0,
-          [FEISHU_FIELD_IDS.schedules.start_time]: sch.startTime || '',
-          [FEISHU_FIELD_IDS.schedules.end_time]: sch.endTime || '',
-          [FEISHU_FIELD_IDS.schedules.generated_at]: sch.generatedAt || '',
-          [FEISHU_FIELD_IDS.schedules.created_at]: '',
-          [FEISHU_FIELD_IDS.schedules.updated_at]: '',
-        }));
+        const schedulesData = allSchedules.map((sch: any, index: number) => {
+          // 计算资源利用率平均值
+          const utilizationValues = Object.values(sch.resourceUtilization || {});
+          const avgUtilization = utilizationValues.length > 0
+            ? utilizationValues.reduce((sum: number, val: number) => sum + val, 0) / utilizationValues.length
+            : 0;
+
+          // 获取最早和最晚任务时间
+          const taskTimes = (sch.tasks || []).map((t: any) => new Date(t.assignedStartTime || t.startTime));
+          const startTime = taskTimes.length > 0 ? Math.min(...taskTimes.map(t => t.getTime())) : 0;
+          const endTime = taskTimes.length > 0 ? Math.max(...taskTimes.map(t => t.getTime())) : 0;
+
+          return {
+            [FEISHU_FIELD_IDS.schedules.id]: `sch-${Date.now()}-${index}`,
+            [FEISHU_FIELD_IDS.schedules.project]: '',
+            [FEISHU_FIELD_IDS.schedules.name]: `排期 ${new Date().toLocaleDateString()}`,
+            [FEISHU_FIELD_IDS.schedules.version]: 1,
+            [FEISHU_FIELD_IDS.schedules.task_count]: (sch.tasks || []).length,
+            [FEISHU_FIELD_IDS.schedules.total_hours]: sch.totalHours || 0,
+            [FEISHU_FIELD_IDS.schedules.utilization]: Math.round(avgUtilization * 100) / 100,
+            [FEISHU_FIELD_IDS.schedules.critical_path_count]: (sch.criticalPath || []).length,
+            [FEISHU_FIELD_IDS.schedules.start_time]: startTime > 0 ? new Date(startTime).toISOString().slice(0, 19).replace('T', ' ') : '',
+            [FEISHU_FIELD_IDS.schedules.end_time]: endTime > 0 ? new Date(endTime).toISOString().slice(0, 19).replace('T', ' ') : '',
+            [FEISHU_FIELD_IDS.schedules.generated_at]: new Date().toISOString().slice(0, 19).replace('T', ' '),
+            [FEISHU_FIELD_IDS.schedules.created_at]: '',
+            [FEISHU_FIELD_IDS.schedules.updated_at]: '',
+          };
+        });
         const schedulesSheet = XLSX.utils.json_to_sheet(schedulesData);
         XLSX.utils.book_append_sheet(workbook, schedulesSheet, '排期表');
       }
