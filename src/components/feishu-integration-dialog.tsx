@@ -382,12 +382,12 @@ export default function FeishuIntegrationDialog({
                     <span className="text-slate-600">12 个字段（ID、项目、工时、利用率等）</span>
                   </div>
                   <a
-                    href="/docs/feishu-table-design.md"
+                    href="/docs/feishu-table-setup-guide.md"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:underline mt-2 block"
                   >
-                    查看详细表格结构文档 →
+                    查看详细创建教程 →
                   </a>
                 </CardContent>
               </Card>
