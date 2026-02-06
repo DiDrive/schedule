@@ -26,12 +26,16 @@ export default function ExcelTemplateGenerator() {
 
       // 解析数据
       const basicResources = basicResourcesStr ? JSON.parse(basicResourcesStr) : [];
-      const basicTasks = basicTasksStr ? JSON.parse(basicTasksStr) : [];
+      const basicTasksDef = basicTasksStr ? JSON.parse(basicTasksStr) : []; // 任务定义
       const basicSchedule = basicScheduleStr ? JSON.parse(basicScheduleStr) : null;
       const complexResources = complexResourcesStr ? JSON.parse(complexResourcesStr) : [];
       const complexProjects = complexProjectsStr ? JSON.parse(complexProjectsStr) : [];
-      const complexTasks = complexTasksStr ? JSON.parse(complexTasksStr) : [];
+      const complexTasksDef = complexTasksStr ? JSON.parse(complexTasksStr) : []; // 任务定义
       const complexSchedule = complexScheduleStr ? JSON.parse(complexScheduleStr) : null;
+
+      // ★★★ 从排期结果中获取排期后的任务 ★★★
+      const basicTasks = basicSchedule?.tasks || basicTasksDef;
+      const complexTasks = complexSchedule?.tasks || complexTasksDef;
 
       // 合并所有资源（去重）
       const allResources = [...basicResources, ...complexResources].filter((res, index, self) =>
@@ -174,34 +178,64 @@ export default function ExcelTemplateGenerator() {
 
       // 3. 任务表数据
       if (allTasks.length > 0) {
-        const tasksData = allTasks.map((task: any) => ({
-          [FEISHU_FIELD_IDS.tasks.id]: task.id,
-          [FEISHU_FIELD_IDS.tasks.name]: task.name,
-          [FEISHU_FIELD_IDS.tasks.project]: task.projectId || '',
-          [FEISHU_FIELD_IDS.tasks.type]: task.workType === '平面' ? '平面设计' : task.workType === '后期' ? '后期制作' : '物料',
-          [FEISHU_FIELD_IDS.tasks.estimated_hours]: task.estimatedHours,
-          [FEISHU_FIELD_IDS.tasks.actual_hours]: task.actualHours || 0,
-          [FEISHU_FIELD_IDS.tasks.start_time]: task.startDate ? new Date(task.startDate).toISOString().slice(0, 19).replace('T', ' ') : '',
-          [FEISHU_FIELD_IDS.tasks.end_time]: task.endDate ? new Date(task.endDate).toISOString().slice(0, 19).replace('T', ' ') : '',
-          [FEISHU_FIELD_IDS.tasks.deadline]: task.deadline || '',
-          [FEISHU_FIELD_IDS.tasks.priority]: task.priority || '中',
-          [FEISHU_FIELD_IDS.tasks.assignee]: task.assignedResources?.[0]?.name || '',
-          [FEISHU_FIELD_IDS.tasks.dependencies]: task.dependencies?.join(', ') || '',
-          [FEISHU_FIELD_IDS.tasks.status]: '未开始',
-          [FEISHU_FIELD_IDS.tasks.is_overdue]: false,
-          [FEISHU_FIELD_IDS.tasks.feishu_version]: 1,
-          [FEISHU_FIELD_IDS.tasks.system_version]: 1,
-          [FEISHU_FIELD_IDS.tasks.last_synced_at]: '',
-          [FEISHU_FIELD_IDS.tasks.sync_source]: '系统',
-          [FEISHU_FIELD_IDS.tasks.created_at]: '',
-          [FEISHU_FIELD_IDS.tasks.updated_at]: '',
-        }));
+        // 创建资源ID到名称的映射
+        const resourceMap = new Map(allResources.map((res: any) => [res.id, res.name]));
+        
+        console.log('=== 导出任务数据 ===');
+        console.log('任务总数:', allTasks.length);
+        console.log('前3个任务:', allTasks.slice(0, 3).map(t => ({
+          id: t.id,
+          name: t.name,
+          startDate: t.startDate,
+          endDate: t.endDate,
+          assignedResources: t.assignedResources
+        })));
+        
+        const tasksData = allTasks.map((task: any) => {
+          // 获取分配的资源名称
+          let assignee = '';
+          if (task.assignedResources && task.assignedResources.length > 0) {
+            if (typeof task.assignedResources[0] === 'string') {
+              // 如果是资源ID，从映射中获取名称
+              assignee = resourceMap.get(task.assignedResources[0]) || '';
+            } else if (typeof task.assignedResources[0] === 'object') {
+              // 如果是资源对象，直接获取名称
+              assignee = task.assignedResources[0].name || '';
+            }
+          }
+          
+          return {
+            [FEISHU_FIELD_IDS.tasks.id]: task.id,
+            [FEISHU_FIELD_IDS.tasks.name]: task.name,
+            [FEISHU_FIELD_IDS.tasks.project]: task.projectId || '',
+            [FEISHU_FIELD_IDS.tasks.type]: task.workType === '平面' ? '平面设计' : task.workType === '后期' ? '后期制作' : '物料',
+            [FEISHU_FIELD_IDS.tasks.estimated_hours]: task.estimatedHours || 0,
+            [FEISHU_FIELD_IDS.tasks.actual_hours]: task.actualHours || 0,
+            [FEISHU_FIELD_IDS.tasks.start_time]: task.startDate ? new Date(task.startDate).toISOString().slice(0, 19).replace('T', ' ') : '',
+            [FEISHU_FIELD_IDS.tasks.end_time]: task.endDate ? new Date(task.endDate).toISOString().slice(0, 19).replace('T', ' ') : '',
+            [FEISHU_FIELD_IDS.tasks.deadline]: task.deadline || '',
+            [FEISHU_FIELD_IDS.tasks.priority]: task.priority || '中',
+            [FEISHU_FIELD_IDS.tasks.assignee]: assignee,
+            [FEISHU_FIELD_IDS.tasks.dependencies]: task.dependencies?.join(', ') || '',
+            [FEISHU_FIELD_IDS.tasks.status]: task.status === 'pending' ? '未开始' : task.status === 'in-progress' ? '进行中' : task.status === 'completed' ? '已完成' : '未开始',
+            [FEISHU_FIELD_IDS.tasks.is_overdue]: task.isOverdue || false,
+            [FEISHU_FIELD_IDS.tasks.feishu_version]: 1,
+            [FEISHU_FIELD_IDS.tasks.system_version]: 1,
+            [FEISHU_FIELD_IDS.tasks.last_synced_at]: '',
+            [FEISHU_FIELD_IDS.tasks.sync_source]: '系统',
+            [FEISHU_FIELD_IDS.tasks.created_at]: '',
+            [FEISHU_FIELD_IDS.tasks.updated_at]: '',
+          };
+        });
         const tasksSheet = XLSX.utils.json_to_sheet(tasksData);
         XLSX.utils.book_append_sheet(workbook, tasksSheet, '任务表');
       }
 
       // 4. 排期表数据（每次排期结果作为一条记录）
       if (allSchedules.length > 0) {
+        console.log('=== 导出排期数据 ===');
+        console.log('排期总数:', allSchedules.length);
+        
         const schedulesData = allSchedules.map((sch: any, index: number) => {
           // 计算资源利用率平均值
           const utilizationValues = Object.values(sch.resourceUtilization || {});
@@ -215,6 +249,11 @@ export default function ExcelTemplateGenerator() {
             return time ? new Date(time).getTime() : 0;
           }).filter(t => t > 0);
 
+          console.log(`排期 ${index}: 任务数=${sch.tasks?.length}, 有效时间数=${taskTimes.length}`);
+          if (taskTimes.length > 0) {
+            console.log(`  前3个任务时间:`, taskTimes.slice(0, 3));
+          }
+          
           const startTime = taskTimes.length > 0 ? Math.min(...taskTimes) : 0;
           const endTime = taskTimes.length > 0 ? Math.max(...taskTimes) : 0;
 
