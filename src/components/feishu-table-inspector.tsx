@@ -95,6 +95,15 @@ export default function FeishuTableInspector({ open, onOpenChange, config }: Fei
     setIsLoading(true);
     setTableInfo([]);
 
+    // 先初始化飞书客户端
+    try {
+      initFeishuClient(config);
+    } catch (error) {
+      console.error('初始化飞书客户端失败:', error);
+      setIsLoading(false);
+      return;
+    }
+
     const tablesToCheck = [
       { name: '人员表', id: config.tableIds.resources, expected: expectedFields.resources },
       { name: '项目表', id: config.tableIds.projects, expected: expectedFields.projects },
