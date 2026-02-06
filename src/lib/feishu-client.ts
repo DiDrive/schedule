@@ -57,18 +57,26 @@ async function getAccessToken(): Promise<string> {
     return accessToken;
   }
 
-  // 获取新的 token
-  const response = await (feishuClient.auth as any).internalTenantAccessToken({
-    app_id: (feishuClient as any).appId || '',
-    app_secret: (feishuClient as any).appSecret || '',
+  // 使用原生 HTTP 请求获取 tenant_access_token
+  const response = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      app_id: (feishuClient as any).appId || '',
+      app_secret: (feishuClient as any).appSecret || '',
+    }),
   });
 
-  if (response.code !== 0) {
-    throw new Error(`获取飞书访问令牌失败: ${response.msg}`);
+  const data = await response.json();
+
+  if (data.code !== 0) {
+    throw new Error(`获取飞书访问令牌失败: ${data.msg}`);
   }
 
-  accessToken = response.tenant_access_token || '';
-  tokenExpireTime = Date.now() + ((response.expire || 7200) - 60) * 1000; // 提前1分钟过期
+  accessToken = data.tenant_access_token || '';
+  tokenExpireTime = Date.now() + ((data.expire || 7200) - 60) * 1000; // 提前1分钟过期
 
   return accessToken || '';
 }

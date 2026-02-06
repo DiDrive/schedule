@@ -73,39 +73,58 @@ export async function syncToFeishu(
     // 初始化飞书客户端
     initFeishuClient(config);
 
+    console.log('[飞书同步] 开始同步数据');
+    console.log('[飞书同步] 配置:', {
+      appToken: config.appToken,
+      tableIds: config.tableIds,
+    });
+
     // 同步人员
     if (options.syncResources !== false) {
+      console.log('[飞书同步] 开始同步人员...');
       const resourceResult = await syncResources(config, systemResources);
       result.stats.resources = resourceResult;
       result.errors.push(...resourceResult.errors);
+      console.log('[飞书同步] 人员同步完成:', resourceResult);
     }
 
     // 同步项目
     if (options.syncProjects !== false) {
+      console.log('[飞书同步] 开始同步项目...');
       const projectResult = await syncProjects(config, systemProjects);
       result.stats.projects = projectResult;
       result.errors.push(...projectResult.errors);
+      console.log('[飞书同步] 项目同步完成:', projectResult);
     }
 
     // 同步任务
     if (options.syncTasks !== false) {
+      console.log('[飞书同步] 开始同步任务...');
       const taskResult = await syncTasks(config, systemTasks, options.conflictResolution || 'feishu');
       result.stats.tasks = taskResult;
       result.errors.push(...taskResult.errors);
+      console.log('[飞书同步] 任务同步完成:', taskResult);
     }
 
     // 同步排期
     if (options.syncSchedules !== false) {
+      console.log('[飞书同步] 开始同步排期...');
       const scheduleResult = await syncSchedules(config, systemSchedules);
       result.stats.schedules = scheduleResult;
       result.errors.push(...scheduleResult.errors);
+      console.log('[飞书同步] 排期同步完成:', scheduleResult);
     }
+
+    console.log('[飞书同步] 同步完成');
+    console.log('[飞书同步] 统计:', result.stats);
+    console.log('[飞书同步] 错误:', result.errors);
 
     if (result.errors.length > 0) {
       result.success = false;
       result.message = '同步完成，但有部分错误';
     }
   } catch (error) {
+    console.error('[飞书同步] 同步失败:', error);
     result.success = false;
     result.message = error instanceof Error ? error.message : '同步失败';
     result.errors.push(result.message);
@@ -125,11 +144,22 @@ async function syncResources(
   const errors: string[] = [];
 
   try {
+    console.log('[飞书同步-人员] 获取飞书记录...');
+    console.log('[飞书同步-人员] appToken:', config.appToken);
+    console.log('[飞书同步-人员] tableId:', config.tableIds.resources);
+
+    if (!config.tableIds.resources) {
+      errors.push('人员表 Table ID 未配置');
+      return { ...stats, errors };
+    }
+
     // 获取飞书中的所有人员记录
     const feishuRecords = await listFeishuRecords(
       config.appToken,
       config.tableIds.resources
     );
+
+    console.log('[飞书同步-人员] 获取到', feishuRecords.items.length, '条飞书记录');
 
     const feishuRecordMap = new Map<string, FeishuRecord>();
     feishuRecords.items.forEach(record => {
@@ -138,6 +168,8 @@ async function syncResources(
         feishuRecordMap.set(id, record);
       }
     });
+
+    console.log('[飞书同步-人员] 系统中有', systemResources.length, '条人员记录');
 
     // 找出需要创建、更新、删除的记录
     const toCreate: Resource[] = [];
@@ -158,28 +190,38 @@ async function syncResources(
       }
     });
 
-    // 剩下的飞书记录需要删除
-    toDelete.push(...Array.from(feishuRecordMap.values()));
+    console.log('[飞书同步-人员] 需要创建:', toCreate.length, '条');
+    console.log('[飞书同步-人员] 需要更新:', toUpdate.length, '条');
+    console.log('[飞书同步-人员] 需要删除:', toDelete.length, '条');
 
     // 批量创建
     if (toCreate.length > 0) {
-      const records = toCreate.map(r => resourceToFeishuRecord(r));
+      console.log('[飞书同步-人员] 开始批量创建...');
+      const records = toCreate.map(r => {
+        const feishuRecord = resourceToFeishuRecord(r);
+        console.log('[飞书同步-人员] 创建记录:', r.id, r.name, feishuRecord);
+        return feishuRecord;
+      });
       await batchCreateFeishuRecords(config.appToken, config.tableIds.resources, records);
       stats.created += toCreate.length;
+      console.log('[飞书同步-人员] 批量创建完成');
     }
 
     // 批量更新
     if (toUpdate.length > 0) {
+      console.log('[飞书同步-人员] 开始批量更新...');
       const records = toUpdate.map(({ record, resource }) => ({
         record_id: record.record_id,
         fields: resourceToFeishuRecord(resource),
       }));
       await batchUpdateFeishuRecords(config.appToken, config.tableIds.resources, records);
       stats.updated += toUpdate.length;
+      console.log('[飞书同步-人员] 批量更新完成');
     }
 
     // 删除
     if (toDelete.length > 0) {
+      console.log('[飞书同步-人员] 开始删除记录...');
       for (const record of toDelete) {
         await (async () => {
           // 注意：这里需要实际的删除函数，暂时跳过
@@ -187,8 +229,12 @@ async function syncResources(
         })();
       }
     }
+
+    console.log('[飞书同步-人员] 同步完成:', stats);
   } catch (error) {
-    errors.push(error instanceof Error ? error.message : '同步人员失败');
+    const errorMessage = error instanceof Error ? error.message : '同步人员失败';
+    console.error('[飞书同步-人员] 错误:', error);
+    errors.push(errorMessage);
   }
 
   return { ...stats, errors };
