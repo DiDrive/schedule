@@ -4,12 +4,13 @@ import { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, FileSpreadsheet } from 'lucide-react';
+import { Download, FileSpreadsheet, Database } from 'lucide-react';
 
 export default function ExcelTemplateGenerator() {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingData, setIsGeneratingData] = useState(false);
 
-  // 生成 Excel 模板
+  // 生成字段配置说明文档
   const generateExcelTemplate = () => {
     setIsGenerating(true);
 
@@ -174,7 +175,7 @@ export default function ExcelTemplateGenerator() {
           '示例值': 'Logo设计'
         },
         {
-          '字段ID': 'project',
+          '字段ID': 'project_id',
           '字段名称': '项目',
           '字段类型': '关联记录',
           '必填': '否',
@@ -278,28 +279,20 @@ export default function ExcelTemplateGenerator() {
           '示例值': '0'
         },
         {
-          '字段ID': 'system_version',
-          '字段名称': '系统记录版本',
-          '字段类型': '数字',
-          '必填': '否',
-          '说明': '版本号（冲突检测用）',
-          '示例值': '0'
-        },
-        {
-          '字段ID': 'last_synced_at',
-          '字段名称': '最后同步时间',
+          '字段ID': 'created_at',
+          '字段名称': '创建时间',
           '字段类型': '日期',
           '必填': '否',
-          '说明': '最后同步时间',
+          '说明': '记录创建时间',
           '示例值': ''
         },
         {
-          '字段ID': 'sync_source',
-          '字段名称': '同步来源',
-          '字段类型': '单选',
+          '字段ID': 'updated_at',
+          '字段名称': '更新时间',
+          '字段类型': '日期',
           '必填': '否',
-          '说明': '同步来源（选项：系统、飞书、手动）',
-          '示例值': '系统'
+          '说明': '记录更新时间',
+          '示例值': ''
         }
       ]);
       XLSX.utils.book_append_sheet(workbook, tasksSheet, '任务表');
@@ -312,67 +305,27 @@ export default function ExcelTemplateGenerator() {
           '字段类型': '单行文本',
           '必填': '是',
           '说明': '排期唯一标识',
-          '示例值': 'schedule-001'
+          '示例值': 'sch-001'
         },
         {
-          '字段ID': 'project',
-          '字段名称': '项目',
+          '字段ID': 'task_id',
+          '字段名称': '任务',
           '字段类型': '关联记录',
           '必填': '否',
-          '说明': '关联项目表的记录',
-          '示例值': 'proj-001'
+          '说明': '关联任务表的记录',
+          '示例值': 'task-001'
         },
         {
-          '字段ID': 'name',
-          '字段名称': '排期名称',
-          '字段类型': '单行文本',
-          '必填': '是',
-          '说明': '排期名称',
-          '示例值': '排期 2024-01-01'
-        },
-        {
-          '字段ID': 'version',
-          '字段名称': '排期版本',
-          '字段类型': '数字',
+          '字段ID': 'person_id',
+          '字段名称': '人员',
+          '字段类型': '关联记录',
           '必填': '否',
-          '说明': '排期版本号',
-          '示例值': '1'
-        },
-        {
-          '字段ID': 'task_count',
-          '字段名称': '任务总数',
-          '字段类型': '数字',
-          '必填': '否',
-          '说明': '任务总数',
-          '示例值': '10'
-        },
-        {
-          '字段ID': 'total_hours',
-          '字段名称': '总工时',
-          '字段类型': '数字',
-          '必填': '否',
-          '说明': '总工时',
-          '示例值': '80'
-        },
-        {
-          '字段ID': 'utilization',
-          '字段名称': '资源利用率',
-          '字段类型': '百分比',
-          '必填': '否',
-          '说明': '资源利用率',
-          '示例值': '85%'
-        },
-        {
-          '字段ID': 'critical_path_count',
-          '字段名称': '关键路径数量',
-          '字段类型': '数字',
-          '必填': '否',
-          '说明': '关键路径任务数量',
-          '示例值': '3'
+          '说明': '关联人员表的记录',
+          '示例值': 'res-001'
         },
         {
           '字段ID': 'start_time',
-          '字段名称': '排期开始时间',
+          '字段名称': '开始时间',
           '字段类型': '日期',
           '必填': '否',
           '说明': '排期开始时间',
@@ -380,19 +333,11 @@ export default function ExcelTemplateGenerator() {
         },
         {
           '字段ID': 'end_time',
-          '字段名称': '排期结束时间',
+          '字段名称': '结束时间',
           '字段类型': '日期',
           '必填': '否',
           '说明': '排期结束时间',
           '示例值': '2024-01-10 18:30'
-        },
-        {
-          '字段ID': 'generated_at',
-          '字段名称': '生成时间',
-          '字段类型': '日期',
-          '必填': '否',
-          '说明': '排期生成时间',
-          '示例值': ''
         },
         {
           '字段ID': 'created_at',
@@ -423,46 +368,284 @@ export default function ExcelTemplateGenerator() {
     }
   };
 
+  // 生成包含示例数据的模板
+  const generateDataTemplate = () => {
+    setIsGeneratingData(true);
+
+    try {
+      // 创建工作簿
+      const workbook = XLSX.utils.book_new();
+
+      // 1. 人员表 - 示例数据
+      const resourcesData = [
+        {
+          'id': 'res-001',
+          'name': '张三',
+          'type': '平面设计',
+          'efficiency': '1.0',
+          'feishu_user': '',
+          'total_hours': '0',
+          'created_at': '',
+          'updated_at': ''
+        },
+        {
+          'id': 'res-002',
+          'name': '李四',
+          'type': '平面设计',
+          'efficiency': '1.2',
+          'feishu_user': '',
+          'total_hours': '0',
+          'created_at': '',
+          'updated_at': ''
+        },
+        {
+          'id': 'res-003',
+          'name': '王五',
+          'type': '后期制作',
+          'efficiency': '0.9',
+          'feishu_user': '',
+          'total_hours': '0',
+          'created_at': '',
+          'updated_at': ''
+        },
+        {
+          'id': 'res-004',
+          'name': '赵六',
+          'type': '后期制作',
+          'efficiency': '1.1',
+          'feishu_user': '',
+          'total_hours': '0',
+          'created_at': '',
+          'updated_at': ''
+        }
+      ];
+      const resourcesSheet = XLSX.utils.json_to_sheet(resourcesData);
+      XLSX.utils.book_append_sheet(workbook, resourcesSheet, '人员表');
+
+      // 2. 项目表 - 示例数据
+      const projectsData = [
+        {
+          'id': 'proj-001',
+          'name': 'XX品牌VI设计',
+          'description': 'XX品牌VI设计项目',
+          'start_date': '2024-01-01',
+          'end_date': '2024-01-31',
+          'status': '进行中',
+          'created_at': '',
+          'updated_at': ''
+        },
+        {
+          'id': 'proj-002',
+          'name': 'YY品牌视频制作',
+          'description': 'YY品牌视频制作项目',
+          'start_date': '2024-02-01',
+          'end_date': '2024-02-28',
+          'status': '未开始',
+          'created_at': '',
+          'updated_at': ''
+        }
+      ];
+      const projectsSheet = XLSX.utils.json_to_sheet(projectsData);
+      XLSX.utils.book_append_sheet(workbook, projectsSheet, '项目表');
+
+      // 3. 任务表 - 示例数据
+      const tasksData = [
+        {
+          'id': 'task-001',
+          'name': 'Logo设计',
+          'project_id': 'proj-001',
+          'type': '平面设计',
+          'estimated_hours': '8',
+          'actual_hours': '0',
+          'start_time': '',
+          'end_time': '',
+          'deadline': '2024-01-10 18:30',
+          'priority': '高',
+          'assignee': 'res-001',
+          'dependencies': '',
+          'status': '未开始',
+          'is_overdue': 'false',
+          'feishu_version': '0',
+          'created_at': '',
+          'updated_at': ''
+        },
+        {
+          'id': 'task-002',
+          'name': 'VI手册设计',
+          'project_id': 'proj-001',
+          'type': '平面设计',
+          'estimated_hours': '16',
+          'actual_hours': '0',
+          'start_time': '',
+          'end_time': '',
+          'deadline': '2024-01-15 18:30',
+          'priority': '中',
+          'assignee': 'res-002',
+          'dependencies': 'task-001',
+          'status': '未开始',
+          'is_overdue': 'false',
+          'feishu_version': '0',
+          'created_at': '',
+          'updated_at': ''
+        },
+        {
+          'id': 'task-003',
+          'name': '宣传片剪辑',
+          'project_id': 'proj-002',
+          'type': '后期制作',
+          'estimated_hours': '12',
+          'actual_hours': '0',
+          'start_time': '',
+          'end_time': '',
+          'deadline': '2024-02-20 18:30',
+          'priority': '高',
+          'assignee': 'res-003',
+          'dependencies': '',
+          'status': '未开始',
+          'is_overdue': 'false',
+          'feishu_version': '0',
+          'created_at': '',
+          'updated_at': ''
+        },
+        {
+          'id': 'task-004',
+          'name': '视频调色',
+          'project_id': 'proj-002',
+          'type': '后期制作',
+          'estimated_hours': '8',
+          'actual_hours': '0',
+          'start_time': '',
+          'end_time': '',
+          'deadline': '2024-02-25 18:30',
+          'priority': '中',
+          'assignee': 'res-004',
+          'dependencies': 'task-003',
+          'status': '未开始',
+          'is_overdue': 'false',
+          'feishu_version': '0',
+          'created_at': '',
+          'updated_at': ''
+        }
+      ];
+      const tasksSheet = XLSX.utils.json_to_sheet(tasksData);
+      XLSX.utils.book_append_sheet(workbook, tasksSheet, '任务表');
+
+      // 4. 排期表 - 示例数据
+      const schedulesData = [
+        {
+          'id': 'sch-001',
+          'task_id': 'task-001',
+          'person_id': 'res-001',
+          'start_time': '',
+          'end_time': '',
+          'created_at': '',
+          'updated_at': ''
+        },
+        {
+          'id': 'sch-002',
+          'task_id': 'task-002',
+          'person_id': 'res-002',
+          'start_time': '',
+          'end_time': '',
+          'created_at': '',
+          'updated_at': ''
+        },
+        {
+          'id': 'sch-003',
+          'task_id': 'task-003',
+          'person_id': 'res-003',
+          'start_time': '',
+          'end_time': '',
+          'created_at': '',
+          'updated_at': ''
+        },
+        {
+          'id': 'sch-004',
+          'task_id': 'task-004',
+          'person_id': 'res-004',
+          'start_time': '',
+          'end_time': '',
+          'created_at': '',
+          'updated_at': ''
+        }
+      ];
+      const schedulesSheet = XLSX.utils.json_to_sheet(schedulesData);
+      XLSX.utils.book_append_sheet(workbook, schedulesSheet, '排期表');
+
+      // 生成 Excel 文件
+      XLSX.writeFile(workbook, '飞书多维表示例数据模板.xlsx');
+    } catch (error) {
+      console.error('生成数据模板失败:', error);
+      alert('生成数据模板失败，请重试');
+    } finally {
+      setIsGeneratingData(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <FileSpreadsheet className="h-5 w-5" />
-          Excel 字段配置模板
+          Excel 模板生成器
         </CardTitle>
         <CardDescription>
-          下载包含所有表格字段配置的 Excel 模板，方便您在飞书中创建表格时参考
+          生成两种类型的 Excel 模板，帮助您快速配置飞书多维表
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <Button
-          onClick={generateExcelTemplate}
-          disabled={isGenerating}
-          className="w-full"
-        >
-          {isGenerating ? (
-            <>
-              <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              生成中...
-            </>
-          ) : (
-            <>
-              <Download className="h-4 w-4 mr-2" />
-              下载 Excel 模板
-            </>
-          )}
-        </Button>
-        <div className="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-400">
-          <p>模板包含以下内容：</p>
-          <ul className="list-disc list-inside space-y-1 ml-2">
-            <li>人员表（8个字段）</li>
-            <li>项目表（8个字段）</li>
-            <li>任务表（18个字段）</li>
-            <li>排期表（12个字段）</li>
-          </ul>
-          <p className="mt-2">
-            每个字段都包含：字段ID、字段名称、字段类型、是否必填、说明和示例值
+      <CardContent className="space-y-3">
+        {/* 字段配置模板 */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium">1. 字段配置模板</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            包含所有表格的字段配置说明，用于创建表格时参考字段类型和设置
           </p>
+          <Button
+            onClick={generateExcelTemplate}
+            disabled={isGenerating}
+            variant="outline"
+            className="w-full"
+          >
+            {isGenerating ? (
+              <>
+                <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                生成中...
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4 mr-2" />
+                下载字段配置模板
+              </>
+            )}
+          </Button>
+        </div>
+
+        <div className="border-t pt-3" />
+
+        {/* 示例数据模板 */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium">2. 示例数据模板</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            包含示例人员、项目、任务和排期数据，可直接复制到飞书表格中测试同步功能
+          </p>
+          <Button
+            onClick={generateDataTemplate}
+            disabled={isGeneratingData}
+            variant="outline"
+            className="w-full"
+          >
+            {isGeneratingData ? (
+              <>
+                <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                生成中...
+              </>
+            ) : (
+              <>
+                <Database className="h-4 w-4 mr-2" />
+                下载示例数据模板
+              </>
+            )}
+          </Button>
         </div>
       </CardContent>
     </Card>
