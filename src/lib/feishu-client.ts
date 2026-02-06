@@ -1,9 +1,8 @@
 /**
  * 飞书 API 客户端
  * 封装飞书开放平台的 API 调用
+ * 注意：不使用 @larksuiteoapi/node-sdk，因为它依赖 Node.js 的 fs 模块
  */
-
-import { Client } from '@larksuiteoapi/node-sdk';
 
 export interface FeishuConfig {
   appId: string;
@@ -30,26 +29,24 @@ export interface FeishuListResponse {
   page_token?: string;
 }
 
-let feishuClient: Client | null = null;
 let accessToken: string | null = null;
 let tokenExpireTime: number = 0;
+let configCache: FeishuConfig | null = null;
 
 /**
  * 初始化飞书客户端
  */
 export function initFeishuClient(config: FeishuConfig) {
-  feishuClient = new Client({
-    appId: config.appId,
-    appSecret: config.appSecret,
-  });
+  configCache = config;
+  console.log('[飞书客户端] 初始化完成');
 }
 
 /**
  * 获取访问令牌
  */
 async function getAccessToken(): Promise<string> {
-  if (!feishuClient) {
-    throw new Error('飞书客户端未初始化');
+  if (!configCache) {
+    throw new Error('飞书客户端未初始化，请先调用 initFeishuClient');
   }
 
   // 检查 token 是否有效
@@ -64,8 +61,8 @@ async function getAccessToken(): Promise<string> {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      app_id: (feishuClient as any).appId || '',
-      app_secret: (feishuClient as any).appSecret || '',
+      app_id: configCache.appId,
+      app_secret: configCache.appSecret,
     }),
   });
 
