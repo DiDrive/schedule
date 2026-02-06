@@ -4,11 +4,12 @@ import { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, FileSpreadsheet, Database } from 'lucide-react';
+import { Download, FileSpreadsheet, Database, RefreshCw } from 'lucide-react';
 
 export default function ExcelTemplateGenerator() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingData, setIsGeneratingData] = useState(false);
+  const [isExportingSystemData, setIsExportingSystemData] = useState(false);
 
   // 生成字段配置说明文档
   const generateExcelTemplate = () => {
@@ -582,6 +583,143 @@ export default function ExcelTemplateGenerator() {
     }
   };
 
+  // 从当前系统数据导出到 Excel
+  const exportSystemDataToExcel = () => {
+    setIsExportingSystemData(true);
+
+    try {
+      // 从 localStorage 读取当前系统数据
+      const basicResourcesStr = localStorage.getItem('basic-scenario-resources');
+      const basicTasksStr = localStorage.getItem('basic-scenario-tasks');
+      const complexResourcesStr = localStorage.getItem('complex-scenario-resources');
+      const complexTasksStr = localStorage.getItem('complex-scenario-tasks');
+      const complexProjectsStr = localStorage.getItem('complex-scenario-projects');
+      const complexScheduleStr = localStorage.getItem('complex-scenario-schedule-result');
+
+      // 解析数据
+      const basicResources = basicResourcesStr ? JSON.parse(basicResourcesStr) : [];
+      const basicTasks = basicTasksStr ? JSON.parse(basicTasksStr) : [];
+      const complexResources = complexResourcesStr ? JSON.parse(complexResourcesStr) : [];
+      const complexTasks = complexTasksStr ? JSON.parse(complexTasksStr) : [];
+      const complexProjects = complexProjectsStr ? JSON.parse(complexProjectsStr) : [];
+      const complexSchedule = complexScheduleStr ? JSON.parse(complexScheduleStr) : [];
+
+      // 合并人员数据（去重）
+      const allResources = [...basicResources, ...complexResources];
+      const uniqueResources = Array.from(new Map(allResources.map(item => [item.id, item])).values());
+
+      // 合并项目数据（去重）
+      const uniqueProjects = Array.from(new Map(complexProjects.map(item => [item.id, item])).values());
+
+      // 合并任务数据（去重）
+      const allTasks = [...basicTasks, ...complexTasks];
+      const uniqueTasks = Array.from(new Map(allTasks.map(item => [item.id, item])).values());
+
+      // 生成排期数据
+      const schedulesData: any[] = [];
+      if (complexSchedule && complexSchedule.tasks) {
+        complexSchedule.tasks.forEach((task: any, index: number) => {
+          if (task.assignedResources && task.assignedResources.length > 0) {
+            task.assignedResources.forEach((resource: any) => {
+              schedulesData.push({
+                'id': `sch-${Date.now()}-${index}-${resource.id}`,
+                'task_id': task.id,
+                'person_id': resource.id,
+                'start_time': task.startTime ? new Date(task.startTime).toISOString() : '',
+                'end_time': task.endTime ? new Date(task.endTime).toISOString() : '',
+                'created_at': '',
+                'updated_at': ''
+              });
+            });
+          }
+        });
+      }
+
+      // 创建工作簿
+      const workbook = XLSX.utils.book_new();
+
+      // 1. 人员表
+      if (uniqueResources.length > 0) {
+        const resourcesData = uniqueResources.map((resource: any) => ({
+          'id': resource.id,
+          'name': resource.name,
+          'type': resource.type,
+          'efficiency': resource.efficiency,
+          'feishu_user': '',
+          'total_hours': resource.totalHours || '0',
+          'created_at': '',
+          'updated_at': ''
+        }));
+        const resourcesSheet = XLSX.utils.json_to_sheet(resourcesData);
+        XLSX.utils.book_append_sheet(workbook, resourcesSheet, '人员表');
+      }
+
+      // 2. 项目表
+      if (uniqueProjects.length > 0) {
+        const projectsData = uniqueProjects.map((project: any) => ({
+          'id': project.id,
+          'name': project.name,
+          'description': project.description || '',
+          'start_date': project.startDate || '',
+          'end_date': project.endDate || '',
+          'status': project.status || '未开始',
+          'created_at': '',
+          'updated_at': ''
+        }));
+        const projectsSheet = XLSX.utils.json_to_sheet(projectsData);
+        XLSX.utils.book_append_sheet(workbook, projectsSheet, '项目表');
+      }
+
+      // 3. 任务表
+      if (uniqueTasks.length > 0) {
+        const tasksData = uniqueTasks.map((task: any) => ({
+          'id': task.id,
+          'name': task.name,
+          'project_id': task.projectId || '',
+          'type': task.type,
+          'estimated_hours': task.estimatedHours,
+          'actual_hours': task.actualHours || '0',
+          'start_time': task.startTime ? new Date(task.startTime).toISOString() : '',
+          'end_time': task.endTime ? new Date(task.endTime).toISOString() : '',
+          'deadline': task.deadline ? new Date(task.deadline).toISOString() : '',
+          'priority': task.priority,
+          'assignee': task.assignedResources && task.assignedResources.length > 0 ? task.assignedResources[0].id : '',
+          'dependencies': Array.isArray(task.dependencies) ? task.dependencies.join(',') : (task.dependencies || ''),
+          'status': task.status || '未开始',
+          'is_overdue': task.isOverdue ? 'true' : 'false',
+          'feishu_version': task.feishuVersion || '0',
+          'created_at': '',
+          'updated_at': ''
+        }));
+        const tasksSheet = XLSX.utils.json_to_sheet(tasksData);
+        XLSX.utils.book_append_sheet(workbook, tasksSheet, '任务表');
+      }
+
+      // 4. 排期表
+      if (schedulesData.length > 0) {
+        const schedulesSheet = XLSX.utils.json_to_sheet(schedulesData);
+        XLSX.utils.book_append_sheet(workbook, schedulesSheet, '排期表');
+      }
+
+      // 生成 Excel 文件
+      const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      XLSX.writeFile(workbook, `项目排期系统数据导出_${timestamp}.xlsx`);
+
+      // 显示统计信息
+      const message = `成功导出系统数据！\n\n` +
+        `人员: ${uniqueResources.length} 条\n` +
+        `项目: ${uniqueProjects.length} 条\n` +
+        `任务: ${uniqueTasks.length} 条\n` +
+        `排期: ${schedulesData.length} 条`;
+      alert(message);
+    } catch (error) {
+      console.error('导出系统数据失败:', error);
+      alert('导出系统数据失败，请重试');
+    } finally {
+      setIsExportingSystemData(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -590,7 +728,7 @@ export default function ExcelTemplateGenerator() {
           Excel 模板生成器
         </CardTitle>
         <CardDescription>
-          生成两种类型的 Excel 模板，帮助您快速配置飞书多维表
+          生成三种类型的 Excel 模板，帮助您快速配置飞书多维表
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -643,6 +781,33 @@ export default function ExcelTemplateGenerator() {
               <>
                 <Database className="h-4 w-4 mr-2" />
                 下载示例数据模板
+              </>
+            )}
+          </Button>
+        </div>
+
+        <div className="border-t pt-3" />
+
+        {/* 当前系统数据导出 */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium">3. 导出当前系统数据</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            从您当前系统中导出的人员、项目、任务和排期数据，可直接导入到飞书多维表
+          </p>
+          <Button
+            onClick={exportSystemDataToExcel}
+            disabled={isExportingSystemData}
+            className="w-full bg-blue-600 hover:bg-blue-700"
+          >
+            {isExportingSystemData ? (
+              <>
+                <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                导出中...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                导出当前系统数据
               </>
             )}
           </Button>
