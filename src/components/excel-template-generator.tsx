@@ -200,7 +200,7 @@ export default function ExcelTemplateGenerator() {
         XLSX.utils.book_append_sheet(workbook, tasksSheet, '任务表');
       }
 
-      // 4. 排期表数据（从排期结果中提取）
+      // 4. 排期表数据（每次排期结果作为一条记录）
       if (allSchedules.length > 0) {
         const schedulesData = allSchedules.map((sch: any, index: number) => {
           // 计算资源利用率平均值
@@ -210,21 +210,39 @@ export default function ExcelTemplateGenerator() {
             : 0;
 
           // 获取最早和最晚任务时间
-          const taskTimes = (sch.tasks || []).map((t: any) => new Date(t.assignedStartTime || t.startTime));
-          const startTime = taskTimes.length > 0 ? Math.min(...taskTimes.map(t => t.getTime())) : 0;
-          const endTime = taskTimes.length > 0 ? Math.max(...taskTimes.map(t => t.getTime())) : 0;
+          const taskTimes = (sch.tasks || []).map((t: any) => {
+            const time = t.assignedStartTime || t.startTime;
+            return time ? new Date(time).getTime() : 0;
+          }).filter(t => t > 0);
+          
+          const startTime = taskTimes.length > 0 ? Math.min(...taskTimes) : 0;
+          const endTime = taskTimes.length > 0 ? Math.max(...taskTimes) : 0;
+
+          // 如果是复杂场景，获取第一个项目的ID
+          let projectId = '';
+          if (sch.projects && sch.projects.length > 0) {
+            projectId = sch.projects[0].id;
+          }
 
           return {
-            [FEISHU_FIELD_IDS.schedules.id]: `sch-${Date.now()}-${index}`,
-            [FEISHU_FIELD_IDS.schedules.project]: '',
-            [FEISHU_FIELD_IDS.schedules.name]: `排期 ${new Date().toLocaleDateString()}`,
+            [FEISHU_FIELD_IDS.schedules.id]: `schedule-${Date.now()}-${index}`,
+            [FEISHU_FIELD_IDS.schedules.project]: projectId,
+            [FEISHU_FIELD_IDS.schedules.name]: index === 0 
+              ? '基础场景排期' 
+              : (sch.projects && sch.projects.length > 0 
+                ? `${sch.projects[0].name}排期` 
+                : '复杂场景排期'),
             [FEISHU_FIELD_IDS.schedules.version]: 1,
             [FEISHU_FIELD_IDS.schedules.task_count]: (sch.tasks || []).length,
             [FEISHU_FIELD_IDS.schedules.total_hours]: sch.totalHours || 0,
             [FEISHU_FIELD_IDS.schedules.utilization]: Math.round(avgUtilization * 100) / 100,
             [FEISHU_FIELD_IDS.schedules.critical_path_count]: (sch.criticalPath || []).length,
-            [FEISHU_FIELD_IDS.schedules.start_time]: startTime > 0 ? new Date(startTime).toISOString().slice(0, 19).replace('T', ' ') : '',
-            [FEISHU_FIELD_IDS.schedules.end_time]: endTime > 0 ? new Date(endTime).toISOString().slice(0, 19).replace('T', ' ') : '',
+            [FEISHU_FIELD_IDS.schedules.start_time]: startTime > 0 
+              ? new Date(startTime).toISOString().slice(0, 19).replace('T', ' ') 
+              : '',
+            [FEISHU_FIELD_IDS.schedules.end_time]: endTime > 0 
+              ? new Date(endTime).toISOString().slice(0, 19).replace('T', ' ') 
+              : '',
             [FEISHU_FIELD_IDS.schedules.generated_at]: new Date().toISOString().slice(0, 19).replace('T', ' '),
             [FEISHU_FIELD_IDS.schedules.created_at]: '',
             [FEISHU_FIELD_IDS.schedules.updated_at]: '',
