@@ -16,7 +16,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { AlertCircle, CheckCircle2, Clock, RefreshCw, Settings, Globe } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, RefreshCw, Settings, Globe, Search } from 'lucide-react';
+import FeishuTableInspector from './feishu-table-inspector';
 
 interface FeishuConfig {
   appId: string;
@@ -73,6 +74,7 @@ export default function FeishuIntegrationDialog({
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'success' | 'failed'>('unknown');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showTableInspector, setShowTableInspector] = useState(false);
 
   // 从 localStorage 加载配置
   useEffect(() => {
@@ -389,6 +391,14 @@ export default function FeishuIntegrationDialog({
                   >
                     查看详细创建教程 →
                   </a>
+                  <Button
+                    onClick={() => setShowTableInspector(true)}
+                    variant="outline"
+                    className="w-full mt-4"
+                  >
+                    <Search className="h-4 w-4 mr-2" />
+                    检测表格字段结构
+                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -528,6 +538,12 @@ export default function FeishuIntegrationDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <FeishuTableInspector
+        open={showTableInspector}
+        onOpenChange={setShowTableInspector}
+        config={config}
+      />
     </Dialog>
   );
 }

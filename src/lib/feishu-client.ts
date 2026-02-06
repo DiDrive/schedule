@@ -95,6 +95,29 @@ export async function listFeishuRecords(
 ): Promise<FeishuListResponse> {
   const token = await getAccessToken();
 
+  // 构建请求参数
+  const requestBody: any = {};
+
+  // 只有在有值的情况下才添加参数
+  if (options?.pageSize && options.pageSize > 0) {
+    requestBody.page_size = Math.min(options.pageSize, 500);
+  }
+
+  if (options?.pageToken) {
+    requestBody.page_token = options.pageToken;
+  }
+
+  // filter 参数需要特殊处理，只有在明确提供时才添加
+  if (options?.filter && Object.keys(options.filter).length > 0) {
+    requestBody.filter = options.filter;
+  }
+
+  console.log('[飞书API] 获取记录列表:', {
+    appToken,
+    tableId,
+    body: requestBody
+  });
+
   const response = await fetch(
     `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records`,
     {
@@ -103,17 +126,21 @@ export async function listFeishuRecords(
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        page_size: options?.pageSize || 500,
-        page_token: options?.pageToken,
-        filter: options?.filter,
-      }),
+      body: JSON.stringify(requestBody),
     }
   );
 
   const data = await response.json();
 
+  console.log('[飞书API] 响应:', {
+    code: data.code,
+    msg: data.msg,
+    hasData: !!data.data,
+    hasItems: data.data?.items ? true : false
+  });
+
   if (data.code !== 0) {
+    console.error('[飞书API] 错误详情:', data);
     throw new Error(`获取飞书记录失败: ${data.msg}`);
   }
 
