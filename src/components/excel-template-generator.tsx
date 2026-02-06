@@ -278,57 +278,6 @@ export default function ExcelTemplateGenerator() {
             return time ? new Date(time).getTime() : 0;
           }).filter(t => t > 0);
 
-          console.log(`排期 ${index}: 任务数=${sch.tasks?.length}, 有效时间数=${taskTimes.length}`);
-          if (taskTimes.length > 0) {
-            console.log(`  前3个任务时间:`, taskTimes.slice(0, 3));
-          }
-          
-          const startTime = taskTimes.length > 0 ? Math.min(...taskTimes) : 0;
-          const endTime = taskTimes.length > 0 ? Math.max(...taskTimes) : 0;
-
-          // 如果是复杂场景，获取第一个项目的ID
-          let projectId = '';
-          if (sch.projects && sch.projects.length > 0) {
-            projectId = sch.projects[0].id;
-          }
-
-          return {
-            [FEISHU_FIELD_IDS.schedules.id]: `schedule-${Date.now()}-${index}`,
-            [FEISHU_FIELD_IDS.schedules.project]: projectId,
-            [FEISHU_FIELD_IDS.schedules.name]: index === 0 
-              ? '基础场景排期' 
-              : (sch.projects && sch.projects.length > 0 
-                ? `${sch.projects[0].name}排期` 
-                : '复杂场景排期'),
-            [FEISHU_FIELD_IDS.schedules.version]: 1,
-            [FEISHU_FIELD_IDS.schedules.task_count]: (sch.tasks || []).length,
-            [FEISHU_FIELD_IDS.schedules.total_hours]: sch.totalHours || 0,
-            [FEISHU_FIELD_IDS.schedules.utilization]: Math.round(avgUtilization * 100) / 100,
-            [FEISHU_FIELD_IDS.schedules.critical_path_count]: (sch.criticalPath || []).length,
-            [FEISHU_FIELD_IDS.schedules.start_time]: startTime > 0 
-              ? new Date(startTime).toISOString().slice(0, 19).replace('T', ' ') 
-              : '',
-            [FEISHU_FIELD_IDS.schedules.end_time]: endTime > 0 
-              ? new Date(endTime).toISOString().slice(0, 19).replace('T', ' ') 
-              : '',
-            [FEISHU_FIELD_IDS.schedules.generated_at]: new Date().toISOString().slice(0, 19).replace('T', ' '),
-            [FEISHU_FIELD_IDS.schedules.created_at]: '',
-            [FEISHU_FIELD_IDS.schedules.updated_at]: '',
-          };
-        });
-        const schedulesData = allSchedules.map((sch: any, index: number) => {
-          // 计算资源利用率平均值
-          const utilizationValues = Object.values(sch.resourceUtilization || {});
-          const avgUtilization = utilizationValues.length > 0
-            ? utilizationValues.reduce((sum: number, val: number) => sum + val, 0) / utilizationValues.length
-            : 0;
-
-          // 获取最早和最晚任务时间
-          const taskTimes = (sch.tasks || []).map((t: any) => {
-            const time = t.startDate; // 排期算法使用的是 startDate
-            return time ? new Date(time).getTime() : 0;
-          }).filter(t => t > 0);
-
           console.log(`排期 ${index}:`);
           console.log(`  名称: ${index === 0 ? '基础场景排期' : (sch.projects && sch.projects.length > 0 ? sch.projects[0].name + '排期' : '复杂场景排期')}`);
           console.log(`  任务数: ${(sch.tasks || []).length}`);
