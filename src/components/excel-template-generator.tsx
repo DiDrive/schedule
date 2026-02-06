@@ -62,6 +62,18 @@ export default function ExcelTemplateGenerator() {
       // 创建工作簿
       const workbook = XLSX.utils.book_new();
 
+      // 数据检查和统计
+      console.log('=== 导出数据统计 ===');
+      console.log('资源总数:', allResources.length);
+      console.log('项目总数:', allProjects.length);
+      console.log('任务总数:', allTasks.length);
+      console.log('排期总数:', allSchedules.length);
+      console.log('排期任务数:', allSchedules.reduce((sum, s) => sum + (s.tasks?.length || 0), 0));
+
+      // 检查是否有排期结果
+      const hasSchedule = allSchedules.length > 0 && allSchedules.some(s => s.tasks && s.tasks.length > 0);
+      console.log('有排期结果:', hasSchedule);
+
       // 如果没有任何数据，创建空模板
       if (allResources.length === 0 && allProjects.length === 0 && allTasks.length === 0 && allSchedules.length === 0) {
         // 创建空的人员表模板
@@ -183,9 +195,12 @@ export default function ExcelTemplateGenerator() {
         
         console.log('=== 导出任务数据 ===');
         console.log('任务总数:', allTasks.length);
+        console.log('有开始时间的任务:', allTasks.filter(t => t.startDate).length);
+        console.log('有负责人的任务:', allTasks.filter(t => t.assignedResources && t.assignedResources.length > 0).length);
         console.log('前3个任务:', allTasks.slice(0, 3).map(t => ({
           id: t.id,
           name: t.name,
+          taskType: t.taskType,
           startDate: t.startDate,
           endDate: t.endDate,
           assignedResources: t.assignedResources
@@ -204,11 +219,25 @@ export default function ExcelTemplateGenerator() {
             }
           }
           
+          // 转换任务类型
+          let taskType = '物料';
+          if (task.taskType === '平面') {
+            taskType = '平面设计';
+          } else if (task.taskType === '后期') {
+            taskType = '后期制作';
+          } else if (task.workType === '平面') {
+            taskType = '平面设计';
+          } else if (task.workType === '后期') {
+            taskType = '后期制作';
+          } else if (task.workType === '物料' || task.taskType === '物料') {
+            taskType = '物料';
+          }
+          
           return {
             [FEISHU_FIELD_IDS.tasks.id]: task.id,
             [FEISHU_FIELD_IDS.tasks.name]: task.name,
             [FEISHU_FIELD_IDS.tasks.project]: task.projectId || '',
-            [FEISHU_FIELD_IDS.tasks.type]: task.workType === '平面' ? '平面设计' : task.workType === '后期' ? '后期制作' : '物料',
+            [FEISHU_FIELD_IDS.tasks.type]: taskType,
             [FEISHU_FIELD_IDS.tasks.estimated_hours]: task.estimatedHours || 0,
             [FEISHU_FIELD_IDS.tasks.actual_hours]: task.actualHours || 0,
             [FEISHU_FIELD_IDS.tasks.start_time]: task.startDate ? new Date(task.startDate).toISOString().slice(0, 19).replace('T', ' ') : '',
@@ -287,13 +316,90 @@ export default function ExcelTemplateGenerator() {
             [FEISHU_FIELD_IDS.schedules.updated_at]: '',
           };
         });
+        const schedulesData = allSchedules.map((sch: any, index: number) => {
+          // 计算资源利用率平均值
+          const utilizationValues = Object.values(sch.resourceUtilization || {});
+          const avgUtilization = utilizationValues.length > 0
+            ? utilizationValues.reduce((sum: number, val: number) => sum + val, 0) / utilizationValues.length
+            : 0;
+
+          // 获取最早和最晚任务时间
+          const taskTimes = (sch.tasks || []).map((t: any) => {
+            const time = t.startDate; // 排期算法使用的是 startDate
+            return time ? new Date(time).getTime() : 0;
+          }).filter(t => t > 0);
+
+          console.log(`排期 ${index}:`);
+          console.log(`  名称: ${index === 0 ? '基础场景排期' : (sch.projects && sch.projects.length > 0 ? sch.projects[0].name + '排期' : '复杂场景排期')}`);
+          console.log(`  任务数: ${(sch.tasks || []).length}`);
+          console.log(`  有效时间数: ${taskTimes.length}`);
+          console.log(`  总工时: ${sch.totalHours}`);
+          console.log(`  资源利用率: ${avgUtilization}`);
+          console.log(`  关键路径数: ${(sch.criticalPath || []).length}`);
+          
+          if (taskTimes.length > 0) {
+            const minTime = Math.min(...taskTimes);
+            const maxTime = Math.max(...taskTimes);
+            console.log(`  最早开始: ${new Date(minTime).toLocaleString()}`);
+            console.log(`  最晚结束: ${new Date(maxTime).toLocaleString()}`);
+          }
+          
+          const startTime = taskTimes.length > 0 ? Math.min(...taskTimes) : 0;
+          const endTime = taskTimes.length > 0 ? Math.max(...taskTimes) : 0;
+
+          // 如果是复杂场景，获取第一个项目的ID
+          let projectId = '';
+          if (sch.projects && sch.projects.length > 0) {
+            projectId = sch.projects[0].id;
+          }
+
+          // 排期名称
+          let scheduleName = '复杂场景排期';
+          if (index === 0) {
+            scheduleName = '基础场景排期';
+          } else if (sch.projects && sch.projects.length > 0) {
+            scheduleName = `${sch.projects[0].name}排期`;
+          }
+
+          return {
+            [FEISHU_FIELD_IDS.schedules.id]: `schedule-${Date.now()}-${index}`,
+            [FEISHU_FIELD_IDS.schedules.project]: projectId,
+            [FEISHU_FIELD_IDS.schedules.name]: scheduleName,
+            [FEISHU_FIELD_IDS.schedules.version]: 1,
+            [FEISHU_FIELD_IDS.schedules.task_count]: (sch.tasks || []).length,
+            [FEISHU_FIELD_IDS.schedules.total_hours]: sch.totalHours || 0,
+            [FEISHU_FIELD_IDS.schedules.utilization]: Math.round(avgUtilization * 100) / 100,
+            [FEISHU_FIELD_IDS.schedules.critical_path_count]: (sch.criticalPath || []).length,
+            [FEISHU_FIELD_IDS.schedules.start_time]: startTime > 0 
+              ? new Date(startTime).toISOString().slice(0, 19).replace('T', ' ') 
+              : '',
+            [FEISHU_FIELD_IDS.schedules.end_time]: endTime > 0 
+              ? new Date(endTime).toISOString().slice(0, 19).replace('T', ' ') 
+              : '',
+            [FEISHU_FIELD_IDS.schedules.generated_at]: new Date().toISOString().slice(0, 19).replace('T', ' '),
+            [FEISHU_FIELD_IDS.schedules.created_at]: '',
+            [FEISHU_FIELD_IDS.schedules.updated_at]: '',
+          };
+        });
         const schedulesSheet = XLSX.utils.json_to_sheet(schedulesData);
         XLSX.utils.book_append_sheet(workbook, schedulesSheet, '排期表');
       }
 
       // 生成文件
       XLSX.writeFile(workbook, '飞书多维表数据.xlsx');
-      alert(`导出成功！\n人员: ${allResources.length} 个\n项目: ${allProjects.length} 个\n任务: ${allTasks.length} 个\n排期: ${allSchedules.length} 个\n\n请将 Excel 文件导入到飞书多维表中`);
+      
+      // 显示导出摘要
+      const summary = `导出成功！\n\n人员: ${allResources.length} 个\n项目: ${allProjects.length} 个\n任务: ${allTasks.length} 个\n排期: ${allSchedules.length} 个`;
+      
+      if (allSchedules.length > 0) {
+        const scheduleSummary = allSchedules.map((s: any, i: number) => {
+          const name = i === 0 ? '基础场景' : (s.projects && s.projects.length > 0 ? s.projects[0].name : '复杂场景');
+          return `${name}: ${s.tasks?.length || 0} 任务, ${s.totalHours || 0} 工时`;
+        }).join('\n');
+        alert(`${summary}\n\n排期详情:\n${scheduleSummary}\n\n请将 Excel 文件导入到飞书多维表中`);
+      } else {
+        alert(`${summary}\n\n⚠ 注意: 当前没有排期结果，导出的是任务定义数据。\n如需导出排期结果，请先在系统中生成排期。\n\n请将 Excel 文件导入到飞书多维表中`);
+      }
     } catch (error) {
       console.error('导出系统数据失败:', error);
       alert('导出系统数据失败');
