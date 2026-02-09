@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { AlertCircle, CheckCircle2, Clock, RefreshCw, Settings, Globe, Search, Activity } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, RefreshCw, Settings, Globe, Search, Activity, ArrowRight } from 'lucide-react';
 import FeishuTableInspector from './feishu-table-inspector';
 
 interface FeishuConfig {
@@ -233,14 +233,24 @@ export default function FeishuIntegrationDialog({
                       value={config.appToken}
                       onChange={(e) => setConfig({ ...config, appToken: e.target.value })}
                     />
-                    <Button
-                      variant="link"
-                      size="sm"
-                      onClick={() => window.open('/feishu-app-token-guide', '_blank')}
-                      className="px-0 h-auto text-sm text-blue-600"
-                    >
-                      不知道 App Token？点击这里获取帮助 →
-                    </Button>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() => window.open('/feishu-app-token-guide', '_blank')}
+                        className="px-0 h-auto text-sm text-blue-600"
+                      >
+                        不知道 App Token？点击这里获取帮助 →
+                      </Button>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() => window.open('/feishu-create-base-guide', '_blank')}
+                        className="px-0 h-auto text-sm text-blue-600"
+                      >
+                        创建新多维表 →
+                      </Button>
+                    </div>
                   </div>
                   <Button
                     variant="outline"
@@ -493,7 +503,7 @@ export default function FeishuIntegrationDialog({
                       {syncStatus.lastSyncError}
                     </div>
                   )}
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <Button
                       variant="outline"
                       onClick={handleSync}
@@ -512,6 +522,17 @@ export default function FeishuIntegrationDialog({
                         </>
                       )}
                     </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => window.open('/feishu-quick-config', '_blank')}
+                      disabled={isSyncing}
+                      className="flex-1"
+                    >
+                      <ArrowRight className="h-4 w-4 mr-2" />
+                      快速配置
+                    </Button>
+                  </div>
+                  <div className="flex gap-2">
                     <Button
                       variant="outline"
                       onClick={() => window.open('/feishu-diagnostic', '_blank')}

@@ -254,15 +254,104 @@ export default function FeishuAppTokenGuidePage() {
                   </div>
                 )}
 
-                {tables.length === 0 && !isLoading && (
+                  {tables.length === 0 && !isLoading && (
                   <div className="space-y-4">
                     <Alert variant="destructive">
                       <XCircle className="h-4 w-4" />
-                      <AlertTitle>未找到表格</AlertTitle>
+                      <AlertTitle>多维表中没有表格</AlertTitle>
                       <AlertDescription>
-                        该 App Token 对应的多维表中没有任何表格。
+                        App Token 是有效的，但是该多维表中还没有创建任何表格。
                       </AlertDescription>
                     </Alert>
+
+                    <Alert>
+                      <Lightbulb className="h-4 w-4" />
+                      <AlertTitle>下一步操作</AlertTitle>
+                      <AlertDescription className="space-y-2">
+                        <p>你需要在多维表中创建至少一个表格才能使用系统。</p>
+                        <p><strong>系统需要 4 个表格：</strong>人员表、项目表、任务表、排期表</p>
+                      </AlertDescription>
+                    </Alert>
+
+                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 space-y-3">
+                      <p className="font-medium text-amber-800 dark:text-amber-400">
+                        📋 详细步骤：
+                      </p>
+                      <ol className="list-decimal list-inside space-y-2 text-sm">
+                        <li>
+                          <span className="font-medium">打开你的多维表</span>
+                          <p className="text-slate-600 dark:text-slate-400 mt-1 ml-4">
+                            访问：<a
+                              href={`https://vbangessentials.feishu.cn/base/${extractedAppToken}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline"
+                            >
+                              https://vbangessentials.feishu.cn/base/{extractedAppToken}
+                            </a>
+                          </p>
+                        </li>
+                        <li>
+                          <span className="font-medium">创建第一个表格</span>
+                          <p className="text-slate-600 dark:text-slate-400 mt-1 ml-4">
+                            点击页面上方的「+」按钮，选择「创建表格」
+                          </p>
+                        </li>
+                        <li>
+                          <span className="font-medium">命名表格</span>
+                          <p className="text-slate-600 dark:text-slate-400 mt-1 ml-4">
+                            输入表格名称（如：人员表、项目表等）
+                          </p>
+                        </li>
+                        <li>
+                          <span className="font-medium">添加字段</span>
+                          <p className="text-slate-600 dark:text-slate-400 mt-1 ml-4">
+                            根据系统需求添加字段（参考创建指南）
+                          </p>
+                        </li>
+                        <li>
+                          <span className="font-medium">重复创建</span>
+                          <p className="text-slate-600 dark:text-slate-400 mt-1 ml-4">
+                            重复步骤 2-4，创建所有需要的表格
+                          </p>
+                        </li>
+                        <li>
+                          <span className="font-medium">返回验证</span>
+                          <p className="text-slate-600 dark:text-slate-400 mt-1 ml-4">
+                            创建完成后，重新点击"提取 App Token"按钮验证
+                          </p>
+                        </li>
+                      </ol>
+                      <Button
+                        className="w-full mt-4"
+                        onClick={() => window.open(`https://vbangessentials.feishu.cn/base/${extractedAppToken}`, '_blank')}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        打开多维表创建表格
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">需要详细的创建指南？</p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => window.open('/feishu-create-base-guide', '_blank')}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          打开创建指南
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => window.open('/feishu-quick-config', '_blank')}
+                        >
+                          <ArrowRight className="h-4 w-4 mr-2" />
+                          快速配置
+                        </Button>
+                      </div>
+                    </div>
 
                     {error && (
                       <Alert>
@@ -270,26 +359,6 @@ export default function FeishuAppTokenGuidePage() {
                         <AlertTitle>错误信息</AlertTitle>
                         <AlertDescription className="space-y-2">
                           <p>{error}</p>
-                          {error.includes('permission') && (
-                            <div className="space-y-2">
-                              <Button
-                                size="sm"
-                                onClick={() => window.open('/feishu-permission-guide', '_blank')}
-                                className="mr-2"
-                              >
-                                <ExternalLink className="h-3 w-3 mr-2" />
-                                查看权限问题解决方案
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => window.open('/feishu-create-base-guide', '_blank')}
-                              >
-                                <Plus className="h-3 w-3 mr-2" />
-                                创建新多维表（推荐）
-                              </Button>
-                            </div>
-                          )}
                         </AlertDescription>
                       </Alert>
                     )}
@@ -302,26 +371,6 @@ export default function FeishuAppTokenGuidePage() {
                         </pre>
                       </div>
                     )}
-
-                    <Alert>
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>可能的原因</AlertTitle>
-                      <AlertDescription className="space-y-2">
-                        <p>1. 你的飞书应用没有访问这个多维表的权限</p>
-                        <p>2. 多维表未授权给你的应用</p>
-                        <p>3. URL 中的 App Token 不正确</p>
-                      </AlertDescription>
-                    </Alert>
-
-                    <Alert>
-                      <Lightbulb className="h-4 w-4" />
-                      <AlertTitle>解决方案</AlertTitle>
-                      <AlertDescription className="space-y-2">
-                        <p><strong>方案 1：</strong>在飞书多维表中，点击右上角"更多" → "分享"，将多维表分享给你的飞书应用</p>
-                        <p><strong>方案 2：</strong>在飞书开放平台中，为应用添加"多维表格"权限，并授权访问这个多维表</p>
-                        <p><strong>方案 3：</strong>使用从 URL 中提取的 Table ID（如 {extractedAppToken && feishuUrl.match(/table=([a-zA-Z0-9]+)/)?.[1]}）直接更新到配置中</p>
-                      </AlertDescription>
-                    </Alert>
                   </div>
                 )}
               </div>

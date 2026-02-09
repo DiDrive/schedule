@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, XCircle, RefreshCw, AlertCircle, ExternalLink, Plus } from 'lucide-react';
+import { CheckCircle2, XCircle, RefreshCw, AlertCircle, ExternalLink, Plus, ArrowRight } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface TableTestResult {
@@ -249,11 +249,19 @@ export default function FeishuBatchTestPage() {
                               </Button>
                               <Button
                                 variant="outline"
+                                onClick={() => window.open('/feishu-quick-config', '_blank')}
+                                size="sm"
+                              >
+                                <ArrowRight className="h-3 w-3 mr-2" />
+                                快速配置
+                              </Button>
+                              <Button
+                                variant="outline"
                                 onClick={() => window.open('/feishu-create-base-guide', '_blank')}
                                 size="sm"
                               >
                                 <Plus className="h-3 w-3 mr-2" />
-                                创建新多维表（推荐）
+                                创建新多维表
                               </Button>
                             </div>
                           </div>
