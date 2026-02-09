@@ -45,7 +45,26 @@ export default function FeishuConnectionDiagnostic() {
     // 步骤 1: 检查本地配置
     updateStep('检查本地配置', 'running', '正在检查本地配置...');
     try {
-      const response = await fetch('/api/feishu/config');
+      // 从 localStorage 读取配置
+      const configStr = localStorage.getItem('feishu-config');
+      if (!configStr) {
+        updateStep('检查本地配置', 'error', '配置未找到', {
+          建议: '请先在飞书集成配置中填写配置信息',
+        });
+        setIsRunning(false);
+        return;
+      }
+
+      const config = JSON.parse(configStr);
+
+      // 验证配置
+      const response = await fetch('/api/feishu/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ config }),
+      });
       const data = await response.json();
 
       if (!data.success) {
@@ -55,8 +74,6 @@ export default function FeishuConnectionDiagnostic() {
         setIsRunning(false);
         return;
       }
-
-      const config = data.data;
       updateStep('检查本地配置', 'success', '配置已找到', {
         'App ID': `${config.appId.substring(0, 8)}...`,
         'App Secret': `${config.appSecret.substring(0, 8)}...`,
@@ -72,7 +89,13 @@ export default function FeishuConnectionDiagnostic() {
     // 步骤 2: 测试获取 Access Token
     updateStep('获取 Access Token', 'running', '正在获取 Access Token...');
     try {
-      const response = await fetch('/api/feishu/validate');
+      const response = await fetch('/api/feishu/validate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ config }),
+      });
       const data = await response.json();
 
       if (data.success && data.data.access_token) {
@@ -97,7 +120,13 @@ export default function FeishuConnectionDiagnostic() {
     // 步骤 3: 测试读取 App 信息
     updateStep('测试读取 App 信息', 'running', '正在测试读取多维表信息...');
     try {
-      const response = await fetch('/api/feishu/test-read-app');
+      const response = await fetch('/api/feishu/test-read-app', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ config }),
+      });
       const data = await response.json();
 
       if (data.success) {
@@ -124,7 +153,13 @@ export default function FeishuConnectionDiagnostic() {
     // 步骤 4: 测试读取表格记录
     updateStep('测试读取表格记录', 'running', '正在测试读取表格记录...');
     try {
-      const response = await fetch('/api/feishu/test-read-record');
+      const response = await fetch('/api/feishu/test-read-record', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ config }),
+      });
       const data = await response.json();
 
       if (data.success) {
@@ -153,6 +188,10 @@ export default function FeishuConnectionDiagnostic() {
     try {
       const response = await fetch('/api/feishu/test-create-record', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ config }),
       });
       const data = await response.json();
 

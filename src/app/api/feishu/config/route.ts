@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getFeishuConfig } from '@/lib/feishu-client';
 
-export async function GET() {
+export async function POST(request: NextRequest) {
   try {
-    const config = getFeishuConfig();
+    const body = await request.json();
+    const { config } = body;
 
     if (!config) {
       return NextResponse.json({
@@ -14,7 +14,7 @@ export async function GET() {
 
     // 检查必要字段
     const requiredFields = ['appId', 'appSecret', 'appToken'];
-    const missingFields = requiredFields.filter(field => !config[field as keyof typeof config]);
+    const missingFields = requiredFields.filter(field => !config[field]);
 
     if (missingFields.length > 0) {
       return NextResponse.json({
@@ -38,4 +38,12 @@ export async function GET() {
       error: error.message,
     });
   }
+}
+
+// GET 方法用于检查前端是否有配置
+export async function GET() {
+  return NextResponse.json({
+    success: true,
+    message: '请使用 POST 方法发送配置',
+  });
 }

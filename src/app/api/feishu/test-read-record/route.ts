@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAccessToken, getFeishuConfig, listFeishuRecords } from '@/lib/feishu-client';
+import { getAccessToken } from '@/lib/feishu-client';
+import { initFeishuClient } from '@/lib/feishu-client';
+import { listFeishuRecords } from '@/lib/feishu-client';
 
-export async function GET() {
+export async function POST(request: NextRequest) {
   try {
-    const config = getFeishuConfig();
+    const body = await request.json();
+    const { config } = body;
+
     if (!config) {
       return NextResponse.json({
         success: false,
         error: '配置未找到',
       });
     }
+
+    // 初始化飞书客户端
+    initFeishuClient(config);
 
     // 查找第一个有 Table ID 的表格
     let targetTableId: string | null = null;
