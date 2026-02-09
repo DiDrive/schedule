@@ -266,6 +266,21 @@ export default function FeishuAppTokenGuidePage() {
 
                     <Alert>
                       <Lightbulb className="h-4 w-4" />
+                      <AlertTitle>重要提示</AlertTitle>
+                      <AlertDescription className="space-y-2">
+                        <p><strong>如果你的多维表中已经有数据：</strong></p>
+                        <p>请确认你使用的 App Token 和浏览器地址栏中的 App Token 是否一致。</p>
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                          浏览器地址栏的 URL 格式：<code>https://xxx.feishu.cn/base/{'{AppToken}'}?table={'{TableId}'}</code>
+                        </p>
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                          请复制地址栏中的完整 URL，在快速配置页面中粘贴，系统会自动提取正确的 App Token。
+                        </p>
+                      </AlertDescription>
+                    </Alert>
+
+                    <Alert>
+                      <Lightbulb className="h-4 w-4" />
                       <AlertTitle>下一步操作</AlertTitle>
                       <AlertDescription className="space-y-2">
                         <p>你需要在多维表中创建至少一个表格才能使用系统。</p>

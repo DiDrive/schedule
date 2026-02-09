@@ -9,9 +9,23 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function FeishuQuickConfigPage() {
   const [appToken, setAppToken] = useState('');
+  const [feishuUrl, setFeishuUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [tables, setTables] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const extractAppTokenFromUrl = (url: string) => {
+    const match = url.match(/\/base\/([a-zA-Z0-9]+)/);
+    return match ? match[1] : '';
+  };
+
+  const handleUrlChange = (url: string) => {
+    setFeishuUrl(url);
+    const extractedToken = extractAppTokenFromUrl(url);
+    if (extractedToken) {
+      setAppToken(extractedToken);
+    }
+  };
 
   const loadFromLocalStorage = () => {
     const configStr = localStorage.getItem('feishu-config');
@@ -176,13 +190,36 @@ export default function FeishuQuickConfigPage() {
         {/* App Token 输入 */}
         <Card>
           <CardHeader>
-            <CardTitle>输入 App Token</CardTitle>
+            <CardTitle>输入多维表信息</CardTitle>
             <CardDescription>
-              输入你的多维表 App Token，系统会自动获取所有表格
+              输入你的多维表 URL 或 App Token，系统会自动获取所有表格
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* 方法1：从 URL 提取 */}
             <div className="space-y-2">
+              <label className="text-sm font-medium">方法 1：粘贴多维表 URL（推荐）</label>
+              <input
+                type="text"
+                placeholder="https://vbangessentials.feishu.cn/base/bascxxxxxxxxxxxx?table=tblxxxxxxxx"
+                value={feishuUrl}
+                onChange={(e) => handleUrlChange(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md"
+              />
+              {feishuUrl && appToken && (
+                <p className="text-xs text-green-600">
+                  ✓ 已提取 App Token: {appToken}
+                </p>
+              )}
+            </div>
+
+            <div className="text-center text-sm text-slate-400">
+              - 或 -
+            </div>
+
+            {/* 方法2：直接输入 App Token */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">方法 2：直接输入 App Token</label>
               <input
                 type="text"
                 placeholder="例如：bascxxxxxxxxxxxx"
@@ -193,7 +230,10 @@ export default function FeishuQuickConfigPage() {
             </div>
 
             <div className="flex gap-2">
-              <Button onClick={handleRefresh} disabled={isLoading || !appToken}>
+              <Button onClick={loadFromLocalStorage} variant="outline" size="sm">
+                从配置加载
+              </Button>
+              <Button onClick={handleRefresh} disabled={isLoading || !appToken} className="flex-1">
                 {isLoading ? (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -209,7 +249,7 @@ export default function FeishuQuickConfigPage() {
               {appToken && (
                 <Button variant="outline" onClick={openBase}>
                   <ExternalLink className="h-4 w-4 mr-2" />
-                  打开多维表
+                  打开
                 </Button>
               )}
             </div>
