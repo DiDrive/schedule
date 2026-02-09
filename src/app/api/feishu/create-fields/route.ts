@@ -82,8 +82,8 @@ async function createField(
   fieldId: string,
   fieldName: string,
   fieldType: string,
-  options?: string[],
   accessToken: string,
+  options?: string[],
   relatedTableId?: string // 关联表格 ID（用于关联字段）
 ): Promise<{ success: boolean; message: string }> {
   const mappedType = fieldTypeMap[fieldType] || 1;
@@ -235,8 +235,8 @@ export async function POST(request: NextRequest) {
             field.fieldId,
             field.fieldName,
             field.fieldType,
-            field.options,
             accessToken,
+            field.options,
             relatedTableId
           );
 

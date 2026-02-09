@@ -159,52 +159,50 @@ export default function ExcelTemplateGenerator({ scenario }: ExcelTemplateGenera
       XLSX.utils.book_append_sheet(workbook, tasksSheet, '任务表');
     }
 
-    // 4. 排期表数据（排期统计信息）
+    // 4. 排期表数据（排期结果表格，显示每个任务的具体排期信息）
     if (schedule && schedule.tasks && schedule.tasks.length > 0) {
       console.log('=== 导出排期数据 ===');
       console.log('排期名称:', scenarioType === 'basic' ? '基础场景排期' : `${projects[0]?.name || '复杂场景'}排期`);
       console.log('任务数:', schedule.tasks.length);
       console.log('总工时:', schedule.totalHours);
 
-      // 计算资源利用率平均值
-      const utilizationValues = Object.values(schedule.resourceUtilization || {});
-      const avgUtilization = utilizationValues.length > 0
-        ? utilizationValues.reduce((sum: number, val: number) => sum + val, 0) / utilizationValues.length
-        : 0;
+      // 创建资源ID到名称的映射
+      const resourceMap = new Map(resources.map((res: any) => [res.id, res.name]));
 
-      // 获取最早和最晚任务时间
-      const taskTimes = schedule.tasks.map((t: any) => {
-        const time = t.startDate;
-        return time ? new Date(time).getTime() : 0;
-      }).filter(t => t > 0);
+      // 创建项目ID到名称的映射
+      const projectMap = new Map(projects.map((p: any) => [p.id, p.name]));
 
-      const startTime = taskTimes.length > 0 ? Math.min(...taskTimes) : 0;
-      const endTime = taskTimes.length > 0 ? Math.max(...taskTimes) : 0;
+      // 导出排期结果表格数据（每个任务一行）
+      const scheduleData = schedule.tasks.map((task: any) => {
+        // 获取负责人名称
+        let assignee = '';
+        if (task.assignedResources && task.assignedResources.length > 0) {
+          const resourceId = task.assignedResources[0];
+          if (typeof resourceId === 'string') {
+            assignee = resourceMap.get(resourceId) || '';
+          } else if (typeof resourceId === 'object') {
+            assignee = resourceId.name || '';
+          }
+        }
 
-      // 排期名称
-      const scheduleName = scenarioType === 'basic'
-        ? '基础场景排期'
-        : (projects[0]?.name ? `${projects[0].name}排期` : '复杂场景排期');
+        // 计算实际工时（考虑效率）
+        const resourceId = task.assignedResources?.[0];
+        const resource = resources.find((r: any) => r.id === resourceId);
+        const efficiency = resource?.efficiency || 1.0;
+        const actualHours = task.estimatedHours / efficiency;
 
-      const scheduleData = [{
-        [FEISHU_FIELD_IDS.schedules.id]: `schedule-${Date.now()}`,
-        [FEISHU_FIELD_IDS.schedules.project]: projects[0]?.id || '',
-        [FEISHU_FIELD_IDS.schedules.name]: scheduleName,
-        [FEISHU_FIELD_IDS.schedules.version]: 1,
-        [FEISHU_FIELD_IDS.schedules.task_count]: schedule.tasks.length,
-        [FEISHU_FIELD_IDS.schedules.total_hours]: schedule.totalHours || 0,
-        [FEISHU_FIELD_IDS.schedules.utilization]: Math.round(avgUtilization * 100) / 100,
-        [FEISHU_FIELD_IDS.schedules.critical_path_count]: (schedule.criticalPath || []).length,
-        [FEISHU_FIELD_IDS.schedules.start_time]: startTime > 0
-          ? new Date(startTime).toISOString().slice(0, 19).replace('T', ' ')
-          : '',
-        [FEISHU_FIELD_IDS.schedules.end_time]: endTime > 0
-          ? new Date(endTime).toISOString().slice(0, 19).replace('T', ' ')
-          : '',
-        [FEISHU_FIELD_IDS.schedules.generated_at]: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        [FEISHU_FIELD_IDS.schedules.created_at]: '',
-        [FEISHU_FIELD_IDS.schedules.updated_at]: '',
-      }];
+        return {
+          '任务ID': task.id,
+          '项目': projectMap.get(task.projectId) || '',
+          '任务名称': task.name,
+          '开始时间': task.startDate ? new Date(task.startDate).toLocaleString('zh-CN') : '',
+          '结束时间': task.endDate ? new Date(task.endDate).toLocaleString('zh-CN') : '',
+          '负责人': assignee,
+          '预估工时': task.estimatedHours,
+          '实际工时': actualHours.toFixed(2),
+          '是否在关键路径上': task.isCritical ? '是' : '否',
+        };
+      });
       const schedulesSheet = XLSX.utils.json_to_sheet(scheduleData);
       XLSX.utils.book_append_sheet(workbook, schedulesSheet, '排期表');
     }
