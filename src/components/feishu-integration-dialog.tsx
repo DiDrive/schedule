@@ -513,6 +513,15 @@ export default function FeishuIntegrationDialog({
                       <Activity className="h-4 w-4 mr-2" />
                       诊断连接
                     </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => window.open('/feishu-quick-test', '_blank')}
+                      disabled={isSyncing}
+                      className="flex-1"
+                    >
+                      <Search className="h-4 w-4 mr-2" />
+                      快速测试
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

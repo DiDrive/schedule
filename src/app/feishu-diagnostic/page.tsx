@@ -52,6 +52,13 @@ export default function FeishuDiagnosticPage() {
               <Settings className="h-4 w-4 mr-2" />
               打开配置
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => window.open('/feishu-quick-test', '_blank')}
+            >
+              <Activity className="h-4 w-4 mr-2" />
+              快速测试
+            </Button>
           </div>
         </div>
       </div>
