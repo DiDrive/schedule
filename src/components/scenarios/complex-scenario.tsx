@@ -283,13 +283,6 @@ const defaultResources: Resource[] = [
     skills: ['基础剪辑', '素材整理', '字幕制作'],
     availability: 0.9,
     color: '#ec4899'
-  },
-  {
-    id: 'res-6',
-    name: '测试服务器',
-    type: 'equipment',
-    availability: 1.0,
-    color: '#ef4444'
   }
 ];
 
