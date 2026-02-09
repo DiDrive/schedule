@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { AlertCircle, CheckCircle2, Clock, RefreshCw, Settings, Globe, Search, Activity, ArrowRight } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, RefreshCw, Settings, Globe, Search, Activity, ArrowRight, Lock } from 'lucide-react';
 import FeishuTableInspector from './feishu-table-inspector';
 
 interface FeishuConfig {
@@ -75,6 +75,8 @@ export default function FeishuIntegrationDialog({
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'success' | 'failed'>('unknown');
   const [isSyncing, setIsSyncing] = useState(false);
   const [showTableInspector, setShowTableInspector] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userInfo, setUserInfo] = useState<any>(null);
 
   // 从 localStorage 加载配置
   useEffect(() => {
@@ -97,6 +99,16 @@ export default function FeishuIntegrationDialog({
         });
       } catch (error) {
         console.error('Failed to load sync status:', error);
+      }
+    }
+
+    // 检查飞书登录状态
+    const userToken = localStorage.getItem('feishu-user-token');
+    const savedUserInfo = localStorage.getItem('feishu-user-info');
+    if (userToken) {
+      setIsLoggedIn(true);
+      if (savedUserInfo) {
+        setUserInfo(JSON.parse(savedUserInfo));
       }
     }
   }, []);
@@ -561,6 +573,29 @@ export default function FeishuIntegrationDialog({
                       批量测试
                     </Button>
                   </div>
+                  <div className="flex gap-2">
+                    {isLoggedIn ? (
+                      <Button
+                        variant="default"
+                        onClick={() => window.open('/feishu-user-token-test', '_blank')}
+                        disabled={isSyncing}
+                        className="flex-1"
+                      >
+                        <Lock className="h-4 w-4 mr-2" />
+                        测试个人表
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={() => window.location.href = '/feishu-oauth'}
+                        disabled={isSyncing}
+                        className="flex-1"
+                      >
+                        <Lock className="h-4 w-4 mr-2" />
+                        登录飞书
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
 
@@ -587,13 +622,35 @@ export default function FeishuIntegrationDialog({
           </div>
         </Tabs>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            取消
-          </Button>
-          <Button onClick={handleSave}>
-            保存配置
-          </Button>
+        <DialogFooter className="flex-col gap-2 sm:flex-row">
+          {!isLoggedIn && (
+            <div className="w-full sm:w-auto">
+              <Button
+                variant="default"
+                onClick={() => window.location.href = '/feishu-oauth'}
+                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700"
+              >
+                <Lock className="h-4 w-4 mr-2" />
+                使用飞书登录
+              </Button>
+            </div>
+          )}
+          {isLoggedIn && (
+            <div className="w-full sm:w-auto flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <span className="text-sm text-green-700 dark:text-green-400">
+                已登录：{userInfo?.name || '飞书用户'}
+              </span>
+            </div>
+          )}
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 sm:flex-none">
+              取消
+            </Button>
+            <Button onClick={handleSave} className="flex-1 sm:flex-none">
+              保存配置
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
 

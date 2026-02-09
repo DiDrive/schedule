@@ -33,6 +33,23 @@ export interface FeishuListResponse {
 let accessToken: string | null = null;
 let tokenExpireTime: number = 0;
 let configCache: FeishuConfig | null = null;
+let userAccessToken: string | null = null; // 用户令牌（通过 OAuth 获取）
+
+/**
+ * 设置用户访问令牌
+ */
+export function setUserAccessToken(token: string) {
+  userAccessToken = token;
+  console.log('[飞书客户端] 用户令牌已设置');
+}
+
+/**
+ * 清除用户访问令牌
+ */
+export function clearUserAccessToken() {
+  userAccessToken = null;
+  console.log('[飞书客户端] 用户令牌已清除');
+}
 
 /**
  * 初始化飞书客户端
@@ -81,6 +98,10 @@ export async function getAccessToken(): Promise<string> {
 
 /**
  * 获取飞书记录列表
+ * @param appToken 多维表 Token
+ * @param tableId 表格 ID
+ * @param options 选项
+ * @param useUserToken 是否使用用户令牌（通过 OAuth 获取）
  */
 export async function listFeishuRecords(
   appToken: string,
@@ -89,9 +110,15 @@ export async function listFeishuRecords(
     pageSize?: number;
     pageToken?: string;
     filter?: any;
-  }
+  },
+  useUserToken: boolean = false
 ): Promise<FeishuListResponse> {
-  const token = await getAccessToken();
+  // 优先使用用户令牌，如果没有则使用应用令牌
+  const token = useUserToken ? userAccessToken : await getAccessToken();
+
+  if (!token) {
+    throw new Error(useUserToken ? '用户令牌未设置，请先使用飞书登录' : '获取访问令牌失败');
+  }
 
   // 构建请求参数
   const requestBody: any = {};
