@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import ExcelTemplateGenerator from '@/components/excel-template-generator';
 import {
   Dialog,
   DialogContent,
@@ -1003,6 +1005,17 @@ export default function ComplexScenario() {
 
   return (
     <div className="space-y-6">
+      {/* 页面标题和导出按钮 */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">复杂场景</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            多项目并行排期，支持项目管理和资源共享
+          </p>
+        </div>
+        <ExcelTemplateGenerator scenario="complex" />
+      </div>
+
       {/* Shared Resource Pool */}
       <Card>
         <CardHeader>

@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Download } from 'lucide-react';
+import ExcelTemplateGenerator from '@/components/excel-template-generator';
 import {
   Dialog,
   DialogContent,
@@ -758,6 +761,17 @@ export default function BasicScenario() {
 
   return (
     <div className="space-y-6">
+      {/* 页面标题和导出按钮 */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">基础场景</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            简单任务排期，适用于单项目或小规模团队
+          </p>
+        </div>
+        <ExcelTemplateGenerator scenario="basic" />
+      </div>
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
