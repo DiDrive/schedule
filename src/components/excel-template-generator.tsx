@@ -80,9 +80,10 @@ export default function ExcelTemplateGenerator({ scenario }: ExcelTemplateGenera
     // 创建工作簿
     const workbook = XLSX.utils.book_new();
 
-    // 1. 人员表数据
-    if (resources.length > 0) {
-      const resourcesData = resources.map((res: any) => ({
+    // 1. 人员表数据（只导出人力资源）
+    const humanResources = resources.filter((res: any) => res.type === 'human');
+    if (humanResources.length > 0) {
+      const resourcesData = humanResources.map((res: any) => ({
         [FEISHU_FIELD_IDS.resources.id]: res.id,
         [FEISHU_FIELD_IDS.resources.name]: res.name,
         [FEISHU_FIELD_IDS.resources.type]: res.workType === '平面' ? '平面设计' : res.workType === '后期' ? '后期制作' : '物料',
