@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, XCircle, Copy, ExternalLink, ArrowRight, Lightbulb, AlertCircle } from 'lucide-react';
+import { CheckCircle2, XCircle, Copy, ExternalLink, ArrowRight, Lightbulb, AlertCircle, Plus } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface TableInfo {
@@ -271,14 +271,24 @@ export default function FeishuAppTokenGuidePage() {
                         <AlertDescription className="space-y-2">
                           <p>{error}</p>
                           {error.includes('permission') && (
-                            <Button
-                              size="sm"
-                              onClick={() => window.open('/feishu-permission-guide', '_blank')}
-                              className="mt-2"
-                            >
-                              <ExternalLink className="h-3 w-3 mr-2" />
-                              查看权限问题解决方案
-                            </Button>
+                            <div className="space-y-2">
+                              <Button
+                                size="sm"
+                                onClick={() => window.open('/feishu-permission-guide', '_blank')}
+                                className="mr-2"
+                              >
+                                <ExternalLink className="h-3 w-3 mr-2" />
+                                查看权限问题解决方案
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => window.open('/feishu-create-base-guide', '_blank')}
+                              >
+                                <Plus className="h-3 w-3 mr-2" />
+                                创建新多维表（推荐）
+                              </Button>
+                            </div>
                           )}
                         </AlertDescription>
                       </Alert>

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, XCircle, RefreshCw, AlertCircle, ExternalLink } from 'lucide-react';
+import { CheckCircle2, XCircle, RefreshCw, AlertCircle, ExternalLink, Plus } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface TableTestResult {
@@ -239,14 +239,23 @@ export default function FeishuBatchTestPage() {
                               <li>获取该 App Token 下可用的 Table IDs</li>
                               <li>更新配置中的 App Token 和 Table IDs</li>
                             </ol>
-                            <Button
-                              onClick={() => window.open('/feishu-app-token-guide', '_blank')}
-                              size="sm"
-                              className="mt-2"
-                            >
-                              <ExternalLink className="h-3 w-3 mr-2" />
-                              打开 App Token 配置指南
-                            </Button>
+                            <div className="flex gap-2 mt-2">
+                              <Button
+                                onClick={() => window.open('/feishu-app-token-guide', '_blank')}
+                                size="sm"
+                              >
+                                <ExternalLink className="h-3 w-3 mr-2" />
+                                提取 App Token
+                              </Button>
+                              <Button
+                                variant="outline"
+                                onClick={() => window.open('/feishu-create-base-guide', '_blank')}
+                                size="sm"
+                              >
+                                <Plus className="h-3 w-3 mr-2" />
+                                创建新多维表（推荐）
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       )}

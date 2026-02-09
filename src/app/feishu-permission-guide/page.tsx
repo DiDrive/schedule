@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, Copy, ExternalLink, AlertCircle, Shield, Users, Settings, Key } from 'lucide-react';
+import { CheckCircle2, Copy, ExternalLink, AlertCircle, Shield, Users, Settings, Key, Plus } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface SolutionStep {
@@ -15,15 +15,16 @@ interface SolutionStep {
 
 const solutions: SolutionStep[] = [
   {
-    title: "方案 1：在飞书多维表中分享给应用（推荐）",
-    description: "这是最简单的解决方案，直接在多维表中授予应用访问权限",
+    title: "方案 1：创建新的飞书多维表（推荐）",
+    description: "这是最简单可靠的解决方案，创建新多维表后应用自动拥有访问权限",
     steps: [
-      "打开你的飞书多维表（https://vbangessentials.feishu.cn/base/FovUbfThaa62nesBf0ZcPeO8nnb）",
-      "点击右上角的「分享」按钮（或「更多」→「分享」）",
-      "在搜索框中输入你的飞书应用名称",
-      "选择应用，并授予「可编辑」或「可查看」权限",
-      "点击「发送」或「确定」",
-      "返回配置指南页面，重新点击「提取 App Token」测试"
+      "打开飞书，点击「+」→「多维表格」",
+      "创建一个全新的多维表（命名为「项目排期系统」）",
+      "在新多维表中创建 4 个表格：人员表、项目表、任务表、排期表",
+      "按照系统要求配置每个表格的字段（参考详细指南）",
+      "复制新多维表的 URL",
+      "在配置指南页面粘贴 URL 并提取 App Token",
+      "更新配置中的 App Token 和 Table IDs"
     ]
   },
   {
@@ -41,16 +42,16 @@ const solutions: SolutionStep[] = [
     ]
   },
   {
-    title: "方案 3：创建新的飞书多维表（最简单）",
-    description: "创建一个全新的多维表，应用自动拥有访问权限",
+    title: "方案 3：联系多维表所有者",
+    description: "如果你不是多维表的所有者，需要联系所有者进行授权",
     steps: [
-      "打开飞书，点击「+」→「多维表格」",
-      "创建一个全新的多维表（命名为「项目排期系统」）",
-      "在新多维表中创建 4 个表格：人员表、项目表、任务表、排期表",
-      "按照系统要求配置每个表格的字段（参考文档）",
-      "复制新多维表的 URL",
-      "在配置指南页面粘贴 URL 并提取 App Token",
-      "更新配置中的 App Token 和 Table IDs"
+      "确认多维表的所有者是谁",
+      "联系所有者，请求他们授权",
+      "所有者在飞书开放平台中进入应用管理",
+      "点击「权限管理」→「多维表格」",
+      "添加你的多维表并授权",
+      "等待权限生效（1-2分钟）",
+      "返回配置指南页面，重新测试"
     ]
   }
 ];
@@ -68,10 +69,6 @@ export default function FeishuPermissionGuidePage() {
 
   const openFeishuApp = () => {
     window.open('https://open.feishu.cn/app', '_blank');
-  };
-
-  const openCurrentBase = () => {
-    window.open('https://vbangessentials.feishu.cn/base/FovUbfThaa62nesBf0ZcPeO8nnb', '_blank');
   };
 
   return (
@@ -184,16 +181,6 @@ export default function FeishuPermissionGuidePage() {
                       打开飞书开放平台
                     </Button>
                   )}
-                  {index === 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={openCurrentBase}
-                    >
-                      <ExternalLink className="h-3 w-3 mr-2" />
-                      打开当前多维表
-                    </Button>
-                  )}
                 </div>
               </CardContent>
             </Card>
@@ -208,10 +195,10 @@ export default function FeishuPermissionGuidePage() {
           <CardContent className="space-y-3">
             <Button
               className="w-full"
-              onClick={openCurrentBase}
+              onClick={() => window.location.href = '/feishu-create-base-guide'}
             >
-              <ExternalLink className="h-4 w-4 mr-2" />
-              打开当前多维表进行授权
+              <Plus className="h-4 w-4 mr-2" />
+              创建新多维表（推荐）
             </Button>
             <Button
               variant="outline"
