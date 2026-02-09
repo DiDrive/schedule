@@ -6,9 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, XCircle, Copy, Eye, EyeOff } from 'lucide-react';
+import { CheckCircle2, XCircle, Copy, Eye, EyeOff, ExternalLink, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
 
 export default function FeishuQuickTestPage() {
   const [appId, setAppId] = useState('');
@@ -542,8 +541,15 @@ export default function FeishuQuickTestPage() {
                     <Alert>
                       <AlertCircle className="h-4 w-4" />
                       <AlertTitle>该多维表中没有表格</AlertTitle>
-                      <AlertDescription>
-                        App Token 是正确的，但是该多维表中没有任何表格。请检查您是否使用了正确的多维表。
+                      <AlertDescription className="space-y-2">
+                        <p>App Token 是正确的，但是该多维表中没有任何表格。请检查您是否使用了正确的多维表。</p>
+                        <Button
+                          size="sm"
+                          onClick={() => window.open('/feishu-app-token-guide', '_blank')}
+                        >
+                          <ExternalLink className="h-3 w-3 mr-2" />
+                          打开 App Token 配置指南
+                        </Button>
                       </AlertDescription>
                     </Alert>
                   )}

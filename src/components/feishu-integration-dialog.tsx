@@ -233,6 +233,14 @@ export default function FeishuIntegrationDialog({
                       value={config.appToken}
                       onChange={(e) => setConfig({ ...config, appToken: e.target.value })}
                     />
+                    <Button
+                      variant="link"
+                      size="sm"
+                      onClick={() => window.open('/feishu-app-token-guide', '_blank')}
+                      className="px-0 h-auto text-sm text-blue-600"
+                    >
+                      不知道 App Token？点击这里获取帮助 →
+                    </Button>
                   </div>
                   <Button
                     variant="outline"

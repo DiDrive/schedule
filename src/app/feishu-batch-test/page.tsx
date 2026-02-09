@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, XCircle, RefreshCw, AlertCircle } from 'lucide-react';
+import { CheckCircle2, XCircle, RefreshCw, AlertCircle, ExternalLink } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface TableTestResult {
@@ -226,11 +226,29 @@ export default function FeishuBatchTestPage() {
                       {results.every(r => r.belongsToApp) ? (
                         <span className="text-green-600">所有 Table ID 都有效！</span>
                       ) : (
-                        <span className="text-red-600">
-                          有 {results.filter(r => !r.belongsToApp).length} 个 Table ID 无效。
-                          这意味着这些 Table ID 不属于当前的 App Token。
-                          需要找到正确的 App Token，或者使用快速测试页面获取可用的 Table IDs。
-                        </span>
+                        <div className="space-y-3">
+                          <p className="text-red-600">
+                            有 {results.filter(r => !r.belongsToApp).length} 个 Table ID 无效。
+                            这意味着这些 Table ID 不属于当前的 App Token。
+                          </p>
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium">解决方法：</p>
+                            <ol className="list-decimal list-inside text-sm space-y-1 text-slate-600 dark:text-slate-400">
+                              <li>在飞书多维表中复制页面链接</li>
+                              <li>访问 App Token 配置指南，从链接中提取正确的 App Token</li>
+                              <li>获取该 App Token 下可用的 Table IDs</li>
+                              <li>更新配置中的 App Token 和 Table IDs</li>
+                            </ol>
+                            <Button
+                              onClick={() => window.open('/feishu-app-token-guide', '_blank')}
+                              size="sm"
+                              className="mt-2"
+                            >
+                              <ExternalLink className="h-3 w-3 mr-2" />
+                              打开 App Token 配置指南
+                            </Button>
+                          </div>
+                        </div>
                       )}
                     </AlertDescription>
                   </Alert>
