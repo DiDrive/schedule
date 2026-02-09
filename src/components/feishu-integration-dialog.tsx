@@ -522,6 +522,15 @@ export default function FeishuIntegrationDialog({
                       <Search className="h-4 w-4 mr-2" />
                       快速测试
                     </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => window.open('/feishu-batch-test', '_blank')}
+                      disabled={isSyncing}
+                      className="flex-1"
+                    >
+                      <Globe className="h-4 w-4 mr-2" />
+                      批量测试
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

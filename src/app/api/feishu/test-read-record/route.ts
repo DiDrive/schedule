@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     });
 
     // 测试读取记录
-    const records = await listFeishuRecords(config.appToken, targetTableId, { page_size: 1 });
+    const records = await listFeishuRecords(config.appToken, targetTableId, { pageSize: 1 });
 
     console.log('[飞书测试] 读取记录成功:', {
       recordCount: records.total,

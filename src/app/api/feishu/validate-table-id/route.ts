@@ -54,7 +54,22 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    const data = await response.json();
+    const responseText = await response.text();
+    console.log('[飞书验证] 表格信息响应文本:', responseText);
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('[飞书验证] JSON 解析失败:', parseError);
+      console.error('[飞书验证] 响应内容:', responseText);
+      return NextResponse.json({
+        success: false,
+        error: '飞书 API 返回的数据格式不正确',
+        rawResponse: responseText,
+        parseError: parseError instanceof Error ? parseError.message : 'Unknown parse error',
+      });
+    }
 
     console.log('[飞书验证] 表格信息响应:', {
       code: data.code,

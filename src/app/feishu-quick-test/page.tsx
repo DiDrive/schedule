@@ -446,19 +446,29 @@ export default function FeishuQuickTestPage() {
                   )}
                 </div>
               ) : (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>验证失败</AlertTitle>
-                  <AlertDescription>
-                    {tableValidation.error || tableValidation.message || '未知错误'}
-                  </AlertDescription>
+                <div className="space-y-4">
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>验证失败</AlertTitle>
+                    <AlertDescription>
+                      {tableValidation.error || tableValidation.message || '未知错误'}
+                    </AlertDescription>
+                  </Alert>
                   {tableValidation.code && (
                     <div className="mt-2 text-sm">
                       <span className="font-medium">错误码：</span>
                       <Badge variant="destructive">{tableValidation.code}</Badge>
                     </div>
                   )}
-                </Alert>
+                  {tableValidation.rawResponse && (
+                    <div className="mt-2 p-3 rounded bg-slate-50 dark:bg-slate-800">
+                      <p className="text-sm font-medium mb-1">原始响应：</p>
+                      <pre className="text-xs overflow-auto max-h-64">
+                        {tableValidation.rawResponse}
+                      </pre>
+                    </div>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>

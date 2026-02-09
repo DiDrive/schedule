@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import FeishuConnectionDiagnostic from '@/components/feishu-connection-diagnostic';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Settings, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, Settings, AlertCircle, X, Activity } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
 

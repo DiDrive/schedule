@@ -60,17 +60,16 @@ export async function POST(request: NextRequest) {
     };
 
     const record = await createFeishuRecord(
-      accessToken,
       config.appToken,
       targetTableId,
       testData
     );
 
     // 立即删除测试记录
-    if (record.record?.record_id) {
+    if (record.record_id) {
       try {
         await fetch(
-          `https://open.feishu.cn/open-apis/bitable/v1/apps/${config.appToken}/tables/${targetTableId}/records/${record.record.record_id}`,
+          `https://open.feishu.cn/open-apis/bitable/v1/apps/${config.appToken}/tables/${targetTableId}/records/${record.record_id}`,
           {
             method: 'DELETE',
             headers: {
@@ -90,7 +89,7 @@ export async function POST(request: NextRequest) {
       data: {
         tableId: targetTableId,
         tableName: targetTableName,
-        recordId: record.record?.record_id,
+        recordId: record.record_id,
         testData,
         message: '测试记录创建成功并已删除',
       },
