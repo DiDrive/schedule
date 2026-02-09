@@ -48,15 +48,24 @@ export default function FeishuConnectionDiagnostic() {
 
     // 步骤 0: 检查配置文件是否存在
     updateStep('检查配置文件', 'running', '正在检查配置文件...');
+    console.log('[诊断] localStorage keys:', Object.keys(localStorage));
+    console.log('[诊断] 配置内容:', configStr);
+
     if (!configStr) {
+      // 检查所有 localStorage 的 key
+      const allKeys = Object.keys(localStorage);
+      const feishuKeys = allKeys.filter(k => k.includes('feishu'));
+
       updateStep('检查配置文件', 'error', '配置文件未找到', {
         说明: '系统未找到飞书配置，请先配置飞书集成信息。',
+        '所有 localStorage keys': allKeys,
+        '飞书相关 keys': feishuKeys,
         步骤: [
           '1. 点击右上角的"飞书集成"按钮',
           '2. 填写 App ID、App Secret、App Token',
           '3. 填写各表格的 Table ID',
           '4. 点击"保存"按钮',
-          '5. 返回此页面重新运行诊断',
+          '5. 刷新此页面重新运行诊断',
         ],
       });
       setIsRunning(false);
