@@ -516,8 +516,18 @@ export default function FeishuQuickTestPage() {
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>归属验证失败</AlertTitle>
-                    <AlertDescription>
-                      {ownershipCheck.error || ownershipCheck.message || '未知错误'}
+                    <AlertDescription className="space-y-2">
+                      <p>{ownershipCheck.error || ownershipCheck.message || '未知错误'}</p>
+                      {(ownershipCheck.error?.includes('permission') || ownershipCheck.message?.includes('permission')) && (
+                        <Button
+                          size="sm"
+                          onClick={() => window.open('/feishu-permission-guide', '_blank')}
+                          className="mt-2"
+                        >
+                          <ExternalLink className="h-3 w-3 mr-2" />
+                          查看权限问题解决方案
+                        </Button>
+                      )}
                     </AlertDescription>
                   </Alert>
 

@@ -268,7 +268,19 @@ export default function FeishuAppTokenGuidePage() {
                       <Alert>
                         <XCircle className="h-4 w-4" />
                         <AlertTitle>错误信息</AlertTitle>
-                        <AlertDescription>{error}</AlertDescription>
+                        <AlertDescription className="space-y-2">
+                          <p>{error}</p>
+                          {error.includes('permission') && (
+                            <Button
+                              size="sm"
+                              onClick={() => window.open('/feishu-permission-guide', '_blank')}
+                              className="mt-2"
+                            >
+                              <ExternalLink className="h-3 w-3 mr-2" />
+                              查看权限问题解决方案
+                            </Button>
+                          )}
+                        </AlertDescription>
                       </Alert>
                     )}
 
