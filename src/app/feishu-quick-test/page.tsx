@@ -19,6 +19,10 @@ export default function FeishuQuickTestPage() {
 
   const [result, setResult] = useState<any>(null);
   const [isTesting, setIsTesting] = useState(false);
+  const [isValidatingToken, setIsValidatingToken] = useState(false);
+  const [isValidatingTable, setIsValidatingTable] = useState(false);
+  const [tokenValidation, setTokenValidation] = useState<any>(null);
+  const [tableValidation, setTableValidation] = useState<any>(null);
 
   // 从 localStorage 加载配置
   useEffect(() => {
@@ -72,6 +76,65 @@ export default function FeishuQuickTestPage() {
       });
     } finally {
       setIsTesting(false);
+    }
+  };
+
+  const validateAppToken = async () => {
+    setIsValidatingToken(true);
+    setTokenValidation(null);
+
+    try {
+      const response = await fetch('/api/feishu/validate-app-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          appId,
+          appSecret,
+          appToken,
+        }),
+      });
+
+      const data = await response.json();
+      setTokenValidation(data);
+    } catch (error: any) {
+      setTokenValidation({
+        success: false,
+        error: error.message,
+      });
+    } finally {
+      setIsValidatingToken(false);
+    }
+  };
+
+  const validateTableId = async () => {
+    setIsValidatingTable(true);
+    setTableValidation(null);
+
+    try {
+      const response = await fetch('/api/feishu/validate-table-id', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          appId,
+          appSecret,
+          appToken,
+          tableId,
+        }),
+      });
+
+      const data = await response.json();
+      setTableValidation(data);
+    } catch (error: any) {
+      setTableValidation({
+        success: false,
+        error: error.message,
+      });
+    } finally {
+      setIsValidatingTable(false);
     }
   };
 
@@ -179,6 +242,25 @@ export default function FeishuQuickTestPage() {
               </p>
             </div>
 
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={validateAppToken}
+                disabled={isValidatingToken || !appId || !appSecret || !appToken}
+                className="flex-1"
+              >
+                {isValidatingToken ? '验证中...' : '验证 App Token'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={validateTableId}
+                disabled={isValidatingTable || !appId || !appSecret || !appToken || !tableId}
+                className="flex-1"
+              >
+                {isValidatingTable ? '验证中...' : '验证 Table ID'}
+              </Button>
+            </div>
+
             <Button
               onClick={runTest}
               disabled={isTesting || !appId || !appSecret || !appToken || !tableId}
@@ -188,6 +270,158 @@ export default function FeishuQuickTestPage() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* App Token 验证结果 */}
+        {tokenValidation && (
+          <Card>
+            <CardHeader>
+              <CardTitle>App Token 验证结果</CardTitle>
+              <CardDescription>
+                {tokenValidation.success ? (
+                  <span className="flex items-center gap-2 text-green-600">
+                    <CheckCircle2 className="h-5 w-5" />
+                    App Token 有效
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2 text-red-600">
+                    <XCircle className="h-5 w-5" />
+                    App Token 无效
+                  </span>
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {tokenValidation.success && tokenValidation.data ? (
+                <div className="space-y-4">
+                  <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                    <h3 className="font-medium text-green-700 dark:text-green-400 mb-2">
+                      App Token 验证成功
+                    </h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-600 dark:text-slate-400">应用名称：</span>
+                        <span className="font-medium">{tokenValidation.data.app?.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600 dark:text-slate-400">表格数量：</span>
+                        <span className="font-medium">{tokenValidation.data.tables?.length || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {tokenValidation.data.tables && tokenValidation.data.tables.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="font-medium text-slate-700 dark:text-slate-300">表格列表：</h3>
+                      <div className="space-y-2">
+                        {tokenValidation.data.tables.map((table: any, index: number) => (
+                          <div key={index} className="p-3 rounded bg-slate-50 dark:bg-slate-800">
+                            <div className="flex justify-between text-sm">
+                              <span className="font-medium">{table.name}</span>
+                              <span className="font-mono text-slate-600 dark:text-slate-400">{table.id}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>验证失败</AlertTitle>
+                  <AlertDescription>
+                    {tokenValidation.error || tokenValidation.message || '未知错误'}
+                  </AlertDescription>
+                  {tokenValidation.code && (
+                    <div className="mt-2 text-sm">
+                      <span className="font-medium">错误码：</span>
+                      <Badge variant="destructive">{tokenValidation.code}</Badge>
+                    </div>
+                  )}
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Table ID 验证结果 */}
+        {tableValidation && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Table ID 验证结果</CardTitle>
+              <CardDescription>
+                {tableValidation.success ? (
+                  <span className="flex items-center gap-2 text-green-600">
+                    <CheckCircle2 className="h-5 w-5" />
+                    Table ID 有效
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2 text-red-600">
+                    <XCircle className="h-5 w-5" />
+                    Table ID 无效
+                  </span>
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {tableValidation.success && tableValidation.data ? (
+                <div className="space-y-4">
+                  <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                    <h3 className="font-medium text-green-700 dark:text-green-400 mb-2">
+                      Table ID 验证成功
+                    </h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-600 dark:text-slate-400">表格名称：</span>
+                        <span className="font-medium">{tableValidation.data.table?.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600 dark:text-slate-400">字段数量：</span>
+                        <span className="font-medium">{tableValidation.data.fields?.length || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {tableValidation.data.fields && tableValidation.data.fields.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="font-medium text-slate-700 dark:text-slate-300">字段列表：</h3>
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {tableValidation.data.fields.map((field: any, index: number) => (
+                          <div key={index} className="p-3 rounded bg-slate-50 dark:bg-slate-800">
+                            <div className="flex justify-between items-center text-sm">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{field.name}</span>
+                                {field.isPrimary && <Badge variant="secondary">主键</Badge>}
+                              </div>
+                              <span className="font-mono text-slate-600 dark:text-slate-400 text-xs">{field.id}</span>
+                            </div>
+                            <div className="text-xs text-slate-500 mt-1">
+                              类型：{field.type}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>验证失败</AlertTitle>
+                  <AlertDescription>
+                    {tableValidation.error || tableValidation.message || '未知错误'}
+                  </AlertDescription>
+                  {tableValidation.code && (
+                    <div className="mt-2 text-sm">
+                      <span className="font-medium">错误码：</span>
+                      <Badge variant="destructive">{tableValidation.code}</Badge>
+                    </div>
+                  )}
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* 测试结果 */}
         {result && (

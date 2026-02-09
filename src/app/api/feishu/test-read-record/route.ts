@@ -45,8 +45,19 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    console.log('[飞书测试] 测试读取记录:', {
+      appToken: config.appToken,
+      tableId: targetTableId,
+      tableName: targetTableName,
+    });
+
     // 测试读取记录
     const records = await listFeishuRecords(config.appToken, targetTableId, { page_size: 1 });
+
+    console.log('[飞书测试] 读取记录成功:', {
+      recordCount: records.total,
+      hasRecords: records.items && records.items.length > 0,
+    });
 
     return NextResponse.json({
       success: true,
@@ -59,13 +70,18 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error: any) {
+    console.error('[飞书测试] 读取记录失败:', error);
+
     // 尝试解析飞书API错误
     let feishuError = null;
     try {
       if (error.message) {
-        const parsed = JSON.parse(error.message);
-        if (parsed.code || parsed.msg) {
-          feishuError = parsed;
+        // 检查是否是 JSON 格式的错误
+        if (error.message.startsWith('{')) {
+          const parsed = JSON.parse(error.message);
+          if (parsed.code || parsed.msg) {
+            feishuError = parsed;
+          }
         }
       }
     } catch (e) {
@@ -77,6 +93,7 @@ export async function POST(request: NextRequest) {
       error: error.message,
       code: feishuError?.code,
       message: feishuError?.msg,
+      rawError: error.message,
     });
   }
 }
