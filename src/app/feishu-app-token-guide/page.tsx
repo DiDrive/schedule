@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, XCircle, Copy, ExternalLink, ArrowRight, Lightbulb } from 'lucide-react';
+import { CheckCircle2, XCircle, Copy, ExternalLink, ArrowRight, Lightbulb, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface TableInfo {
@@ -19,6 +19,8 @@ export default function FeishuAppTokenGuidePage() {
   const [tables, setTables] = useState<TableInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentConfig, setCurrentConfig] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [rawResponse, setRawResponse] = useState<string | null>(null);
 
   // 从 localStorage 加载配置
   const loadCurrentConfig = () => {
@@ -53,12 +55,14 @@ export default function FeishuAppTokenGuidePage() {
   const fetchTablesForToken = async (appToken: string) => {
     setIsLoading(true);
     setTables([]);
+    setError(null);
+    setRawResponse(null);
 
     try {
       // 从 localStorage 读取配置以获取 appId 和 appSecret
       const configStr = localStorage.getItem('feishu-config');
       if (!configStr) {
-        alert('请先配置飞书集成信息（App ID 和 App Secret）');
+        setError('请先配置飞书集成信息（App ID 和 App Secret）');
         return;
       }
 
@@ -77,7 +81,9 @@ export default function FeishuAppTokenGuidePage() {
       const tokenData = await tokenResponse.json();
 
       if (tokenData.code !== 0) {
-        throw new Error(`获取 Access Token 失败: ${tokenData.msg}`);
+        setError(`获取 Access Token 失败: ${tokenData.msg} (错误码: ${tokenData.code})`);
+        setRawResponse(JSON.stringify(tokenData, null, 2));
+        return;
       }
 
       // 获取多维表的表格列表
@@ -92,13 +98,18 @@ export default function FeishuAppTokenGuidePage() {
 
       const tablesData = await tablesResponse.json();
 
+      // 保存原始响应
+      setRawResponse(JSON.stringify(tablesData, null, 2));
+
       if (tablesData.code !== 0) {
-        throw new Error(tablesData.msg);
+        setError(`获取表格列表失败: ${tablesData.msg} (错误码: ${tablesData.code})`);
+        return;
       }
 
       setTables(tablesData.data?.items || []);
     } catch (error: any) {
-      alert(`获取表格列表失败: ${error.message}`);
+      setError(error.message);
+      setRawResponse(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -244,13 +255,52 @@ export default function FeishuAppTokenGuidePage() {
                 )}
 
                 {tables.length === 0 && !isLoading && (
-                  <Alert variant="destructive">
-                    <XCircle className="h-4 w-4" />
-                    <AlertTitle>未找到表格</AlertTitle>
-                    <AlertDescription>
-                      该 App Token 对应的多维表中没有任何表格。请检查 URL 是否正确，或尝试其他方法。
-                    </AlertDescription>
-                  </Alert>
+                  <div className="space-y-4">
+                    <Alert variant="destructive">
+                      <XCircle className="h-4 w-4" />
+                      <AlertTitle>未找到表格</AlertTitle>
+                      <AlertDescription>
+                        该 App Token 对应的多维表中没有任何表格。
+                      </AlertDescription>
+                    </Alert>
+
+                    {error && (
+                      <Alert>
+                        <XCircle className="h-4 w-4" />
+                        <AlertTitle>错误信息</AlertTitle>
+                        <AlertDescription>{error}</AlertDescription>
+                      </Alert>
+                    )}
+
+                    {rawResponse && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">API 原始响应：</p>
+                        <pre className="text-xs p-3 rounded bg-slate-100 dark:bg-slate-800 overflow-auto max-h-64">
+                          {rawResponse}
+                        </pre>
+                      </div>
+                    )}
+
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>可能的原因</AlertTitle>
+                      <AlertDescription className="space-y-2">
+                        <p>1. 你的飞书应用没有访问这个多维表的权限</p>
+                        <p>2. 多维表未授权给你的应用</p>
+                        <p>3. URL 中的 App Token 不正确</p>
+                      </AlertDescription>
+                    </Alert>
+
+                    <Alert>
+                      <Lightbulb className="h-4 w-4" />
+                      <AlertTitle>解决方案</AlertTitle>
+                      <AlertDescription className="space-y-2">
+                        <p><strong>方案 1：</strong>在飞书多维表中，点击右上角"更多" → "分享"，将多维表分享给你的飞书应用</p>
+                        <p><strong>方案 2：</strong>在飞书开放平台中，为应用添加"多维表格"权限，并授权访问这个多维表</p>
+                        <p><strong>方案 3：</strong>使用从 URL 中提取的 Table ID（如 {extractedAppToken && feishuUrl.match(/table=([a-zA-Z0-9]+)/)?.[1]}）直接更新到配置中</p>
+                      </AlertDescription>
+                    </Alert>
+                  </div>
                 )}
               </div>
             )}
