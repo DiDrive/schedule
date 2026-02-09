@@ -44,7 +44,7 @@ export function initFeishuClient(config: FeishuConfig) {
 /**
  * 获取访问令牌
  */
-async function getAccessToken(): Promise<string> {
+export async function getAccessToken(): Promise<string> {
   if (!configCache) {
     throw new Error('飞书客户端未初始化，请先调用 initFeishuClient');
   }
@@ -114,6 +114,11 @@ export async function listFeishuRecords(
     tableId,
     body: requestBody
   });
+
+  // 飞书API要求必须包含 fields 参数
+  if (!requestBody.fields) {
+    requestBody.fields = []; // 如果没有指定 fields，默认为空数组
+  }
 
   const response = await fetch(
     `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records`,
