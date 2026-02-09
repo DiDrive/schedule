@@ -33,9 +33,17 @@ export default function ExcelTemplateGenerator() {
       const complexTasksDef = complexTasksStr ? JSON.parse(complexTasksStr) : []; // 任务定义
       const complexSchedule = complexScheduleStr ? JSON.parse(complexScheduleStr) : null;
 
-      // ★★★ 从排期结果中获取排期后的任务 ★★★
-      const basicTasks = basicSchedule?.tasks || basicTasksDef;
-      const complexTasks = complexSchedule?.tasks || complexTasksDef;
+      // ★★★ 任务处理：使用所有任务定义（包含未排期的任务）★★★
+      const allTasks = [...basicTasksDef, ...complexTasksDef];
+
+      // ★★★ 创建任务ID到排期任务的映射（用于获取排期信息）★★★
+      const scheduledTaskMap = new Map<string, any>();
+      if (basicSchedule?.tasks) {
+        basicSchedule.tasks.forEach((t: any) => scheduledTaskMap.set(t.id, t));
+      }
+      if (complexSchedule?.tasks) {
+        complexSchedule.tasks.forEach((t: any) => scheduledTaskMap.set(t.id, t));
+      }
 
       // 合并所有资源（去重）
       const allResources = [...basicResources, ...complexResources].filter((res, index, self) =>
@@ -194,28 +202,34 @@ export default function ExcelTemplateGenerator() {
         const resourceMap = new Map(allResources.map((res: any) => [res.id, res.name]));
         
         console.log('=== 导出任务数据 ===');
-        console.log('任务总数:', allTasks.length);
-        console.log('有开始时间的任务:', allTasks.filter(t => t.startDate).length);
-        console.log('有负责人的任务:', allTasks.filter(t => t.assignedResources && t.assignedResources.length > 0).length);
-        console.log('前3个任务:', allTasks.slice(0, 3).map(t => ({
-          id: t.id,
-          name: t.name,
-          taskType: t.taskType,
-          startDate: t.startDate,
-          endDate: t.endDate,
-          assignedResources: t.assignedResources
-        })));
+        console.log('任务定义总数:', allTasks.length);
+        console.log('排期任务数:', scheduledTaskMap.size);
+        console.log('未排期任务数:', allTasks.length - scheduledTaskMap.size);
         
         const tasksData = allTasks.map((task: any) => {
+          // ★★★ 从排期结果中获取任务的排期信息（如果有）★★★
+          const scheduledTask = scheduledTaskMap.get(task.id);
+          
           // 获取分配的资源名称
           let assignee = '';
-          if (task.assignedResources && task.assignedResources.length > 0) {
-            if (typeof task.assignedResources[0] === 'string') {
+          let assignedResources = task.assignedResources || [];
+          let startDate = task.startDate;
+          let endDate = task.endDate;
+          
+          // 如果有排期结果，使用排期结果中的信息
+          if (scheduledTask) {
+            assignedResources = scheduledTask.assignedResources || [];
+            startDate = scheduledTask.startDate;
+            endDate = scheduledTask.endDate;
+          }
+          
+          if (assignedResources.length > 0) {
+            if (typeof assignedResources[0] === 'string') {
               // 如果是资源ID，从映射中获取名称
-              assignee = resourceMap.get(task.assignedResources[0]) || '';
-            } else if (typeof task.assignedResources[0] === 'object') {
+              assignee = resourceMap.get(assignedResources[0]) || '';
+            } else if (typeof assignedResources[0] === 'object') {
               // 如果是资源对象，直接获取名称
-              assignee = task.assignedResources[0].name || '';
+              assignee = assignedResources[0].name || '';
             }
           }
           
@@ -240,8 +254,8 @@ export default function ExcelTemplateGenerator() {
             [FEISHU_FIELD_IDS.tasks.type]: taskType,
             [FEISHU_FIELD_IDS.tasks.estimated_hours]: task.estimatedHours || 0,
             [FEISHU_FIELD_IDS.tasks.actual_hours]: task.actualHours || 0,
-            [FEISHU_FIELD_IDS.tasks.start_time]: task.startDate ? new Date(task.startDate).toISOString().slice(0, 19).replace('T', ' ') : '',
-            [FEISHU_FIELD_IDS.tasks.end_time]: task.endDate ? new Date(task.endDate).toISOString().slice(0, 19).replace('T', ' ') : '',
+            [FEISHU_FIELD_IDS.tasks.start_time]: startDate ? new Date(startDate).toISOString().slice(0, 19).replace('T', ' ') : '',
+            [FEISHU_FIELD_IDS.tasks.end_time]: endDate ? new Date(endDate).toISOString().slice(0, 19).replace('T', ' ') : '',
             [FEISHU_FIELD_IDS.tasks.deadline]: task.deadline || '',
             [FEISHU_FIELD_IDS.tasks.priority]: task.priority || '中',
             [FEISHU_FIELD_IDS.tasks.assignee]: assignee,
@@ -338,14 +352,20 @@ export default function ExcelTemplateGenerator() {
       XLSX.writeFile(workbook, '飞书多维表数据.xlsx');
       
       // 显示导出摘要
-      const summary = `导出成功！\n\n人员: ${allResources.length} 个\n项目: ${allProjects.length} 个\n任务: ${allTasks.length} 个\n排期: ${allSchedules.length} 个`;
+      const scheduledTasksCount = allSchedules.reduce((sum, s) => sum + (s.tasks?.length || 0), 0);
+      const summary = `导出成功！\n\n人员: ${allResources.length} 个\n项目: ${allProjects.length} 个\n任务: ${allTasks.length} 个 (已排期: ${scheduledTasksCount} 个)\n排期: ${allSchedules.length} 个`;
       
       if (allSchedules.length > 0) {
         const scheduleSummary = allSchedules.map((s: any, i: number) => {
           const name = i === 0 ? '基础场景' : (s.projects && s.projects.length > 0 ? s.projects[0].name : '复杂场景');
           return `${name}: ${s.tasks?.length || 0} 任务, ${s.totalHours || 0} 工时`;
         }).join('\n');
-        alert(`${summary}\n\n排期详情:\n${scheduleSummary}\n\n请将 Excel 文件导入到飞书多维表中`);
+        
+        const unscheduledNotice = allTasks.length > scheduledTasksCount 
+          ? `\n\n⚠ 注意: 有 ${allTasks.length - scheduledTasksCount} 个任务未排期（可能是物料任务或未生成的排期）` 
+          : '';
+        
+        alert(`${summary}\n\n排期详情:\n${scheduleSummary}${unscheduledNotice}\n\n请将 Excel 文件导入到飞书多维表中`);
       } else {
         alert(`${summary}\n\n⚠ 注意: 当前没有排期结果，导出的是任务定义数据。\n如需导出排期结果，请先在系统中生成排期。\n\n请将 Excel 文件导入到飞书多维表中`);
       }

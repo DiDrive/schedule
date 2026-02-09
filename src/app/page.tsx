@@ -30,6 +30,21 @@ export default function ProjectScheduleSystem() {
 
     const config = JSON.parse(configStr);
 
+    // ★★★ 验证配置是否完整 ★★★
+    const missingConfigs = [];
+    if (!config.appId) missingConfigs.push('App ID');
+    if (!config.appSecret) missingConfigs.push('App Secret');
+    if (!config.appToken) missingConfigs.push('App Token');
+    if (!config.tableIds?.resources) missingConfigs.push('人员表 Table ID');
+    if (!config.tableIds?.projects) missingConfigs.push('项目表 Table ID');
+    if (!config.tableIds?.tasks) missingConfigs.push('任务表 Table ID');
+    if (!config.tableIds?.schedules) missingConfigs.push('排期表 Table ID');
+
+    if (missingConfigs.length > 0) {
+      alert(`配置不完整，请填写以下信息：\n\n${missingConfigs.join('\n')}\n\n请在飞书集成配置中填写完整的信息。`);
+      return;
+    }
+
     // 获取基础场景数据
     const basicTasksStr = localStorage.getItem('basic-scenario-tasks');
     const basicResourcesStr = localStorage.getItem('basic-scenario-resources');
@@ -75,14 +90,16 @@ export default function ProjectScheduleSystem() {
 
       const result = await response.json();
 
+      console.log('[飞书同步] 响应:', result);
+
       if (result.success) {
         alert(`同步成功！\n\n统计：\n人员：${result.stats.resources.created} 创建, ${result.stats.resources.updated} 更新\n项目：${result.stats.projects.created} 创建, ${result.stats.projects.updated} 更新\n任务：${result.stats.tasks.created} 创建, ${result.stats.tasks.updated} 更新\n排期：${result.stats.schedules.created} 创建`);
       } else {
-        alert(`同步失败：${result.message}\n\n错误详情：\n${result.errors.join('\n')}`);
+        alert(`同步失败：${result.message}\n\n错误详情：\n${result.errors?.join('\n') || '未知错误'}`);
       }
     } catch (error) {
       console.error('飞书同步失败:', error);
-      alert('同步失败，请检查网络连接和配置信息');
+      alert(`同步失败：${error instanceof Error ? error.message : '请检查网络连接和配置信息'}`);
     }
   };
 

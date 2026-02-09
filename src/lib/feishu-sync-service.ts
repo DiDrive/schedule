@@ -159,11 +159,17 @@ async function syncResources(
       config.tableIds.resources
     );
 
-    console.log('[飞书同步-人员] 获取到', feishuRecords.items.length, '条飞书记录');
+    console.log('[飞书同步-人员] 获取到', feishuRecords.items?.length || 0, '条飞书记录');
+
+    // 检查返回的数据格式
+    if (!feishuRecords.items || !Array.isArray(feishuRecords.items)) {
+      errors.push('飞书API返回的数据格式错误');
+      return { ...stats, errors };
+    }
 
     const feishuRecordMap = new Map<string, FeishuRecord>();
     feishuRecords.items.forEach(record => {
-      const id = record.fields.id;
+      const id = record.fields?.id;
       if (id) {
         feishuRecordMap.set(id, record);
       }
