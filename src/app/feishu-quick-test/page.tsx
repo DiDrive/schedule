@@ -21,8 +21,10 @@ export default function FeishuQuickTestPage() {
   const [isTesting, setIsTesting] = useState(false);
   const [isValidatingToken, setIsValidatingToken] = useState(false);
   const [isValidatingTable, setIsValidatingTable] = useState(false);
+  const [isCheckingOwnership, setIsCheckingOwnership] = useState(false);
   const [tokenValidation, setTokenValidation] = useState<any>(null);
   const [tableValidation, setTableValidation] = useState<any>(null);
+  const [ownershipCheck, setOwnershipCheck] = useState<any>(null);
 
   // 从 localStorage 加载配置
   useEffect(() => {
@@ -135,6 +137,36 @@ export default function FeishuQuickTestPage() {
       });
     } finally {
       setIsValidatingTable(false);
+    }
+  };
+
+  const checkTableOwnership = async () => {
+    setIsCheckingOwnership(true);
+    setOwnershipCheck(null);
+
+    try {
+      const response = await fetch('/api/feishu/check-table-ownership', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          appId,
+          appSecret,
+          appToken,
+          tableId,
+        }),
+      });
+
+      const data = await response.json();
+      setOwnershipCheck(data);
+    } catch (error: any) {
+      setOwnershipCheck({
+        success: false,
+        error: error.message,
+      });
+    } finally {
+      setIsCheckingOwnership(false);
     }
   };
 
@@ -260,6 +292,15 @@ export default function FeishuQuickTestPage() {
                 {isValidatingTable ? '验证中...' : '验证 Table ID'}
               </Button>
             </div>
+
+            <Button
+              variant="outline"
+              onClick={checkTableOwnership}
+              disabled={isCheckingOwnership || !appId || !appSecret || !appToken || !tableId}
+              className="w-full"
+            >
+              {isCheckingOwnership ? '检查中...' : '检查 Table ID 是否属于该 App Token'}
+            </Button>
 
             <Button
               onClick={runTest}
@@ -418,6 +459,85 @@ export default function FeishuQuickTestPage() {
                     </div>
                   )}
                 </Alert>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Table ID 归属检查结果 */}
+        {ownershipCheck && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Table ID 归属检查</CardTitle>
+              <CardDescription>
+                {ownershipCheck.success ? (
+                  <span className="flex items-center gap-2 text-green-600">
+                    <CheckCircle2 className="h-5 w-5" />
+                    Table ID 属于该 App Token
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2 text-red-600">
+                    <XCircle className="h-5 w-5" />
+                    Table ID 不属于该 App Token
+                  </span>
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {ownershipCheck.success && ownershipCheck.data?.exists ? (
+                <div className="space-y-4">
+                  <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                    <h3 className="font-medium text-green-700 dark:text-green-400 mb-2">
+                      归属验证成功
+                    </h3>
+                    <p className="text-sm text-green-600 dark:text-green-500">
+                      Table ID <code className="px-1 py-0.5 bg-green-200 dark:bg-green-800 rounded">{ownershipCheck.data.tableId}</code> 属于 App Token <code className="px-1 py-0.5 bg-green-200 dark:bg-green-800 rounded">{ownershipCheck.data.appToken}</code>
+                    </p>
+                    {ownershipCheck.data.tableInfo && (
+                      <div className="mt-2">
+                        <p className="text-sm text-green-600 dark:text-green-500">
+                          表格名称：{ownershipCheck.data.tableInfo.name}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>归属验证失败</AlertTitle>
+                    <AlertDescription>
+                      {ownershipCheck.error || ownershipCheck.message || '未知错误'}
+                    </AlertDescription>
+                  </Alert>
+
+                  {ownershipCheck.data?.availableTableIds && ownershipCheck.data.availableTableIds.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="font-medium text-slate-700 dark:text-slate-300">该 App Token 中的可用表格：</h3>
+                      <div className="space-y-2">
+                        {ownershipCheck.data.availableTableIds.map((tid: string, index: number) => (
+                          <div key={index} className="p-3 rounded bg-slate-50 dark:bg-slate-800">
+                            <code className="text-sm font-mono">{tid}</code>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-sm text-amber-600 dark:text-amber-500">
+                        <strong>提示：</strong>请从上述表格 ID 中选择一个更新到您的配置中。
+                      </p>
+                    </div>
+                  )}
+
+                  {ownershipCheck.data?.availableTableIds && ownershipCheck.data.availableTableIds.length === 0 && (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>该多维表中没有表格</AlertTitle>
+                      <AlertDescription>
+                        App Token 是正确的，但是该多维表中没有任何表格。请检查您是否使用了正确的多维表。
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
