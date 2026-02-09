@@ -25,6 +25,7 @@ export interface FeishuRecord {
 
 export interface FeishuListResponse {
   items: FeishuRecord[];
+  total: number;
   has_more: boolean;
   page_token?: string;
 }
@@ -149,6 +150,7 @@ export async function listFeishuRecords(
 
   return {
     items: data.data.items || [],
+    total: data.data.total || 0,
     has_more: data.data.has_more || false,
     page_token: data.data.page_token,
   };
@@ -367,5 +369,34 @@ export async function testConnection(config: FeishuConfig): Promise<boolean> {
   } catch (error) {
     console.error('测试飞书连接失败:', error);
     return false;
+  }
+}
+
+/**
+ * 获取飞书配置（从 localStorage）
+ * 注意：这个函数只能在客户端调用
+ */
+export function getFeishuConfig(): FeishuConfig | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const configStr = localStorage.getItem('feishu-config');
+    if (!configStr) {
+      return null;
+    }
+
+    const config = JSON.parse(configStr);
+
+    // 验证配置格式
+    if (!config.appId || !config.appSecret || !config.appToken || !config.tableIds) {
+      return null;
+    }
+
+    return config as FeishuConfig;
+  } catch (error) {
+    console.error('读取飞书配置失败:', error);
+    return null;
   }
 }

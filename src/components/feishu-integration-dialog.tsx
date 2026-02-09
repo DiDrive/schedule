@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { AlertCircle, CheckCircle2, Clock, RefreshCw, Settings, Globe, Search } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, RefreshCw, Settings, Globe, Search, Activity } from 'lucide-react';
 import FeishuTableInspector from './feishu-table-inspector';
 
 interface FeishuConfig {
@@ -485,24 +485,35 @@ export default function FeishuIntegrationDialog({
                       {syncStatus.lastSyncError}
                     </div>
                   )}
-                  <Button
-                    variant="outline"
-                    onClick={handleSync}
-                    disabled={isSyncing}
-                    className="w-full"
-                  >
-                    {isSyncing ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                        同步中...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        立即同步
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={handleSync}
+                      disabled={isSyncing}
+                      className="flex-1"
+                    >
+                      {isSyncing ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          同步中...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          立即同步
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => window.open('/feishu-diagnostic', '_blank')}
+                      disabled={isSyncing}
+                      className="flex-1"
+                    >
+                      <Activity className="h-4 w-4 mr-2" />
+                      诊断连接
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
 

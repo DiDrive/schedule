@@ -1,0 +1,75 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getAccessToken, getFeishuConfig, listFeishuRecords } from '@/lib/feishu-client';
+
+export async function GET() {
+  try {
+    const config = getFeishuConfig();
+    if (!config) {
+      return NextResponse.json({
+        success: false,
+        error: '配置未找到',
+      });
+    }
+
+    // 查找第一个有 Table ID 的表格
+    let targetTableId: string | null = null;
+    let targetTableName: string = '';
+
+    const tableNames: { [key: string]: string } = {
+      resources: '人员表',
+      projects: '项目表',
+      tasks: '任务表',
+      schedules: '排期表',
+    };
+
+    for (const [key, name] of Object.entries(tableNames)) {
+      const tableId = config.tableIds[key as keyof typeof tableNames];
+      if (tableId) {
+        targetTableId = tableId;
+        targetTableName = name;
+        break;
+      }
+    }
+
+    if (!targetTableId) {
+      return NextResponse.json({
+        success: false,
+        error: '未找到可用的 Table ID，请先配置至少一个表格',
+      });
+    }
+
+    // 测试读取记录
+    const records = await listFeishuRecords(config.appToken, targetTableId, { page_size: 1 });
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        tableId: targetTableId,
+        tableName: targetTableName,
+        recordCount: records.total,
+        hasRecords: records.items && records.items.length > 0,
+        sampleRecord: records.items && records.items.length > 0 ? records.items[0] : null,
+      },
+    });
+  } catch (error: any) {
+    // 尝试解析飞书API错误
+    let feishuError = null;
+    try {
+      if (error.message) {
+        const parsed = JSON.parse(error.message);
+        if (parsed.code || parsed.msg) {
+          feishuError = parsed;
+        }
+      }
+    } catch (e) {
+      // 忽略解析错误
+    }
+
+    return NextResponse.json({
+      success: false,
+      error: error.message,
+      code: feishuError?.code,
+      message: feishuError?.msg,
+    });
+  }
+}
