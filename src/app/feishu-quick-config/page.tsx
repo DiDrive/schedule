@@ -50,6 +50,25 @@ export default function FeishuQuickConfigPage() {
     alert('凭证已保存！');
   };
 
+  const forceRefreshConfig = () => {
+    // 清除所有可能的缓存
+    localStorage.removeItem('feishu-config');
+    sessionStorage.clear();
+
+    // 重新加载页面
+    window.location.reload();
+  };
+
+  const checkCurrentConfig = () => {
+    const configStr = localStorage.getItem('feishu-config');
+    if (configStr) {
+      const config = JSON.parse(configStr);
+      alert(`当前配置的 App Token:\n${config.appToken}`);
+    } else {
+      alert('未找到配置');
+    }
+  };
+
   const fetchTables = async (token: string) => {
     setIsLoading(true);
     setTables([]);
@@ -207,11 +226,69 @@ export default function FeishuQuickConfigPage() {
               <Button onClick={loadFromLocalStorage} variant="outline">
                 从配置加载 App Token
               </Button>
+              <Button onClick={() => window.open('/feishu-config-manager', '_blank')} variant="outline">
+                配置管理
+              </Button>
               <Button onClick={() => window.open('/feishu-create-base-guide', '_blank')} variant="outline">
                 <ExternalLink className="h-4 w-4 mr-2" />
                 创建指南
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* 当前配置 */}
+        <Card>
+          <CardHeader>
+            <CardTitle>当前配置</CardTitle>
+            <CardDescription>
+              查看和管理已保存的飞书配置
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(() => {
+              const configStr = localStorage.getItem('feishu-config');
+              if (configStr) {
+                const config = JSON.parse(configStr);
+                return (
+                  <div className="space-y-3">
+                    <div className="p-3 rounded bg-slate-50 dark:bg-slate-800">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">当前 App Token</p>
+                      <code className="text-sm font-medium">{config.appToken}</code>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={checkCurrentConfig}
+                      >
+                        查看详情
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={forceRefreshConfig}
+                      >
+                        清除缓存并刷新
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => window.open('/feishu-config-manager', '_blank')}
+                      >
+                        配置管理
+                      </Button>
+                    </div>
+                  </div>
+                );
+              } else {
+                return (
+                  <div className="p-3 rounded bg-slate-50 dark:bg-slate-800 text-sm text-slate-500">
+                    未找到配置
+                  </div>
+                );
+              }
+            })()}
           </CardContent>
         </Card>
 
