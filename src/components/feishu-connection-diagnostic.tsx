@@ -58,9 +58,9 @@ export default function FeishuConnectionDiagnostic() {
 
       const config = data.data;
       updateStep('检查本地配置', 'success', '配置已找到', {
-        App ID: `${config.appId.substring(0, 8)}...`,
-        App Secret: `${config.appSecret.substring(0, 8)}...`,
-        App Token: config.appToken,
+        'App ID': `${config.appId.substring(0, 8)}...`,
+        'App Secret': `${config.appSecret.substring(0, 8)}...`,
+        'App Token': config.appToken,
         '表格数量': Object.keys(config.tableIds).filter(k => config.tableIds[k]).length,
       });
     } catch (error: any) {
