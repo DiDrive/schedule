@@ -34,7 +34,9 @@ export default function ExcelTemplateGenerator() {
       const complexSchedule = complexScheduleStr ? JSON.parse(complexScheduleStr) : null;
 
       // ★★★ 任务处理：使用所有任务定义（包含未排期的任务）★★★
-      const allTasks = [...basicTasksDef, ...complexTasksDef];
+      const allTasks = [...basicTasksDef, ...complexTasksDef].filter((task, index, self) =>
+        index === self.findIndex(t => t.id === task.id)
+      );
 
       // ★★★ 创建任务ID到排期任务的映射（用于获取排期信息）★★★
       const scheduledTaskMap = new Map<string, any>();
@@ -52,11 +54,6 @@ export default function ExcelTemplateGenerator() {
 
       // 合并所有项目
       const allProjects = [...complexProjects];
-
-      // 合并所有任务（去重）
-      const allTasks = [...basicTasks, ...complexTasks].filter((task, index, self) =>
-        index === self.findIndex(t => t.id === task.id)
-      );
 
       // 合并所有排期结果（排期结果可能是对象，包含数组）
       const allSchedules: any[] = [];
