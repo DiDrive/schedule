@@ -102,7 +102,7 @@ export default function FeishuConnectionDiagnostic() {
 
       if (data.success) {
         updateStep('测试读取 App 信息', 'success', '多维表信息读取成功', {
-          App Token: data.data.appToken,
+          'App Token': data.data.appToken,
           '表格数量': data.data.tableCount,
           '表格列表': data.data.tables,
         });
