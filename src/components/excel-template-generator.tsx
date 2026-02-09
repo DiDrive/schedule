@@ -83,32 +83,28 @@ export default function ExcelTemplateGenerator({ scenario }: ExcelTemplateGenera
     // 1. 人员表数据（只导出人力资源）
     const humanResources = resources.filter((res: any) => res.type === 'human');
     if (humanResources.length > 0) {
-      const resourcesData = humanResources.map((res: any) => ({
-        [FEISHU_FIELD_IDS.resources.id]: res.id,
-        [FEISHU_FIELD_IDS.resources.name]: res.name,
-        [FEISHU_FIELD_IDS.resources.type]: res.workType === '平面' ? '平面设计' : res.workType === '后期' ? '后期制作' : '物料',
-        [FEISHU_FIELD_IDS.resources.efficiency]: Number(res.efficiency || 1),
-        [FEISHU_FIELD_IDS.resources.feishu_user]: '',
-        [FEISHU_FIELD_IDS.resources.total_hours]: 0,
-        [FEISHU_FIELD_IDS.resources.created_at]: '',
-        [FEISHU_FIELD_IDS.resources.updated_at]: '',
-      }));
+      const resourcesData = humanResources.map((res: any) => {
+        const data: Record<string, any> = {};
+        data[FEISHU_FIELD_IDS.resources.id] = res.id;
+        data[FEISHU_FIELD_IDS.resources.name] = res.name;
+        data[FEISHU_FIELD_IDS.resources.type] = res.workType === '平面' ? '平面设计' : res.workType === '后期' ? '后期制作' : '物料';
+        return data;
+      });
       const resourcesSheet = XLSX.utils.json_to_sheet(resourcesData);
       XLSX.utils.book_append_sheet(workbook, resourcesSheet, '人员表');
     }
 
     // 2. 项目表数据（仅复杂场景）
     if (projects.length > 0) {
-      const projectsData = projects.map((proj: any) => ({
-        [FEISHU_FIELD_IDS.projects.id]: proj.id,
-        [FEISHU_FIELD_IDS.projects.name]: proj.name,
-        [FEISHU_FIELD_IDS.projects.description]: proj.description || '',
-        [FEISHU_FIELD_IDS.projects.start_date]: proj.startDate ? proj.startDate.split(' ')[0] : '',
-        [FEISHU_FIELD_IDS.projects.end_date]: proj.deadline ? proj.deadline.split(' ')[0] : '',
-        [FEISHU_FIELD_IDS.projects.status]: '进行中',
-        [FEISHU_FIELD_IDS.projects.created_at]: '',
-        [FEISHU_FIELD_IDS.projects.updated_at]: '',
-      }));
+      const projectsData = projects.map((proj: any) => {
+        const data: Record<string, any> = {};
+        data[FEISHU_FIELD_IDS.projects.id] = proj.id;
+        data[FEISHU_FIELD_IDS.projects.name] = proj.name;
+        data[FEISHU_FIELD_IDS.projects.description] = proj.description || '';
+        data[FEISHU_FIELD_IDS.projects.end_date] = proj.deadline ? proj.deadline.split(' ')[0] : '';
+        data[FEISHU_FIELD_IDS.projects.status] = '进行中';
+        return data;
+      });
       const projectsSheet = XLSX.utils.json_to_sheet(projectsData);
       XLSX.utils.book_append_sheet(workbook, projectsSheet, '项目表');
     }
@@ -139,21 +135,10 @@ export default function ExcelTemplateGenerator({ scenario }: ExcelTemplateGenera
           [FEISHU_FIELD_IDS.tasks.project]: task.projectId || '',
           [FEISHU_FIELD_IDS.tasks.type]: taskType,
           [FEISHU_FIELD_IDS.tasks.estimated_hours]: task.estimatedHours || 0,
-          [FEISHU_FIELD_IDS.tasks.actual_hours]: task.actualHours || 0,
-          [FEISHU_FIELD_IDS.tasks.start_time]: '', // ★★★ 不包含排期信息 ★★★
-          [FEISHU_FIELD_IDS.tasks.end_time]: '', // ★★★ 不包含排期信息 ★★★
           [FEISHU_FIELD_IDS.tasks.deadline]: task.deadline || '',
-          [FEISHU_FIELD_IDS.tasks.priority]: task.priority || '中',
-          [FEISHU_FIELD_IDS.tasks.assignee]: '', // ★★★ 不包含排期信息 ★★★
+          [FEISHU_FIELD_IDS.tasks.priority]: task.priority === 'urgent' || task.priority === 'high' ? '高' : task.priority === 'low' ? '低' : '中',
+          [FEISHU_FIELD_IDS.tasks.assignee]: '', // ★★★ 不包含排期信息（负责人）★★★
           [FEISHU_FIELD_IDS.tasks.dependencies]: task.dependencies?.join(', ') || '',
-          [FEISHU_FIELD_IDS.tasks.status]: task.status === 'pending' ? '未开始' : task.status === 'in-progress' ? '进行中' : task.status === 'completed' ? '已完成' : '未开始',
-          [FEISHU_FIELD_IDS.tasks.is_overdue]: task.isOverdue || false,
-          [FEISHU_FIELD_IDS.tasks.feishu_version]: 1,
-          [FEISHU_FIELD_IDS.tasks.system_version]: 1,
-          [FEISHU_FIELD_IDS.tasks.last_synced_at]: '',
-          [FEISHU_FIELD_IDS.tasks.sync_source]: '系统',
-          [FEISHU_FIELD_IDS.tasks.created_at]: '',
-          [FEISHU_FIELD_IDS.tasks.updated_at]: '',
         };
       });
       const tasksSheet = XLSX.utils.json_to_sheet(tasksData);
@@ -175,6 +160,20 @@ export default function ExcelTemplateGenerator({ scenario }: ExcelTemplateGenera
 
       // 导出排期结果表格数据（每个任务一行）
       const scheduleData = schedule.tasks.map((task: any) => {
+        // 转换任务类型
+        let taskType = '物料';
+        if (task.taskType === '平面') {
+          taskType = '平面设计';
+        } else if (task.taskType === '后期') {
+          taskType = '后期制作';
+        } else if (task.workType === '平面') {
+          taskType = '平面设计';
+        } else if (task.workType === '后期') {
+          taskType = '后期制作';
+        } else if (task.workType === '物料' || task.taskType === '物料') {
+          taskType = '物料';
+        }
+
         // 获取负责人名称
         let assignee = '';
         if (task.assignedResources && task.assignedResources.length > 0) {
@@ -193,15 +192,15 @@ export default function ExcelTemplateGenerator({ scenario }: ExcelTemplateGenera
         const actualHours = task.estimatedHours / efficiency;
 
         return {
-          '任务ID': task.id,
-          '项目': projectMap.get(task.projectId) || '',
-          '任务名称': task.name,
-          '开始时间': task.startDate ? new Date(task.startDate).toLocaleString('zh-CN') : '',
-          '结束时间': task.endDate ? new Date(task.endDate).toLocaleString('zh-CN') : '',
-          '负责人': assignee,
-          '预估工时': task.estimatedHours,
-          '实际工时': actualHours.toFixed(2),
-          '是否在关键路径上': task.isCritical ? '是' : '否',
+          [FEISHU_FIELD_IDS.schedules.id]: task.id,
+          [FEISHU_FIELD_IDS.schedules.project]: projectMap.get(task.projectId) || '',
+          [FEISHU_FIELD_IDS.schedules.type]: taskType,
+          [FEISHU_FIELD_IDS.schedules.assignee]: assignee,
+          [FEISHU_FIELD_IDS.schedules.start_time]: task.startDate ? new Date(task.startDate).toLocaleString('zh-CN') : '',
+          [FEISHU_FIELD_IDS.schedules.end_time]: task.endDate ? new Date(task.endDate).toLocaleString('zh-CN') : '',
+          [FEISHU_FIELD_IDS.schedules.deadline]: task.deadline ? task.deadline.split(' ')[0] : '',
+          [FEISHU_FIELD_IDS.schedules.actual_hours]: actualHours.toFixed(2),
+          [FEISHU_FIELD_IDS.schedules.status]: task.status === 'pending' ? '未开始' : task.status === 'in-progress' ? '进行中' : task.status === 'completed' ? '已完成' : '已暂停',
         };
       });
       const schedulesSheet = XLSX.utils.json_to_sheet(scheduleData);
@@ -263,9 +262,9 @@ export default function ExcelTemplateGenerator({ scenario }: ExcelTemplateGenera
         <div className="text-sm text-slate-600 dark:text-slate-400 space-y-2">
           <p className="font-medium">导出说明：</p>
           <ul className="list-disc list-inside space-y-1">
-            <li><strong>人员表</strong>：系统中的所有人员信息</li>
+            <li><strong>人员表</strong>：系统中的所有人员信息（人员ID、姓名、工作类型）</li>
             <li><strong>任务表</strong>：任务管理中的数据（任务定义），不包含排期信息</li>
-            <li><strong>排期表</strong>：排期结果统计信息（任务数、总工时、利用率等）</li>
+            <li><strong>排期表</strong>：排期结果表格（每个任务的具体排期信息）</li>
             {scenario === 'complex' && <li><strong>项目表</strong>：系统中的所有项目信息</li>}
           </ul>
           <p className="font-medium mt-3">使用说明：</p>
@@ -274,7 +273,7 @@ export default function ExcelTemplateGenerator({ scenario }: ExcelTemplateGenera
             <li>在飞书多维表中创建对应的数据表</li>
             <li>创建字段时，Excel 第一行就是字段名称</li>
             <li>将 Excel 数据导入到飞书表格中</li>
-            <li>配置关联关系（project 关联项目表）</li>
+            <li>配置关联关系（所属项目关联项目表）</li>
             <li>在系统中配置 Table ID 后即可同步</li>
           </ol>
         </div>

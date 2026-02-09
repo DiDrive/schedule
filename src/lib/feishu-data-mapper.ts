@@ -18,22 +18,14 @@ export const FEISHU_FIELD_IDS = {
     id: '人员ID',
     name: '姓名',
     type: '工作类型',
-    efficiency: '效率',
-    feishu_user: '飞书用户',
-    total_hours: '总工时',
-    created_at: '创建时间',
-    updated_at: '更新时间',
   },
   // 项目表
   projects: {
     id: '项目ID',
     name: '项目名称',
     description: '项目描述',
-    start_date: '开始日期',
-    end_date: '结束日期',
+    end_date: '截止日期',
     status: '项目状态',
-    created_at: '创建时间',
-    updated_at: '更新时间',
   },
   // 任务表
   tasks: {
@@ -42,37 +34,22 @@ export const FEISHU_FIELD_IDS = {
     project: '所属项目',
     type: '任务类型',
     estimated_hours: '预估工时',
-    actual_hours: '实际工时',
-    start_time: '开始时间',
-    end_time: '结束时间',
     deadline: '截止日期',
     priority: '优先级',
     assignee: '负责人',
     dependencies: '依赖关系',
-    status: '任务状态',
-    is_overdue: '是否超期',
-    feishu_version: '飞书版本',
-    system_version: '系统版本',
-    last_synced_at: '最后同步时间',
-    sync_source: '同步来源',
-    created_at: '创建时间',
-    updated_at: '更新时间',
   },
   // 排期表（排期结果表格）
   schedules: {
     id: '任务ID',
-    project: '项目',
-    name: '任务名称',
-    version: '版本',
-    task_count: '任务数',
-    total_hours: '总工时',
-    utilization: '利用率',
-    critical_path_count: '关键路径数',
+    project: '所属项目',
+    type: '任务类型',
+    assignee: '负责人',
     start_time: '开始时间',
     end_time: '结束时间',
-    generated_at: '生成时间',
-    created_at: '创建时间',
-    updated_at: '更新时间',
+    deadline: '截止日期',
+    actual_hours: '工时',
+    status: '状态',
   },
 };
 
@@ -155,11 +132,6 @@ export function resourceToFeishuRecord(resource: Resource): Record<string, any> 
     [FEISHU_FIELD_IDS.resources.id]: resource.id,
     [FEISHU_FIELD_IDS.resources.name]: resource.name,
     [FEISHU_FIELD_IDS.resources.type]: resource.workType === '平面' ? '平面设计' : resource.workType === '后期' ? '后期制作' : '物料',
-    [FEISHU_FIELD_IDS.resources.efficiency]: Number(resource.efficiency || 1),
-    [FEISHU_FIELD_IDS.resources.feishu_user]: [],
-    [FEISHU_FIELD_IDS.resources.total_hours]: 0,
-    [FEISHU_FIELD_IDS.resources.created_at]: dateToFeishuDate(new Date(), true),
-    [FEISHU_FIELD_IDS.resources.updated_at]: dateToFeishuDate(new Date(), true),
   };
 }
 
@@ -175,7 +147,7 @@ export function feishuRecordToResource(record: Record<string, any>, recordId: st
     name: fields[FEISHU_FIELD_IDS.resources.name] as string || '',
     type: 'human',
     workType: resourceType === '平面设计' ? '平面' : resourceType === '后期制作' ? '后期' : '物料',
-    efficiency: (fields[FEISHU_FIELD_IDS.resources.efficiency] as number) || 1,
+    efficiency: 1,
     availability: 1,
   };
 }
@@ -188,11 +160,8 @@ export function projectToFeishuRecord(project: Project): Record<string, any> {
     [FEISHU_FIELD_IDS.projects.id]: project.id,
     [FEISHU_FIELD_IDS.projects.name]: project.name,
     [FEISHU_FIELD_IDS.projects.description]: project.description || '',
-    [FEISHU_FIELD_IDS.projects.start_date]: dateToFeishuDate(project.startDate, false),
     [FEISHU_FIELD_IDS.projects.end_date]: dateToFeishuDate(project.deadline, false),
     [FEISHU_FIELD_IDS.projects.status]: '进行中',
-    [FEISHU_FIELD_IDS.projects.created_at]: dateToFeishuDate(new Date(), true),
-    [FEISHU_FIELD_IDS.projects.updated_at]: dateToFeishuDate(new Date(), true),
   };
 }
 
@@ -201,7 +170,6 @@ export function projectToFeishuRecord(project: Project): Record<string, any> {
  */
 export function feishuRecordToProject(record: Record<string, any>, recordId: string): Project {
   const fields = record.fields || {};
-  const status = fields[FEISHU_FIELD_IDS.projects.status] as string;
 
   return {
     id: fields[FEISHU_FIELD_IDS.projects.id] as string || recordId,
@@ -210,7 +178,6 @@ export function feishuRecordToProject(record: Record<string, any>, recordId: str
     priority: 5,
     tasks: [],
     resourcePool: [],
-    startDate: feishuDateToDate(fields[FEISHU_FIELD_IDS.projects.start_date] as number) || undefined,
     deadline: feishuDateToDate(fields[FEISHU_FIELD_IDS.projects.end_date] as number) || undefined,
   };
 }
@@ -225,21 +192,10 @@ export function taskToFeishuRecord(task: Task): Record<string, any> {
     [FEISHU_FIELD_IDS.tasks.project]: task.projectId || [],
     [FEISHU_FIELD_IDS.tasks.type]: task.taskType === '平面' ? '平面设计' : task.taskType === '后期' ? '后期制作' : '物料',
     [FEISHU_FIELD_IDS.tasks.estimated_hours]: task.estimatedHours,
-    [FEISHU_FIELD_IDS.tasks.actual_hours]: 0,
-    [FEISHU_FIELD_IDS.tasks.start_time]: dateToFeishuDate(task.startDate, true),
-    [FEISHU_FIELD_IDS.tasks.end_time]: dateToFeishuDate(task.endDate, true),
-    [FEISHU_FIELD_IDS.tasks.deadline]: dateToFeishuDate(task.deadline, true),
+    [FEISHU_FIELD_IDS.tasks.deadline]: dateToFeishuDate(task.deadline, false),
     [FEISHU_FIELD_IDS.tasks.priority]: task.priority === 'urgent' || task.priority === 'high' ? '高' : task.priority === 'low' ? '低' : '中',
     [FEISHU_FIELD_IDS.tasks.assignee]: task.assignedResources || [],
     [FEISHU_FIELD_IDS.tasks.dependencies]: task.dependencies || [],
-    [FEISHU_FIELD_IDS.tasks.status]: task.status === 'pending' ? '未开始' : task.status === 'in-progress' ? '进行中' : task.status === 'completed' ? '已完成' : '已暂停',
-    [FEISHU_FIELD_IDS.tasks.is_overdue]: false,
-    [FEISHU_FIELD_IDS.tasks.feishu_version]: 0,
-    [FEISHU_FIELD_IDS.tasks.system_version]: 0,
-    [FEISHU_FIELD_IDS.tasks.last_synced_at]: dateToFeishuDate(new Date(), true),
-    [FEISHU_FIELD_IDS.tasks.sync_source]: '系统',
-    [FEISHU_FIELD_IDS.tasks.created_at]: dateToFeishuDate(new Date(), true),
-    [FEISHU_FIELD_IDS.tasks.updated_at]: dateToFeishuDate(new Date(), true),
   };
 }
 
@@ -257,50 +213,68 @@ export function feishuRecordToTask(record: Record<string, any>, recordId: string
     estimatedHours: (fields[FEISHU_FIELD_IDS.tasks.estimated_hours] as number) || 0,
     assignedResources: (fields[FEISHU_FIELD_IDS.tasks.assignee] as string[]) || [],
     dependencies: (fields[FEISHU_FIELD_IDS.tasks.dependencies] as string[]) || [],
-    status: fields[FEISHU_FIELD_IDS.tasks.status] === '未开始' ? 'pending' : fields[FEISHU_FIELD_IDS.tasks.status] === '进行中' ? 'in-progress' : fields[FEISHU_FIELD_IDS.tasks.status] === '已完成' ? 'completed' : 'blocked',
+    status: 'pending',
     priority: fields[FEISHU_FIELD_IDS.tasks.priority] === '高' ? 'high' : fields[FEISHU_FIELD_IDS.tasks.priority] === '低' ? 'low' : 'normal',
     deadline: feishuDateToDate(fields[FEISHU_FIELD_IDS.tasks.deadline] as number) || undefined,
-    startDate: feishuDateToDate(fields[FEISHU_FIELD_IDS.tasks.start_time] as number) || undefined,
-    endDate: feishuDateToDate(fields[FEISHU_FIELD_IDS.tasks.end_time] as number) || undefined,
   };
 }
 
+
+
 /**
- * 将系统排期结果转换为飞书记录格式
+ * 将排期结果中的每个任务转换为飞书记录格式
+ * 排期表每个任务一行
  */
-export function scheduleToFeishuRecord(schedule: ScheduleResult): Record<string, any> {
-  // 确保 tasks 存在
+export function scheduleToFeishuRecords(schedule: ScheduleResult, projects: Project[], resources: Resource[]): Record<string, any>[] {
   const tasks = schedule.tasks || [];
+  
+  // 创建资源ID到名称的映射
+  const resourceMap = new Map(resources.map((res: any) => [res.id, res.name]));
+  
+  // 创建项目ID到名称的映射
+  const projectMap = new Map(projects.map((p: any) => [p.id, p.name]));
 
-  // 计算总工时
-  const totalHours = tasks.reduce((sum, task) => sum + task.estimatedHours, 0);
+  return tasks.map((task: any) => {
+    // 获取负责人名称
+    let assignee = '';
+    if (task.assignedResources && task.assignedResources.length > 0) {
+      const resourceId = task.assignedResources[0];
+      if (typeof resourceId === 'string') {
+        assignee = resourceMap.get(resourceId) || '';
+      } else if (typeof resourceId === 'object') {
+        assignee = resourceId.name || '';
+      }
+    }
 
-  // 计算资源利用率（简单计算）
-  const utilization = tasks.length > 0 ? 0.85 : 0;
+    // 计算实际工时（考虑效率）
+    const resourceId = task.assignedResources?.[0];
+    const resource = resources.find((r: any) => r.id === resourceId);
+    const efficiency = resource?.efficiency || 1.0;
+    const actualHours = task.estimatedHours / efficiency;
 
-  // 获取排期时间范围
-  const startTime = tasks.length > 0
-    ? tasks.reduce((min, task) => task.startDate && task.startDate < min ? task.startDate : min, tasks[0].startDate!)
-    : null;
+    // 确定状态
+    const status = task.status === 'completed' ? '已完成' : 
+                   task.status === 'in-progress' ? '进行中' : 
+                   task.status === 'pending' ? '未开始' : '已暂停';
 
-  const endTime = tasks.length > 0
-    ? tasks.reduce((max, task) => task.endDate && task.endDate > max ? task.endDate : max, tasks[0].endDate!)
-    : null;
+    return {
+      [FEISHU_FIELD_IDS.schedules.id]: task.id,
+      [FEISHU_FIELD_IDS.schedules.project]: projectMap.get(task.projectId) || '',
+      [FEISHU_FIELD_IDS.schedules.type]: task.taskType === '平面' ? '平面设计' : task.taskType === '后期' ? '后期制作' : '物料',
+      [FEISHU_FIELD_IDS.schedules.assignee]: assignee,
+      [FEISHU_FIELD_IDS.schedules.start_time]: dateToFeishuDate(task.startDate, true),
+      [FEISHU_FIELD_IDS.schedules.end_time]: dateToFeishuDate(task.endDate, true),
+      [FEISHU_FIELD_IDS.schedules.deadline]: dateToFeishuDate(task.deadline, false),
+      [FEISHU_FIELD_IDS.schedules.actual_hours]: Math.round(actualHours * 100) / 100,
+      [FEISHU_FIELD_IDS.schedules.status]: status,
+    };
+  });
+}
 
-  // 获取第一个任务的项目ID
-  const projectId = tasks[0]?.projectId || '';
-
-  return {
-    [FEISHU_FIELD_IDS.schedules.id]: `schedule-${Date.now()}`,
-    [FEISHU_FIELD_IDS.schedules.project]: projectId ? [projectId] : [],
-    [FEISHU_FIELD_IDS.schedules.name]: `排期 ${new Date().toLocaleString('zh-CN')}`,
-    [FEISHU_FIELD_IDS.schedules.version]: 1,
-    [FEISHU_FIELD_IDS.schedules.task_count]: tasks.length,
-    [FEISHU_FIELD_IDS.schedules.total_hours]: Math.round(totalHours * 10) / 10,
-    [FEISHU_FIELD_IDS.schedules.utilization]: Math.round(utilization * 100),
-    [FEISHU_FIELD_IDS.schedules.critical_path_count]: schedule.criticalPath.length,
-
-  };
+// 保留旧的函数名用于兼容性
+export function scheduleToFeishuRecord(schedule: ScheduleResult): Record<string, any> {
+  // 这个函数不再使用，由 scheduleToFeishuRecords 替代
+  return {};
 }
 
 /**
@@ -351,12 +325,8 @@ export function feishuRecordToSchedule(record: Record<string, any>, tasks: Task[
  * @returns 是否存在冲突
  */
 export function detectVersionConflict(task: Task, feishuRecord: Record<string, any>): boolean {
-  const fields = feishuRecord.fields || {};
-  const feishuVersion = (fields[FEISHU_FIELD_IDS.tasks.feishu_version] as number) || 0;
-  const systemVersion = (fields[FEISHU_FIELD_IDS.tasks.system_version] as number) || 0;
-
-  // 如果两边都有更新，则存在冲突
-  return systemVersion !== 0 && feishuVersion !== 0;
+  // 目前版本不需要冲突检测
+  return false;
 }
 
 /**
