@@ -264,8 +264,8 @@ async function syncProjects(
     );
 
     const feishuRecordMap = new Map<string, FeishuRecord>();
-    feishuRecords.items.forEach(record => {
-      const id = record.fields.id;
+    feishuRecords.items?.forEach(record => {
+      const id = record.fields?.id;
       if (id) {
         feishuRecordMap.set(id, record);
       }
@@ -335,8 +335,8 @@ async function syncTasks(
     );
 
     const feishuRecordMap = new Map<string, FeishuRecord>();
-    feishuRecords.items.forEach(record => {
-      const id = record.fields.id;
+    feishuRecords.items?.forEach(record => {
+      const id = record.fields?.id;
       if (id) {
         feishuRecordMap.set(id, record);
       }
@@ -390,12 +390,7 @@ async function syncTasks(
     if (toUpdate.length > 0) {
       const records = toUpdate.map(({ record, task }) => ({
         record_id: record.record_id,
-        fields: {
-          ...taskToFeishuRecord(task),
-          system_version: (record.fields.system_version as number || 0) + 1,
-          last_synced_at: Date.now(),
-          sync_source: '系统',
-        },
+        fields: taskToFeishuRecord(task),
       }));
       await batchUpdateFeishuRecords(config.appToken, config.tableIds.tasks, records);
       stats.updated += toUpdate.length;

@@ -65,13 +65,45 @@ export default function ProjectScheduleSystem() {
     const complexProjects = complexProjectsStr ? JSON.parse(complexProjectsStr) : [];
     const complexSchedule = complexScheduleStr ? JSON.parse(complexScheduleStr) : [];
 
+    console.log('[飞书同步] 基础场景数据:', {
+      tasks: basicTasks.length,
+      resources: basicResources.length,
+      hasSchedule: !!basicSchedule,
+    });
+    console.log('[飞书同步] 复杂场景数据:', {
+      tasks: complexTasks.length,
+      resources: complexResources.length,
+      projects: complexProjects.length,
+      hasSchedule: !!complexSchedule,
+    });
+
+    // 合并数据，去重人力资源
+    const resourceSet = new Set();
+    const allResources: any[] = [];
+    [...basicResources, ...complexResources].forEach((res: any) => {
+      // 只合并人力资源（type === 'human'）
+      if (res.type === 'human' && !resourceSet.has(res.id)) {
+        resourceSet.add(res.id);
+        allResources.push(res);
+      }
+    });
+
+    console.log('[飞书同步] 合并后资源数（仅人力）:', allResources.length);
+
     // 合并数据
     const systemData = {
-      resources: [...basicResources, ...complexResources],
+      resources: allResources,
       projects: complexProjects,
       tasks: [...basicTasks, ...complexTasks],
       schedules: basicSchedule ? [basicSchedule] : (complexSchedule ? [complexSchedule] : []),
     };
+
+    console.log('[飞书同步] 系统数据汇总:', {
+      resources: systemData.resources.length,
+      projects: systemData.projects.length,
+      tasks: systemData.tasks.length,
+      schedules: systemData.schedules.length,
+    });
 
     try {
       const response = await fetch('/api/feishu/sync', {
