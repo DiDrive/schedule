@@ -49,6 +49,46 @@ export default function FeishuConfigManagerPage() {
     }
   };
 
+  const updateTableId = (tableKey: string, tableName: string) => {
+    if (!config) return;
+
+    const newTableId = prompt(`请输入 ${tableName} 的 Table ID：`, config.tableIds?.[tableKey] || '');
+    if (newTableId) {
+      if (!config.tableIds) config.tableIds = {};
+      config.tableIds[tableKey] = newTableId;
+      localStorage.setItem('feishu-config', JSON.stringify(config));
+      loadConfig();
+      setMessage(`${tableName} Table ID 已更新`);
+      setMessageType('success');
+    }
+  };
+
+  const updateAllTableIds = () => {
+    if (!config) return;
+
+    const newTableIds: any = {};
+
+    const resourcesId = prompt('请输入人员表的 Table ID：', config.tableIds?.resources || '');
+    if (resourcesId) newTableIds.resources = resourcesId;
+
+    const projectsId = prompt('请输入项目表的 Table ID：', config.tableIds?.projects || '');
+    if (projectsId) newTableIds.projects = projectsId;
+
+    const tasksId = prompt('请输入任务表的 Table ID：', config.tableIds?.tasks || '');
+    if (tasksId) newTableIds.tasks = tasksId;
+
+    const schedulesId = prompt('请输入排期表的 Table ID：', config.tableIds?.schedules || '');
+    if (schedulesId) newTableIds.schedules = schedulesId;
+
+    if (Object.keys(newTableIds).length > 0) {
+      config.tableIds = { ...config.tableIds, ...newTableIds };
+      localStorage.setItem('feishu-config', JSON.stringify(config));
+      loadConfig();
+      setMessage('Table IDs 已更新');
+      setMessageType('success');
+    }
+  };
+
   const copyConfig = () => {
     if (config) {
       navigator.clipboard.writeText(JSON.stringify(config, null, 2));
@@ -186,35 +226,80 @@ export default function FeishuConfigManagerPage() {
 
               {/* Table IDs */}
               <div className="space-y-3">
-                <h3 className="font-medium">表格 ID 配置</h3>
+                <div className="flex justify-between items-center">
+                  <h3 className="font-medium">表格 ID 配置</h3>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={updateAllTableIds}
+                  >
+                    批量更新
+                  </Button>
+                </div>
                 <div className="space-y-2">
                   <div className="p-3 rounded bg-slate-50 dark:bg-slate-800 flex justify-between items-center">
-                    <div>
+                    <div className="flex-1">
                       <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">人员表</p>
                       <code className="text-sm">{config.tableIds?.resources || '未配置'}</code>
                     </div>
-                    {config.tableIds?.resources && <Badge variant="secondary">已配置</Badge>}
+                    <div className="flex gap-2 items-center">
+                      {config.tableIds?.resources && <Badge variant="secondary">已配置</Badge>}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => updateTableId('resources', '人员表')}
+                      >
+                        编辑
+                      </Button>
+                    </div>
                   </div>
                   <div className="p-3 rounded bg-slate-50 dark:bg-slate-800 flex justify-between items-center">
-                    <div>
+                    <div className="flex-1">
                       <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">项目表</p>
                       <code className="text-sm">{config.tableIds?.projects || '未配置'}</code>
                     </div>
-                    {config.tableIds?.projects && <Badge variant="secondary">已配置</Badge>}
+                    <div className="flex gap-2 items-center">
+                      {config.tableIds?.projects && <Badge variant="secondary">已配置</Badge>}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => updateTableId('projects', '项目表')}
+                      >
+                        编辑
+                      </Button>
+                    </div>
                   </div>
                   <div className="p-3 rounded bg-slate-50 dark:bg-slate-800 flex justify-between items-center">
-                    <div>
+                    <div className="flex-1">
                       <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">任务表</p>
                       <code className="text-sm">{config.tableIds?.tasks || '未配置'}</code>
                     </div>
-                    {config.tableIds?.tasks && <Badge variant="secondary">已配置</Badge>}
+                    <div className="flex gap-2 items-center">
+                      {config.tableIds?.tasks && <Badge variant="secondary">已配置</Badge>}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => updateTableId('tasks', '任务表')}
+                      >
+                        编辑
+                      </Button>
+                    </div>
                   </div>
                   <div className="p-3 rounded bg-slate-50 dark:bg-slate-800 flex justify-between items-center">
-                    <div>
+                    <div className="flex-1">
                       <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">排期表</p>
                       <code className="text-sm">{config.tableIds?.schedules || '未配置'}</code>
                     </div>
-                    {config.tableIds?.schedules && <Badge variant="secondary">已配置</Badge>}
+                    <div className="flex gap-2 items-center">
+                      {config.tableIds?.schedules && <Badge variant="secondary">已配置</Badge>}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => updateTableId('schedules', '排期表')}
+                      >
+                        编辑
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
