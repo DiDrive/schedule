@@ -1,16 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, XCircle, Lock, ExternalLink, RefreshCw } from 'lucide-react';
+import { CheckCircle2, XCircle, Lock, RefreshCw, QrCode, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function FeishuOAuthPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userInfo, setUserInfo] = useState<any>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [isGeneratingQrCode, setIsGeneratingQrCode] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [qrCodeTicket, setQrCodeTicket] = useState<string | null>(null);
 
   useEffect(() => {
     // 检查是否已经登录
@@ -24,20 +28,115 @@ export default function FeishuOAuthPage() {
     if (storedUserInfo) {
       setUserInfo(JSON.parse(storedUserInfo));
     }
+
+    // 清理定时器
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
   }, []);
 
-  const handleFeishuLogin = () => {
-    // 构造飞书 OAuth 授权 URL
-    const appId = 'cli_a90f3ef5a393900b'; // 使用你的 App ID
-    const redirectUri = `${window.location.origin}/feishu-oauth-callback`;
-    const scope = 'bitable:app,bitable:app:readonly';
+  // 生成扫码登录二维码
+  const handleGenerateQrCode = async () => {
+    setIsGeneratingQrCode(true);
+    setQrCodeUrl(null);
+    setQrCodeTicket(null);
 
-    const authUrl = `https://open.feishu.cn/open-apis/authen/v1/authorize?app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${Date.now()}`;
+    try {
+      const response = await fetch('/api/feishu/oauth/qr-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-    window.location.href = authUrl;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || '生成二维码失败');
+      }
+
+      setQrCodeUrl(data.qr_code_url);
+      setQrCodeTicket(data.qr_code_ticket);
+
+      // 开始轮询扫码状态
+      startPolling(data.qr_code_ticket);
+    } catch (error) {
+      console.error('生成二维码失败:', error);
+      alert(`生成二维码失败：${error instanceof Error ? error.message : '未知错误'}`);
+    } finally {
+      setIsGeneratingQrCode(false);
+    }
+  };
+
+  // 开始轮询扫码状态
+  const startPolling = (ticket: string) => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch('/api/feishu/oauth/qr-status', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ ticket }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          console.error('查询扫码状态失败:', data.error);
+          return;
+        }
+
+        if (data.status === 'success') {
+          // 扫码成功
+          clearInterval(interval);
+          setPollingInterval(null);
+
+          // 保存令牌和用户信息
+          localStorage.setItem('feishu-user-token', data.access_token);
+          localStorage.setItem('feishu-user-info', JSON.stringify(data.user_info));
+
+          setAccessToken(data.access_token);
+          setUserInfo(data.user_info);
+          setIsLoggedIn(true);
+          setQrCodeUrl(null);
+          setQrCodeTicket(null);
+        } else if (data.status === 'expired') {
+          // 二维码过期
+          clearInterval(interval);
+          setPollingInterval(null);
+          setQrCodeUrl(null);
+          setQrCodeTicket(null);
+          alert('二维码已过期，请重新生成');
+        } else if (data.status === 'canceled') {
+          // 用户取消扫码
+          clearInterval(interval);
+          setPollingInterval(null);
+          setQrCodeUrl(null);
+          setQrCodeTicket(null);
+        }
+      } catch (error) {
+        console.error('查询扫码状态失败:', error);
+      }
+    }, 2000); // 每 2 秒查询一次
+
+    setPollingInterval(interval);
+  };
+
+  // 停止轮询
+  const stopPolling = () => {
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+    setQrCodeUrl(null);
+    setQrCodeTicket(null);
   };
 
   const handleLogout = () => {
+    stopPolling();
     localStorage.removeItem('feishu-user-token');
     localStorage.removeItem('feishu-user-info');
     setAccessToken(null);
@@ -76,10 +175,10 @@ export default function FeishuOAuthPage() {
       <div className="max-w-4xl mx-auto space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
-            飞书登录
+            飞书扫码登录
           </h1>
           <p className="text-slate-600 dark:text-slate-400">
-            使用你的飞书账号登录，访问你的个人多维表
+            使用飞书扫码登录，访问你的个人多维表
           </p>
         </div>
 
@@ -120,14 +219,45 @@ export default function FeishuOAuthPage() {
                   <XCircle className="h-4 w-4" />
                   <AlertTitle>未登录</AlertTitle>
                   <AlertDescription>
-                    请使用飞书账号登录以访问你的多维表
+                    请使用飞书扫码登录以访问你的多维表
                   </AlertDescription>
                 </Alert>
 
-                <Button onClick={handleFeishuLogin} size="lg" className="w-full">
-                  <Lock className="h-5 w-5 mr-2" />
-                  使用飞书账号登录
-                </Button>
+                {!qrCodeUrl ? (
+                  <Button
+                    onClick={handleGenerateQrCode}
+                    size="lg"
+                    className="w-full"
+                    disabled={isGeneratingQrCode}
+                  >
+                    {isGeneratingQrCode ? (
+                      <>
+                        <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
+                        生成二维码中...
+                      </>
+                    ) : (
+                      <>
+                        <QrCode className="h-5 w-5 mr-2" />
+                        生成扫码登录二维码
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex flex-col items-center space-y-4">
+                      <div className="bg-white p-4 rounded-lg shadow-lg">
+                        {/* 显示二维码 */}
+                        <img src={qrCodeUrl} alt="飞书扫码登录" className="w-64 h-64" />
+                      </div>
+                      <p className="text-sm text-slate-600 dark:text-slate-400 text-center">
+                        请使用飞书扫描二维码登录
+                      </p>
+                      <Button onClick={stopPolling} variant="outline">
+                        取消扫码
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -143,7 +273,7 @@ export default function FeishuOAuthPage() {
               <strong>问题：</strong>企业自建应用无法直接访问你个人创建的多维表，即使有正确的 App Token 和权限。
             </p>
             <p className="text-sm">
-              <strong>解决：</strong>通过飞书 OAuth 授权登录，系统可以使用你的身份访问你的多维表。
+              <strong>解决：</strong>通过飞书扫码登录授权，系统可以使用你的身份访问你的多维表。
             </p>
             <p className="text-sm">
               <strong>优势：</strong>
@@ -165,8 +295,8 @@ export default function FeishuOAuthPage() {
             <Button variant="outline" onClick={() => window.location.href = '/?tab=feishu'}>
               飞书集成配置
             </Button>
-            <Button variant="outline" onClick={() => window.open('/feishu-batch-test', '_blank')}>
-              批量测试
+            <Button variant="outline" onClick={() => window.open('/feishu-user-token-test', '_blank')}>
+              测试个人表
             </Button>
             <Button variant="outline" onClick={() => window.open('/feishu-config-manager', '_blank')}>
               配置管理

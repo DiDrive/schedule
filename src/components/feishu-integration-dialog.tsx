@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { AlertCircle, CheckCircle2, Clock, RefreshCw, Settings, Globe, Search, Activity, ArrowRight, Lock } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, RefreshCw, Settings, Globe, Search, Activity, ArrowRight, Lock, QrCode } from 'lucide-react';
 import FeishuTableInspector from './feishu-table-inspector';
 
 interface FeishuConfig {
@@ -630,8 +630,8 @@ export default function FeishuIntegrationDialog({
                 onClick={() => window.location.href = '/feishu-oauth'}
                 className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700"
               >
-                <Lock className="h-4 w-4 mr-2" />
-                使用飞书登录
+                <QrCode className="h-4 w-4 mr-2" />
+                扫码登录
               </Button>
             </div>
           )}
