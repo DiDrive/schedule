@@ -38,57 +38,60 @@ export default function FeishuTableInspector({ open, onOpenChange, config }: Fei
 
   const expectedFields = {
     resources: {
-      id: 'id',
-      name: 'name',
-      type: 'type',
-      efficiency: 'efficiency',
-      feishu_user: 'feishu_user',
-      total_hours: 'total_hours',
-      created_at: 'created_at',
-      updated_at: 'updated_at',
+      '人员ID': 'id',
+      '姓名': 'name',
+      '工作类型': 'singleSelect',
+      '效率': 'number',
+      '飞书用户': 'person',
+      '总工时': 'number',
+      '创建时间': 'datetime',
+      '更新时间': 'datetime',
     },
     projects: {
-      id: 'id',
-      name: 'name',
-      description: 'description',
-      start_date: 'start_date',
-      end_date: 'end_date',
-      status: 'status',
-      created_at: 'created_at',
-      updated_at: 'updated_at',
+      '项目ID': 'id',
+      '项目名称': 'name',
+      '项目描述': 'text',
+      '开始日期': 'date',
+      '结束日期': 'date',
+      '项目状态': 'singleSelect',
+      '创建时间': 'datetime',
+      '更新时间': 'datetime',
     },
     tasks: {
-      id: 'id',
-      name: 'name',
-      project: 'project',
-      type: 'type',
-      estimated_hours: 'estimated_hours',
-      actual_hours: 'actual_hours',
-      start_time: 'start_time',
-      end_time: 'end_time',
-      deadline: 'deadline',
-      priority: 'priority',
-      assignee: 'assignee',
-      dependencies: 'dependencies',
-      status: 'status',
-      is_overdue: 'is_overdue',
-      feishu_version: 'feishu_version',
-      created_at: 'created_at',
-      updated_at: 'updated_at',
+      '任务ID': 'id',
+      '任务名称': 'name',
+      '所属项目': 'link',
+      '任务类型': 'singleSelect',
+      '预估工时': 'number',
+      '实际工时': 'number',
+      '开始时间': 'datetime',
+      '结束时间': 'datetime',
+      '截止日期': 'datetime',
+      '优先级': 'singleSelect',
+      '负责人': 'person',
+      '依赖关系': 'multiSelect',
+      '任务状态': 'singleSelect',
+      '是否超期': 'checkbox',
+      '飞书版本': 'number',
+      '系统版本': 'number',
+      '最后同步时间': 'datetime',
+      '同步来源': 'singleSelect',
+      '创建时间': 'datetime',
+      '更新时间': 'datetime',
     },
     schedules: {
-      id: 'id',
-      project: 'project',
-      name: 'name',
-      version: 'version',
-      task_count: 'task_count',
-      total_hours: 'total_hours',
-      utilization: 'utilization',
-      critical_path_count: 'critical_path_count',
-      start_time: 'start_time',
-      end_time: 'end_time',
-      created_at: 'created_at',
-      updated_at: 'updated_at',
+      '任务ID': 'id',
+      '项目': 'text',
+      '任务名称': 'text',
+      '版本': 'number',
+      '任务数': 'number',
+      '总工时': 'number',
+      '利用率': 'number',
+      '关键路径数': 'number',
+      '开始时间': 'datetime',
+      '结束时间': 'datetime',
+      '创建时间': 'datetime',
+      '更新时间': 'datetime',
     },
   };
 
@@ -158,6 +161,16 @@ export default function FeishuTableInspector({ open, onOpenChange, config }: Fei
         '排期表': expectedFields.schedules,
       };
 
+      // 单选字段选项
+      const fieldOptions: Record<string, string[]> = {
+        '工作类型': ['平面设计', '后期制作', '物料'],
+        '项目状态': ['未开始', '进行中', '已完成', '已暂停'],
+        '任务类型': ['平面设计', '后期制作', '物料'],
+        '优先级': ['高', '中', '低'],
+        '任务状态': ['未开始', '进行中', '已完成', '已暂停', '已超期'],
+        '同步来源': ['系统', '飞书', '手动'],
+      };
+
       for (const table of tableInfo) {
         if (table.hasError && table.errorMessage?.includes('缺少字段')) {
           const missingFields = table.errorMessage.match(/缺少字段: (.+)/)?.[1].split(', ') || [];
@@ -166,12 +179,13 @@ export default function FeishuTableInspector({ open, onOpenChange, config }: Fei
           if (fieldDefinitions && missingFields.length > 0) {
             const fields = missingFields.map(fieldName => {
               const fieldType = fieldDefinitions[fieldName] || 'text';
+              const options = fieldOptions[fieldName] || undefined;
 
-              // 使用英文字段名称，避免中文可能的编码问题
               return {
                 fieldId: fieldName,
-                fieldName: fieldName, // 使用英文字段 ID 作为字段名称
+                fieldName: fieldName,
                 fieldType,
+                options,
               };
             });
 

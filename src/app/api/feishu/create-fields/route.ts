@@ -28,8 +28,10 @@ async function getAccessToken(config: FeishuConfig): Promise<string> {
 
 // 字段类型映射
 const fieldTypeMap: Record<string, number> = {
-  'text': 1,          // 文本
-  'number': 2,        // 数字
+  'id': 15,          // 自动编号（ID）
+  'name': 0,         // 文本（名称）
+  'text': 0,         // 文本
+  'number': 2,       // 数字
   'singleSelect': 3,  // 单选
   'multiSelect': 4,   // 多选
   'date': 5,          // 日期
@@ -41,8 +43,7 @@ const fieldTypeMap: Record<string, number> = {
   'progress': 20,     // 进度
   'rating': 21,       // 评分
   'currency': 22,     // 货币
-  'datetime': 23,     // 日期时间
-  'percent': 23,      // 百分比（使用日期时间类型，显示时格式化为百分比）
+  'datetime': 5,      // 日期时间（飞书使用日期类型存储日期时间）
   'link': 17,         // 关联字段
   'reference': 17,    // 关联字段
 };
@@ -224,8 +225,8 @@ export async function POST(request: NextRequest) {
           // 确定关联表格 ID
           let relatedTableId: string | undefined;
 
-          if (field.fieldId === 'project') {
-            // project 字段关联到项目表
+          if (field.fieldId === '所属项目') {
+            // 所属项目字段关联到项目表
             relatedTableId = config.tableIds.projects;
           }
 
