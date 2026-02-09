@@ -10,6 +10,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 export default function FeishuQuickConfigPage() {
   const [appToken, setAppToken] = useState('');
   const [feishuUrl, setFeishuUrl] = useState('');
+  const [appId, setAppId] = useState('');
+  const [appSecret, setAppSecret] = useState('');
+  const [showCredentials, setShowCredentials] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [tables, setTables] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -32,8 +35,19 @@ export default function FeishuQuickConfigPage() {
     if (configStr) {
       const config = JSON.parse(configStr);
       setAppToken(config.appToken || '');
+      setAppId(config.appId || '');
+      setAppSecret(config.appSecret || '');
       fetchTables(config.appToken);
     }
+  };
+
+  const saveCredentials = () => {
+    const configStr = localStorage.getItem('feishu-config');
+    const config = configStr ? JSON.parse(configStr) : {};
+    config.appId = appId;
+    config.appSecret = appSecret;
+    localStorage.setItem('feishu-config', JSON.stringify(config));
+    alert('凭证已保存！');
   };
 
   const fetchTables = async (token: string) => {
@@ -42,28 +56,42 @@ export default function FeishuQuickConfigPage() {
     setError(null);
 
     try {
-      const configStr = localStorage.getItem('feishu-config');
-      if (!configStr) {
-        setError('请先配置飞书集成信息（App ID 和 App Secret）');
-        return;
+      // 优先使用本地状态中的凭证，如果没有再从 localStorage 读取
+      let currentAppId = appId;
+      let currentAppSecret = appSecret;
+
+      if (!currentAppId || !currentAppSecret) {
+        const configStr = localStorage.getItem('feishu-config');
+        if (!configStr) {
+          setError('请先配置飞书应用的 App ID 和 App Secret');
+          setShowCredentials(true);
+          return;
+        }
+        const config = JSON.parse(configStr);
+        currentAppId = config.appId;
+        currentAppSecret = config.appSecret;
       }
 
-      const config = JSON.parse(configStr);
+      if (!currentAppId || !currentAppSecret) {
+        setError('请先配置飞书应用的 App ID 和 App Secret');
+        setShowCredentials(true);
+        return;
+      }
 
       // 获取 access token
       const tokenResponse = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          app_id: config.appId,
-          app_secret: config.appSecret,
+          app_id: currentAppId,
+          app_secret: currentAppSecret,
         }),
       });
 
       const tokenData = await tokenResponse.json();
 
       if (tokenData.code !== 0) {
-        throw new Error(`获取 Access Token 失败: ${tokenData.msg}`);
+        throw new Error(`获取 Access Token 失败: ${tokenData.msg} (错误码: ${tokenData.code})`);
       }
 
       // 获取多维表的表格列表
@@ -185,6 +213,81 @@ export default function FeishuQuickConfigPage() {
               </Button>
             </div>
           </CardContent>
+        </Card>
+
+        {/* 飞书应用凭证配置 */}
+        <Card className={showCredentials ? "" : "border-2 border-dashed border-slate-300 dark:border-slate-700"}>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>飞书应用凭证</CardTitle>
+                <CardDescription>
+                  配置飞书应用的 App ID 和 App Secret，用于访问飞书 API
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCredentials(!showCredentials)}
+              >
+                {showCredentials ? '收起' : '展开'}
+              </Button>
+            </div>
+          </CardHeader>
+          {showCredentials && (
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">App ID</label>
+                <input
+                  type="text"
+                  placeholder="例如：cli_xxxxxxxxx"
+                  value={appId}
+                  onChange={(e) => setAppId(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md"
+                />
+                <p className="text-xs text-slate-500">
+                  在飞书开放平台创建企业自建应用后获取
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">App Secret</label>
+                <input
+                  type="password"
+                  placeholder="例如：xxxxxxxxxxxx"
+                  value={appSecret}
+                  onChange={(e) => setAppSecret(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md"
+                />
+                <p className="text-xs text-slate-500">
+                  在飞书开放平台的应用详情中查看
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={saveCredentials}>
+                  保存凭证
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => window.open('https://open.feishu.cn/app', '_blank')}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  打开飞书开放平台
+                </Button>
+              </div>
+
+              {!showCredentials && error && error.includes('App ID') && (
+                <Alert variant="destructive">
+                  <XCircle className="h-4 w-4" />
+                  <AlertTitle>缺少凭证</AlertTitle>
+                  <AlertDescription>
+                    请先配置飞书应用的 App ID 和 App Secret 才能继续
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          )}
         </Card>
 
         {/* App Token 输入 */}
