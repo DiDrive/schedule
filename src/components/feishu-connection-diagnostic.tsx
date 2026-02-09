@@ -46,19 +46,40 @@ export default function FeishuConnectionDiagnostic() {
       });
     };
 
+    // 步骤 0: 检查配置文件是否存在
+    updateStep('检查配置文件', 'running', '正在检查配置文件...');
+    if (!configStr) {
+      updateStep('检查配置文件', 'error', '配置文件未找到', {
+        说明: '系统未找到飞书配置，请先配置飞书集成信息。',
+        步骤: [
+          '1. 点击右上角的"飞书集成"按钮',
+          '2. 填写 App ID、App Secret、App Token',
+          '3. 填写各表格的 Table ID',
+          '4. 点击"保存"按钮',
+          '5. 返回此页面重新运行诊断',
+        ],
+      });
+      setIsRunning(false);
+      return;
+    }
+
+    // 尝试解析配置
+    try {
+      config = JSON.parse(configStr);
+    } catch (error) {
+      updateStep('检查配置文件', 'error', '配置文件格式错误', {
+        错误: '配置文件无法解析，请重新配置',
+        建议: '删除配置文件后重新填写',
+      });
+      setIsRunning(false);
+      return;
+    }
+
+    updateStep('检查配置文件', 'success', '配置文件已找到');
+
     // 步骤 1: 检查本地配置
     updateStep('检查本地配置', 'running', '正在检查本地配置...');
     try {
-      if (!configStr) {
-        updateStep('检查本地配置', 'error', '配置未找到', {
-          建议: '请先在飞书集成配置中填写配置信息',
-        });
-        setIsRunning(false);
-        return;
-      }
-
-      config = JSON.parse(configStr);
-
       // 验证配置
       const response = await fetch('/api/feishu/config', {
         method: 'POST',
@@ -71,7 +92,17 @@ export default function FeishuConnectionDiagnostic() {
 
       if (!data.success) {
         updateStep('检查本地配置', 'error', '配置缺失或不完整', {
-          缺失: '请检查飞书配置是否已正确填写',
+          错误: data.error,
+          建议: '请检查飞书配置是否已正确填写',
+          配置检查: {
+            'App ID': config.appId ? '✓' : '✗',
+            'App Secret': config.appSecret ? '✓' : '✗',
+            'App Token': config.appToken ? '✓' : '✗',
+            '人员表 Table ID': config.tableIds?.resources ? '✓' : '✗',
+            '项目表 Table ID': config.tableIds?.projects ? '✓' : '✗',
+            '任务表 Table ID': config.tableIds?.tasks ? '✓' : '✗',
+            '排期表 Table ID': config.tableIds?.schedules ? '✓' : '✗',
+          },
         });
         setIsRunning(false);
         return;

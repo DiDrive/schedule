@@ -174,6 +174,15 @@ export default function ProjectScheduleSystem() {
     }
   }, []);
 
+  // 检查是否从诊断页面跳转过来，如果是则打开飞书配置
+  useEffect(() => {
+    const shouldOpenConfig = sessionStorage.getItem('return-to-diagnostic');
+    if (shouldOpenConfig === 'true') {
+      setShowFeishuDialog(true);
+      sessionStorage.removeItem('return-to-diagnostic');
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950">
       {/* Header */}
