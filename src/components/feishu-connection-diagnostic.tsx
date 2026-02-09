@@ -129,7 +129,7 @@ export default function FeishuConnectionDiagnostic() {
 
       if (data.success) {
         updateStep('测试读取表格记录', 'success', '表格记录读取成功', {
-          Table ID: data.data.tableId,
+          'Table ID': data.data.tableId,
           '记录数': data.data.recordCount,
           '示例记录': data.data.sampleRecord,
         });
@@ -158,7 +158,7 @@ export default function FeishuConnectionDiagnostic() {
 
       if (data.success) {
         updateStep('测试创建记录', 'success', '记录创建成功', {
-          Record ID: data.data.recordId,
+          'Record ID': data.data.recordId,
           '测试数据': data.data.testData,
         });
       } else {
