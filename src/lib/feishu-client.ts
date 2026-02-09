@@ -133,11 +133,12 @@ export async function listFeishuRecords(
     code: data.code,
     msg: data.msg,
     hasData: !!data.data,
-    hasItems: data.data?.items ? true : false
+    hasItems: data.data?.items ? true : false,
+    itemsCount: data.data?.items?.length || 0
   });
 
   if (data.code !== 0) {
-    console.error('[飞书API] 错误详情:', data);
+    console.error('[飞书API] 错误详情:', JSON.stringify(data, null, 2));
     throw new Error(`获取飞书记录失败: ${data.msg}`);
   }
 
@@ -218,6 +219,19 @@ export async function batchCreateFeishuRecords(
 ): Promise<FeishuRecord[]> {
   const token = await getAccessToken();
 
+  console.log('[飞书API] 批量创建记录:', {
+    appToken,
+    tableId,
+    recordCount: records.length,
+    firstRecord: records[0] ? JSON.stringify(records[0]) : null
+  });
+
+  const requestBody = {
+    records: records.map(r => ({ fields: r }))
+  };
+
+  console.log('[飞书API] 请求体:', JSON.stringify(requestBody, null, 2));
+
   const response = await fetch(
     `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records/batch_create`,
     {
@@ -226,13 +240,20 @@ export async function batchCreateFeishuRecords(
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ records: records.map(r => ({ fields: r })) }),
+      body: JSON.stringify(requestBody),
     }
   );
 
   const data = await response.json();
 
+  console.log('[飞书API] 批量创建响应:', {
+    code: data.code,
+    msg: data.msg,
+    hasData: !!data.data
+  });
+
   if (data.code !== 0) {
+    console.error('[飞书API] 批量创建错误详情:', JSON.stringify(data, null, 2));
     throw new Error(`批量创建飞书记录失败: ${data.msg}`);
   }
 
