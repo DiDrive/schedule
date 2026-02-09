@@ -22,6 +22,10 @@ export default function FeishuConnectionDiagnostic() {
     setIsRunning(true);
     setDiagnostics([]);
 
+    // 从 localStorage 读取配置（需要在函数作用域内）
+    const configStr = localStorage.getItem('feishu-config');
+    let config: any = null;
+
     const updateStep = (step: string, status: 'pending' | 'running' | 'success' | 'error', message: string, details?: any) => {
       setDiagnostics(prev => {
         const newDiagnostics = [...prev];
@@ -45,8 +49,6 @@ export default function FeishuConnectionDiagnostic() {
     // 步骤 1: 检查本地配置
     updateStep('检查本地配置', 'running', '正在检查本地配置...');
     try {
-      // 从 localStorage 读取配置
-      const configStr = localStorage.getItem('feishu-config');
       if (!configStr) {
         updateStep('检查本地配置', 'error', '配置未找到', {
           建议: '请先在飞书集成配置中填写配置信息',
@@ -55,7 +57,7 @@ export default function FeishuConnectionDiagnostic() {
         return;
       }
 
-      const config = JSON.parse(configStr);
+      config = JSON.parse(configStr);
 
       // 验证配置
       const response = await fetch('/api/feishu/config', {
