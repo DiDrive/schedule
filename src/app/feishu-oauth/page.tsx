@@ -24,9 +24,11 @@ export default function FeishuOAuthPage() {
   const [appId, setAppId] = useState('cli_a90f3ef5a393900b');
   const [qrCodeShown, setQrCodeShown] = useState(false);
   const [qrCodeLoading, setQrCodeLoading] = useState(false);
+  const [qrCodeError, setQrCodeError] = useState<string | null>(null);
   const qrCodeRef = useRef<HTMLDivElement>(null);
   const handleMessageRef = useRef<((event: MessageEvent) => void) | null>(null);
   const qrLoginObjRef = useRef<any>(null);
+  const generateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // 加载飞书二维码 SDK
@@ -61,6 +63,10 @@ export default function FeishuOAuthPage() {
       // 清理消息监听器
       if (handleMessageRef.current) {
         window.removeEventListener('message', handleMessageRef.current);
+      }
+      // 清理超时
+      if (generateTimeoutRef.current) {
+        clearTimeout(generateTimeoutRef.current);
       }
     };
   }, []);
@@ -104,11 +110,14 @@ export default function FeishuOAuthPage() {
     const container = qrCodeRef.current;
     if (!container) {
       console.error('[飞书登录] 未找到二维码容器');
+      setQrCodeError('未找到二维码容器');
+      setQrCodeLoading(false);
       return;
     }
 
     // 清空容器
     container.innerHTML = '';
+    setQrCodeError(null);
 
     const state = Date.now().toString();
     const redirectUri = `${window.location.origin}/feishu-oauth-callback`;
@@ -116,11 +125,26 @@ export default function FeishuOAuthPage() {
 
     console.log('[飞书登录] App ID:', appId);
     console.log('[飞书登录] 授权地址:', goto);
+    console.log('[飞书登录] window.QRLogin 是否存在:', !!window.QRLogin);
+
+    if (!window.QRLogin) {
+      console.error('[飞书登录] QRLogin 函数不存在');
+      setQrCodeError('飞书 SDK 未正确加载');
+      setQrCodeLoading(false);
+      return;
+    }
 
     try {
       console.log('[飞书登录] 开始生成二维码...');
 
-      const QRLoginObj = window.QRLogin!({
+      // 设置超时，如果10秒内没有成功，显示错误
+      generateTimeoutRef.current = setTimeout(() => {
+        console.error('[飞书登录] 生成二维码超时');
+        setQrCodeError('生成二维码超时，请检查 App ID 是否正确');
+        setQrCodeLoading(false);
+      }, 10000);
+
+      const QRLoginObj = window.QRLogin({
         id: 'feishu_qr_container',
         goto: goto,
         width: '500',
@@ -128,9 +152,27 @@ export default function FeishuOAuthPage() {
         style: 'width:500px;height:600px',
       });
 
+      // 清除超时
+      if (generateTimeoutRef.current) {
+        clearTimeout(generateTimeoutRef.current);
+        generateTimeoutRef.current = null;
+      }
+
       qrLoginObjRef.current = QRLoginObj;
 
       console.log('[飞书登录] 二维码对象创建成功:', QRLoginObj);
+
+      // 检查二维码是否实际生成（检查容器内是否有内容）
+      setTimeout(() => {
+        if (container && container.children.length === 0) {
+          console.error('[飞书登录] 二维码容器为空，可能生成失败');
+          setQrCodeError('二维码生成失败，请检查 App ID 是否正确');
+          setQrCodeLoading(false);
+        } else {
+          console.log('[飞书登录] 二维码生成成功，容器内容数:', container?.children.length);
+          setQrCodeLoading(false);
+        }
+      }, 3000);
 
       // 监听扫码事件
       const handleMessage = (event: MessageEvent) => {
@@ -149,13 +191,13 @@ export default function FeishuOAuthPage() {
       handleMessageRef.current = handleMessage;
       window.addEventListener('message', handleMessage);
 
-      setQrCodeLoading(false);
-      console.log('[飞书登录] 二维码生成完成');
     } catch (error) {
       console.error('[飞书登录] 生成二维码失败:', error);
-      alert(`生成二维码失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      setQrCodeError(`生成二维码失败: ${error instanceof Error ? error.message : '未知错误'}`);
       setQrCodeLoading(false);
-      setQrCodeShown(false);
+      if (generateTimeoutRef.current) {
+        clearTimeout(generateTimeoutRef.current);
+      }
     }
   };
 
@@ -172,6 +214,7 @@ export default function FeishuOAuthPage() {
     }
 
     setQrCodeLoading(true);
+    setQrCodeError(null);
     setQrCodeShown(true);
   };
 
@@ -183,9 +226,14 @@ export default function FeishuOAuthPage() {
       window.removeEventListener('message', handleMessageRef.current);
       handleMessageRef.current = null;
     }
+    if (generateTimeoutRef.current) {
+      clearTimeout(generateTimeoutRef.current);
+      generateTimeoutRef.current = null;
+    }
     qrLoginObjRef.current = null;
     setQrCodeShown(false);
     setQrCodeLoading(false);
+    setQrCodeError(null);
   };
 
   const exchangeCodeForToken = async (code: string, state: string) => {
@@ -336,6 +384,9 @@ export default function FeishuOAuthPage() {
                   value={appId}
                   onChange={(e) => setAppId(e.target.value)}
                 />
+                <p className="text-xs text-slate-500">
+                  请输入正确的飞书应用 App ID。可以从飞书开放平台获取。
+                </p>
               </div>
               <Button onClick={handleSaveConfig}>
                 保存配置
@@ -380,6 +431,19 @@ export default function FeishuOAuthPage() {
                   <div className="flex flex-col items-center space-y-4 py-8">
                     <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
                     <p className="text-sm text-slate-600 dark:text-slate-400">正在生成二维码...</p>
+                  </div>
+                ) : qrCodeError ? (
+                  <div className="flex flex-col items-center space-y-4 py-8 max-w-md">
+                    <AlertCircle className="h-8 w-8 text-red-600" />
+                    <p className="text-sm text-red-600 text-center">{qrCodeError}</p>
+                    <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                      <p>可能的原因：</p>
+                      <ul className="list-disc list-inside space-y-1">
+                        <li>App ID 不正确或无效</li>
+                        <li>应用未发布或已停用</li>
+                        <li>网络连接问题</li>
+                      </ul>
+                    </div>
                   </div>
                 ) : (
                   <div className="bg-white rounded-lg shadow-lg p-4">
