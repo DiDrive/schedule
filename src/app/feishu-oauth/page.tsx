@@ -255,21 +255,9 @@ function FeishuOAuthContent() {
         }
       }, 2000);
 
-      // 监听扫码事件
-      const handleMessage = (event: MessageEvent) => {
-        addDebugInfo(`收到消息事件`);
-
-        if (QRLoginObj.matchOrigin(event.origin) && QRLoginObj.matchData(event.data)) {
-          const tmpCode = event.data.tmp_code;
-          addDebugInfo(`✅ 扫码成功，临时码: ${tmpCode}`);
-
-          window.location.href = `${goto}&tmp_code=${tmpCode}`;
-        }
-      };
-
-      handleMessageRef.current = handleMessage;
-      window.addEventListener('message', handleMessage);
-      addDebugInfo('消息监听器已添加');
+      // 不需要监听 message 事件
+      // 扫码成功后，飞书会自动跳转到回调页面
+      addDebugInfo('✅ 二维码生成完成，等待用户扫码...');
 
     } catch (error) {
       addDebugInfo(`❌ 生成二维码异常: ${error instanceof Error ? error.message : String(error)}`);

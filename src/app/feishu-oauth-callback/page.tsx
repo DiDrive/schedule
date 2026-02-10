@@ -7,6 +7,9 @@ export default function FeishuOAuthCallbackPage() {
   const router = useRouter();
 
   useEffect(() => {
+    // 确保在客户端执行
+    if (typeof window === 'undefined') return;
+
     // 从 URL 获取 code 和 state
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
