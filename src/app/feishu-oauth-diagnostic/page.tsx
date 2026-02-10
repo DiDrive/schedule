@@ -96,7 +96,7 @@ export default function FeishuOAuthDiagnosticPage() {
 
       const oauthData = await oauthResponse.json();
 
-      addDiagnostic('测试 OAuth 端点', oauthData.code === 0 ? 'success' : 'warning', 'OAuth 端点响应', {
+      addDiagnostic('测试 OAuth 端点', oauthData.code === 0 ? 'success' : 'error', 'OAuth 端点响应', {
         code: oauthData.code,
         message: oauthData.message || oauthData.msg,
         status: oauthResponse.status
