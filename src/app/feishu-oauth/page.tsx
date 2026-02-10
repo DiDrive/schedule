@@ -30,6 +30,7 @@ function FeishuOAuthContent() {
   const [debugInfo, setDebugInfo] = useState<any[]>([]);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [origin, setOrigin] = useState(''); // 用于存储 window.location.origin
+  const [loginError, setLoginError] = useState<string | null>(null); // 登录错误信息
   const qrCodeRef = useRef<HTMLDivElement>(null);
   const qrLoginObjRef = useRef<any>(null);
   const generateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -339,6 +340,7 @@ function FeishuOAuthContent() {
     setDebugInfo([]);
     setQrCodeLoading(true);
     setQrCodeError(null);
+    setLoginError(null); // 清除登录错误
     setQrCodeShown(true);
   };
 
@@ -387,8 +389,10 @@ function FeishuOAuthContent() {
       hideQrCode();
 
     } catch (error) {
-      addDebugInfo(`❌ 获取访问令牌失败: ${error instanceof Error ? error.message : String(error)}`);
-      alert(`登录失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      addDebugInfo(`❌ 获取访问令牌失败: ${errorMessage}`);
+      setLoginError(errorMessage);
+      alert(`登录失败: ${errorMessage}`);
       hideQrCode();
     }
   };
@@ -683,6 +687,16 @@ function FeishuOAuthContent() {
                   </AlertDescription>
                 </Alert>
 
+                {loginError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>登录失败</AlertTitle>
+                    <AlertDescription>
+                      {loginError}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <Button
                   onClick={showQrCode}
                   size="lg"
@@ -690,7 +704,7 @@ function FeishuOAuthContent() {
                   disabled={!isScriptLoaded}
                 >
                   <QrCode className="h-5 w-5 mr-2" />
-                  生成扫码登录二维码
+                  重新扫码登录
                 </Button>
               </div>
             )}
