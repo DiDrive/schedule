@@ -11,14 +11,19 @@ const log = (message: string) => {
   const timestamp = new Date().toISOString();
   const logMessage = `[${timestamp}] ${message}\n`;
   console.log(message);
-  fs.appendFileSync('/app/work/logs/bypass/feishu-oauth.log', logMessage);
+  try {
+    fs.appendFileSync('/app/work/logs/bypass/feishu-oauth.log', logMessage);
+  } catch (error) {
+    // 忽略日志写入错误
+  }
 };
 
 export async function POST(request: NextRequest) {
   try {
-    const { code, state, appId: requestAppId } = await request.json();
+    const { code, state } = await request.json();
 
     if (!code) {
+      log('[飞书 OAuth] ❌ 缺少授权码');
       return NextResponse.json(
         { error: '缺少授权码' },
         { status: 400 }
@@ -27,14 +32,14 @@ export async function POST(request: NextRequest) {
 
     log('[飞书 OAuth] 正在用授权码换取访问令牌...');
     log('[飞书 OAuth] 授权码: ' + code.substring(0, 10) + '...');
-    log('[飞书 OAuth] 请求 App ID: ' + (requestAppId || '未提供'));
-    log('[飞书 OAuth] 使用 App ID: ' + FEISHU_APP_ID);
+    log('[飞书 OAuth] State: ' + (state || '未提供'));
+    log('[飞书 OAuth] App ID: ' + FEISHU_APP_ID);
 
-    // 先获取 tenant_access_token
-    log('[飞书 OAuth] 步骤 1: 获取 tenant_access_token');
-    const tenantTokenUrl = 'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal';
+    // 步骤 1: 获取 app_access_token
+    log('[飞书 OAuth] 步骤 1: 获取 app_access_token');
+    const appTokenUrl = 'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal';
 
-    const tenantTokenResponse = await fetch(tenantTokenUrl, {
+    const appTokenResponse = await fetch(appTokenUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -45,39 +50,35 @@ export async function POST(request: NextRequest) {
       }),
     });
 
-    const tenantTokenData = await tenantTokenResponse.json();
+    const appTokenData = await appTokenResponse.json();
 
-    log('[飞书 OAuth] tenant_access_token 响应: ' + JSON.stringify({
-      code: tenantTokenData.code,
-      msg: tenantTokenData.msg,
-      has_token: !!tenantTokenData.tenant_access_token
+    log('[飞书 OAuth] app_access_token 响应: ' + JSON.stringify({
+      code: appTokenData.code,
+      msg: appTokenData.msg,
+      has_token: !!appTokenData.tenant_access_token
     }));
 
-    if (!tenantTokenResponse.ok || tenantTokenData.code !== 0) {
-      const errorMsg = tenantTokenData.msg || '获取 tenant_access_token 失败';
-      log('[飞书 OAuth] ❌ 获取 tenant_access_token 失败: ' + errorMsg);
+    if (!appTokenResponse.ok || appTokenData.code !== 0) {
+      const errorMsg = appTokenData.msg || '获取 app_access_token 失败';
+      log('[飞书 OAuth] ❌ 获取 app_access_token 失败: ' + errorMsg);
       throw new Error('获取应用凭证失败: ' + errorMsg);
     }
 
-    const tenantAccessToken = tenantTokenData.tenant_access_token;
-    log('[飞书 OAuth] ✅ 成功获取 tenant_access_token');
+    const appAccessToken = appTokenData.tenant_access_token;
+    log('[飞书 OAuth] ✅ 成功获取 app_access_token');
 
-    // 步骤 2: 使用授权码换取 user_access_token（套件授权流程）
+    // 步骤 2: 使用授权码换取 user_access_token（标准 OIDC 流程）
     log('[飞书 OAuth] 步骤 2: 使用授权码换取 user_access_token');
-    const userTokenUrl = 'https://open.feishu.cn/open-apis/authen/v1/access_token';
+    const userTokenUrl = 'https://open.feishu.cn/open-apis/authen/v1/oidc/access_token';
 
     const requestBody = {
       grant_type: 'authorization_code',
-      app_id: FEISHU_APP_ID,
-      app_secret: FEISHU_APP_SECRET,
       code: code,
     };
 
     log('[飞书 OAuth] 请求 URL: ' + userTokenUrl);
     log('[飞书 OAuth] 请求参数: ' + JSON.stringify({
       grant_type: requestBody.grant_type,
-      app_id: requestBody.app_id,
-      app_secret: FEISHU_APP_SECRET.substring(0, 5) + '***',
       code: requestBody.code.substring(0, 10) + '...'
     }, null, 2));
 
@@ -85,22 +86,40 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${appAccessToken}`,
       },
       body: JSON.stringify(requestBody),
     });
 
-    const data = await response.json();
-
+    const responseText = await response.text();
     log('[飞书 OAuth] 响应状态: ' + response.status);
-    log('[飞书 OAuth] 响应数据: ' + JSON.stringify(data, null, 2));
+    log('[飞书 OAuth] 响应原始数据: ' + responseText);
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      log('[飞书 OAuth] ❌ JSON 解析失败: ' + responseText);
+      throw new Error('服务器返回无效的数据格式');
+    }
+
+    log('[飞书 OAuth] 解析后数据: ' + JSON.stringify({
+      code: data.code,
+      msg: data.msg,
+      has_access_token: !!data.access_token,
+      has_refresh_token: !!data.refresh_token,
+      expires_in: data.expires_in,
+    }));
 
     if (!response.ok || data.code !== 0) {
       const errorMsg = data.msg || '获取访问令牌失败';
       log('[飞书 OAuth] ❌ 错误: ' + errorMsg);
+      log('[飞书 OAuth] 错误代码: ' + data.code);
       throw new Error(errorMsg);
     }
 
     log('[飞书 OAuth] ✅ 成功获取访问令牌');
+    log('[飞书 OAuth] 令牌有效期: ' + (data.expires_in || '未知') + ' 秒');
 
     return NextResponse.json({
       access_token: data.access_token,

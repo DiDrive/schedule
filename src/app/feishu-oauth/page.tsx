@@ -224,7 +224,7 @@ function FeishuOAuthContent() {
 
     const state = Date.now().toString();
     const redirectUri = `${origin || window.location.origin}/feishu-oauth-callback`;
-    const goto = `https://passport.feishu.cn/suite/passport/oauth/authorize?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${state}`;
+    const goto = `https://open.feishu.cn/open-apis/authen/v1/authorize?app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=&state=${state}`;
 
     addDebugInfo(`App ID: ${appId}`);
     addDebugInfo(`Redirect URI: ${redirectUri}`);
@@ -310,6 +310,8 @@ function FeishuOAuthContent() {
         }
       };
 
+      // 保存监听器引用，方便后续移除
+      handleMessageRef.current = handleMessage;
       window.addEventListener('message', handleMessage);
       addDebugInfo('✅ 消息监听器已添加');
 
