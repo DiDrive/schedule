@@ -28,10 +28,16 @@ export default function FeishuOAuthPage() {
   const [qrCodeLoading, setQrCodeLoading] = useState(false);
   const [qrCodeError, setQrCodeError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<any[]>([]);
+  const [origin, setOrigin] = useState(''); // 用于存储 window.location.origin
   const qrCodeRef = useRef<HTMLDivElement>(null);
   const handleMessageRef = useRef<((event: MessageEvent) => void) | null>(null);
   const qrLoginObjRef = useRef<any>(null);
   const generateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 在客户端获取 origin
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
 
   useEffect(() => {
     // 加载飞书二维码 SDK
@@ -189,7 +195,7 @@ export default function FeishuOAuthPage() {
     setQrCodeError(null);
 
     const state = Date.now().toString();
-    const redirectUri = `${window.location.origin}/feishu-oauth-callback`;
+    const redirectUri = `${origin || window.location.origin}/feishu-oauth-callback`;
     const goto = `https://passport.feishu.cn/suite/passport/oauth/authorize?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${state}`;
 
     addDebugInfo(`App ID: ${appId}`);
@@ -653,7 +659,7 @@ export default function FeishuOAuthPage() {
             </ul>
             请在飞书开放平台检查应用配置，确保：
             <ul className="list-disc list-inside mt-1 space-y-1">
-              <li>回调地址设置为：<code>{window.location.origin}/feishu-oauth-callback</code></li>
+              <li>回调地址设置为：<code>{origin}/feishu-oauth-callback</code></li>
               <li>应用已启用且有正确的权限</li>
             </ul>
           </AlertDescription>
