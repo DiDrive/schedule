@@ -72,26 +72,36 @@ export default function FeishuOAuthPage() {
     };
   }, []);
 
-  // 监听 qrCodeShown 变化
+  // 使用 useLayoutEffect 在 DOM 更新后立即执行
   useEffect(() => {
-    addDebugInfo(`qrCodeShown 状态变化: ${qrCodeShown}`);
-    addDebugInfo(`isScriptLoaded 状态: ${isScriptLoaded}`);
-    addDebugInfo(`appId 状态: ${appId}`);
-    addDebugInfo(`qrCodeRef.current 状态: ${!!qrCodeRef.current}`);
+    if (qrCodeShown) {
+      addDebugInfo('qrCodeShown 变为 true，等待 DOM 渲染...');
 
-    if (qrCodeShown && isScriptLoaded && appId) {
-      // 使用 setTimeout 确保 DOM 已渲染
-      setTimeout(() => {
+      // 使用 requestAnimationFrame 确保在下一帧执行
+      requestAnimationFrame(() => {
+        addDebugInfo(`requestAnimationFrame: qrCodeRef.current = ${!!qrCodeRef.current}`);
+
         if (qrCodeRef.current) {
+          addDebugInfo('✅ 容器已存在，开始生成二维码');
           generateQrCode();
         } else {
-          addDebugInfo('❌ 等待 100ms 后容器仍然不存在');
-          setQrCodeError('二维码容器不存在');
-          setQrCodeLoading(false);
+          addDebugInfo('❌ requestAnimationFrame 后容器仍不存在，尝试延迟执行');
+
+          // 再尝试一次，延迟 200ms
+          setTimeout(() => {
+            if (qrCodeRef.current) {
+              addDebugInfo('✅ 延迟后容器已存在，开始生成二维码');
+              generateQrCode();
+            } else {
+              addDebugInfo('❌ 延迟 200ms 后容器仍然不存在');
+              setQrCodeError('二维码容器无法创建');
+              setQrCodeLoading(false);
+            }
+          }, 200);
         }
-      }, 100);
+      });
     }
-  }, [qrCodeShown, isScriptLoaded, appId]);
+  }, [qrCodeShown]);
 
   const addDebugInfo = (info: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -120,7 +130,6 @@ export default function FeishuOAuthPage() {
     script.async = true;
     script.onload = () => {
       addDebugInfo('✅ SDK 加载成功');
-      addDebugInfo(`window.QRLogin 存在: ${!!window.QRLogin}`);
       setIsScriptLoaded(true);
       setIsScriptLoading(false);
     };
@@ -145,8 +154,6 @@ export default function FeishuOAuthPage() {
     }
 
     addDebugInfo('✅ 找到二维码容器');
-    addDebugInfo(`容器 ID: ${container.id}`);
-    addDebugInfo(`容器 className: ${container.className}`);
 
     // 清空容器
     container.innerHTML = '';
@@ -157,8 +164,6 @@ export default function FeishuOAuthPage() {
     const goto = `https://passport.feishu.cn/suite/passport/oauth/authorize?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${state}`;
 
     addDebugInfo(`App ID: ${appId}`);
-    addDebugInfo(`Redirect URI: ${redirectUri}`);
-    addDebugInfo(`Goto URL 长度: ${goto.length}`);
 
     if (!window.QRLogin) {
       addDebugInfo('❌ QRLogin 函数不存在');
@@ -169,10 +174,6 @@ export default function FeishuOAuthPage() {
 
     try {
       addDebugInfo('开始调用 window.QRLogin...');
-      addDebugInfo(`QRLogin 参数: id=feishu_qr_container, width=500, height=500`);
-
-      // 先尝试直接生成一个测试二维码，看看是否是 SDK 的问题
-      addDebugInfo('尝试生成测试二维码...');
 
       // 设置超时
       generateTimeoutRef.current = setTimeout(() => {
@@ -180,8 +181,6 @@ export default function FeishuOAuthPage() {
         setQrCodeError('生成二维码超时');
         setQrCodeLoading(false);
       }, 10000);
-
-      addDebugInfo('调用 window.QRLogin...');
 
       const QRLoginObj = window.QRLogin({
         id: 'feishu_qr_container',
@@ -192,8 +191,6 @@ export default function FeishuOAuthPage() {
       });
 
       addDebugInfo('✅ window.QRLogin 调用完成');
-      addDebugInfo(`QRLoginObj 类型: ${typeof QRLoginObj}`);
-      addDebugInfo(`QRLoginObj: ${JSON.stringify(QRLoginObj)}`);
 
       // 清除超时
       if (generateTimeoutRef.current) {
@@ -218,12 +215,6 @@ export default function FeishuOAuthPage() {
         } else {
           addDebugInfo('✅ 二维码已生成');
           setQrCodeLoading(false);
-
-          // 打印容器内容
-          if (container && container.children[0]) {
-            addDebugInfo(`第一个子元素: ${container.children[0].tagName}`);
-            addDebugInfo(`第一个子元素 HTML: ${container.children[0].outerHTML.substring(0, 200)}`);
-          }
         }
       }, 2000);
 
@@ -245,10 +236,6 @@ export default function FeishuOAuthPage() {
 
     } catch (error) {
       addDebugInfo(`❌ 生成二维码异常: ${error instanceof Error ? error.message : String(error)}`);
-      if (error instanceof Error) {
-        addDebugInfo(`错误名称: ${error.name}`);
-        addDebugInfo(`错误堆栈: ${error.stack}`);
-      }
       setQrCodeError(`生成二维码失败: ${error instanceof Error ? error.message : '未知错误'}`);
       setQrCodeLoading(false);
       if (generateTimeoutRef.current) {
@@ -259,7 +246,6 @@ export default function FeishuOAuthPage() {
 
   const showQrCode = () => {
     addDebugInfo('showQrCode 函数被调用');
-    addDebugInfo(`当前状态: qrCodeShown=${qrCodeShown}, isScriptLoaded=${isScriptLoaded}, appId=${appId}`);
 
     if (!window.QRLogin) {
       alert('飞书 SDK 未加载，请刷新页面重试');
