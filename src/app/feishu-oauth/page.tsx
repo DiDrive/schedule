@@ -85,9 +85,11 @@ function FeishuOAuthContent() {
       const actualCode = localStorage.getItem('feishu-oauth-code');
       const state = localStorage.getItem('feishu-oauth-state');
 
-      if (actualCode && state) {
+      addDebugInfo(`检查授权码: actualCode=${actualCode ? '✅' : '❌'}, state=${state ? '✅' : '❌'}`);
+
+      if (actualCode) {
         addDebugInfo('✅ 从回调页面获取到授权码');
-        exchangeCodeForToken(actualCode, state);
+        exchangeCodeForToken(actualCode, state || '');
 
         // 清除临时存储
         localStorage.removeItem('feishu-oauth-code');
@@ -104,6 +106,19 @@ function FeishuOAuthContent() {
       const state = searchParams.get('state') || '';
       exchangeCodeForToken(code, state);
       window.history.replaceState({}, '', window.location.pathname);
+    } else {
+      // 如果 URL 中没有 code，检查 localStorage 中是否有残留的授权码
+      // 这可能发生在用户刷新页面的情况下
+      const leftoverCode = localStorage.getItem('feishu-oauth-code');
+      if (leftoverCode && !storedToken) {
+        addDebugInfo('🔄 检测到残留的授权码，自动尝试登录');
+        const state = localStorage.getItem('feishu-oauth-state') || '';
+        exchangeCodeForToken(leftoverCode, state);
+
+        // 清除临时存储
+        localStorage.removeItem('feishu-oauth-code');
+        localStorage.removeItem('feishu-oauth-state');
+      }
     }
 
     return () => {
