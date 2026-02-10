@@ -88,8 +88,8 @@ export default function FeishuOAuthDiagnosticPage() {
         },
         body: JSON.stringify({
           grant_type: 'authorization_code',
-          client_id: appId,
-          client_secret: appSecret,
+          app_id: appId,
+          app_secret: appSecret,
           code: 'test_code',
         }),
       });
@@ -102,14 +102,10 @@ export default function FeishuOAuthDiagnosticPage() {
         status: oauthResponse.status
       });
 
-      if (oauthData.code === 20014) {
-        addDiagnostic('OAuth 问题诊断', 'error', '错误代码 20014: app_access_token 无效', {
-          '可能原因': [
-            '1. 飞书应用未启用"扫码登录"功能',
-            '2. 重定向 URI 未正确配置',
-            '3. 应用权限配置不正确',
-            '4. App ID 和 App Secret 不匹配（已验证匹配，排除此项）',
-          ]
+      if (oauthData.code === 99991668) {
+        addDiagnostic('OAuth 问题诊断', 'success', '授权码无效（预期行为，使用测试 code）', {
+          '说明': '测试代码返回预期错误，说明 OAuth 端点配置正确',
+          '建议': '使用真实扫码登录流程获取有效授权码',
         });
       }
 
@@ -187,7 +183,7 @@ export default function FeishuOAuthDiagnosticPage() {
         {diagnostics.some(d => d.status === 'error' && d.message.includes('20014')) && (
           <Alert>
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>错误代码 20014 解决方案</AlertTitle>
+            <AlertTitle>常见错误解决方案</AlertTitle>
             <AlertDescription>
               <div className="mt-2 space-y-2 text-sm">
                 <p>请检查飞书开放平台的以下配置：</p>

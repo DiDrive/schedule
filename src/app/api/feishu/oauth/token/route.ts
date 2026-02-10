@@ -62,22 +62,22 @@ export async function POST(request: NextRequest) {
     const tenantAccessToken = tenantTokenData.tenant_access_token;
     log('[飞书 OAuth] ✅ 成功获取 tenant_access_token');
 
-    // 步骤 2: 使用授权码换取 user_access_token
+    // 步骤 2: 使用授权码换取 user_access_token（套件授权流程）
     log('[飞书 OAuth] 步骤 2: 使用授权码换取 user_access_token');
-    const userTokenUrl = 'https://open.feishu.cn/open-apis/authen/v1/oidc/access_token';
+    const userTokenUrl = 'https://open.feishu.cn/open-apis/authen/v1/access_token';
 
     const requestBody = {
       grant_type: 'authorization_code',
-      client_id: FEISHU_APP_ID,
-      client_secret: FEISHU_APP_SECRET,
+      app_id: FEISHU_APP_ID,
+      app_secret: FEISHU_APP_SECRET,
       code: code,
     };
 
     log('[飞书 OAuth] 请求 URL: ' + userTokenUrl);
     log('[飞书 OAuth] 请求参数: ' + JSON.stringify({
       grant_type: requestBody.grant_type,
-      client_id: requestBody.client_id,
-      client_secret: FEISHU_APP_SECRET.substring(0, 5) + '***',
+      app_id: requestBody.app_id,
+      app_secret: FEISHU_APP_SECRET.substring(0, 5) + '***',
       code: requestBody.code.substring(0, 10) + '...'
     }, null, 2));
 
