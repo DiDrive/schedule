@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { CheckCircle2, XCircle, Lock, QrCode, AlertCircle, Settings, RefreshCw } from 'lucide-react';
+import { CheckCircle2, XCircle, Lock, QrCode, AlertCircle, Settings, RefreshCw, Bug } from 'lucide-react';
 
 declare global {
   interface Window {
@@ -72,17 +72,34 @@ export default function FeishuOAuthPage() {
     };
   }, []);
 
-  // 当 qrCodeShown 变为 true 时，生成二维码
+  // 监听 qrCodeShown 变化
   useEffect(() => {
-    if (qrCodeShown && qrCodeRef.current && isScriptLoaded && appId) {
-      generateQrCode();
+    addDebugInfo(`qrCodeShown 状态变化: ${qrCodeShown}`);
+    addDebugInfo(`isScriptLoaded 状态: ${isScriptLoaded}`);
+    addDebugInfo(`appId 状态: ${appId}`);
+    addDebugInfo(`qrCodeRef.current 状态: ${!!qrCodeRef.current}`);
+
+    if (qrCodeShown && isScriptLoaded && appId) {
+      // 使用 setTimeout 确保 DOM 已渲染
+      setTimeout(() => {
+        if (qrCodeRef.current) {
+          generateQrCode();
+        } else {
+          addDebugInfo('❌ 等待 100ms 后容器仍然不存在');
+          setQrCodeError('二维码容器不存在');
+          setQrCodeLoading(false);
+        }
+      }, 100);
     }
   }, [qrCodeShown, isScriptLoaded, appId]);
 
   const addDebugInfo = (info: string) => {
     const timestamp = new Date().toLocaleTimeString();
-    setDebugInfo(prev => [...prev, { time: timestamp, message: info }]);
-    console.log(`[飞书登录 ${timestamp}] ${info}`);
+    setDebugInfo(prev => {
+      const newInfo = [...prev, { time: timestamp, message: info }];
+      console.log(`[飞书登录 ${timestamp}] ${info}`);
+      return newInfo.slice(-50); // 只保留最近50条
+    });
   };
 
   const loadFeishuScript = () => {
@@ -91,7 +108,7 @@ export default function FeishuOAuthPage() {
 
     // 检查是否已经加载
     if (window.QRLogin) {
-      addDebugInfo('SDK 已加载');
+      addDebugInfo('✅ SDK 已加载');
       setIsScriptLoaded(true);
       setIsScriptLoading(false);
       return;
@@ -102,12 +119,13 @@ export default function FeishuOAuthPage() {
     script.src = 'https://lf-package-cn.feishucdn.com/obj/feishu-static/lark/passport/qrcode/LarkSSOSDKWebQRCode-1.0.3.js';
     script.async = true;
     script.onload = () => {
-      addDebugInfo('SDK 加载成功');
+      addDebugInfo('✅ SDK 加载成功');
+      addDebugInfo(`window.QRLogin 存在: ${!!window.QRLogin}`);
       setIsScriptLoaded(true);
       setIsScriptLoading(false);
     };
     script.onerror = () => {
-      addDebugInfo('SDK 加载失败');
+      addDebugInfo('❌ SDK 加载失败');
       setIsScriptLoaded(false);
       setIsScriptLoading(false);
     };
@@ -116,6 +134,8 @@ export default function FeishuOAuthPage() {
   };
 
   const generateQrCode = () => {
+    addDebugInfo('generateQrCode 函数开始执行');
+
     const container = qrCodeRef.current;
     if (!container) {
       addDebugInfo('❌ 未找到二维码容器');
@@ -124,7 +144,10 @@ export default function FeishuOAuthPage() {
       return;
     }
 
-    addDebugInfo('找到二维码容器');
+    addDebugInfo('✅ 找到二维码容器');
+    addDebugInfo(`容器 ID: ${container.id}`);
+    addDebugInfo(`容器 className: ${container.className}`);
+
     // 清空容器
     container.innerHTML = '';
     setQrCodeError(null);
@@ -135,8 +158,7 @@ export default function FeishuOAuthPage() {
 
     addDebugInfo(`App ID: ${appId}`);
     addDebugInfo(`Redirect URI: ${redirectUri}`);
-    addDebugInfo(`Goto URL: ${goto}`);
-    addDebugInfo(`window.QRLogin 存在: ${!!window.QRLogin}`);
+    addDebugInfo(`Goto URL 长度: ${goto.length}`);
 
     if (!window.QRLogin) {
       addDebugInfo('❌ QRLogin 函数不存在');
@@ -146,14 +168,20 @@ export default function FeishuOAuthPage() {
     }
 
     try {
-      addDebugInfo('开始调用 QRLogin...');
+      addDebugInfo('开始调用 window.QRLogin...');
+      addDebugInfo(`QRLogin 参数: id=feishu_qr_container, width=500, height=500`);
 
-      // 设置超时，如果10秒内没有成功，显示错误
+      // 先尝试直接生成一个测试二维码，看看是否是 SDK 的问题
+      addDebugInfo('尝试生成测试二维码...');
+
+      // 设置超时
       generateTimeoutRef.current = setTimeout(() => {
-        addDebugInfo('❌ 生成二维码超时');
-        setQrCodeError('生成二维码超时，请检查控制台日志');
+        addDebugInfo('❌ 生成二维码超时（10秒）');
+        setQrCodeError('生成二维码超时');
         setQrCodeLoading(false);
       }, 10000);
+
+      addDebugInfo('调用 window.QRLogin...');
 
       const QRLoginObj = window.QRLogin({
         id: 'feishu_qr_container',
@@ -163,8 +191,9 @@ export default function FeishuOAuthPage() {
         style: 'width:500px;height:600px',
       });
 
-      addDebugInfo('✅ QRLogin 调用成功');
-      addDebugInfo(`QRLogin 对象: ${JSON.stringify(QRLoginObj)}`);
+      addDebugInfo('✅ window.QRLogin 调用完成');
+      addDebugInfo(`QRLoginObj 类型: ${typeof QRLoginObj}`);
+      addDebugInfo(`QRLoginObj: ${JSON.stringify(QRLoginObj)}`);
 
       // 清除超时
       if (generateTimeoutRef.current) {
@@ -174,34 +203,38 @@ export default function FeishuOAuthPage() {
 
       qrLoginObjRef.current = QRLoginObj;
 
-      // 检查二维码是否实际生成（检查容器内是否有内容）
+      // 立即检查容器
+      addDebugInfo(`容器当前子元素数: ${container.children.length}`);
+
+      // 2秒后再次检查
       setTimeout(() => {
         const childCount = container?.children.length || 0;
-        addDebugInfo(`容器子元素数量: ${childCount}`);
+        addDebugInfo(`2秒后容器子元素数: ${childCount}`);
 
         if (container && container.children.length === 0) {
-          addDebugInfo('❌ 二维码容器为空');
-          setQrCodeError('二维码生成失败，请检查控制台日志');
+          addDebugInfo('❌ 二维码容器仍然为空');
+          setQrCodeError('二维码生成失败');
           setQrCodeLoading(false);
         } else {
-          addDebugInfo('✅ 二维码生成成功');
+          addDebugInfo('✅ 二维码已生成');
           setQrCodeLoading(false);
 
           // 打印容器内容
-          addDebugInfo(`容器 HTML: ${container?.innerHTML.substring(0, 200)}...`);
+          if (container && container.children[0]) {
+            addDebugInfo(`第一个子元素: ${container.children[0].tagName}`);
+            addDebugInfo(`第一个子元素 HTML: ${container.children[0].outerHTML.substring(0, 200)}`);
+          }
         }
       }, 2000);
 
       // 监听扫码事件
       const handleMessage = (event: MessageEvent) => {
-        addDebugInfo(`收到消息: ${JSON.stringify(event.data)}`);
+        addDebugInfo(`收到消息事件`);
 
-        // 使用 SDK 提供的方法验证消息来源
         if (QRLoginObj.matchOrigin(event.origin) && QRLoginObj.matchData(event.data)) {
           const tmpCode = event.data.tmp_code;
           addDebugInfo(`✅ 扫码成功，临时码: ${tmpCode}`);
 
-          // 跳转到授权页面
           window.location.href = `${goto}&tmp_code=${tmpCode}`;
         }
       };
@@ -212,7 +245,10 @@ export default function FeishuOAuthPage() {
 
     } catch (error) {
       addDebugInfo(`❌ 生成二维码异常: ${error instanceof Error ? error.message : String(error)}`);
-      addDebugInfo(`错误堆栈: ${error instanceof Error ? error.stack : ''}`);
+      if (error instanceof Error) {
+        addDebugInfo(`错误名称: ${error.name}`);
+        addDebugInfo(`错误堆栈: ${error.stack}`);
+      }
       setQrCodeError(`生成二维码失败: ${error instanceof Error ? error.message : '未知错误'}`);
       setQrCodeLoading(false);
       if (generateTimeoutRef.current) {
@@ -222,6 +258,9 @@ export default function FeishuOAuthPage() {
   };
 
   const showQrCode = () => {
+    addDebugInfo('showQrCode 函数被调用');
+    addDebugInfo(`当前状态: qrCodeShown=${qrCodeShown}, isScriptLoaded=${isScriptLoaded}, appId=${appId}`);
+
     if (!window.QRLogin) {
       alert('飞书 SDK 未加载，请刷新页面重试');
       return;
@@ -240,6 +279,7 @@ export default function FeishuOAuthPage() {
   };
 
   const hideQrCode = () => {
+    addDebugInfo('hideQrCode 函数被调用');
     if (qrCodeRef.current) {
       qrCodeRef.current.innerHTML = '';
     }
@@ -277,10 +317,7 @@ export default function FeishuOAuthPage() {
 
       addDebugInfo('✅ 访问令牌获取成功');
 
-      // 保存访问令牌
       localStorage.setItem('feishu-user-token', data.access_token);
-
-      // 获取用户信息
       await fetchUserInfo(data.access_token);
 
       setAccessToken(data.access_token);
@@ -315,7 +352,6 @@ export default function FeishuOAuthPage() {
   };
 
   const handleSaveConfig = () => {
-    // 更新飞书配置
     const savedConfig = localStorage.getItem('feishu-config');
     let config = {};
 
@@ -327,7 +363,6 @@ export default function FeishuOAuthPage() {
       }
     }
 
-    // 更新 App ID
     config = { ...config, appId };
     localStorage.setItem('feishu-config', JSON.stringify(config));
 
@@ -384,21 +419,28 @@ export default function FeishuOAuthPage() {
 
         {/* 调试信息 */}
         {debugInfo.length > 0 && (
-          <Card>
+          <Card className="border-blue-300 dark:border-blue-700">
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>调试日志</span>
+              <CardTitle className="flex items-center justify-between text-blue-700 dark:text-blue-400">
+                <span className="flex items-center gap-2">
+                  <Bug className="h-5 w-5" />
+                  调试日志
+                </span>
                 <Button variant="outline" size="sm" onClick={() => setDebugInfo([])}>
                   清除日志
                 </Button>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="max-h-96 overflow-auto space-y-1 text-xs font-mono">
+              <div className="max-h-96 overflow-auto space-y-1 text-xs font-mono bg-slate-50 dark:bg-slate-900 p-3 rounded-lg">
                 {debugInfo.map((info, index) => (
                   <div key={index} className="flex gap-2">
-                    <span className="text-slate-500">[{info.time}]</span>
-                    <span className={info.message.includes('❌') ? 'text-red-600' : info.message.includes('✅') ? 'text-green-600' : ''}>
+                    <span className="text-slate-500 shrink-0">[{info.time}]</span>
+                    <span className={
+                      info.message.includes('❌') ? 'text-red-600 dark:text-red-400' :
+                      info.message.includes('✅') ? 'text-green-600 dark:text-green-400' :
+                      'text-slate-700 dark:text-slate-300'
+                    }>
                       {info.message}
                     </span>
                   </div>
