@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { CheckCircle2, XCircle, Lock, QrCode, AlertCircle, Settings, RefreshCw, Bug } from 'lucide-react';
+import { CheckCircle2, XCircle, Lock, QrCode, AlertCircle, Settings, RefreshCw, Bug, Database } from 'lucide-react';
 
 declare global {
   interface Window {
@@ -739,6 +739,12 @@ function FeishuOAuthContent() {
             <Button variant="outline" onClick={() => window.location.href = '/?tab=feishu'}>
               飞书集成配置
             </Button>
+            {isLoggedIn && (
+              <Button variant="outline" onClick={() => window.location.href = '/feishu-bitable-apps'}>
+                <Database className="h-4 w-4 mr-2" />
+                我的多维表
+              </Button>
+            )}
             <Button variant="outline" onClick={() => window.open('/feishu-user-token-test', '_blank')}>
               测试个人表
             </Button>
