@@ -631,7 +631,7 @@ export default function FeishuIntegrationDialog({
                 className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700"
               >
                 <QrCode className="h-4 w-4 mr-2" />
-                扫码登录
+                飞书扫码登录
               </Button>
             </div>
           )}

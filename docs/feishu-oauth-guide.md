@@ -6,7 +6,7 @@
 
 ## 解决方案
 
-通过飞书**扫码登录**授权，使用飞书官方 JavaScript SDK，系统可以使用你的身份访问你的多维表。
+通过飞书**扫码登录**授权，使用飞书官方二维码 SDK，系统可以使用你的身份访问你的多维表。
 
 ## 使用步骤
 
@@ -32,10 +32,11 @@
 
 ### 3. 扫码登录
 
-1. 在飞书扫码登录页面，点击 **"扫码登录"** 按钮
-2. 使用飞书 App 扫描二维码
-3. 在飞书 App 中确认授权
-4. 授权成功后，自动登录系统
+1. 在飞书扫码登录页面，点击 **"生成扫码登录二维码"** 按钮
+2. 页面会显示飞书登录的二维码
+3. 使用飞书 App 扫描二维码
+4. 在飞书 App 中确认授权
+5. 授权成功后，自动登录系统
 
 ### 4. 测试访问个人多维表
 
@@ -44,19 +45,60 @@
 3. 点击 **"开始测试"**
 4. 如果能成功读取到数据，说明登录成功！
 
+## 技术实现
+
+### 飞书官方二维码 SDK
+
+使用飞书官方提供的二维码 SDK：
+- **SDK 地址**：https://lf-package-cn.feishucdn.com/obj/feishu-static/lark/passport/qrcode/LarkSSOSDKWebQRCode-1.0.3.js
+- **文档**：https://open.feishu.cn/document/sso/web-application-sso/qr-sdk-documentation
+
+### 登录流程
+
+1. **加载 SDK**：前端动态加载飞书二维码 SDK
+2. **生成二维码**：调用 `QRLogin()` 方法生成二维码
+3. **用户扫码**：用户使用飞书 App 扫描二维码
+4. **获取临时码**：SDK 返回 `tmp_code`（临时授权码）
+5. **跳转授权**：跳转到飞书授权页面（带上 `tmp_code`）
+6. **飞书重定向**：飞书重定向到回调地址，带上 `code` 和 `state`
+7. **交换令牌**：后端用 `code` 换取 `user_access_token`
+8. **获取用户信息**：使用 `user_access_token` 获取用户信息
+9. **保存登录状态**：保存到 localStorage
+
+### API 接口
+
+- **授权码交换令牌**：`POST /api/feishu/oauth/token`
+  - 参数：`code`（授权码）、`state`（状态码）
+  - 返回：`access_token`、`refresh_token`、`expires_in`
+
+- **OAuth 回调**：`GET /feishu-oauth-callback`
+  - 参数：`code`（授权码）、`state`（状态码）
+  - 功能：接收飞书的重定向，通知主窗口
+
+### 权限范围
+
+系统请求的权限：
+- 读取多维表数据
+
+### 令牌管理
+
+- **user_access_token**：用户访问令牌，存储在浏览器 localStorage
+- **有效期**：令牌有有效期，过期后需要重新登录
+- **安全性**：退出登录时会清除令牌
+
 ## 优势
 
-- ✅ 使用飞书官方 SDK，无需后端接口
-- ✅ 可以访问你个人创建的所有多维表
-- ✅ 使用你的权限和设置
-- ✅ 无需额外的授权配置
-- ✅ 安全快捷，扫码即可登录
+- ✅ **官方 SDK**：使用飞书官方二维码 SDK，更可靠
+- ✅ **无需跳转**：在网页内完成授权，体验流畅
+- ✅ **安全认证**：使用官方认证流程，安全性高
+- ✅ **访问个人数据**：可以访问用户个人创建的多维表
+- ✅ **简单易用**：扫码即可登录，无需复杂配置
 
 ## 注意事项
 
 1. **App ID 正确性**：确保 App ID 在飞书开放平台中存在且有效
-2. **令牌有效期**：用户令牌有有效期，过期后需要重新登录
-3. **权限范围**：系统会请求读取多维表的权限
+2. **授权码有效期**：授权码有效期 5 分钟，且只能使用一次
+3. **令牌有效期**：用户令牌有有效期，过期后需要重新登录
 4. **安全性**：令牌存储在浏览器 localStorage 中，请勿在公共设备上使用
 
 ## 常见问题
@@ -98,47 +140,11 @@ A: 请确保：
 1. 已在飞书 App 中打开扫码功能
 2. 网络连接正常
 3. App ID 配置正确
+4. 二维码没有过期（有效期 5 分钟）
 
-## 技术细节
+### Q: 授权码过期了怎么办？
 
-### 飞书官方 SDK
-
-使用飞书官方 JavaScript SDK：
-- SDK 地址：https://lf1-cdn-tos.bytegoofy.com/obj/feishu-saas/lark/feishu-js-sdk-1.22.17.js
-- 文档：https://open.feishu.cn/document/common-capabilities/sso/api/web-sso-overview
-
-### 扫码登录流程
-
-1. 系统加载飞书 JS SDK
-2. 用户点击 **"扫码登录"** 按钮
-3. SDK 弹出二维码窗口
-4. 用户使用飞书 App 扫码
-5. 飞书 App 显示授权页面
-6. 用户确认授权
-7. SDK 返回用户访问令牌（access_token）
-8. 保存到 localStorage，自动登录
-
-### 权限范围
-
-系统请求的权限：
-- 读取多维表数据
-
-### 令牌管理
-
-- 用户令牌存储在浏览器 localStorage
-- 令牌有有效期，过期后需要重新获取
-- 退出登录时会清除令牌
-
-### API 接口
-
-- **读取表格（用户令牌）**：`POST /api/feishu/user/read-table`
-- **获取用户信息**：`GET https://open.feishu.cn/open-apis/authen/v1/user_info`
-
-## 相关页面
-
-- 飞书扫码登录页面：`/feishu-oauth`
-- 用户令牌测试页面：`/feishu-user-token-test`
-- 飞书集成配置：打开飞书集成对话框
+A: 授权码有效期 5 分钟，过期后重新生成二维码即可。
 
 ## 错误处理
 
@@ -158,21 +164,71 @@ A: 请确保：
 2. 刷新页面重试
 3. 确保可以访问飞书 CDN
 
-### 扫码无响应
+### 错误：授权码无效
+
+**原因**：授权码已过期或已被使用
 
 **解决**：
-1. 检查网络连接
-2. 确认 App ID 配置正确
-3. 重新点击扫码登录按钮
+1. 重新生成二维码
+2. 在 5 分钟内完成授权
 
-## 对比：飞书官方 SDK vs 自定义后端
+### 错误：获取访问令牌失败
 
-| 特性 | 飞书官方 SDK | 自定义后端 |
-|------|-------------|-----------|
-| 实现方式 | 前端 SDK | 后端 API |
-| 安全性 | 高（官方维护） | 中（自己维护） |
-| 用户体验 | 简单快捷 | 需要后端支持 |
-| App ID 要求 | 需要有效 App ID | 需要有效 App ID + Secret |
-| 推荐度 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
+**解决**：
+1. 检查 App ID 和 App Secret 是否正确
+2. 确认应用状态正常
+3. 检查网络连接
 
-**推荐使用飞书官方 SDK**，更安全、更简单！
+## 相关页面
+
+- 飞书扫码登录页面：`/feishu-oauth`
+- OAuth 回调页面：`/feishu-oauth-callback`
+- 用户令牌测试页面：`/feishu-user-token-test`
+- 飞书集成配置：打开飞书集成对话框
+
+## 开发者参考
+
+### SDK 初始化
+
+```javascript
+const QRLoginObj = QRLogin({
+  id: 'login_container',
+  goto: 'https://passport.feishu.cn/suite/passport/oauth/authorize?client_id=CLIENT_ID&redirect_uri=REDIRECT_URI&response_type=code&state=STATE',
+  width: '500',
+  height: '500',
+  style: 'width:500px;height:600px'
+});
+```
+
+### 监听扫码事件
+
+```javascript
+const handleMessage = (event) => {
+  if (QRLoginObj.matchOrigin(event.origin) && QRLoginObj.matchData(event.data)) {
+    const tmpCode = event.data.tmp_code;
+    window.location.href = `${goto}&tmp_code=${tmpCode}`;
+  }
+};
+window.addEventListener('message', handleMessage);
+```
+
+### 交换授权码
+
+```javascript
+const response = await fetch('/api/feishu/oauth/token', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ code, state }),
+});
+```
+
+## 技术栈
+
+- **前端 SDK**：LarkSSOSDKWebQRCode-1.0.3.js
+- **授权方式**：Authorization Code Flow
+- **令牌类型**：User Access Token
+- **认证方式**：OAuth 2.0
+
+## 更新日志
+
+- 2024-11-29：使用飞书官方二维码 SDK实现扫码登录
