@@ -1,147 +1,178 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, XCircle, Lock, RefreshCw, QrCode, AlertCircle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { CheckCircle2, XCircle, Lock, QrCode, AlertCircle, Settings, RefreshCw } from 'lucide-react';
+
+declare global {
+  interface Window {
+    tt?: {
+      login: (options: any) => void;
+      logout: () => void;
+    };
+  }
+}
 
 export default function FeishuOAuthPage() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
   const [userInfo, setUserInfo] = useState<any>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [isGeneratingQrCode, setIsGeneratingQrCode] = useState(false);
-  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
-  const [qrCodeTicket, setQrCodeTicket] = useState<string | null>(null);
+  const [isScriptLoading, setIsScriptLoading] = useState(true);
+  const [isScriptLoaded, setIsScriptLoaded] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
+  const [appId, setAppId] = useState('cli_a90f3ef5a393900b');
 
   useEffect(() => {
+    // 加载飞书 JS SDK
+    loadFeishuScript();
+
     // 检查是否已经登录
     const storedToken = localStorage.getItem('feishu-user-token');
     const storedUserInfo = localStorage.getItem('feishu-user-info');
 
     if (storedToken) {
       setAccessToken(storedToken);
-      setIsLoggedIn(true);
+      setIsUserLoggedIn(true);
     }
     if (storedUserInfo) {
       setUserInfo(JSON.parse(storedUserInfo));
     }
 
-    // 清理定时器
-    return () => {
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
+    // 从 localStorage 读取配置
+    const savedConfig = localStorage.getItem('feishu-config');
+    if (savedConfig) {
+      try {
+        const config = JSON.parse(savedConfig);
+        if (config.appId) {
+          setAppId(config.appId);
+        }
+      } catch (error) {
+        console.error('Failed to load config:', error);
       }
-    };
+    }
   }, []);
 
-  // 生成扫码登录二维码
-  const handleGenerateQrCode = async () => {
-    setIsGeneratingQrCode(true);
-    setQrCodeUrl(null);
-    setQrCodeTicket(null);
+  const loadFeishuScript = () => {
+    setIsScriptLoading(true);
 
+    // 检查是否已经加载
+    if (window.tt) {
+      setIsScriptLoaded(true);
+      setIsScriptLoading(false);
+      return;
+    }
+
+    // 动态加载飞书 JS SDK
+    const script = document.createElement('script');
+    script.src = 'https://lf1-cdn-tos.bytegoofy.com/obj/feishu-saas/lark/feishu-js-sdk-1.22.17.js';
+    script.async = true;
+    script.onload = () => {
+      console.log('[飞书 SDK] 加载成功');
+      setIsScriptLoaded(true);
+      setIsScriptLoading(false);
+    };
+    script.onerror = () => {
+      console.error('[飞书 SDK] 加载失败');
+      setIsScriptLoaded(false);
+      setIsScriptLoading(false);
+    };
+
+    document.head.appendChild(script);
+  };
+
+  const handleFeishuLogin = () => {
+    if (!window.tt) {
+      alert('飞书 SDK 未加载，请刷新页面重试');
+      return;
+    }
+
+    if (!appId) {
+      alert('请先配置 App ID');
+      setShowConfig(true);
+      return;
+    }
+
+    console.log('[飞书登录] 使用 App ID:', appId);
+
+    // 使用飞书官方 SDK 进行扫码登录
+    window.tt.login({
+      appId: appId,
+      onSuccess: (result: any) => {
+        console.log('[飞书登录] 成功:', result);
+
+        // 保存访问令牌
+        const token = result.access_token;
+        localStorage.setItem('feishu-user-token', token);
+
+        // 获取用户信息
+        fetchUserInfo(token);
+
+        setAccessToken(token);
+        setIsUserLoggedIn(true);
+      },
+      onError: (error: any) => {
+        console.error('[飞书登录] 失败:', error);
+        alert(`登录失败: ${error.error_description || '未知错误'}\n请检查 App ID 是否正确`);
+      },
+    });
+  };
+
+  const fetchUserInfo = async (token: string) => {
     try {
-      const response = await fetch('/api/feishu/oauth/qr-code', {
-        method: 'POST',
+      const response = await fetch('https://open.feishu.cn/open-apis/authen/v1/user_info', {
         headers: {
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
 
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || '生成二维码失败');
+      if (data.code === 0) {
+        setUserInfo(data.data);
+        localStorage.setItem('feishu-user-info', JSON.stringify(data.data));
       }
-
-      setQrCodeUrl(data.qr_code_url);
-      setQrCodeTicket(data.qr_code_ticket);
-
-      // 开始轮询扫码状态
-      startPolling(data.qr_code_ticket);
     } catch (error) {
-      console.error('生成二维码失败:', error);
-      alert(`生成二维码失败：${error instanceof Error ? error.message : '未知错误'}`);
-    } finally {
-      setIsGeneratingQrCode(false);
+      console.error('[飞书登录] 获取用户信息失败:', error);
     }
   };
 
-  // 开始轮询扫码状态
-  const startPolling = (ticket: string) => {
-    const interval = setInterval(async () => {
+  const handleSaveConfig = () => {
+    // 更新飞书配置
+    const savedConfig = localStorage.getItem('feishu-config');
+    let config = {};
+
+    if (savedConfig) {
       try {
-        const response = await fetch('/api/feishu/oauth/qr-status', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ ticket }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          console.error('查询扫码状态失败:', data.error);
-          return;
-        }
-
-        if (data.status === 'success') {
-          // 扫码成功
-          clearInterval(interval);
-          setPollingInterval(null);
-
-          // 保存令牌和用户信息
-          localStorage.setItem('feishu-user-token', data.access_token);
-          localStorage.setItem('feishu-user-info', JSON.stringify(data.user_info));
-
-          setAccessToken(data.access_token);
-          setUserInfo(data.user_info);
-          setIsLoggedIn(true);
-          setQrCodeUrl(null);
-          setQrCodeTicket(null);
-        } else if (data.status === 'expired') {
-          // 二维码过期
-          clearInterval(interval);
-          setPollingInterval(null);
-          setQrCodeUrl(null);
-          setQrCodeTicket(null);
-          alert('二维码已过期，请重新生成');
-        } else if (data.status === 'canceled') {
-          // 用户取消扫码
-          clearInterval(interval);
-          setPollingInterval(null);
-          setQrCodeUrl(null);
-          setQrCodeTicket(null);
-        }
+        config = JSON.parse(savedConfig);
       } catch (error) {
-        console.error('查询扫码状态失败:', error);
+        console.error('Failed to load config:', error);
       }
-    }, 2000); // 每 2 秒查询一次
-
-    setPollingInterval(interval);
-  };
-
-  // 停止轮询
-  const stopPolling = () => {
-    if (pollingInterval) {
-      clearInterval(pollingInterval);
-      setPollingInterval(null);
     }
-    setQrCodeUrl(null);
-    setQrCodeTicket(null);
+
+    // 更新 App ID
+    config = { ...config, appId };
+    localStorage.setItem('feishu-config', JSON.stringify(config));
+
+    setShowConfig(false);
+    alert('App ID 已保存');
   };
 
   const handleLogout = () => {
-    stopPolling();
     localStorage.removeItem('feishu-user-token');
     localStorage.removeItem('feishu-user-info');
     setAccessToken(null);
     setUserInfo(null);
-    setIsLoggedIn(false);
+    setIsUserLoggedIn(false);
+
+    // 调用飞书 SDK 登出
+    if (window.tt) {
+      window.tt.logout();
+    }
   };
 
   const testAccess = async () => {
@@ -182,13 +213,65 @@ export default function FeishuOAuthPage() {
           </p>
         </div>
 
+        {/* App ID 配置 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>App ID 配置</span>
+              <Button variant="outline" size="sm" onClick={() => setShowConfig(!showConfig)}>
+                {showConfig ? <XCircle className="h-4 w-4" /> : <Settings className="h-4 w-4" />}
+              </Button>
+            </CardTitle>
+            <CardDescription>
+              当前使用的 App ID: <code className="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">{appId}</code>
+            </CardDescription>
+          </CardHeader>
+          {showConfig && (
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="appIdInput">App ID</Label>
+                <Input
+                  id="appIdInput"
+                  placeholder="cli_axxxxxxxxx"
+                  value={appId}
+                  onChange={(e) => setAppId(e.target.value)}
+                />
+              </div>
+              <Button onClick={handleSaveConfig}>
+                保存配置
+              </Button>
+            </CardContent>
+          )}
+        </Card>
+
+        {/* SDK 加载状态 */}
+        {isScriptLoading && (
+          <Alert>
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            <AlertTitle>加载中</AlertTitle>
+            <AlertDescription>
+              正在加载飞书 SDK...
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!isScriptLoading && !isScriptLoaded && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>SDK 加载失败</AlertTitle>
+            <AlertDescription>
+              飞书 SDK 加载失败，请刷新页面重试
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* 登录状态 */}
         <Card>
           <CardHeader>
             <CardTitle>登录状态</CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoggedIn ? (
+            {isUserLoggedIn ? (
               <div className="space-y-4">
                 <Alert>
                   <CheckCircle2 className="h-4 w-4" />
@@ -223,41 +306,35 @@ export default function FeishuOAuthPage() {
                   </AlertDescription>
                 </Alert>
 
-                {!qrCodeUrl ? (
-                  <Button
-                    onClick={handleGenerateQrCode}
-                    size="lg"
-                    className="w-full"
-                    disabled={isGeneratingQrCode}
-                  >
-                    {isGeneratingQrCode ? (
-                      <>
-                        <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
-                        生成二维码中...
-                      </>
-                    ) : (
-                      <>
-                        <QrCode className="h-5 w-5 mr-2" />
-                        生成扫码登录二维码
-                      </>
-                    )}
-                  </Button>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex flex-col items-center space-y-4">
-                      <div className="bg-white p-4 rounded-lg shadow-lg">
-                        {/* 显示二维码 */}
-                        <img src={qrCodeUrl} alt="飞书扫码登录" className="w-64 h-64" />
-                      </div>
-                      <p className="text-sm text-slate-600 dark:text-slate-400 text-center">
-                        请使用飞书扫描二维码登录
-                      </p>
-                      <Button onClick={stopPolling} variant="outline">
-                        取消扫码
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <Button
+                  onClick={handleFeishuLogin}
+                  size="lg"
+                  className="w-full"
+                  disabled={!isScriptLoaded}
+                >
+                  <QrCode className="h-5 w-5 mr-2" />
+                  扫码登录
+                </Button>
+              </div>
+            )}
+              <div className="space-y-4">
+                <Alert>
+                  <XCircle className="h-4 w-4" />
+                  <AlertTitle>未登录</AlertTitle>
+                  <AlertDescription>
+                    请使用飞书扫码登录以访问你的多维表
+                  </AlertDescription>
+                </Alert>
+
+                <Button
+                  onClick={handleFeishuLogin}
+                  size="lg"
+                  className="w-full"
+                  disabled={!isScriptLoaded}
+                >
+                  <QrCode className="h-5 w-5 mr-2" />
+                  扫码登录
+                </Button>
               </div>
             )}
           </CardContent>
