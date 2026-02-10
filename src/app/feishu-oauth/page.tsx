@@ -502,21 +502,28 @@ export default function FeishuOAuthPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-center">
-                {qrCodeLoading ? (
-                  <div className="flex flex-col items-center space-y-4 py-8">
-                    <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
-                    <p className="text-sm text-slate-600 dark:text-slate-400">正在生成二维码...</p>
-                  </div>
-                ) : qrCodeError ? (
-                  <div className="flex flex-col items-center space-y-4 py-8 max-w-md">
-                    <AlertCircle className="h-8 w-8 text-red-600" />
-                    <p className="text-sm text-red-600 text-center">{qrCodeError}</p>
-                  </div>
-                ) : (
+                <div className="relative">
+                  {/* 容器始终渲染，加载状态覆盖在上面 */}
                   <div className="bg-white rounded-lg shadow-lg p-4">
                     <div id="feishu_qr_container" ref={qrCodeRef}></div>
                   </div>
-                )}
+
+                  {/* 加载状态覆盖 */}
+                  {qrCodeLoading && (
+                    <div className="absolute inset-0 bg-white/90 flex flex-col items-center justify-center rounded-lg">
+                      <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mb-2" />
+                      <p className="text-sm text-slate-600 dark:text-slate-400">正在生成二维码...</p>
+                    </div>
+                  )}
+
+                  {/* 错误状态覆盖 */}
+                  {qrCodeError && (
+                    <div className="absolute inset-0 bg-white/90 flex flex-col items-center justify-center rounded-lg p-8">
+                      <AlertCircle className="h-8 w-8 text-red-600 mb-2" />
+                      <p className="text-sm text-red-600 text-center">{qrCodeError}</p>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex justify-center">
                 <Button onClick={hideQrCode} variant="outline">
