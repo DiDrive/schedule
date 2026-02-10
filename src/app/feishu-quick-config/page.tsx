@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,11 @@ export default function FeishuQuickConfigPage() {
   const [tables, setTables] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // 在客户端挂载后加载配置
+  useEffect(() => {
+    loadFromLocalStorage();
+  }, []);
+
   const extractAppTokenFromUrl = (url: string) => {
     const match = url.match(/\/base\/([a-zA-Z0-9]+)/);
     return match ? match[1] : '';
@@ -31,17 +36,25 @@ export default function FeishuQuickConfigPage() {
   };
 
   const loadFromLocalStorage = () => {
+    if (typeof window === 'undefined') return;
+
     const configStr = localStorage.getItem('feishu-config');
     if (configStr) {
-      const config = JSON.parse(configStr);
-      setAppToken(config.appToken || '');
-      setAppId(config.appId || '');
-      setAppSecret(config.appSecret || '');
-      fetchTables(config.appToken);
+      try {
+        const config = JSON.parse(configStr);
+        setAppToken(config.appToken || '');
+        setAppId(config.appId || '');
+        setAppSecret(config.appSecret || '');
+        fetchTables(config.appToken);
+      } catch (error) {
+        console.error('Failed to load config:', error);
+      }
     }
   };
 
   const saveCredentials = () => {
+    if (typeof window === 'undefined') return;
+
     const configStr = localStorage.getItem('feishu-config');
     const config = configStr ? JSON.parse(configStr) : {};
     config.appId = appId;
@@ -51,6 +64,8 @@ export default function FeishuQuickConfigPage() {
   };
 
   const forceRefreshConfig = () => {
+    if (typeof window === 'undefined') return;
+
     // 清除所有可能的缓存
     localStorage.removeItem('feishu-config');
     sessionStorage.clear();
@@ -60,6 +75,8 @@ export default function FeishuQuickConfigPage() {
   };
 
   const checkCurrentConfig = () => {
+    if (typeof window === 'undefined') return;
+
     const configStr = localStorage.getItem('feishu-config');
     if (configStr) {
       const config = JSON.parse(configStr);
@@ -80,6 +97,11 @@ export default function FeishuQuickConfigPage() {
       let currentAppSecret = appSecret;
 
       if (!currentAppId || !currentAppSecret) {
+        if (typeof window === 'undefined') {
+          setError('无法读取配置（服务端环境）');
+          return;
+        }
+
         const configStr = localStorage.getItem('feishu-config');
         if (!configStr) {
           setError('请先配置飞书应用的 App ID 和 App Secret');
@@ -144,16 +166,20 @@ export default function FeishuQuickConfigPage() {
   };
 
   const openBase = () => {
-    if (appToken) {
+    if (appToken && typeof window !== 'undefined') {
       window.open(`https://vbangessentials.feishu.cn/base/${appToken}`, '_blank');
     }
   };
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+    if (typeof window !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+    }
   };
 
   const updateConfig = (tableId: string, tableName: string) => {
+    if (typeof window === 'undefined') return;
+
     const configStr = localStorage.getItem('feishu-config');
     if (configStr) {
       const config = JSON.parse(configStr);
@@ -168,6 +194,7 @@ export default function FeishuQuickConfigPage() {
 
       const key = mapping[tableName];
       if (key) {
+        config.tableIds = config.tableIds || {};
         config.tableIds[key] = tableId;
         localStorage.setItem('feishu-config', JSON.stringify(config));
         alert(`已更新 ${tableName} 的 Table ID 为：${tableId}`);
