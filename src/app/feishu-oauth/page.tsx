@@ -28,6 +28,7 @@ function FeishuOAuthContent() {
   const [qrCodeLoading, setQrCodeLoading] = useState(false);
   const [qrCodeError, setQrCodeError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<any[]>([]);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [origin, setOrigin] = useState(''); // 用于存储 window.location.origin
   const qrCodeRef = useRef<HTMLDivElement>(null);
   const qrLoginObjRef = useRef<any>(null);
@@ -496,6 +497,37 @@ function FeishuOAuthContent() {
             </CardContent>
           </Card>
         )}
+
+        {/* 调试面板 */}
+        <Card className="border-purple-300 dark:border-purple-700">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between text-purple-700 dark:text-purple-400">
+              <span className="flex items-center gap-2">
+                <Bug className="h-5 w-5" />
+                系统状态调试
+              </span>
+              <Button variant="outline" size="sm" onClick={() => setShowDebugPanel(!showDebugPanel)}>
+                {showDebugPanel ? '隐藏' : '显示'}
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          {showDebugPanel && (
+            <CardContent className="space-y-4">
+              <div className="space-y-2 text-sm">
+                <div className="font-semibold">React 状态:</div>
+                <div>isLoggedIn: {isLoggedIn ? '✅ 是' : '❌ 否'}</div>
+                <div>accessToken: {accessToken ? `✅ ${accessToken.substring(0, 20)}...` : '❌ 空'}</div>
+                <div>userInfo: {userInfo ? `✅ ${userInfo.name || '未知'}` : '❌ 空'}</div>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="font-semibold">localStorage 状态:</div>
+                <div>feishu-user-token: {typeof window !== 'undefined' && localStorage.getItem('feishu-user-token') ? '✅ 存在' : '❌ 空'}</div>
+                <div>feishu-user-info: {typeof window !== 'undefined' && localStorage.getItem('feishu-user-info') ? '✅ 存在' : '❌ 空'}</div>
+                <div>feishu-oauth-code: {typeof window !== 'undefined' && localStorage.getItem('feishu-oauth-code') ? '✅ 存在' : '❌ 空'}</div>
+              </div>
+            </CardContent>
+          )}
+        </Card>
 
         {/* App ID 配置 */}
         <Card>

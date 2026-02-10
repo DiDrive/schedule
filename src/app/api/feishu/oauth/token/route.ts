@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// 飞书 OAuth 配置
-const FEISHU_APP_ID = 'cli_a90ff12d93635bc4';
+// 飞书 OAuth 配置（使用与前端相同的 App ID）
+const FEISHU_APP_ID = 'cli_a90f3ef5a393900b';
 const FEISHU_APP_SECRET = 'RQGkC8vU4d2lL3K6Y9mN2pQ5rT8vW1zX'; // TODO: 需要用户提供正确的 App Secret
 
 export async function POST(request: NextRequest) {
   try {
-    const { code, state } = await request.json();
+    const { code, state, appId: requestAppId } = await request.json();
 
     if (!code) {
       return NextResponse.json(
@@ -17,6 +17,8 @@ export async function POST(request: NextRequest) {
 
     console.log('[飞书 OAuth] 正在用授权码换取访问令牌...');
     console.log('[飞书 OAuth] 授权码:', code);
+    console.log('[飞书 OAuth] 请求 App ID:', requestAppId || '未提供');
+    console.log('[飞书 OAuth] 使用 App ID:', FEISHU_APP_ID);
 
     // 调用飞书 API 获取 user_access_token
     const tokenUrl = 'https://open.feishu.cn/open-apis/authen/v1/oidc/access_token';
@@ -29,7 +31,10 @@ export async function POST(request: NextRequest) {
     };
 
     console.log('[飞书 OAuth] 请求 URL:', tokenUrl);
-    console.log('[飞书 OAuth] 请求体:', JSON.stringify(requestBody, null, 2));
+    console.log('[飞书 OAuth] 请求体:', JSON.stringify({
+      ...requestBody,
+      client_secret: '***已隐藏***' // 隐藏密钥
+    }, null, 2));
 
     const response = await fetch(tokenUrl, {
       method: 'POST',
@@ -45,8 +50,12 @@ export async function POST(request: NextRequest) {
     console.log('[飞书 OAuth] 响应数据:', JSON.stringify(data, null, 2));
 
     if (!response.ok || data.code !== 0) {
-      throw new Error(data.msg || '获取访问令牌失败');
+      const errorMsg = data.msg || '获取访问令牌失败';
+      console.error('[飞书 OAuth] 错误:', errorMsg);
+      throw new Error(errorMsg);
     }
+
+    console.log('[飞书 OAuth] ✅ 成功获取访问令牌');
 
     return NextResponse.json({
       access_token: data.access_token,
