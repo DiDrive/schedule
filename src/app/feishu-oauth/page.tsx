@@ -72,7 +72,7 @@ export default function FeishuOAuthPage() {
     };
   }, []);
 
-  // 使用 useLayoutEffect 在 DOM 更新后立即执行
+  // 监听 qrCodeShown 变化
   useEffect(() => {
     if (qrCodeShown) {
       addDebugInfo('qrCodeShown 变为 true，等待 DOM 渲染...');
@@ -101,7 +101,7 @@ export default function FeishuOAuthPage() {
         }
       });
     }
-  }, [qrCodeShown]);
+  }, [qrCodeShown, isScriptLoaded, appId]);
 
   const addDebugInfo = (info: string) => {
     const timestamp = new Date().toLocaleTimeString();
