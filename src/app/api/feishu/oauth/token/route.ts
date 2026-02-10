@@ -30,8 +30,38 @@ export async function POST(request: NextRequest) {
     log('[飞书 OAuth] 请求 App ID: ' + (requestAppId || '未提供'));
     log('[飞书 OAuth] 使用 App ID: ' + FEISHU_APP_ID);
 
-    // 调用飞书 API 获取 user_access_token
-    const tokenUrl = 'https://open.feishu.cn/open-apis/authen/v1/oidc/access_token';
+    // 先获取 app_access_token
+    log('[飞书 OAuth] 第一步：获取 app_access_token');
+    const appTokenUrl = 'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal';
+
+    const appTokenResponse = await fetch(appTokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        app_id: FEISHU_APP_ID,
+        app_secret: FEISHU_APP_SECRET,
+      }),
+    });
+
+    const appTokenData = await appTokenResponse.json();
+
+    log('[飞书 OAuth] app_access_token 响应状态: ' + appTokenResponse.status);
+    log('[飞书 OAuth] app_access_token 响应数据: ' + JSON.stringify(appTokenData, null, 2));
+
+    if (!appTokenResponse.ok || appTokenData.code !== 0) {
+      const errorMsg = appTokenData.msg || '获取应用访问令牌失败';
+      log('[飞书 OAuth] ❌ 获取 app_access_token 失败: ' + errorMsg);
+      throw new Error('获取应用访问令牌失败: ' + errorMsg);
+    }
+
+    const appAccessToken = appTokenData.tenant_access_token || appTokenData.app_access_token;
+    log('[飞书 OAuth] ✅ 成功获取 app_access_token');
+
+    // 使用 app_access_token 获取 user_access_token
+    log('[飞书 OAuth] 第二步：使用授权码获取 user_access_token');
+    const userTokenUrl = 'https://open.feishu.cn/open-apis/authen/v1/oidc/access_token';
 
     const requestBody = {
       grant_type: 'authorization_code',
@@ -40,15 +70,15 @@ export async function POST(request: NextRequest) {
       code: code,
     };
 
-    log('[飞书 OAuth] 请求 URL: ' + tokenUrl);
-    log('[飞书 OAuth] 请求体: ' + JSON.stringify({
+    log('[飞书 OAuth] user_token 请求 URL: ' + userTokenUrl);
+    log('[飞书 OAuth] user_token 请求体: ' + JSON.stringify({
       grant_type: requestBody.grant_type,
       client_id: requestBody.client_id,
-      client_secret: '***已隐藏***',
+      client_secret: FEISHU_APP_SECRET.substring(0, 5) + '***',
       code: requestBody.code.substring(0, 10) + '...'
     }, null, 2));
 
-    const response = await fetch(tokenUrl, {
+    const response = await fetch(userTokenUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

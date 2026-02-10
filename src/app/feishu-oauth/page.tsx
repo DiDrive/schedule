@@ -373,7 +373,26 @@ function FeishuOAuthContent() {
         body: JSON.stringify({ code, state }),
       });
 
-      const data = await response.json();
+      addDebugInfo(`响应状态: ${response.status} ${response.statusText}`);
+
+      // 检查响应内容
+      const responseText = await response.text();
+      addDebugInfo(`响应内容长度: ${responseText.length} 字符`);
+      if (responseText.length > 0) {
+        addDebugInfo(`响应内容前 100 字符: ${responseText.substring(0, 100)}`);
+      }
+
+      if (!responseText) {
+        throw new Error('服务器返回空响应');
+      }
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        addDebugInfo(`❌ JSON 解析失败: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+        throw new Error(`服务器返回无效的 JSON 格式: ${responseText.substring(0, 200)}`);
+      }
 
       if (!response.ok) {
         throw new Error(data.error || '获取访问令牌失败');
