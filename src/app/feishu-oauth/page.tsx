@@ -26,6 +26,7 @@ export default function FeishuOAuthPage() {
   const [qrCodeLoading, setQrCodeLoading] = useState(false);
   const qrCodeRef = useRef<HTMLDivElement>(null);
   const handleMessageRef = useRef<((event: MessageEvent) => void) | null>(null);
+  const qrLoginObjRef = useRef<any>(null);
 
   useEffect(() => {
     // 加载飞书二维码 SDK
@@ -64,6 +65,13 @@ export default function FeishuOAuthPage() {
     };
   }, []);
 
+  // 当 qrCodeShown 变为 true 时，生成二维码
+  useEffect(() => {
+    if (qrCodeShown && qrCodeRef.current && isScriptLoaded && appId) {
+      generateQrCode();
+    }
+  }, [qrCodeShown, isScriptLoaded, appId]);
+
   const loadFeishuScript = () => {
     setIsScriptLoading(true);
 
@@ -92,20 +100,15 @@ export default function FeishuOAuthPage() {
     document.head.appendChild(script);
   };
 
-  const showQrCode = async () => {
-    if (!window.QRLogin) {
-      alert('飞书 SDK 未加载，请刷新页面重试');
+  const generateQrCode = () => {
+    const container = qrCodeRef.current;
+    if (!container) {
+      console.error('[飞书登录] 未找到二维码容器');
       return;
     }
 
-    if (!appId) {
-      alert('请先配置 App ID');
-      setShowConfig(true);
-      return;
-    }
-
-    setQrCodeLoading(true);
-    setQrCodeShown(true);
+    // 清空容器
+    container.innerHTML = '';
 
     const state = Date.now().toString();
     const redirectUri = `${window.location.origin}/feishu-oauth-callback`;
@@ -114,32 +117,18 @@ export default function FeishuOAuthPage() {
     console.log('[飞书登录] App ID:', appId);
     console.log('[飞书登录] 授权地址:', goto);
 
-    // 等待 DOM 更新
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // 获取容器
-    const container = qrCodeRef.current;
-    if (!container) {
-      console.error('[飞书登录] 未找到二维码容器');
-      alert('生成二维码失败：未找到容器');
-      setQrCodeLoading(false);
-      return;
-    }
-
-    // 清空容器
-    container.innerHTML = '';
-
-    // 使用 SDK 生成二维码
     try {
       console.log('[飞书登录] 开始生成二维码...');
 
-      const QRLoginObj = window.QRLogin({
+      const QRLoginObj = window.QRLogin!({
         id: 'feishu_qr_container',
         goto: goto,
         width: '500',
         height: '500',
         style: 'width:500px;height:600px',
       });
+
+      qrLoginObjRef.current = QRLoginObj;
 
       console.log('[飞书登录] 二维码对象创建成功:', QRLoginObj);
 
@@ -170,6 +159,22 @@ export default function FeishuOAuthPage() {
     }
   };
 
+  const showQrCode = () => {
+    if (!window.QRLogin) {
+      alert('飞书 SDK 未加载，请刷新页面重试');
+      return;
+    }
+
+    if (!appId) {
+      alert('请先配置 App ID');
+      setShowConfig(true);
+      return;
+    }
+
+    setQrCodeLoading(true);
+    setQrCodeShown(true);
+  };
+
   const hideQrCode = () => {
     if (qrCodeRef.current) {
       qrCodeRef.current.innerHTML = '';
@@ -178,7 +183,9 @@ export default function FeishuOAuthPage() {
       window.removeEventListener('message', handleMessageRef.current);
       handleMessageRef.current = null;
     }
+    qrLoginObjRef.current = null;
     setQrCodeShown(false);
+    setQrCodeLoading(false);
   };
 
   const exchangeCodeForToken = async (code: string, state: string) => {
