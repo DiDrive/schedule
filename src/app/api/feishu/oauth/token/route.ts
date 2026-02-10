@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 // 飞书 OAuth 配置
-const FEISHU_APP_ID = 'cli_a90f3ef5a393900b';
-const FEISHU_APP_SECRET = 'RQGkC8vU4d2lL3K6Y9mN2pQ5rT8vW1zX';
+const FEISHU_APP_ID = 'cli_a90ff12d93635bc4';
+const FEISHU_APP_SECRET = 'RQGkC8vU4d2lL3K6Y9mN2pQ5rT8vW1zX'; // TODO: 需要用户提供正确的 App Secret
 
 export async function POST(request: NextRequest) {
   try {
