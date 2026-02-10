@@ -218,17 +218,25 @@ function FeishuOAuthContent() {
 
     addDebugInfo('✅ 找到二维码容器');
 
+    // 销毁之前的 QRLogin 实例（如果存在）
+    if (qrLoginObjRef.current && typeof qrLoginObjRef.current.destroy === 'function') {
+      addDebugInfo('销毁之前的 QRLogin 实例');
+      qrLoginObjRef.current.destroy();
+      qrLoginObjRef.current = null;
+    }
+
     // 清空容器
     container.innerHTML = '';
     setQrCodeError(null);
 
-    const state = Date.now().toString();
-    const redirectUri = `${origin || window.location.origin}/feishu-oauth-callback`;
-    const goto = `https://open.feishu.cn/open-apis/authen/v1/authorize?app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=&state=${state}`;
+    const currentOrigin = origin || window.location.origin;
+    const redirectUri = `${currentOrigin}/feishu-oauth-callback`;
+    const goto = `https://open.feishu.cn/open-apis/authen/v1/authorize?app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
 
     addDebugInfo(`App ID: ${appId}`);
+    addDebugInfo(`Origin: ${currentOrigin}`);
     addDebugInfo(`Redirect URI: ${redirectUri}`);
-    addDebugInfo(`State: ${state}`);
+    addDebugInfo(`Goto URL: ${goto}`);
 
     if (!window.QRLogin) {
       addDebugInfo('❌ QRLogin 函数不存在');
@@ -250,9 +258,8 @@ function FeishuOAuthContent() {
       const QRLoginObj = window.QRLogin({
         id: 'feishu_qr_container',
         goto: goto,
-        width: '500',
-        height: '500',
-        style: 'width:500px;height:600px',
+        width: '400',
+        height: '400',
       });
 
       addDebugInfo('✅ window.QRLogin 调用完成');
@@ -638,7 +645,11 @@ function FeishuOAuthContent() {
                 <div className="relative">
                   {/* 容器始终渲染，加载状态覆盖在上面 */}
                   <div className="bg-white rounded-lg shadow-lg p-4">
-                    <div id="feishu_qr_container" ref={qrCodeRef}></div>
+                    <div 
+                      id="feishu_qr_container" 
+                      ref={qrCodeRef}
+                      style={{ minWidth: '400px', minHeight: '400px' }}
+                    ></div>
                   </div>
 
                   {/* 加载状态覆盖 */}
