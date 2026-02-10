@@ -32,6 +32,7 @@ function FeishuOAuthContent() {
   const qrCodeRef = useRef<HTMLDivElement>(null);
   const qrLoginObjRef = useRef<any>(null);
   const generateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const handleMessageRef = useRef<((event: MessageEvent) => void) | null>(null);
 
   // 在客户端获取 origin
   useEffect(() => {
@@ -103,6 +104,18 @@ function FeishuOAuthContent() {
       exchangeCodeForToken(code, state);
       window.history.replaceState({}, '', window.location.pathname);
     }
+
+    return () => {
+      // 清理消息监听器
+      if (handleMessageRef.current) {
+        window.removeEventListener('message', handleMessageRef.current);
+        handleMessageRef.current = null;
+      }
+      // 清理超时
+      if (generateTimeoutRef.current) {
+        clearTimeout(generateTimeoutRef.current);
+      }
+    };
   }, [searchParams]);
 
   // 监听 qrCodeShown 变化
@@ -257,6 +270,32 @@ function FeishuOAuthContent() {
       // 扫码成功后，飞书会自动跳转到回调页面
       addDebugInfo('✅ 二维码生成完成，等待用户扫码...');
 
+      // 监听扫码成功事件（备用方案，如果飞书没有自动跳转）
+      const handleMessage = (event: MessageEvent) => {
+        addDebugInfo(`收到消息事件: ${event.origin}`);
+
+        if (QRLoginObj.matchOrigin(event.origin) && QRLoginObj.matchData(event.data)) {
+          addDebugInfo(`✅ 收到飞书 SDK 消息: ${JSON.stringify(event.data)}`);
+
+          // 检查是否包含临时码或授权码
+          if (event.data.tmp_code) {
+            addDebugInfo(`✅ 扫码成功，临时码: ${event.data.tmp_code}`);
+            // 使用临时码跳转到回调页面
+            window.location.href = `${goto}&tmp_code=${event.data.tmp_code}`;
+          } else if (event.data.code) {
+            addDebugInfo(`✅ 扫码成功，授权码: ${event.data.code}`);
+            // 直接使用授权码
+            exchangeCodeForToken(event.data.code, state);
+          } else if (event.data.success === true) {
+            addDebugInfo(`✅ 扫码成功，等待自动跳转...`);
+            // 飞书会自动跳转，等待跳转
+          }
+        }
+      };
+
+      window.addEventListener('message', handleMessage);
+      addDebugInfo('✅ 消息监听器已添加');
+
     } catch (error) {
       addDebugInfo(`❌ 生成二维码异常: ${error instanceof Error ? error.message : String(error)}`);
       setQrCodeError(`生成二维码失败: ${error instanceof Error ? error.message : '未知错误'}`);
@@ -291,6 +330,10 @@ function FeishuOAuthContent() {
     addDebugInfo('hideQrCode 函数被调用');
     if (qrCodeRef.current) {
       qrCodeRef.current.innerHTML = '';
+    }
+    if (handleMessageRef.current) {
+      window.removeEventListener('message', handleMessageRef.current);
+      handleMessageRef.current = null;
     }
     qrLoginObjRef.current = null;
     setQrCodeShown(false);
