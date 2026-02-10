@@ -30,8 +30,40 @@ export async function POST(request: NextRequest) {
     log('[飞书 OAuth] 请求 App ID: ' + (requestAppId || '未提供'));
     log('[飞书 OAuth] 使用 App ID: ' + FEISHU_APP_ID);
 
-    // 调用飞书 API 获取 user_access_token
-    log('[飞书 OAuth] 使用授权码换取用户访问令牌');
+    // 先获取 tenant_access_token
+    log('[飞书 OAuth] 步骤 1: 获取 tenant_access_token');
+    const tenantTokenUrl = 'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal';
+
+    const tenantTokenResponse = await fetch(tenantTokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        app_id: FEISHU_APP_ID,
+        app_secret: FEISHU_APP_SECRET,
+      }),
+    });
+
+    const tenantTokenData = await tenantTokenResponse.json();
+
+    log('[飞书 OAuth] tenant_access_token 响应: ' + JSON.stringify({
+      code: tenantTokenData.code,
+      msg: tenantTokenData.msg,
+      has_token: !!tenantTokenData.tenant_access_token
+    }));
+
+    if (!tenantTokenResponse.ok || tenantTokenData.code !== 0) {
+      const errorMsg = tenantTokenData.msg || '获取 tenant_access_token 失败';
+      log('[飞书 OAuth] ❌ 获取 tenant_access_token 失败: ' + errorMsg);
+      throw new Error('获取应用凭证失败: ' + errorMsg);
+    }
+
+    const tenantAccessToken = tenantTokenData.tenant_access_token;
+    log('[飞书 OAuth] ✅ 成功获取 tenant_access_token');
+
+    // 步骤 2: 使用授权码换取 user_access_token
+    log('[飞书 OAuth] 步骤 2: 使用授权码换取 user_access_token');
     const userTokenUrl = 'https://open.feishu.cn/open-apis/authen/v1/oidc/access_token';
 
     const requestBody = {
