@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ declare global {
   }
 }
 
-export default function FeishuOAuthPage() {
+function FeishuOAuthContent() {
   const searchParams = useSearchParams();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userInfo, setUserInfo] = useState<any>(null);
@@ -666,5 +666,13 @@ export default function FeishuOAuthPage() {
         </Alert>
       </div>
     </div>
+  );
+}
+
+export default function FeishuOAuthPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">加载中...</div>}>
+      <FeishuOAuthContent />
+    </Suspense>
   );
 }
