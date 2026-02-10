@@ -23,7 +23,7 @@ function FeishuOAuthContent() {
   const [isScriptLoading, setIsScriptLoading] = useState(true);
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
-  const [appId, setAppId] = useState('cli_a90f3ef5a393900b'); // 使用原始 App ID
+  const [appId, setAppId] = useState('cli_a90ff12d93635bc4'); // 使用正确的 App ID
   const [qrCodeShown, setQrCodeShown] = useState(false);
   const [qrCodeLoading, setQrCodeLoading] = useState(false);
   const [qrCodeError, setQrCodeError] = useState<string | null>(null);
