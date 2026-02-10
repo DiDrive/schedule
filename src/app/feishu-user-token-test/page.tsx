@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,11 +16,11 @@ export default function FeishuUserTokenTestPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  useState(() => {
-    // 检查登录状态
+  // 在客户端挂载后检查登录状态
+  useEffect(() => {
     const userToken = localStorage.getItem('feishu-user-token');
     setIsLoggedIn(!!userToken);
-  });
+  }, []);
 
   const handleTest = async () => {
     if (!appToken || !tableId) {
@@ -198,13 +198,10 @@ export default function FeishuUserTokenTestPage() {
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => window.location.href = '/feishu-oauth'}>
-              飞书登录
+              飞书扫码登录
             </Button>
-            <Button variant="outline" onClick={() => window.open('/feishu-config-manager', '_blank')}>
-              配置管理
-            </Button>
-            <Button variant="outline" onClick={() => window.open('/feishu-permission-guide', '_blank')}>
-              权限问题解决方案
+            <Button variant="outline" onClick={() => window.location.href = '/?tab=feishu'}>
+              飞书集成配置
             </Button>
           </CardContent>
         </Card>
