@@ -4,7 +4,7 @@ import path from 'path';
 
 // 飞书 OAuth 配置（使用与前端相同的 App ID）
 const FEISHU_APP_ID = 'cli_a90f3ef5a393900b';
-const FEISHU_APP_SECRET = 'RQGkC8vU4d2lL3K6Y9mN2pQ5rT8vW1zX'; // TODO: 需要用户提供正确的 App Secret
+const FEISHU_APP_SECRET = 'n2rCClUbnOVZoOMMsBDyxfGwtZd1oFO5';
 
 // 日志函数
 const log = (message: string) => {
