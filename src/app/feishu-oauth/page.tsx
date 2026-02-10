@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,13 +16,14 @@ declare global {
 }
 
 export default function FeishuOAuthPage() {
+  const searchParams = useSearchParams();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userInfo, setUserInfo] = useState<any>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isScriptLoading, setIsScriptLoading] = useState(true);
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
-  const [appId, setAppId] = useState('cli_a90ff12d93635bc4');
+  const [appId, setAppId] = useState('cli_a90f3ef5a393900b'); // 使用原始 App ID
   const [qrCodeShown, setQrCodeShown] = useState(false);
   const [qrCodeLoading, setQrCodeLoading] = useState(false);
   const [qrCodeError, setQrCodeError] = useState<string | null>(null);
@@ -60,6 +62,33 @@ export default function FeishuOAuthPage() {
       }
     }
 
+    // 处理从回调页面跳转回来的情况
+    const code = searchParams.get('code');
+    const error = searchParams.get('error');
+
+    if (error) {
+      addDebugInfo(`❌ OAuth 回调错误: ${error}`);
+      alert(`登录失败: ${error}`);
+      // 清除 URL 参数
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (code === 'true') {
+      // 从 localStorage 获取实际的 code 和 state
+      const actualCode = localStorage.getItem('feishu-oauth-code');
+      const state = localStorage.getItem('feishu-oauth-state');
+
+      if (actualCode && state) {
+        addDebugInfo('✅ 从回调页面获取到授权码');
+        exchangeCodeForToken(actualCode, state);
+
+        // 清除临时存储
+        localStorage.removeItem('feishu-oauth-code');
+        localStorage.removeItem('feishu-oauth-state');
+
+        // 清除 URL 参数
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+
     return () => {
       // 清理消息监听器
       if (handleMessageRef.current) {
@@ -70,7 +99,7 @@ export default function FeishuOAuthPage() {
         clearTimeout(generateTimeoutRef.current);
       }
     };
-  }, []);
+  }, [searchParams]);
 
   // 监听 qrCodeShown 变化
   useEffect(() => {
@@ -164,6 +193,8 @@ export default function FeishuOAuthPage() {
     const goto = `https://passport.feishu.cn/suite/passport/oauth/authorize?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${state}`;
 
     addDebugInfo(`App ID: ${appId}`);
+    addDebugInfo(`Redirect URI: ${redirectUri}`);
+    addDebugInfo(`State: ${state}`);
 
     if (!window.QRLogin) {
       addDebugInfo('❌ QRLogin 函数不存在');
@@ -286,6 +317,8 @@ export default function FeishuOAuthPage() {
   const exchangeCodeForToken = async (code: string, state: string) => {
     try {
       addDebugInfo('开始交换授权码换取令牌...');
+      addDebugInfo(`Code: ${code.substring(0, 10)}...`);
+      addDebugInfo(`State: ${state}`);
 
       const response = await fetch('/api/feishu/oauth/token', {
         method: 'POST',
@@ -606,6 +639,25 @@ export default function FeishuOAuthPage() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* 重要提示 */}
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>错误码 4401 说明</AlertTitle>
+          <AlertDescription>
+            如果看到错误码 4401，通常是以下原因之一：
+            <ul className="list-disc list-inside mt-2 space-y-1">
+              <li>App ID 不正确或应用不存在</li>
+              <li>飞书开放平台未配置回调地址</li>
+              <li>应用未启用或已被禁用</li>
+            </ul>
+            请在飞书开放平台检查应用配置，确保：
+            <ul className="list-disc list-inside mt-1 space-y-1">
+              <li>回调地址设置为：<code>{window.location.origin}/feishu-oauth-callback</code></li>
+              <li>应用已启用且有正确的权限</li>
+            </ul>
+          </AlertDescription>
+        </Alert>
       </div>
     </div>
   );

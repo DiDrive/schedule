@@ -1,50 +1,48 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function FeishuOAuthCallbackPage() {
+  const router = useRouter();
+
   useEffect(() => {
     // 从 URL 获取 code 和 state
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
     const state = urlParams.get('state');
+    const error = urlParams.get('error');
 
-    console.log('[飞书 OAuth 回调] 接收到重定向');
-    console.log('[飞书 OAuth 回调] Code:', code);
-    console.log('[飞书 OAuth 回调] State:', state);
+    console.log('[飞书 OAuth 回调] URL 参数:', {
+      code: code ? '已接收' : '无',
+      state,
+      error
+    });
+
+    if (error) {
+      console.error('[飞书 OAuth 回调] 错误:', error);
+      // 保存错误信息到 localStorage
+      localStorage.setItem('feishu-oauth-error', error);
+      router.push('/feishu-oauth?error=' + encodeURIComponent(error));
+      return;
+    }
 
     if (code) {
-      // 通知主窗口
-      if (window.opener) {
-        window.opener.postMessage(
-          {
-            type: 'feishu_oauth_code',
-            code,
-            state,
-          },
-          window.location.origin
-        );
-        console.log('[飞书 OAuth 回调] 已通知主窗口');
-      } else {
-        console.error('[飞书 OAuth 回调] 未找到主窗口');
-      }
+      console.log('[飞书 OAuth 回调] 接收到授权码');
 
-      // 关闭当前窗口
-      window.close();
+      // 保存 code 和 state 到 localStorage
+      localStorage.setItem('feishu-oauth-code', code);
+      localStorage.setItem('feishu-oauth-state', state || '');
+
+      // 跳转回登录页面处理
+      router.push('/feishu-oauth?code_received=true');
     } else {
       console.error('[飞书 OAuth 回调] 未收到授权码');
-      if (window.opener) {
-        window.opener.postMessage(
-          {
-            type: 'feishu_oauth_error',
-            error: '未收到授权码',
-          },
-          window.location.origin
-        );
-      }
-      window.close();
+      const errorMsg = '未收到授权码';
+      localStorage.setItem('feishu-oauth-error', errorMsg);
+      router.push('/feishu-oauth?error=' + encodeURIComponent(errorMsg));
     }
-  }, []);
+  }, [router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
