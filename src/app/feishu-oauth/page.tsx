@@ -29,7 +29,6 @@ function FeishuOAuthContent() {
   const [qrCodeError, setQrCodeError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<any[]>([]);
   const [origin, setOrigin] = useState(''); // 用于存储 window.location.origin
-  const [manualCode, setManualCode] = useState(''); // 手动输入授权码
   const qrCodeRef = useRef<HTMLDivElement>(null);
   const qrLoginObjRef = useRef<any>(null);
   const generateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -356,15 +355,6 @@ function FeishuOAuthContent() {
     }
   };
 
-  const handleManualLogin = async () => {
-    if (!manualCode) {
-      alert('请输入授权码');
-      return;
-    }
-    exchangeCodeForToken(manualCode, Date.now().toString());
-    setManualCode('');
-  };
-
   const handleSaveConfig = () => {
     const savedConfig = localStorage.getItem('feishu-config');
     let config = {};
@@ -518,37 +508,6 @@ function FeishuOAuthContent() {
             </AlertDescription>
           </Alert>
         )}
-
-        {/* 手动输入授权码（备用方案） */}
-        <Card className="border-amber-300 dark:border-amber-700">
-          <CardHeader>
-            <CardTitle className="text-amber-700 dark:text-amber-400">
-              <AlertCircle className="h-5 w-5 inline-block mr-2" />
-              手动输入授权码（备用方案）
-            </CardTitle>
-            <CardDescription>
-              如果扫码后没有自动跳转，可以从飞书开放平台复制授权码手动输入
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="manualCode">授权码</Label>
-              <Input
-                id="manualCode"
-                placeholder="请从飞书开放平台复制授权码"
-                value={manualCode}
-                onChange={(e) => setManualCode(e.target.value)}
-              />
-              <p className="text-xs text-slate-500">
-                如果扫码后卡住，请检查飞书开放平台的"重定向 URL"配置是否正确
-              </p>
-            </div>
-            <Button onClick={handleManualLogin} variant="outline">
-              <QrCode className="h-4 w-4 mr-2" />
-              手动登录
-            </Button>
-          </CardContent>
-        </Card>
 
         {/* 二维码显示区域 */}
         {qrCodeShown && (
