@@ -16,6 +16,7 @@ export default function FeishuQuickConfigPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [tables, setTables] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [currentConfig, setCurrentConfig] = useState<any>(null); // 存储当前配置用于显示
 
   // 在客户端挂载后加载配置
   useEffect(() => {
@@ -45,6 +46,7 @@ export default function FeishuQuickConfigPage() {
         setAppToken(config.appToken || '');
         setAppId(config.appId || '');
         setAppSecret(config.appSecret || '');
+        setCurrentConfig(config); // 更新配置显示
         fetchTables(config.appToken);
       } catch (error) {
         console.error('Failed to load config:', error);
@@ -273,49 +275,46 @@ export default function FeishuQuickConfigPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {(() => {
-              const configStr = localStorage.getItem('feishu-config');
-              if (configStr) {
-                const config = JSON.parse(configStr);
-                return (
-                  <div className="space-y-3">
-                    <div className="p-3 rounded bg-slate-50 dark:bg-slate-800">
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">当前 App Token</p>
-                      <code className="text-sm font-medium">{config.appToken}</code>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={checkCurrentConfig}
-                      >
-                        查看详情
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={forceRefreshConfig}
-                      >
-                        清除缓存并刷新
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => window.open('/feishu-config-manager', '_blank')}
-                      >
-                        配置管理
-                      </Button>
-                    </div>
-                  </div>
-                );
-              } else {
-                return (
-                  <div className="p-3 rounded bg-slate-50 dark:bg-slate-800 text-sm text-slate-500">
-                    未找到配置
-                  </div>
-                );
-              }
-            })()}
+            {currentConfig && (
+              <div className="space-y-3">
+                <div className="p-3 rounded bg-slate-50 dark:bg-slate-800">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">当前 App Token</p>
+                  <code className="text-sm font-medium">{currentConfig.appToken}</code>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={checkCurrentConfig}
+                  >
+                    查看详情
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={forceRefreshConfig}
+                  >
+                    清除缓存并刷新
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (typeof window !== 'undefined') {
+                        window.open('/feishu-config-manager', '_blank');
+                      }
+                    }}
+                  >
+                    配置管理
+                  </Button>
+                </div>
+              </div>
+            )}
+            {!currentConfig && (
+              <div className="p-3 rounded bg-slate-50 dark:bg-slate-800 text-sm text-slate-500">
+                未找到配置
+              </div>
+            )}
           </CardContent>
         </Card>
 
