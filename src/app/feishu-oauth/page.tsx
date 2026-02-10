@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,9 @@ export default function FeishuOAuthPage() {
   const [showConfig, setShowConfig] = useState(false);
   const [appId, setAppId] = useState('cli_a90f3ef5a393900b');
   const [qrCodeShown, setQrCodeShown] = useState(false);
+  const [qrCodeLoading, setQrCodeLoading] = useState(false);
+  const qrCodeRef = useRef<HTMLDivElement>(null);
+  const handleMessageRef = useRef<((event: MessageEvent) => void) | null>(null);
 
   useEffect(() => {
     // 加载飞书二维码 SDK
@@ -53,26 +56,13 @@ export default function FeishuOAuthPage() {
       }
     }
 
-    // 监听 OAuth 回调
-    const handleMessage = (event: MessageEvent) => {
-      console.log('[飞书登录] 收到消息:', event);
-
-      // 检查是否是飞书的回调
-      if (event.data && event.data.type === 'feishu_oauth_code') {
-        const { code, state } = event.data;
-
-        if (code) {
-          console.log('[飞书登录] 收到授权码，正在获取访问令牌...');
-          exchangeCodeForToken(code, state);
-        }
+    return () => {
+      // 清理消息监听器
+      if (handleMessageRef.current) {
+        window.removeEventListener('message', handleMessageRef.current);
       }
     };
-
-    window.addEventListener('message', handleMessage);
-    return () => {
-      window.removeEventListener('message', handleMessage);
-    };
-  }, [appId]);
+  }, []);
 
   const loadFeishuScript = () => {
     setIsScriptLoading(true);
@@ -102,7 +92,7 @@ export default function FeishuOAuthPage() {
     document.head.appendChild(script);
   };
 
-  const showQrCode = () => {
+  const showQrCode = async () => {
     if (!window.QRLogin) {
       alert('飞书 SDK 未加载，请刷新页面重试');
       return;
@@ -114,6 +104,9 @@ export default function FeishuOAuthPage() {
       return;
     }
 
+    setQrCodeLoading(true);
+    setQrCodeShown(true);
+
     const state = Date.now().toString();
     const redirectUri = `${window.location.origin}/feishu-oauth-callback`;
     const goto = `https://passport.feishu.cn/suite/passport/oauth/authorize?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${state}`;
@@ -121,12 +114,16 @@ export default function FeishuOAuthPage() {
     console.log('[飞书登录] App ID:', appId);
     console.log('[飞书登录] 授权地址:', goto);
 
-    // 创建二维码容器（如果不存在）
-    let container = document.getElementById('feishu_qr_container');
+    // 等待 DOM 更新
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // 获取容器
+    const container = qrCodeRef.current;
     if (!container) {
-      container = document.createElement('div');
-      container.id = 'feishu_qr_container';
-      document.body.appendChild(container);
+      console.error('[飞书登录] 未找到二维码容器');
+      alert('生成二维码失败：未找到容器');
+      setQrCodeLoading(false);
+      return;
     }
 
     // 清空容器
@@ -134,6 +131,8 @@ export default function FeishuOAuthPage() {
 
     // 使用 SDK 生成二维码
     try {
+      console.log('[飞书登录] 开始生成二维码...');
+
       const QRLoginObj = window.QRLogin({
         id: 'feishu_qr_container',
         goto: goto,
@@ -141,6 +140,8 @@ export default function FeishuOAuthPage() {
         height: '500',
         style: 'width:500px;height:600px',
       });
+
+      console.log('[飞书登录] 二维码对象创建成功:', QRLoginObj);
 
       // 监听扫码事件
       const handleMessage = (event: MessageEvent) => {
@@ -156,18 +157,26 @@ export default function FeishuOAuthPage() {
         }
       };
 
+      handleMessageRef.current = handleMessage;
       window.addEventListener('message', handleMessage);
-      setQrCodeShown(true);
+
+      setQrCodeLoading(false);
+      console.log('[飞书登录] 二维码生成完成');
     } catch (error) {
       console.error('[飞书登录] 生成二维码失败:', error);
       alert(`生成二维码失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      setQrCodeLoading(false);
+      setQrCodeShown(false);
     }
   };
 
   const hideQrCode = () => {
-    const container = document.getElementById('feishu_qr_container');
-    if (container) {
-      container.remove();
+    if (qrCodeRef.current) {
+      qrCodeRef.current.innerHTML = '';
+    }
+    if (handleMessageRef.current) {
+      window.removeEventListener('message', handleMessageRef.current);
+      handleMessageRef.current = null;
     }
     setQrCodeShown(false);
   };
@@ -349,6 +358,37 @@ export default function FeishuOAuthPage() {
           </Alert>
         )}
 
+        {/* 二维码显示区域 */}
+        {qrCodeShown && (
+          <Card>
+            <CardHeader>
+              <CardTitle>扫码登录</CardTitle>
+              <CardDescription>
+                请使用飞书 App 扫描二维码登录
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex justify-center">
+                {qrCodeLoading ? (
+                  <div className="flex flex-col items-center space-y-4 py-8">
+                    <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
+                    <p className="text-sm text-slate-600 dark:text-slate-400">正在生成二维码...</p>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-lg shadow-lg p-4">
+                    <div id="feishu_qr_container" ref={qrCodeRef}></div>
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-center">
+                <Button onClick={hideQrCode} variant="outline">
+                  取消扫码
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* 登录状态 */}
         <Card>
           <CardHeader>
@@ -399,14 +439,6 @@ export default function FeishuOAuthPage() {
                   <QrCode className="h-5 w-5 mr-2" />
                   生成扫码登录二维码
                 </Button>
-
-                {qrCodeShown && (
-                  <div className="flex justify-center mt-4">
-                    <Button onClick={hideQrCode} variant="outline">
-                      取消扫码
-                    </Button>
-                  </div>
-                )}
               </div>
             )}
           </CardContent>
