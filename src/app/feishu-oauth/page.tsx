@@ -35,7 +35,6 @@ function FeishuOAuthContent() {
   const qrLoginObjRef = useRef<any>(null);
   const generateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const handleMessageRef = useRef<((event: MessageEvent) => void) | null>(null);
-  const stateRef = useRef<string>(''); // 保存 state 值
 
   // 在客户端获取 origin
   useEffect(() => {
@@ -232,8 +231,8 @@ function FeishuOAuthContent() {
 
     const currentOrigin = origin || window.location.origin;
     const redirectUri = `${currentOrigin}/feishu-oauth-callback`;
-    // 使用最基本的参数（之前可以工作的版本）
-    const goto = `https://open.feishu.cn/open-apis/authen/v1/authorize?app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    // 使用 /index 端点（二维码登录专用，支持 iframe 嵌入）
+    const goto = `https://open.feishu.cn/open-apis/authen/v1/index?app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
 
     addDebugInfo(`App ID: ${appId}`);
     addDebugInfo(`Origin: ${currentOrigin}`);
@@ -311,7 +310,7 @@ function FeishuOAuthContent() {
           } else if (event.data.code) {
             addDebugInfo(`✅ 扫码成功，授权码: ${event.data.code}`);
             // 直接使用授权码
-            exchangeCodeForToken(event.data.code, stateRef.current);
+            exchangeCodeForToken(event.data.code, '');
           } else if (event.data.success === true) {
             addDebugInfo(`✅ 扫码成功，等待自动跳转...`);
             // 飞书会自动跳转，等待跳转
