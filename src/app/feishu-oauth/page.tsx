@@ -232,11 +232,14 @@ function FeishuOAuthContent() {
     const currentOrigin = origin || window.location.origin;
     const redirectUri = `${currentOrigin}/feishu-oauth-callback`;
     // 使用 /index 端点（二维码登录专用，支持 iframe 嵌入）
-    const goto = `https://open.feishu.cn/open-apis/authen/v1/index?app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    // 添加 state 参数用于安全验证
+    const state = crypto.randomUUID();
+    const goto = `https://open.feishu.cn/open-apis/authen/v1/index?app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
 
     addDebugInfo(`App ID: ${appId}`);
     addDebugInfo(`Origin: ${currentOrigin}`);
     addDebugInfo(`Redirect URI: ${redirectUri}`);
+    addDebugInfo(`State: ${state}`);
     addDebugInfo(`Goto URL: ${goto}`);
 
     if (!window.QRLogin) {
@@ -276,10 +279,34 @@ function FeishuOAuthContent() {
       // 立即检查容器
       addDebugInfo(`容器当前子元素数: ${container.children.length}`);
 
+      // 检查 iframe 的 URL
+      setTimeout(() => {
+        const iframe = container.querySelector('iframe');
+        if (iframe) {
+          const iframeSrc = iframe.getAttribute('src');
+          addDebugInfo(`iframe src: ${iframeSrc}`);
+        }
+      }, 1000);
+
       // 2秒后再次检查
       setTimeout(() => {
         const childCount = container?.children.length || 0;
         addDebugInfo(`2秒后容器子元素数: ${childCount}`);
+
+        // 检查 iframe
+        const iframe = container?.querySelector('iframe');
+        if (iframe) {
+          const iframeSrc = iframe.getAttribute('src');
+          addDebugInfo(`iframe src: ${iframeSrc || '未设置'}`);
+          
+          // 尝试读取 iframe 的标题（如果有错误）
+          try {
+            const iframeTitle = iframe.getAttribute('title');
+            addDebugInfo(`iframe title: ${iframeTitle || '未设置'}`);
+          } catch (e) {
+            addDebugInfo(`无法读取 iframe title: ${e}`);
+          }
+        }
 
         if (container && container.children.length === 0) {
           addDebugInfo('❌ 二维码容器仍然为空');
@@ -572,6 +599,24 @@ function FeishuOAuthContent() {
                 <div>feishu-user-token: {typeof window !== 'undefined' && localStorage.getItem('feishu-user-token') ? '✅ 存在' : '❌ 空'}</div>
                 <div>feishu-user-info: {typeof window !== 'undefined' && localStorage.getItem('feishu-user-info') ? '✅ 存在' : '❌ 空'}</div>
                 <div>feishu-oauth-code: {typeof window !== 'undefined' && localStorage.getItem('feishu-oauth-code') ? '✅ 存在' : '❌ 空'}</div>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="font-semibold">Goto URL:</div>
+                <Input
+                  value={`https://open.feishu.cn/open-apis/authen/v1/index?app_id=${appId}&redirect_uri=${encodeURIComponent(origin + '/feishu-oauth-callback')}`}
+                  readOnly
+                  className="text-xs font-mono"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const url = `https://open.feishu.cn/open-apis/authen/v1/index?app_id=${appId}&redirect_uri=${encodeURIComponent(origin + '/feishu-oauth-callback')}`;
+                    window.open(url, '_blank');
+                  }}
+                >
+                  在新窗口中打开
+                </Button>
               </div>
             </CardContent>
           )}
