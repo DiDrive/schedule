@@ -232,15 +232,12 @@ function FeishuOAuthContent() {
 
     const currentOrigin = origin || window.location.origin;
     const redirectUri = `${currentOrigin}/feishu-oauth-callback`;
-    const state = crypto.randomUUID(); // 生成 state
-    stateRef.current = state; // 保存 state
-    // 使用飞书二维码登录专用端点
-    const goto = `https://open.feishu.cn/open-apis/authen/v1/index?app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
+    // 使用最基本的参数（之前可以工作的版本）
+    const goto = `https://open.feishu.cn/open-apis/authen/v1/authorize?app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
 
     addDebugInfo(`App ID: ${appId}`);
     addDebugInfo(`Origin: ${currentOrigin}`);
     addDebugInfo(`Redirect URI: ${redirectUri}`);
-    addDebugInfo(`State: ${state}`);
     addDebugInfo(`Goto URL: ${goto}`);
 
     if (!window.QRLogin) {
