@@ -31,6 +31,11 @@ function FeishuOAuthContent() {
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [origin, setOrigin] = useState(''); // 用于存储 window.location.origin
   const [loginError, setLoginError] = useState<string | null>(null); // 登录错误信息
+  const [appToken, setAppToken] = useState(''); // 多维表应用令牌
+  const [tableId, setTableId] = useState(''); // 多维表表格ID
+  const [bitableData, setBitableData] = useState<any>(null); // 多维表数据
+  const [bitableLoading, setBitableLoading] = useState(false); // 多维表加载状态
+  const [bitableError, setBitableError] = useState<string | null>(null); // 多维表错误
   const qrCodeRef = useRef<HTMLDivElement>(null);
   const qrLoginObjRef = useRef<any>(null);
   const generateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -408,6 +413,53 @@ function FeishuOAuthContent() {
     }
   };
 
+  const fetchBitableData = async () => {
+    if (!appToken || !tableId) {
+      alert('请先输入 App Token 和 Table ID');
+      return;
+    }
+
+    if (!accessToken) {
+      alert('请先登录');
+      return;
+    }
+
+    setBitableLoading(true);
+    setBitableError(null);
+    setBitableData(null);
+
+    try {
+      const response = await fetch(
+        `/api/feishu/bitable?app_token=${appToken}&table_id=${tableId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || '获取数据失败');
+      }
+
+      setBitableData(data);
+      addDebugInfo(`✅ 获取多维表数据成功: ${data.data?.items?.length || 0} 条记录`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      setBitableError(errorMessage);
+      addDebugInfo(`❌ 获取多维表数据失败: ${errorMessage}`);
+    } finally {
+      setBitableLoading(false);
+    }
+  };
+
+  const formatTimestamp = (timestamp: number) => {
+    if (!timestamp) return '';
+    return new Date(timestamp).toLocaleString('zh-CN');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 p-8">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -668,6 +720,123 @@ function FeishuOAuthContent() {
             )}
           </CardContent>
         </Card>
+
+        {/* 多维表数据查询 */}
+        {isLoggedIn && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                多维表数据查询
+              </CardTitle>
+              <CardDescription>
+                输入多维表的 App Token 和 Table ID 来获取数据
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="appToken">App Token</Label>
+                  <Input
+                    id="appToken"
+                    placeholder="bascn..."
+                    value={appToken}
+                    onChange={(e) => setAppToken(e.target.value)}
+                  />
+                  <p className="text-xs text-slate-500">
+                    从多维表"设置-开发设置"获取
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tableId">Table ID</Label>
+                  <Input
+                    id="tableId"
+                    placeholder="tbl..."
+                    value={tableId}
+                    onChange={(e) => setTableId(e.target.value)}
+                  />
+                  <p className="text-xs text-slate-500">
+                    从多维表"设置-开发设置"获取
+                  </p>
+                </div>
+              </div>
+              
+              <Button 
+                onClick={fetchBitableData} 
+                disabled={!appToken || !tableId || bitableLoading}
+                className="w-full"
+              >
+                {bitableLoading ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    获取中...
+                  </>
+                ) : (
+                  <>
+                    <Database className="h-4 w-4 mr-2" />
+                    获取数据
+                  </>
+                )}
+              </Button>
+
+              {bitableError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>获取失败</AlertTitle>
+                  <AlertDescription>{bitableError}</AlertDescription>
+                </Alert>
+              )}
+
+              {bitableData && bitableData.data?.items && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium">
+                      共 {bitableData.data.total || 0} 条记录
+                    </div>
+                    {bitableData.data.items.length < bitableData.data.total && (
+                      <Button variant="outline" size="sm">
+                        加载更多
+                      </Button>
+                    )}
+                  </div>
+                  
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 dark:bg-slate-800">
+                        <tr>
+                          {Object.keys(bitableData.data.items[0]?.fields || {}).map((key) => (
+                            <th key={key} className="px-4 py-2 text-left font-medium">
+                              {key}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bitableData.data.items.map((item: any) => (
+                          <tr key={item.record_id} className="border-t">
+                            {Object.entries(item.fields || {}).map(([key, value]) => (
+                              <td key={`${item.record_id}-${key}`} className="px-4 py-2">
+                                {Array.isArray(value) ? (
+                                  value.map((v: any) => v.name || v.id).join(', ')
+                                ) : typeof value === 'number' && value > 1000000000 ? (
+                                  formatTimestamp(value)
+                                ) : value ? (
+                                  String(value)
+                                ) : (
+                                  '-'
+                                )}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* 快速链接 */}
         <Card>
