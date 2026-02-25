@@ -231,139 +231,21 @@ function FeishuOAuthContent() {
 
     const currentOrigin = origin || window.location.origin;
     const redirectUri = `${currentOrigin}/feishu-oauth-callback`;
-    // 使用飞书 passport 域名（旧版二维码登录）
-    const goto = `https://passport.feishu.cn/suite/passport/page/qrlogin?app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-
+    // 直接跳转到飞书授权页面（不使用 iframe）
+    const authorizeUrl = `https://open.feishu.cn/open-apis/authen/v1/authorize?app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    
     addDebugInfo(`App ID: ${appId}`);
     addDebugInfo(`Origin: ${currentOrigin}`);
     addDebugInfo(`Redirect URI: ${redirectUri}`);
-    addDebugInfo(`Goto URL: ${goto}`);
-
-    if (!window.QRLogin) {
-      addDebugInfo('❌ QRLogin 函数不存在');
-      setQrCodeError('飞书 SDK 未正确加载');
-      setQrCodeLoading(false);
-      return;
-    }
-
-    try {
-      addDebugInfo('开始调用 window.QRLogin...');
-
-      // 设置超时
-      generateTimeoutRef.current = setTimeout(() => {
-        addDebugInfo('❌ 生成二维码超时（10秒）');
-        setQrCodeError('生成二维码超时');
-        setQrCodeLoading(false);
-      }, 10000);
-
-      const QRLoginObj = window.QRLogin({
-        id: 'feishu_qr_container',
-        goto: goto,
-        width: '400',
-        height: '400',
-      });
-
-      addDebugInfo('✅ window.QRLogin 调用完成');
-
-      // 清除超时
-      if (generateTimeoutRef.current) {
-        clearTimeout(generateTimeoutRef.current);
-        generateTimeoutRef.current = null;
-      }
-
-      qrLoginObjRef.current = QRLoginObj;
-
-      // 立即检查容器
-      addDebugInfo(`容器当前子元素数: ${container.children.length}`);
-
-      // 检查 iframe 的 URL
-      setTimeout(() => {
-        const iframe = container.querySelector('iframe');
-        if (iframe) {
-          const iframeSrc = iframe.getAttribute('src');
-          addDebugInfo(`iframe src: ${iframeSrc}`);
-        }
-      }, 1000);
-
-      // 2秒后再次检查
-      setTimeout(() => {
-        const childCount = container?.children.length || 0;
-        addDebugInfo(`2秒后容器子元素数: ${childCount}`);
-
-        // 检查 iframe
-        const iframe = container?.querySelector('iframe');
-        if (iframe) {
-          const iframeSrc = iframe.getAttribute('src');
-          addDebugInfo(`iframe src: ${iframeSrc || '未设置'}`);
-          
-          // 尝试读取 iframe 的标题（如果有错误）
-          try {
-            const iframeTitle = iframe.getAttribute('title');
-            addDebugInfo(`iframe title: ${iframeTitle || '未设置'}`);
-          } catch (e) {
-            addDebugInfo(`无法读取 iframe title: ${e}`);
-          }
-        }
-
-        if (container && container.children.length === 0) {
-          addDebugInfo('❌ 二维码容器仍然为空');
-          setQrCodeError('二维码生成失败');
-          setQrCodeLoading(false);
-        } else {
-          addDebugInfo('✅ 二维码已生成');
-          setQrCodeLoading(false);
-        }
-      }, 2000);
-
-      // 不需要监听 message 事件
-      // 扫码成功后，飞书会自动跳转到回调页面
-      addDebugInfo('✅ 二维码生成完成，等待用户扫码...');
-
-      // 监听扫码成功事件（备用方案，如果飞书没有自动跳转）
-      const handleMessage = (event: MessageEvent) => {
-        addDebugInfo(`收到消息事件: ${event.origin}`);
-
-        if (QRLoginObj.matchOrigin(event.origin) && QRLoginObj.matchData(event.data)) {
-          addDebugInfo(`✅ 收到飞书 SDK 消息: ${JSON.stringify(event.data)}`);
-
-          // 检查是否包含临时码或授权码
-          if (event.data.tmp_code) {
-            addDebugInfo(`✅ 扫码成功，临时码: ${event.data.tmp_code}`);
-            // 使用临时码跳转到回调页面
-            window.location.href = `${goto}&tmp_code=${event.data.tmp_code}`;
-          } else if (event.data.code) {
-            addDebugInfo(`✅ 扫码成功，授权码: ${event.data.code}`);
-            // 直接使用授权码
-            exchangeCodeForToken(event.data.code, '');
-          } else if (event.data.success === true) {
-            addDebugInfo(`✅ 扫码成功，等待自动跳转...`);
-            // 飞书会自动跳转，等待跳转
-          }
-        }
-      };
-
-      // 保存监听器引用，方便后续移除
-      handleMessageRef.current = handleMessage;
-      window.addEventListener('message', handleMessage);
-      addDebugInfo('✅ 消息监听器已添加');
-
-    } catch (error) {
-      addDebugInfo(`❌ 生成二维码异常: ${error instanceof Error ? error.message : String(error)}`);
-      setQrCodeError(`生成二维码失败: ${error instanceof Error ? error.message : '未知错误'}`);
-      setQrCodeLoading(false);
-      if (generateTimeoutRef.current) {
-        clearTimeout(generateTimeoutRef.current);
-      }
-    }
+    addDebugInfo(`授权 URL: ${authorizeUrl}`);
+    addDebugInfo('正在跳转到飞书授权页面...');
+    
+    // 直接跳转到飞书授权页面
+    window.location.href = authorizeUrl;
   };
 
   const showQrCode = () => {
     addDebugInfo('showQrCode 函数被调用');
-
-    if (!window.QRLogin) {
-      alert('飞书 SDK 未加载，请刷新页面重试');
-      return;
-    }
 
     if (!appId) {
       alert('请先配置 App ID');
@@ -372,10 +254,11 @@ function FeishuOAuthContent() {
     }
 
     setDebugInfo([]);
-    setQrCodeLoading(true);
     setQrCodeError(null);
-    setLoginError(null); // 清除登录错误
-    setQrCodeShown(true);
+    setLoginError(null);
+    
+    // 直接调用 generateQrCode 进行跳转
+    generateQrCode();
   };
 
   const hideQrCode = () => {
