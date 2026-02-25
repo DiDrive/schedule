@@ -231,15 +231,12 @@ function FeishuOAuthContent() {
 
     const currentOrigin = origin || window.location.origin;
     const redirectUri = `${currentOrigin}/feishu-oauth-callback`;
-    // 使用 /index 端点（二维码登录专用，支持 iframe 嵌入）
-    // 添加 state 参数用于安全验证
-    const state = crypto.randomUUID();
-    const goto = `https://open.feishu.cn/open-apis/authen/v1/index?app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
+    // 使用飞书 passport 域名（旧版二维码登录）
+    const goto = `https://passport.feishu.cn/suite/passport/page/qrlogin?app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
 
     addDebugInfo(`App ID: ${appId}`);
     addDebugInfo(`Origin: ${currentOrigin}`);
     addDebugInfo(`Redirect URI: ${redirectUri}`);
-    addDebugInfo(`State: ${state}`);
     addDebugInfo(`Goto URL: ${goto}`);
 
     if (!window.QRLogin) {
