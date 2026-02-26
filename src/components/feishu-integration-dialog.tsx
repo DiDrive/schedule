@@ -16,8 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { AlertCircle, CheckCircle2, Clock, RefreshCw, Settings, Globe, Search, Activity, ArrowRight } from 'lucide-react';
-import FeishuTableInspector from './feishu-table-inspector';
+import { AlertCircle, CheckCircle2, Clock, RefreshCw, Settings, Globe } from 'lucide-react';
 
 interface FeishuConfig {
   appId: string;
@@ -74,7 +73,6 @@ export default function FeishuIntegrationDialog({
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'success' | 'failed'>('unknown');
   const [isSyncing, setIsSyncing] = useState(false);
-  const [showTableInspector, setShowTableInspector] = useState(false);
 
   // 从 localStorage 加载配置
   useEffect(() => {
@@ -385,14 +383,6 @@ export default function FeishuIntegrationDialog({
                   >
                     查看详细创建教程 →
                   </a>
-                  <Button
-                    onClick={() => setShowTableInspector(true)}
-                    variant="outline"
-                    className="w-full mt-4"
-                  >
-                    <Search className="h-4 w-4 mr-2" />
-                    检测表格字段结构
-                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -498,44 +488,6 @@ export default function FeishuIntegrationDialog({
                         </>
                       )}
                     </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => window.open('/feishu-quick-config', '_blank')}
-                      disabled={isSyncing}
-                      className="flex-1"
-                    >
-                      <ArrowRight className="h-4 w-4 mr-2" />
-                      快速配置
-                    </Button>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => window.open('/feishu-diagnostic', '_blank')}
-                      disabled={isSyncing}
-                      className="flex-1"
-                    >
-                      <Activity className="h-4 w-4 mr-2" />
-                      诊断连接
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => window.open('/feishu-quick-test', '_blank')}
-                      disabled={isSyncing}
-                      className="flex-1"
-                    >
-                      <Search className="h-4 w-4 mr-2" />
-                      快速测试
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => window.open('/feishu-batch-test', '_blank')}
-                      disabled={isSyncing}
-                      className="flex-1"
-                    >
-                      <Globe className="h-4 w-4 mr-2" />
-                      批量测试
-                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -572,12 +524,6 @@ export default function FeishuIntegrationDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
-
-      <FeishuTableInspector
-        open={showTableInspector}
-        onOpenChange={setShowTableInspector}
-        config={config}
-      />
     </Dialog>
   );
 }
