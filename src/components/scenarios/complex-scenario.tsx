@@ -312,7 +312,7 @@ export default function ComplexScenario() {
   const [showTaskSplitDialog, setShowTaskSplitDialog] = useState(false);
   const [selectedTaskForSplit, setSelectedTaskForSplit] = useState<Task | null>(null);
   const [isSyncingToFeishu, setIsSyncingToFeishu] = useState(false);
-  const [isTestingSync, setIsTestingSync] = useState(false);
+  const [isLoadingFromFeishu, setIsLoadingFromFeishu] = useState(false);
   const [showFeishuDialog, setShowFeishuDialog] = useState(false);
 
   // 标记是否需要强制生成排期（用于任务拆分后立即生成）
@@ -925,61 +925,14 @@ export default function ComplexScenario() {
   };
 
   // 处理飞书集成对话框中的同步操作
+  // 处理飞书集成对话框中的同步操作（同步到飞书）
   const handleFeishuDialogSync = async () => {
-    // 如果有排期结果，同步到飞书排期表
-    if (scheduleResult && scheduleResult.tasks.length > 0) {
-      await handleSyncToFeishu();
-    } else {
-      // 否则，从飞书加载数据
-      const configStr = localStorage.getItem('feishu-config');
-      if (!configStr) {
-        alert('请先配置飞书集成信息');
-        return;
-      }
-
-      const config = JSON.parse(configStr);
-      if (!config.appId || !config.appSecret || !config.appToken ||
-          !config.tableIds?.resources || !config.tableIds?.projects || !config.tableIds?.tasks) {
-        alert('飞书配置不完整，请填写 App ID、App Secret、App Token 和所有 Table ID');
-        return;
-      }
-
-      try {
-        const response = await fetch(
-          `/api/feishu/load-data?app_id=${encodeURIComponent(config.appId)}` +
-          `&app_secret=${encodeURIComponent(config.appSecret)}` +
-          `&app_token=${encodeURIComponent(config.appToken)}` +
-          `&resources_table_id=${encodeURIComponent(config.tableIds.resources)}` +
-          `&projects_table_id=${encodeURIComponent(config.tableIds.projects)}` +
-          `&tasks_table_id=${encodeURIComponent(config.tableIds.tasks)}`
-        );
-
-        const result = await response.json();
-
-        if (!result.success) {
-          alert(`加载数据失败：${result.error}`);
-          return;
-        }
-
-        const { resources, projects, tasks } = result.data;
-        setSharedResources(resources);
-        setProjects(projects);
-        setTasks(tasks);
-        localStorage.setItem('complex-scenario-resources', JSON.stringify(resources));
-        localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
-        localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
-
-        alert(`成功从飞书多维表加载数据！\n\n人员：${resources.length}\n项目：${projects.length}\n任务：${tasks.length}`);
-      } catch (error) {
-        console.error('飞书数据加载失败:', error);
-        alert(`加载数据失败：${error instanceof Error ? error.message : '请检查网络连接和配置信息'}`);
-      }
-    }
+    await handleSyncToFeishu();
   };
 
-  // 测试飞书同步接口
-  const handleTestFeishuSync = async () => {
-    console.log('[Feishu Test] 开始测试飞书同步接口');
+  // 从飞书加载数据
+  const handleLoadFromFeishu = async () => {
+    console.log('[Feishu Load] 开始从飞书加载数据');
 
     const configStr = localStorage.getItem('feishu-config');
     if (!configStr) {
@@ -988,37 +941,45 @@ export default function ComplexScenario() {
     }
 
     const config = JSON.parse(configStr);
-    if (!config.appId || !config.appSecret || !config.appToken || !config.tableIds?.schedules) {
-      alert('飞书配置不完整，请填写 App ID、App Secret、App Token 和排期表 Table ID');
+    if (!config.appId || !config.appSecret || !config.appToken ||
+        !config.tableIds?.resources || !config.tableIds?.projects || !config.tableIds?.tasks) {
+      alert('飞书配置不完整，请填写 App ID、App Secret、App Token 和所有 Table ID');
       return;
     }
 
-    setIsTestingSync(true);
+    setIsLoadingFromFeishu(true);
     try {
-      const url = `/api/feishu/test-sync?app_id=${encodeURIComponent(config.appId)}` +
+      const response = await fetch(
+        `/api/feishu/load-data?app_id=${encodeURIComponent(config.appId)}` +
         `&app_secret=${encodeURIComponent(config.appSecret)}` +
         `&app_token=${encodeURIComponent(config.appToken)}` +
-        `&schedules_table_id=${encodeURIComponent(config.tableIds.schedules)}`;
+        `&resources_table_id=${encodeURIComponent(config.tableIds.resources)}` +
+        `&projects_table_id=${encodeURIComponent(config.tableIds.projects)}` +
+        `&tasks_table_id=${encodeURIComponent(config.tableIds.tasks)}`
+      );
 
-      console.log('[Feishu Test] 测试URL:', url);
-
-      const response = await fetch(url);
       const result = await response.json();
+      console.log('[Feishu Load] 加载结果:', result);
 
-      console.log('[Feishu Test] 测试结果:', result);
-
-      if (result.success) {
-        const summary = result.summary;
-        const steps = result.steps.map((s: any) => `${s.step}: ${s.success !== undefined ? (s.success ? '✅' : '❌') : ''} ${s.msg || s.error || ''}`).join('\n');
-        alert(`测试完成！\n\n功能状态：\n- App Access Token: ${summary.accessToken}\n- 读取排期表: ${summary.readTable}\n- 写入记录: ${summary.writeRecord}\n- 删除记录: ${summary.deleteRecord}\n\n详细步骤：\n${steps}`);
-      } else {
-        alert(`测试失败: ${result.error}\n\n详细步骤：\n${result.steps.map((s: any) => `${s.step}: ${s.error}`).join('\n')}`);
+      if (!result.success) {
+        alert(`加载数据失败：${result.error}`);
+        return;
       }
+
+      const { resources, projects, tasks } = result.data;
+      setSharedResources(resources);
+      setProjects(projects);
+      setTasks(tasks);
+      localStorage.setItem('complex-scenario-resources', JSON.stringify(resources));
+      localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
+      localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
+
+      alert(`成功从飞书多维表加载数据！\n\n人员：${resources.length}\n项目：${projects.length}\n任务：${tasks.length}`);
     } catch (error) {
-      console.error('[Feishu Test] 测试异常:', error);
-      alert(`测试失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      console.error('[Feishu Load] 加载异常:', error);
+      alert(`加载数据失败：${error instanceof Error ? error.message : '请检查网络连接和配置信息'}`);
     } finally {
-      setIsTestingSync(false);
+      setIsLoadingFromFeishu(false);
     }
   };
 
@@ -1997,29 +1958,19 @@ export default function ComplexScenario() {
                         {isAiOptimizing ? 'AI分析中...' : 'AI优化排期'}
                       </Button>
                       <Button
-                        onClick={handleTestFeishuSync}
+                        onClick={handleLoadFromFeishu}
                         size="sm"
                         variant="outline"
                         className="gap-2"
-                        disabled={isTestingSync}
-                        title="测试飞书同步接口是否工作正常"
+                        disabled={isLoadingFromFeishu}
+                        title="从飞书多维表加载人员、项目、任务数据"
                       >
-                        {isTestingSync ? (
+                        {isLoadingFromFeishu ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          <CheckCircle2 className="h-4 w-4" />
+                          <Globe className="h-4 w-4" />
                         )}
-                        {isTestingSync ? '测试中...' : '测试同步'}
-                      </Button>
-                      <Button
-                        onClick={() => setShowFeishuDialog(true)}
-                        size="sm"
-                        variant="outline"
-                        className="gap-2"
-                        title="打开飞书集成配置对话框"
-                      >
-                        <Settings className="h-4 w-4" />
-                        飞书配置
+                        {isLoadingFromFeishu ? '加载中...' : '从飞书加载'}
                       </Button>
                       <Button
                         onClick={handleSyncToFeishu}
