@@ -1262,14 +1262,14 @@ export default function ComplexScenario() {
                       <div className="flex items-center gap-1">
                         <Input
                           type="number"
-                          step="0.1"
-                          min="0.5"
-                          max="3.0"
-                          value={efficiency}
-                          onChange={(e) => handleResourceChange(resource.id, 'efficiency', parseFloat(e.target.value))}
+                          step="1"
+                          min="50"
+                          max="300"
+                          value={(efficiency * 100).toFixed(0)}
+                          onChange={(e) => handleResourceChange(resource.id, 'efficiency', parseFloat(e.target.value) / 100)}
                           className="h-6 w-14 text-right text-xs"
                         />
-                        <span>x</span>
+                        <span>%</span>
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
@@ -1277,11 +1277,11 @@ export default function ComplexScenario() {
                       <div className="flex items-center gap-1">
                         <Input
                           type="number"
-                          step="0.1"
-                          min="0.1"
-                          max="1.0"
-                          value={resource.availability}
-                          onChange={(e) => handleResourceChange(resource.id, 'availability', parseFloat(e.target.value))}
+                          step="1"
+                          min="1"
+                          max="100"
+                          value={(resource.availability * 100).toFixed(0)}
+                          onChange={(e) => handleResourceChange(resource.id, 'availability', parseFloat(e.target.value) / 100)}
                           className="h-6 w-14 text-right text-xs"
                         />
                         <span>%</span>
@@ -1324,7 +1324,7 @@ export default function ComplexScenario() {
                   return (
                     <div key={resource.id} className="flex items-start gap-2">
                       <span className={`${colorClass} font-bold min-w-[60px]}`}>{resource.name}</span>
-                      <span>效率{eff.toFixed(1)}倍，{baseHours}小时任务实际用时{actualHours.toFixed(1)}小时（{efficiencyLabel}效率）</span>
+                      <span>效率{(eff * 100).toFixed(0)}%，{baseHours}小时任务实际用时{actualHours.toFixed(1)}小时（{efficiencyLabel}效率）</span>
                     </div>
                   );
                 });
