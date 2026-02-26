@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import { getAppAccessToken } from '@/lib/feishu-api';
 
 // 日志函数
 const log = (message: string) => {
@@ -8,6 +7,7 @@ const log = (message: string) => {
   const logMessage = `[${timestamp}] ${message}\n`;
   console.log(message);
   try {
+    const fs = require('fs');
     fs.appendFileSync('/app/work/logs/bypass/feishu-bitable.log', logMessage);
   } catch (error) {
     // 忽略日志写入错误
@@ -38,16 +38,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 从请求头获取用户令牌
-    const userAccessToken = request.headers.get('Authorization')?.replace('Bearer ', '');
-
-    if (!userAccessToken) {
-      log('[飞书多维表] ❌ 缺少用户访问令牌');
-      return NextResponse.json(
-        { error: '需要登录，请先完成飞书扫码登录' },
-        { status: 401 }
-      );
-    }
+    // 获取应用访问令牌
+    const appAccessToken = await getAppAccessToken();
 
     // 获取请求体（可选，用于筛选、排序等）
     let requestBody = {};
@@ -69,7 +61,7 @@ export async function POST(request: NextRequest) {
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${userAccessToken}`,
+        'Authorization': `Bearer ${appAccessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAppAccessToken } from '@/lib/feishu-api';
 
 // 日志函数
 const log = (message: string) => {
@@ -29,16 +30,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 从请求头获取用户令牌
-    const userAccessToken = request.headers.get('Authorization')?.replace('Bearer ', '');
-
-    if (!userAccessToken) {
-      log('[飞书多维表] ❌ 缺少用户访问令牌');
-      return NextResponse.json(
-        { error: '需要登录，请先完成飞书扫码登录' },
-        { status: 401 }
-      );
-    }
+    // 获取应用访问令牌
+    const appAccessToken = await getAppAccessToken();
 
     // 获取请求体（fields 字段是必需的）
     const requestBody = await request.json();
@@ -63,7 +56,7 @@ export async function POST(request: NextRequest) {
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${userAccessToken}`,
+        'Authorization': `Bearer ${appAccessToken}`,
         'Content-Type': 'application/json; charset=utf-8',
       },
       body: JSON.stringify(requestBody),

@@ -20,7 +20,7 @@ export default function ProjectScheduleSystem() {
   const [showFeishuDialog, setShowFeishuDialog] = useState(false);
   const [showConfigHelper, setShowConfigHelper] = useState(false);
 
-  // 处理飞书同步
+  // 处理飞书同步（从多维表加载数据）
   const handleFeishuSync = async () => {
     const configStr = localStorage.getItem('feishu-config');
     if (!configStr) {
@@ -30,7 +30,7 @@ export default function ProjectScheduleSystem() {
 
     const config = JSON.parse(configStr);
 
-    // ★★★ 验证配置是否完整 ★★★
+    // 验证配置是否完整
     const missingConfigs = [];
     if (!config.appId) missingConfigs.push('App ID');
     if (!config.appSecret) missingConfigs.push('App Secret');
@@ -38,68 +38,51 @@ export default function ProjectScheduleSystem() {
     if (!config.tableIds?.resources) missingConfigs.push('人员表 Table ID');
     if (!config.tableIds?.projects) missingConfigs.push('项目表 Table ID');
     if (!config.tableIds?.tasks) missingConfigs.push('任务表 Table ID');
-    if (!config.tableIds?.schedules) missingConfigs.push('排期表 Table ID');
 
     if (missingConfigs.length > 0) {
-      alert(`配置不完整，请填写以下信息：\n\n${missingConfigs.join('\n')}\n\n请在飞书集成配置中填写完整的信息。`);
+      alert(`配置不完整，请填写以下信息：\n\n${missingConfigs.join('\n')}`);
       return;
     }
 
-    // 获取基础场景数据
-    const basicTasksStr = localStorage.getItem('basic-scenario-tasks');
-    const basicResourcesStr = localStorage.getItem('basic-scenario-resources');
-    const basicScheduleStr = localStorage.getItem('basic-scenario-schedule-result');
-
-    const basicTasks = basicTasksStr ? JSON.parse(basicTasksStr) : [];
-    const basicResources = basicResourcesStr ? JSON.parse(basicResourcesStr) : [];
-    const basicSchedule = basicScheduleStr ? JSON.parse(basicScheduleStr) : [];
-
-    // 获取复杂场景数据
-    const complexTasksStr = localStorage.getItem('complex-scenario-tasks');
-    const complexResourcesStr = localStorage.getItem('complex-scenario-resources');
-    const complexProjectsStr = localStorage.getItem('complex-scenario-projects');
-    const complexScheduleStr = localStorage.getItem('complex-scenario-schedule-result');
-
-    const complexTasks = complexTasksStr ? JSON.parse(complexTasksStr) : [];
-    const complexResources = complexResourcesStr ? JSON.parse(complexResourcesStr) : [];
-    const complexProjects = complexProjectsStr ? JSON.parse(complexProjectsStr) : [];
-    const complexSchedule = complexScheduleStr ? JSON.parse(complexScheduleStr) : [];
-
-    // 合并数据
-    const systemData = {
-      resources: [...basicResources, ...complexResources],
-      projects: complexProjects,
-      tasks: [...basicTasks, ...complexTasks],
-      schedules: basicSchedule ? [basicSchedule] : (complexSchedule ? [complexSchedule] : []),
-    };
-
     try {
-      const response = await fetch('/api/feishu/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          config,
-          systemData,
-          options: {
-            conflictResolution: 'feishu', // 以多维表为准
-          },
-        }),
-      });
+      // 从飞书多维表加载数据
+      const response = await fetch(
+        `/api/feishu/load-data?app_token=${config.appToken}` +
+        `&resources_table_id=${config.tableIds.resources}` +
+        `&projects_table_id=${config.tableIds.projects}` +
+        `&tasks_table_id=${config.tableIds.tasks}`
+      );
 
       const result = await response.json();
 
-      console.log('[飞书同步] 响应:', result);
-
-      if (result.success) {
-        alert(`同步成功！\n\n统计：\n人员：${result.stats.resources.created} 创建, ${result.stats.resources.updated} 更新\n项目：${result.stats.projects.created} 创建, ${result.stats.projects.updated} 更新\n任务：${result.stats.tasks.created} 创建, ${result.stats.tasks.updated} 更新\n排期：${result.stats.schedules.created} 创建`);
-      } else {
-        alert(`同步失败：${result.message}\n\n错误详情：\n${result.errors?.join('\n') || '未知错误'}`);
+      if (!result.success) {
+        alert(`加载数据失败：${result.error}`);
+        return;
       }
+
+      // 保存数据到 localStorage
+      const { resources, projects, tasks } = result.data;
+
+      // 清空现有数据
+      localStorage.removeItem('basic-scenario-tasks');
+      localStorage.removeItem('basic-scenario-resources');
+      localStorage.removeItem('complex-scenario-tasks');
+      localStorage.removeItem('complex-scenario-resources');
+      localStorage.removeItem('complex-scenario-projects');
+
+      // 保存新数据
+      localStorage.setItem('basic-scenario-resources', JSON.stringify(resources));
+      localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
+      localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
+      localStorage.setItem('complex-scenario-resources', JSON.stringify(resources));
+
+      alert(`成功从飞书多维表加载数据！\n\n人员：${resources.length}\n项目：${projects.length}\n任务：${tasks.length}`);
+
+      // 刷新页面以加载数据
+      window.location.reload();
     } catch (error) {
-      console.error('飞书同步失败:', error);
-      alert(`同步失败：${error instanceof Error ? error.message : '请检查网络连接和配置信息'}`);
+      console.error('飞书数据加载失败:', error);
+      alert(`加载数据失败：${error instanceof Error ? error.message : '请检查网络连接和配置信息'}`);
     }
   };
 
