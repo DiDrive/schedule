@@ -24,7 +24,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2, Calendar, MoreVertical } from 'lucide-react';
+import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2, Calendar, MoreVertical, Globe } from 'lucide-react';
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import * as XLSX from 'xlsx';
 import { defaultWorkingHours } from '@/lib/sample-data';
@@ -310,6 +310,7 @@ export default function ComplexScenario() {
   const [overdueCount, setOverdueCount] = useState(0); // 超期任务数
   const [showTaskSplitDialog, setShowTaskSplitDialog] = useState(false);
   const [selectedTaskForSplit, setSelectedTaskForSplit] = useState<Task | null>(null);
+  const [isSyncingToFeishu, setIsSyncingToFeishu] = useState(false);
 
   // 标记是否需要强制生成排期（用于任务拆分后立即生成）
   const forceGenerateSchedule = useRef(false);
@@ -918,6 +919,90 @@ export default function ComplexScenario() {
     const taskTypeSuffix = activeTaskType === 'all' ? '' : `_${activeTaskType}`;
     const fileName = `复杂项目排期${taskTypeSuffix}_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`;
     XLSX.writeFile(wb, fileName);
+  };
+
+  // 同步到飞书
+  const handleSyncToFeishu = async () => {
+    if (!scheduleResult) {
+      alert('请先生成排期结果');
+      return;
+    }
+
+    const configStr = localStorage.getItem('feishu-config');
+    if (!configStr) {
+      alert('请先配置飞书集成信息');
+      return;
+    }
+
+    const config = JSON.parse(configStr);
+
+    // 验证配置是否完整
+    if (!config.appId || !config.appSecret || !config.appToken || !config.tableIds?.schedules) {
+      alert('飞书配置不完整，请填写 App ID、App Secret、App Token 和排期表 Table ID');
+      return;
+    }
+
+    setIsSyncingToFeishu(true);
+
+    try {
+      // 准备同步数据
+      const syncTasks = scheduleResult.tasks.map(task => {
+        const resource = sharedResources.find(r => r.id === task.assignedResources[0]);
+        const project = getProjectById(task.projectId || '');
+
+        return {
+          id: task.id,
+          name: task.name,
+          // 项目信息
+          projectName: project?.name || '',
+          // 负责人信息
+          assignedResourceId: task.assignedResources[0] || '',
+          assignedResourceName: resource?.name || '',
+          // 排期信息
+          startDate: task.startDate ? task.startDate.toISOString() : '',
+          endDate: task.endDate ? task.endDate.toISOString() : '',
+          estimatedHours: task.estimatedHours,
+          // 状态和优先级
+          status: task.status,
+          priority: task.priority,
+          // 其他信息
+          taskType: task.taskType || '',
+        };
+      });
+
+      // 调用同步接口
+      const response = await fetch(
+        `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
+        `&app_secret=${encodeURIComponent(config.appSecret)}` +
+        `&app_token=${encodeURIComponent(config.appToken)}` +
+        `&schedules_table_id=${encodeURIComponent(config.tableIds.schedules)}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            tasks: syncTasks,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`同步成功！\n\n成功: ${result.stats.success}\n失败: ${result.stats.error}`);
+        if (result.errors && result.errors.length > 0) {
+          console.error('同步错误详情:', result.errors);
+        }
+      } else {
+        alert(`同步失败: ${result.error || '未知错误'}`);
+      }
+    } catch (error) {
+      console.error('同步到飞书失败:', error);
+      alert(`同步失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    } finally {
+      setIsSyncingToFeishu(false);
+    }
   };
 
   // AI优化排期
@@ -1786,6 +1871,20 @@ export default function ComplexScenario() {
                           <Sparkles className="h-4 w-4" />
                         )}
                         {isAiOptimizing ? 'AI分析中...' : 'AI优化排期'}
+                      </Button>
+                      <Button
+                        onClick={handleSyncToFeishu}
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                        disabled={isSyncingToFeishu || !scheduleResult}
+                      >
+                        {isSyncingToFeishu ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Globe className="h-4 w-4" />
+                        )}
+                        {isSyncingToFeishu ? '同步中...' : '同步到飞书'}
                       </Button>
                       <Button onClick={handleExportToExcel} size="sm" variant="outline" className="gap-2">
                         <Download className="h-4 w-4" />
