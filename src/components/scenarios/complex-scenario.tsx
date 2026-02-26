@@ -1957,44 +1957,7 @@ export default function ComplexScenario() {
                         )}
                         {isAiOptimizing ? 'AI分析中...' : 'AI优化排期'}
                       </Button>
-                      <Button
-                        onClick={handleLoadFromFeishu}
-                        size="sm"
-                        variant="outline"
-                        className="gap-2"
-                        disabled={isLoadingFromFeishu}
-                        title="从飞书多维表加载人员、项目、任务数据"
-                      >
-                        {isLoadingFromFeishu ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Globe className="h-4 w-4" />
-                        )}
-                        {isLoadingFromFeishu ? '加载中...' : '从飞书加载'}
-                      </Button>
-                      <Button
-                        onClick={handleSyncToFeishu}
-                        size="sm"
-                        variant="outline"
-                        className="gap-2"
-                        disabled={isSyncingToFeishu || !scheduleResult}
-                        title={!scheduleResult ? '请先生成排期结果' : '同步到飞书'}
-                      >
-                        {isSyncingToFeishu ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Globe className="h-4 w-4" />
-                        )}
-                        {isSyncingToFeishu ? '同步中...' : '同步到飞书'}
-                        {!scheduleResult && !isSyncingToFeishu && (
-                          <span className="text-xs text-muted-foreground">（请先生成排期）</span>
-                        )}
-                      </Button>
-                      <Button onClick={handleExportToExcel} size="sm" variant="outline" className="gap-2">
-                        <Download className="h-4 w-4" />
-                        导出Excel
-                      </Button>
-                    </div>
+                      </div>
                   </div>
                   {/* Task Type Filter */}
                   <Tabs value={activeTaskType} onValueChange={(value) => setActiveTaskType(value as 'all' | '平面' | '后期' | '物料')} className="w-full">

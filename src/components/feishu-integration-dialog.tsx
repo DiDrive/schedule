@@ -469,26 +469,6 @@ export default function FeishuIntegrationDialog({
                       {syncStatus.lastSyncError}
                     </div>
                   )}
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={handleSync}
-                      disabled={isSyncing}
-                      className="flex-1"
-                    >
-                      {isSyncing ? (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                          同步中...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          立即同步
-                        </>
-                      )}
-                    </Button>
-                  </div>
                 </CardContent>
               </Card>
 

@@ -1,27 +1,23 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, GitBranch, BarChart3, Globe, Info } from 'lucide-react';
-import BasicScenario from '@/components/scenarios/basic-scenario';
+import { BarChart3, Globe, Info, Loader2, Settings } from 'lucide-react';
 import ComplexScenario from '@/components/scenarios/complex-scenario';
 import FeishuIntegrationDialog from '@/components/feishu-integration-dialog';
 import FeishuConfigHelper from '@/components/feishu-config-helper';
-import { generateSchedule } from '@/lib/schedule-algorithms';
-import { generateIntelligentAnalysis } from '@/lib/intelligent-analysis';
-import { basicScenarioSample, complexScenarioSample } from '@/lib/sample-data';
-import { Task, Resource, ScheduleResult } from '@/types/schedule';
+import { Task } from '@/types/schedule';
 
 export default function ProjectScheduleSystem() {
-  const [activeTab, setActiveTab] = useState('basic');
   const [showFeishuDialog, setShowFeishuDialog] = useState(false);
   const [showConfigHelper, setShowConfigHelper] = useState(false);
+  const [isSyncingToFeishu, setIsSyncingToFeishu] = useState(false);
+  const [isLoadingFromFeishu, setIsLoadingFromFeishu] = useState(false);
 
-  // 处理飞书同步（从多维表加载数据）
-  const handleFeishuSync = async () => {
+  // 从飞书加载数据
+  const handleLoadFromFeishu = async () => {
     const configStr = localStorage.getItem('feishu-config');
     if (!configStr) {
       alert('请先配置飞书集成信息');
@@ -29,23 +25,14 @@ export default function ProjectScheduleSystem() {
     }
 
     const config = JSON.parse(configStr);
-
-    // 验证配置是否完整
-    const missingConfigs = [];
-    if (!config.appId) missingConfigs.push('App ID');
-    if (!config.appSecret) missingConfigs.push('App Secret');
-    if (!config.appToken) missingConfigs.push('App Token');
-    if (!config.tableIds?.resources) missingConfigs.push('人员表 Table ID');
-    if (!config.tableIds?.projects) missingConfigs.push('项目表 Table ID');
-    if (!config.tableIds?.tasks) missingConfigs.push('任务表 Table ID');
-
-    if (missingConfigs.length > 0) {
-      alert(`配置不完整，请填写以下信息：\n\n${missingConfigs.join('\n')}`);
+    if (!config.appId || !config.appSecret || !config.appToken ||
+        !config.tableIds?.resources || !config.tableIds?.projects || !config.tableIds?.tasks) {
+      alert('飞书配置不完整，请填写 App ID、App Secret、App Token 和所有 Table ID');
       return;
     }
 
+    setIsLoadingFromFeishu(true);
     try {
-      // 从飞书多维表加载数据
       const response = await fetch(
         `/api/feishu/load-data?app_id=${encodeURIComponent(config.appId)}` +
         `&app_secret=${encodeURIComponent(config.appSecret)}` +
@@ -62,21 +49,10 @@ export default function ProjectScheduleSystem() {
         return;
       }
 
-      // 保存数据到 localStorage
       const { resources, projects, tasks } = result.data;
-
-      // 清空现有数据
-      localStorage.removeItem('basic-scenario-tasks');
-      localStorage.removeItem('basic-scenario-resources');
-      localStorage.removeItem('complex-scenario-tasks');
-      localStorage.removeItem('complex-scenario-resources');
-      localStorage.removeItem('complex-scenario-projects');
-
-      // 保存新数据
-      localStorage.setItem('basic-scenario-resources', JSON.stringify(resources));
+      localStorage.setItem('complex-scenario-resources', JSON.stringify(resources));
       localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
       localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
-      localStorage.setItem('complex-scenario-resources', JSON.stringify(resources));
 
       alert(`成功从飞书多维表加载数据！\n\n人员：${resources.length}\n项目：${projects.length}\n任务：${tasks.length}`);
 
@@ -85,77 +61,63 @@ export default function ProjectScheduleSystem() {
     } catch (error) {
       console.error('飞书数据加载失败:', error);
       alert(`加载数据失败：${error instanceof Error ? error.message : '请检查网络连接和配置信息'}`);
+    } finally {
+      setIsLoadingFromFeishu(false);
     }
   };
 
-  // 页面级别的一次性数据清理，确保清除所有旧数据
+  // 同步到飞书（需要通过复杂场景来获取排期结果）
+  // 这个函数只是占位，实际同步功能在复杂场景中实现
+
+  // 页面级别的一次性数据清理
   const hasCleanedUp = useRef(false);
   useEffect(() => {
     if (hasCleanedUp.current) return;
     hasCleanedUp.current = true;
 
-    // 只检查任务相关的 key，避免跨 key 误判
-    const taskKeys = [
-      'basic-scenario-tasks',
-      'complex-scenario-tasks'
-    ];
+    // 只检查复杂场景的任务
+    const data = localStorage.getItem('complex-scenario-tasks');
+    if (!data) return;
 
-    let needsCleanup = false;
-    let problemTasks: string[] = [];
+    try {
+      const parsed = JSON.parse(data);
 
-    for (const key of taskKeys) {
-      const data = localStorage.getItem(key);
-      if (!data) continue;
+      if (!Array.isArray(parsed)) return;
 
-      try {
-        const parsed = JSON.parse(data);
+      // 检查重复ID
+      const idMap = new Map<string, number>();
+      let hasDuplicateIds = false;
+      let problemTasks: string[] = [];
 
-        if (!Array.isArray(parsed)) continue;
-
-        // 检查重复ID
-        const idMap = new Map<string, number>();
-        let hasDuplicateIds = false;
-
-        parsed.forEach((t: Task) => {
-          const count = idMap.get(t.id) || 0;
-          idMap.set(t.id, count + 1);
-          if (count > 0) {
-            hasDuplicateIds = true;
-            console.warn(`发现重复任务ID: ${t.id} (在 ${key} 中)`);
-            if (!problemTasks.includes(t.id)) {
-              problemTasks.push(t.id);
-            }
+      parsed.forEach((t: Task) => {
+        const count = idMap.get(t.id) || 0;
+        idMap.set(t.id, count + 1);
+        if (count > 0) {
+          hasDuplicateIds = true;
+          console.warn(`发现重复任务ID: ${t.id}`);
+          if (!problemTasks.includes(t.id)) {
+            problemTasks.push(t.id);
           }
-        });
-
-        // 检查多次拆分导致的嵌套ID
-        const hasNestedIds = parsed.some((t: Task) => {
-          const subCount = (t.id.match(/-sub-/g) || []).length;
-          return subCount >= 2;
-        });
-
-        if (hasDuplicateIds || hasNestedIds) {
-          console.warn(`发现数据问题: ${key}，将被清除`);
-          needsCleanup = true;
         }
-      } catch (e) {
-        console.error(`解析数据失败: ${key}`, e);
-      }
-    }
+      });
 
-    if (needsCleanup) {
-      console.warn('清除所有旧数据以修复重复ID问题');
-      console.warn('问题任务ID:', problemTasks);
-      // 清除所有场景的数据
-      localStorage.removeItem('basic-scenario-tasks');
-      localStorage.removeItem('basic-scenario-resources');
-      localStorage.removeItem('basic-scenario-schedule-result');
-      localStorage.removeItem('basic-scenario-start-date');
-      localStorage.removeItem('complex-scenario-projects');
-      localStorage.removeItem('complex-scenario-tasks');
-      localStorage.removeItem('complex-scenario-resources');
-      localStorage.removeItem('complex-scenario-schedule-result');
-      alert('检测到数据异常，已自动清理旧数据。请重新开始。');
+      // 检查多次拆分导致的嵌套ID
+      const hasNestedIds = parsed.some((t: Task) => {
+        const subCount = (t.id.match(/-sub-/g) || []).length;
+        return subCount >= 2;
+      });
+
+      if (hasDuplicateIds || hasNestedIds) {
+        console.warn('清除所有旧数据以修复重复ID问题');
+        console.warn('问题任务ID:', problemTasks);
+        localStorage.removeItem('complex-scenario-projects');
+        localStorage.removeItem('complex-scenario-tasks');
+        localStorage.removeItem('complex-scenario-resources');
+        localStorage.removeItem('complex-scenario-schedule-result');
+        alert('检测到数据异常，已自动清理旧数据。请重新开始。');
+      }
+    } catch (e) {
+      console.error('解析数据失败:', e);
     }
   }, []);
 
@@ -190,6 +152,32 @@ export default function ProjectScheduleSystem() {
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
+                onClick={handleLoadFromFeishu}
+                disabled={isLoadingFromFeishu}
+                className="gap-2"
+              >
+                {isLoadingFromFeishu ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Globe className="h-4 w-4" />
+                )}
+                {isLoadingFromFeishu ? '加载中...' : '从飞书加载'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowFeishuDialog(true)}
+                disabled={isSyncingToFeishu}
+                className="gap-2"
+              >
+                {isSyncingToFeishu ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Globe className="h-4 w-4" />
+                )}
+                {isSyncingToFeishu ? '同步中...' : '同步到飞书'}
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => setShowConfigHelper(true)}
                 className="gap-2"
               >
@@ -201,8 +189,8 @@ export default function ProjectScheduleSystem() {
                 onClick={() => setShowFeishuDialog(true)}
                 className="gap-2"
               >
-                <Globe className="h-4 w-4" />
-                飞书集成
+                <Settings className="h-4 w-4" />
+                飞书配置
               </Button>
             </div>
           </div>
@@ -210,36 +198,15 @@ export default function ProjectScheduleSystem() {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:w-auto">
-            <TabsTrigger value="basic" className="gap-2">
-              <Calendar className="h-4 w-4" />
-              基础场景
-            </TabsTrigger>
-            <TabsTrigger value="complex" className="gap-2">
-              <GitBranch className="h-4 w-4" />
-              复杂场景
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Basic Scenario Tab */}
-          <TabsContent value="basic">
-            <BasicScenario />
-          </TabsContent>
-
-          {/* Complex Scenario Tab */}
-          <TabsContent value="complex">
-            <ComplexScenario />
-          </TabsContent>
-        </Tabs>
+      <main className="container mx-auto px-4 py-6">
+        <ComplexScenario />
       </main>
 
       {/* 飞书集成对话框 */}
       <FeishuIntegrationDialog
         open={showFeishuDialog}
         onOpenChange={setShowFeishuDialog}
-        onSync={handleFeishuSync}
+        onSync={async () => {}}
       />
 
       {/* 飞书配置助手 */}
