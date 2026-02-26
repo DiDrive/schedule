@@ -70,9 +70,9 @@ export async function GET(request: NextRequest) {
       tasks: [],
     };
 
-    // 加载人员数据
+    // ===== 第一步：加载人员数据 =====
     if (resourcesTableId) {
-      log(`[飞书加载] 加载人员数据: table_id=${resourcesTableId}`);
+      log(`[飞书加载] 步骤1：加载人员数据: table_id=${resourcesTableId}`);
       const resourcesResponse = await fetch(
         `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${resourcesTableId}/records/search`,
         {
@@ -100,7 +100,14 @@ export async function GET(request: NextRequest) {
           const personName = parsePersonName(fields['姓名'] || fields['name'] || fields['人员']);
 
           // 解析工作类型：下拉选项，飞书返回的是字符串（如"平面设计"、"后期制作"）
-          const workType = parseStringField(fields['工作类型'] || fields['workType'], '');
+          const workTypeRaw = parseStringField(fields['工作类型'] || fields['workType'], '');
+          // 映射工作类型：平面设计 -> 平面, 后期制作 -> 后期
+          let workType = '';
+          if (workTypeRaw) {
+            if (workTypeRaw.includes('平面')) workType = '平面';
+            else if (workTypeRaw.includes('后期')) workType = '后期';
+            else workType = workTypeRaw;
+          }
 
           // 解析资源等级：下拉选项
           const level = parseStringField(fields['等级'] || fields['level'], '');
@@ -135,6 +142,8 @@ export async function GET(request: NextRequest) {
             hourlyRate: hourlyRate,
             email: email,
             color: '#64748b', // 默认颜色
+            // 保存飞书人员 ID，用于后续映射
+            feishuPersonId: parsePersonId(fields['姓名'] || fields['name'] || fields['人员']),
           };
         });
         log(`[飞书加载] ✅ 加载了 ${result.resources.length} 个人员`);
@@ -143,97 +152,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 加载任务数据（先加载任务，因为项目需要从任务中提取资源池）
-    if (tasksTableId) {
-      log(`[飞书加载] 加载任务数据: table_id=${tasksTableId}`);
-      const tasksResponse = await fetch(
-        `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tasksTableId}/records/search`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${appAccessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ page_size: 500 }),
-        }
-      );
+    // ===== 第二步：加载项目数据，创建项目名称到ID的映射表 =====
+    const projectNameToIdMap = new Map<string, string>();
 
-      const tasksData = await tasksResponse.json();
-      if (tasksData.code === 0 && tasksData.data) {
-        const sample = tasksData.data.items[0]?.fields;
-        log(`[飞书加载] 🔍 任务原始数据示例: ${JSON.stringify(sample).substring(0, 300)}...`);
-
-        result.tasks = tasksData.data.items.map((item: any) => {
-          const fields = item.fields;
-
-          // 解析任务ID：可能是文本数组格式 [{text: "task-xxx", type: "text"}] 或直接字符串
-          const taskId = parseStringField(fields['任务ID'] || fields['id'] || fields['ID']);
-
-          // 解析任务名称：直接字符串
-          const name = parseStringField(fields['任务名称'] || fields['name'] || fields['名称'], taskId || `任务_${item.record_id.substring(0, 8)}`);
-
-          // 解析项目ID：可能是文本数组格式或直接字符串
-          const projectId = parseStringField(fields['所属项目'] || fields['项目ID'] || fields['项目'] || fields['projectId']);
-
-          // 解析负责人：从飞书人员字段中提取 ID 和名字
-          const assignedResourceId = parsePersonId(fields['负责人'] || fields['指定人员'] || fields['assignedResourceId']);
-
-          // 解析任务类型：下拉选项，飞书返回的是字符串（如"平面设计"、"后期制作"）
-          const taskType = parseStringField(fields['任务类型'] || fields['taskType'], '');
-
-          // 解析预估工时：可能是数字或文本数组格式
-          const estimatedHours = parseNumberField(fields['预估工时'] || fields['estimatedHours'], 8);
-
-          // 解析优先级：下拉选项，飞书返回的是字符串（如"高"、"中"、"低"）
-          const priorityStr = parseStringField(fields['优先级'] || fields['priority'], 'normal');
-          let priority: 'urgent' | 'high' | 'normal' | 'low' = 'normal';
-          if (priorityStr) {
-            const lower = priorityStr.toLowerCase();
-            if (lower === 'urgent' || lower === '紧急') priority = 'urgent';
-            else if (lower === 'high' || lower === '高') priority = 'high';
-            else if (lower === 'low' || lower === '低') priority = 'low';
-            else priority = 'normal';
-          }
-
-          // 解析依赖关系：字符串数组
-          const dependencies = parseArrayField(fields['依赖关系'] || fields['依赖项'] || fields['dependencies'], []);
-
-          // 解析状态：下拉选项，飞书返回的是字符串（如"进行中"、"已完成"）
-          const statusStr = parseStringField(fields['任务状态'] || fields['状态'] || fields['status'], 'pending');
-          let status: 'pending' | 'in-progress' | 'completed' | 'blocked' = 'pending';
-          if (statusStr) {
-            const lower = statusStr.toLowerCase();
-            if (lower === 'in-progress' || lower === '进行中') status = 'in-progress';
-            else if (lower === 'completed' || lower === '已完成') status = 'completed';
-            else if (lower === 'blocked' || lower === '阻塞') status = 'blocked';
-            else status = 'pending';
-          }
-
-          // 解析截止日期：时间戳或日期字符串
-          const deadline = parseDateField(fields['截止日期'] || fields['deadline']);
-
-          return {
-            id: taskId || item.record_id,
-            name: name,
-            projectId: projectId,
-            assignedResourceId: assignedResourceId,
-            taskType: taskType,
-            estimatedHours: estimatedHours,
-            priority: priority,
-            dependencies: dependencies,
-            status: status,
-            deadline: deadline,
-          };
-        });
-        log(`[飞书加载] ✅ 加载了 ${result.tasks.length} 个任务`);
-      } else {
-        log(`[飞书加载] ❌ 加载任务数据失败: ${JSON.stringify(tasksData)}`);
-      }
-    }
-
-    // 加载项目数据
     if (projectsTableId) {
-      log(`[飞书加载] 加载项目数据: table_id=${projectsTableId}`);
+      log(`[飞书加载] 步骤2：加载项目数据: table_id=${projectsTableId}`);
       const projectsResponse = await fetch(
         `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${projectsTableId}/records/search`,
         {
@@ -254,19 +177,16 @@ export async function GET(request: NextRequest) {
         result.projects = projectsData.data.items.map((item: any) => {
           const fields = item.fields;
 
-          // 从任务中提取该项目的资源池
-          const projectTasks = result.tasks.filter((t: any) => t.projectId === item.record_id);
-          const resourcePool = Array.from(new Set(
-            projectTasks
-              .map((t: any) => t.assignedResourceId)
-              .filter((id: any) => id) // 过滤掉空值
-          ));
-
           // 解析项目ID：可能是文本数组格式 [{text: "proj-xxx", type: "text"}] 或直接字符串
           const projectId = parseStringField(fields['项目ID'] || fields['id'] || fields['ID']);
 
           // 解析项目名称：直接字符串
           const name = parseStringField(fields['项目名称'] || fields['name'] || fields['名称'], projectId || `项目_${item.record_id.substring(0, 8)}`);
+
+          // 创建项目名称到 ID 的映射（用于任务数据映射）
+          if (name && projectId) {
+            projectNameToIdMap.set(name, projectId);
+          }
 
           // 解析项目描述：可能是文本数组格式或直接字符串
           const description = parseStringField(fields['项目描述'] || fields['description'], '');
@@ -306,16 +226,147 @@ export async function GET(request: NextRequest) {
             endDate: endDate,
             deadline: deadline,
             status: status,
-            resourcePool: resourcePool.length > 0 ? resourcePool : [], // 确保始终是数组
+            resourcePool: [], // 稍后从任务中提取
             color: '#3b82f6', // 默认颜色
             tasks: [], // 空数组
           };
         });
         log(`[飞书加载] ✅ 加载了 ${result.projects.length} 个项目`);
+        log(`[飞书加载] 📝 项目名称到ID映射: ${Array.from(projectNameToIdMap.entries()).map(([k, v]) => `${k}=${v}`).join(', ')}`);
       } else {
         log(`[飞书加载] ❌ 加载项目数据失败: ${JSON.stringify(projectsData)}`);
       }
     }
+
+    // ===== 第三步：加载任务数据，使用映射表转换字段 =====
+    if (tasksTableId) {
+      log(`[飞书加载] 步骤3：加载任务数据: table_id=${tasksTableId}`);
+      const tasksResponse = await fetch(
+        `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tasksTableId}/records/search`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${appAccessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ page_size: 500 }),
+        }
+      );
+
+      const tasksData = await tasksResponse.json();
+      if (tasksData.code === 0 && tasksData.data) {
+        const sample = tasksData.data.items[0]?.fields;
+        log(`[飞书加载] 🔍 任务原始数据示例: ${JSON.stringify(sample).substring(0, 300)}...`);
+
+        result.tasks = tasksData.data.items.map((item: any) => {
+          const fields = item.fields;
+
+          // 解析任务ID：可能是文本数组格式 [{text: "task-xxx", type: "text"}] 或直接字符串
+          const taskId = parseStringField(fields['任务ID'] || fields['id'] || fields['ID']);
+
+          // 解析任务名称：直接字符串
+          const name = parseStringField(fields['任务名称'] || fields['name'] || fields['名称'], taskId || `任务_${item.record_id.substring(0, 8)}`);
+
+          // 解析所属项目：使用项目名称到ID的映射表转换
+          const projectName = parseStringField(fields['所属项目'] || fields['项目ID'] || fields['项目'] || fields['projectId']);
+          const projectId = projectName ? (projectNameToIdMap.get(projectName) || projectName) : '';
+
+          // 解析负责人：从飞书人员字段中提取 ID，然后映射到系统资源 ID
+          const feishuPersonId = parsePersonId(fields['负责人'] || fields['指定人员'] || fields['assignedResourceId']);
+          // 将飞书人员 ID 映射到系统资源 ID
+          let fixedResourceId = '';
+          if (feishuPersonId) {
+            const matchedResource = result.resources.find((r: any) => r.feishuPersonId === feishuPersonId);
+            fixedResourceId = matchedResource?.id || '';
+          }
+
+          // 解析任务类型：下拉选项，飞书返回的是字符串（如"平面设计"、"后期制作"）
+          // 映射任务类型：平面设计 -> 平面, 后期制作 -> 后期
+          const taskTypeRaw = parseStringField(fields['任务类型'] || fields['taskType'], '');
+          let taskType = '';
+          if (taskTypeRaw) {
+            if (taskTypeRaw.includes('平面')) taskType = '平面';
+            else if (taskTypeRaw.includes('后期')) taskType = '后期';
+            else if (taskTypeRaw.includes('物料')) taskType = '物料';
+            else taskType = taskTypeRaw;
+          }
+
+          // 解析预估工时：可能是数字或文本数组格式
+          const estimatedHours = parseNumberField(fields['预估工时'] || fields['estimatedHours'], 8);
+
+          // 解析优先级：下拉选项，飞书返回的是字符串（如"高"、"中"、"低"）
+          const priorityStr = parseStringField(fields['优先级'] || fields['priority'], 'normal');
+          let priority: 'urgent' | 'high' | 'normal' | 'low' = 'normal';
+          if (priorityStr) {
+            const lower = priorityStr.toLowerCase();
+            if (lower === 'urgent' || lower === '紧急') priority = 'urgent';
+            else if (lower === 'high' || lower === '高') priority = 'high';
+            else if (lower === 'low' || lower === '低') priority = 'low';
+            else priority = 'normal';
+          }
+
+          // 解析依赖关系：字符串数组（任务名称），需要转换为任务 ID
+          const dependencyNames = parseArrayField(fields['依赖关系'] || fields['依赖项'] || fields['dependencies'], []);
+          // 暂时保留任务名称，稍后可以转换为任务 ID
+
+          // 解析状态：下拉选项，飞书返回的是字符串（如"进行中"、"已完成"）
+          const statusStr = parseStringField(fields['任务状态'] || fields['状态'] || fields['status'], 'pending');
+          let status: 'pending' | 'in-progress' | 'completed' | 'blocked' = 'pending';
+          if (statusStr) {
+            const lower = statusStr.toLowerCase();
+            if (lower === 'in-progress' || lower === '进行中') status = 'in-progress';
+            else if (lower === 'completed' || lower === '已完成') status = 'completed';
+            else if (lower === 'blocked' || lower === '阻塞') status = 'blocked';
+            else status = 'pending';
+          }
+
+          // 解析截止日期：时间戳或日期字符串
+          const deadline = parseDateField(fields['截止日期'] || fields['deadline']);
+
+          return {
+            id: taskId || item.record_id,
+            name: name,
+            projectId: projectId,
+            fixedResourceId: fixedResourceId, // 使用映射后的资源 ID
+            taskType: taskType,
+            estimatedHours: estimatedHours,
+            priority: priority,
+            dependencies: dependencyNames, // 暂时保留任务名称
+            status: status,
+            deadline: deadline,
+          };
+        });
+        log(`[飞书加载] ✅ 加载了 ${result.tasks.length} 个任务`);
+      } else {
+        log(`[飞书加载] ❌ 加载任务数据失败: ${JSON.stringify(tasksData)}`);
+      }
+    }
+
+    // ===== 第四步：从任务中提取项目的资源池 =====
+    result.projects.forEach((project: any) => {
+      const projectTasks = result.tasks.filter((t: any) => t.projectId === project.id);
+      const resourcePool = Array.from(new Set(
+        projectTasks
+          .map((t: any) => t.fixedResourceId)
+          .filter((id: any) => id) // 过滤掉空值
+      ));
+      project.resourcePool = resourcePool;
+      project.tasks = []; // 空数组
+    });
+
+    // ===== 第五步：将任务名称依赖转换为任务ID =====
+    const taskNameToIdMap = new Map<string, string>();
+    result.tasks.forEach((task: any) => {
+      taskNameToIdMap.set(task.name, task.id);
+    });
+
+    result.tasks.forEach((task: any) => {
+      if (task.dependencies && Array.isArray(task.dependencies)) {
+        task.dependencies = task.dependencies
+          .map((depName: string) => taskNameToIdMap.get(depName))
+          .filter((id: any) => id); // 过滤掉找不到的
+      }
+    });
 
     log('[飞书加载] ✅ 数据加载完成');
     log(`[飞书加载] 📊 统计: ${result.resources.length} 个人员, ${result.projects.length} 个项目, ${result.tasks.length} 个任务`);
