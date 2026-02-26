@@ -14,6 +14,17 @@ const log = (message: string) => {
   }
 };
 
+// 状态映射函数：系统状态 -> 飞书状态
+function mapStatusToFeishu(status: string): string {
+  const statusMap: Record<string, string> = {
+    'pending': '待处理',
+    'in-progress': '进行中',
+    'completed': '已完成',
+    'blocked': '阻塞',
+  };
+  return statusMap[status] || '待处理';
+}
+
 /**
  * 同步排期结果到飞书多维表
  *
@@ -156,38 +167,44 @@ export async function POST(request: NextRequest) {
 
         // 准备排期记录数据
         // 字段名需要与飞书多维表的字段名一致
-        const scheduleRecord = {
+        const scheduleRecord: any = {
           fields: {
-            // 任务基本信息
-            '任务名称': task.name || '',
-            '任务ID': task.id || '',
-            '项目名称': task.projectName || '',
-
-            // 负责人信息（使用飞书人员 ID）
-            // 注意：如果排期表中"负责人"字段是人员类型，需要传人员的 open_id
-            '负责人': feishuPersonId ? [{ id: feishuPersonId }] : [],
-            '负责人ID': feishuPersonId || '',
-
-            // 排期时间信息（使用毫秒级时间戳）
-            '计划开始时间': task.startDate ? Math.floor(new Date(task.startDate).getTime() / 1000) * 1000 : 0,
-            '计划结束时间': task.endDate ? Math.floor(new Date(task.endDate).getTime() / 1000) * 1000 : 0,
-
-            // 工时信息
-            '预估工时': task.estimatedHours || 0,
-
-            // 状态和优先级
-            '状态': task.status || 'pending',
-            '优先级': task.priority || 'normal',
-
-            // 其他信息
+            // 任务类型（单选/关联型）
             '任务类型': task.taskType || '',
+
+            // 负责人（成员型）：传人员的 open_id
+            '负责人': feishuPersonId ? [{ id: feishuPersonId }] : [],
+
+            // 开始时间（日期时间型）：传时间戳（毫秒）
+            '开始时间': task.startDate ? Math.floor(new Date(task.startDate).getTime() / 1000) * 1000 : 0,
+
+            // 结束时间（日期时间型）：传时间戳（毫秒）
+            '结束时间': task.endDate ? Math.floor(new Date(task.endDate).getTime() / 1000) * 1000 : 0,
+
+            // 工时（数值型）：传数字
+            '工时': task.estimatedHours || 0,
+
+            // 状态（单选型）：映射为中文
+            '状态': mapStatusToFeishu(task.status || 'pending'),
           },
         };
+
+        // 如果有截止日期，添加该字段
+        if (task.deadline) {
+          scheduleRecord.fields['截止日期'] = Math.floor(new Date(task.deadline).getTime() / 1000) * 1000;
+        }
+
+        // 如果有项目名称，添加该字段
+        if (task.projectName) {
+          scheduleRecord.fields['所属项目'] = task.projectName;
+        }
 
         log(`[飞书同步] 同步任务: ${task.name}`);
         log(`[飞书同步]   - 系统资源ID: ${task.assignedResourceId || '(无)'}`);
         log(`[飞书同步]   - 飞书人员ID: ${feishuPersonId || '(无)'}`);
         log(`[飞书同步]   - 负责人名称: ${task.assignedResourceName || '(无)'}`);
+        log(`[飞书同步]   - 任务类型: ${task.taskType || '(无)'}`);
+        log(`[飞书同步]   - 状态: ${task.status || 'pending'} -> ${mapStatusToFeishu(task.status || 'pending')}`);
         log(`[飞书同步]   - 开始时间: ${task.startDate || '(无)'}`);
         log(`[飞书同步]   - 结束时间: ${task.endDate || '(无)'}`);
         log(`[飞书同步]   - 记录数据: ${JSON.stringify(scheduleRecord)}`);
