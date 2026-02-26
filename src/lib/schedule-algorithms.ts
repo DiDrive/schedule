@@ -125,32 +125,33 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
       };
     }
 
-    // 如果任务有指定资源，优先使用指定资源
+    // 如果任务有指定资源，优先使用指定资源（强制使用，不受类型限制）
     if (task.fixedResourceId) {
       console.log(`  🔧 任务 ${task.name} 有指定资源 ID: ${task.fixedResourceId}`);
       const fixedResource = humanResources.find(r => r.id === task.fixedResourceId);
       if (fixedResource) {
         console.log(`  ✓ 找到指定资源: ${fixedResource.name} (类型: ${fixedResource.workType})`);
         console.log(`  ✓ 任务类型: ${task.taskType}`);
-        // 检查指定资源是否匹配任务类型
+
+        // 检查类型是否匹配，但不管是否匹配都使用指定资源
         if (task.taskType && fixedResource.workType !== task.taskType) {
-          console.warn(`  ⚠ 任务 ${task.name} 指定的资源 ${fixedResource.name} 类型不匹配（任务类型: ${task.taskType}, 资源类型: ${fixedResource.workType}），将自动分配其他资源`);
-        } else {
-          // 使用指定资源
-          const resourceLoadHours = resourceLoad.get(fixedResource.id) || 0;
-          resourceLoad.set(fixedResource.id, resourceLoadHours + task.estimatedHours);
-
-          const tasksForResource = resourceTasks.get(fixedResource.id) || [];
-          tasksForResource.push(task);
-          resourceTasks.set(fixedResource.id, tasksForResource);
-
-          console.log(`  ✅ 任务 ${task.name} 使用指定资源: ${fixedResource.name} ✅`);
-
-          return {
-            ...task,
-            assignedResources: [fixedResource.id]
-          };
+          console.warn(`  ⚠ 注意：任务 ${task.name} 指定的资源 ${fixedResource.name} 类型不匹配（任务类型: ${task.taskType}, 资源类型: ${fixedResource.workType}），但仍将使用指定资源`);
         }
+
+        // 使用指定资源（强制使用）
+        const resourceLoadHours = resourceLoad.get(fixedResource.id) || 0;
+        resourceLoad.set(fixedResource.id, resourceLoadHours + task.estimatedHours);
+
+        const tasksForResource = resourceTasks.get(fixedResource.id) || [];
+        tasksForResource.push(task);
+        resourceTasks.set(fixedResource.id, tasksForResource);
+
+        console.log(`  ✅ 任务 ${task.name} 使用指定资源: ${fixedResource.name} ✅`);
+
+        return {
+          ...task,
+          assignedResources: [fixedResource.id]
+        };
       } else {
         console.warn(`  ⚠ 任务 ${task.name} 指定的资源 ${task.fixedResourceId} 不存在，将自动分配其他资源`);
       }
