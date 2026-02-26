@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 
 // 日志函数
 const log = (message: string) => {
@@ -8,21 +6,14 @@ const log = (message: string) => {
   const logMessage = `[${timestamp}] ${message}\n`;
   console.log(message);
   try {
+    const fs = require('fs');
     fs.appendFileSync('/app/work/logs/bypass/feishu-bitable.log', logMessage);
   } catch (error) {
     // 忽略日志写入错误
   }
 };
 
-// 处理 GET 请求（向后兼容，但推荐使用 POST）
-export async function GET(request: NextRequest) {
-  return NextResponse.json(
-    { error: '请使用 POST 方法查询记录。POST 请求体示例：{ "page_size": 100 }' },
-    { status: 400 }
-  );
-}
-
-// 处理 POST 请求（官方推荐方式）
+// 处理 POST 请求 - 新增记录
 export async function POST(request: NextRequest) {
   try {
     // 从 URL 参数获取配置
@@ -49,33 +40,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 获取请求体（可选，用于筛选、排序等）
-    let requestBody = {};
-    try {
-      requestBody = await request.json().catch(() => ({}));
-    } catch (e) {
-      requestBody = {};
+    // 获取请求体（fields 字段是必需的）
+    const requestBody = await request.json();
+
+    if (!requestBody.fields || typeof requestBody.fields !== 'object') {
+      log('[飞书多维表] ❌ 请求体缺少 fields 字段或格式不正确');
+      return NextResponse.json(
+        { error: '请求体必须包含 fields 字段' },
+        { status: 400 }
+      );
     }
 
-    log(`[飞书多维表] 开始查询: app_token=${appToken.substring(0, 10)}..., table_id=${tableId.substring(0, 10)}...`);
+    log(`[飞书多维表] 开始新增记录: app_token=${appToken.substring(0, 10)}..., table_id=${tableId.substring(0, 10)}...`);
+    log(`[飞书多维表] 新增数据: ${JSON.stringify(requestBody.fields)}`);
 
-    // 构建请求 URL - 使用官方推荐的 search 接口
-    const apiUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records/search`;
+    // 构建请求 URL
+    const apiUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records`;
 
     log(`[飞书多维表] 请求 URL: ${apiUrl}`);
-    log(`[飞书多维表] 请求体: ${JSON.stringify(requestBody)}`);
 
     // 调用飞书 API
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${userAccessToken}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json; charset=utf-8',
       },
-      body: JSON.stringify({
-        page_size: 100,
-        ...requestBody,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     const responseText = await response.text();
@@ -92,12 +83,12 @@ export async function POST(request: NextRequest) {
     if (!response.ok) {
       log(`[飞书多维表] ❌ API 错误: code=${data.code}, msg=${data.msg}`);
       return NextResponse.json(
-        { error: data.msg || '获取数据失败', code: data.code },
+        { error: data.msg || '新增记录失败', code: data.code },
         { status: response.status }
       );
     }
 
-    log(`[飞书多维表] ✅ 成功获取 ${data.data?.items?.length || 0} 条记录，总计 ${data.data?.total || 0} 条`);
+    log(`[飞书多维表] ✅ 成功新增记录，record_id=${data.data?.record?.record_id || '未知'}`);
 
     return NextResponse.json(data);
 
