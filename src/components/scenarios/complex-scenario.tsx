@@ -1267,7 +1267,7 @@ export default function ComplexScenario() {
                           max="300"
                           value={(efficiency * 100).toFixed(0)}
                           onChange={(e) => handleResourceChange(resource.id, 'efficiency', parseFloat(e.target.value) / 100)}
-                          className="h-6 w-14 text-right text-xs"
+                          className="h-6 w-16 text-right text-xs"
                         />
                         <span>%</span>
                       </div>
@@ -1282,7 +1282,7 @@ export default function ComplexScenario() {
                           max="100"
                           value={(resource.availability * 100).toFixed(0)}
                           onChange={(e) => handleResourceChange(resource.id, 'availability', parseFloat(e.target.value) / 100)}
-                          className="h-6 w-14 text-right text-xs"
+                          className="h-6 w-16 text-right text-xs"
                         />
                         <span>%</span>
                       </div>
