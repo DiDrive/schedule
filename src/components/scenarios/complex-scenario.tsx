@@ -34,6 +34,7 @@ import { CalendarView } from '@/components/views/calendar-view';
 import { ConflictResolutionDialog } from '@/components/conflict-resolution-dialog';
 import { TaskSplitDialog } from '@/components/task-split-dialog';
 import { detectResourceConflicts } from '@/lib/schedule-algorithms';
+import FeishuIntegrationDialog from '@/components/feishu-integration-dialog';
 
 // 辅助函数：将 Date 或字符串转换为 YYYY-MM-DD 格式
 const formatDateToInputValue = (date: Date | string | undefined): string => {
@@ -312,6 +313,7 @@ export default function ComplexScenario() {
   const [selectedTaskForSplit, setSelectedTaskForSplit] = useState<Task | null>(null);
   const [isSyncingToFeishu, setIsSyncingToFeishu] = useState(false);
   const [isTestingSync, setIsTestingSync] = useState(false);
+  const [showFeishuDialog, setShowFeishuDialog] = useState(false);
 
   // 标记是否需要强制生成排期（用于任务拆分后立即生成）
   const forceGenerateSchedule = useRef(false);
@@ -920,6 +922,59 @@ export default function ComplexScenario() {
     const taskTypeSuffix = activeTaskType === 'all' ? '' : `_${activeTaskType}`;
     const fileName = `复杂项目排期${taskTypeSuffix}_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`;
     XLSX.writeFile(wb, fileName);
+  };
+
+  // 处理飞书集成对话框中的同步操作
+  const handleFeishuDialogSync = async () => {
+    // 如果有排期结果，同步到飞书排期表
+    if (scheduleResult && scheduleResult.tasks.length > 0) {
+      await handleSyncToFeishu();
+    } else {
+      // 否则，从飞书加载数据
+      const configStr = localStorage.getItem('feishu-config');
+      if (!configStr) {
+        alert('请先配置飞书集成信息');
+        return;
+      }
+
+      const config = JSON.parse(configStr);
+      if (!config.appId || !config.appSecret || !config.appToken ||
+          !config.tableIds?.resources || !config.tableIds?.projects || !config.tableIds?.tasks) {
+        alert('飞书配置不完整，请填写 App ID、App Secret、App Token 和所有 Table ID');
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/feishu/load-data?app_id=${encodeURIComponent(config.appId)}` +
+          `&app_secret=${encodeURIComponent(config.appSecret)}` +
+          `&app_token=${encodeURIComponent(config.appToken)}` +
+          `&resources_table_id=${encodeURIComponent(config.tableIds.resources)}` +
+          `&projects_table_id=${encodeURIComponent(config.tableIds.projects)}` +
+          `&tasks_table_id=${encodeURIComponent(config.tableIds.tasks)}`
+        );
+
+        const result = await response.json();
+
+        if (!result.success) {
+          alert(`加载数据失败：${result.error}`);
+          return;
+        }
+
+        const { resources, projects, tasks } = result.data;
+        setSharedResources(resources);
+        setProjects(projects);
+        setTasks(tasks);
+        localStorage.setItem('complex-scenario-resources', JSON.stringify(resources));
+        localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
+        localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
+
+        alert(`成功从飞书多维表加载数据！\n\n人员：${resources.length}\n项目：${projects.length}\n任务：${tasks.length}`);
+      } catch (error) {
+        console.error('飞书数据加载失败:', error);
+        alert(`加载数据失败：${error instanceof Error ? error.message : '请检查网络连接和配置信息'}`);
+      }
+    }
   };
 
   // 测试飞书同步接口
@@ -1957,6 +2012,16 @@ export default function ComplexScenario() {
                         {isTestingSync ? '测试中...' : '测试同步'}
                       </Button>
                       <Button
+                        onClick={() => setShowFeishuDialog(true)}
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                        title="打开飞书集成配置对话框"
+                      >
+                        <Settings className="h-4 w-4" />
+                        飞书配置
+                      </Button>
+                      <Button
                         onClick={handleSyncToFeishu}
                         size="sm"
                         variant="outline"
@@ -2360,6 +2425,13 @@ export default function ComplexScenario() {
         isOpen={showTaskSplitDialog}
         onClose={() => setShowTaskSplitDialog(false)}
         onConfirm={handleTaskSplit}
+      />
+
+      {/* 飞书集成对话框 */}
+      <FeishuIntegrationDialog
+        open={showFeishuDialog}
+        onOpenChange={setShowFeishuDialog}
+        onSync={handleFeishuDialogSync}
       />
     </div>
   );
