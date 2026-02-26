@@ -278,6 +278,9 @@ export async function GET(request: NextRequest) {
           if (feishuPersonId) {
             const matchedResource = result.resources.find((r: any) => r.feishuPersonId === feishuPersonId);
             fixedResourceId = matchedResource?.id || '';
+            log(`[飞书加载] 任务 ${name}: 飞书人员ID=${feishuPersonId}, 匹配资源ID=${fixedResourceId}, 资源名称=${matchedResource?.name || '未找到'}`);
+          } else {
+            log(`[飞书加载] 任务 ${name}: 未找到负责人字段`);
           }
 
           // 解析任务类型：下拉选项，飞书返回的是字符串（如"平面设计"、"后期制作"）

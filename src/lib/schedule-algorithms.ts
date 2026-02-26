@@ -86,6 +86,13 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
     return b.estimatedHours - a.estimatedHours;
   });
 
+  // 打印任务列表和 fixedResourceId
+  console.log('========================================');
+  console.log('任务列表（排序后）:');
+  sortedTasks.forEach(task => {
+    console.log(`  - ${task.name}: fixedResourceId=${task.fixedResourceId || '(无指定)'}, taskType=${task.taskType || '(未指定)'}`);
+  });
+
   // ★★★ 识别并发任务组（从同一时间开始的任务）★★★
   // 并发任务是指：依赖关系相同，预期会从同一时间开始
   const taskGroups = new Map<string, Task[]>();
