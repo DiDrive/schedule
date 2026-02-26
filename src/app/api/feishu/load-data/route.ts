@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppAccessToken } from '@/lib/feishu-api';
 import {
-  parsePersonField,
+  parsePersonName,
+  parsePersonId,
   parseOptionField,
   parseDateField,
   parseNumberField,
@@ -86,58 +87,50 @@ export async function GET(request: NextRequest) {
 
       const resourcesData = await resourcesResponse.json();
       if (resourcesData.code === 0 && resourcesData.data) {
-        log(`[飞书加载] 🔍 人员原始数据示例: ${JSON.stringify(resourcesData.data.items[0]?.fields).substring(0, 200)}...`);
+        const sample = resourcesData.data.items[0]?.fields;
+        log(`[飞书加载] 🔍 人员原始数据示例: ${JSON.stringify(sample).substring(0, 300)}...`);
 
         result.resources = resourcesData.data.items.map((item: any) => {
           const fields = item.fields;
 
-          // 解析人员姓名字段（可能是文本字段，也可能是人员字段）
-          let name = '';
-          if (fields.name) name = parseStringField(fields.name);
-          else if (fields['姓名']) name = parseStringField(fields['姓名']);
-          else if (fields['人员姓名']) name = parseStringField(fields['人员姓名']);
-          else if (fields['人员']) {
-            // 如果"人员"字段是人员类型，提取第一个人的名字
-            const personName = parseStringField(fields['人员']);
-            if (personName) name = personName;
-          }
+          // 解析人员ID：可能是文本数组格式 [{text: "res-1", type: "text"}] 或直接字符串
+          const personId = parseStringField(fields['人员ID'] || fields['id'] || fields['ID']);
 
-          // 解析技能字段（可能是文本、选项或多选）
-          let skills: string[] = [];
-          if (fields.skills) skills = parseArrayField(parseStringField(fields.skills), []);
-          else if (fields['技能']) skills = parseArrayField(parseStringField(fields['技能']), []);
+          // 解析人员姓名：从飞书人员字段中提取名字
+          const personName = parsePersonName(fields['姓名'] || fields['name'] || fields['人员']);
 
-          // 解析工作类型（下拉选项）
-          const workType = parseOptionField(fields.workType || fields['工作类型'], true) || '';
+          // 解析工作类型：下拉选项，飞书返回的是字符串（如"平面设计"、"后期制作"）
+          const workType = parseStringField(fields['工作类型'] || fields['workType'], '');
 
-          // 解析资源等级（下拉选项）
-          const level = parseOptionField(fields.level || fields['等级'], true) || '';
+          // 解析资源等级：下拉选项
+          const level = parseStringField(fields['等级'] || fields['level'], '');
 
           // 解析效率系数
-          const efficiency = parseNumberField(fields.efficiency || fields['效率'], 1.0);
+          const efficiency = parseNumberField(fields['效率'] || fields['efficiency'], 1.0);
 
-          // 解析可用性（0-1）
-          const availability = parseNumberField(fields.availability || fields['可用性'], 1.0) / 100;
+          // 解析可用性：0-100 → 0-1
+          const availability = parseNumberField(fields['可用性'] || fields['availability'], 100) / 100;
 
           // 解析时薪
-          const hourlyRate = parseNumberField(fields.hourlyRate || fields['时薪'], 0);
+          const hourlyRate = parseNumberField(fields['时薪'] || fields['hourlyRate'], 0);
 
           // 解析邮箱
-          const email = parseStringField(fields.email || fields['邮箱'], '');
+          const email = parseStringField(fields['邮箱'] || fields['email'], '');
 
-          // 如果没有指定名称，使用 record_id
-          if (!name) {
-            name = `资源_${item.record_id.substring(0, 8)}`;
-          }
+          // 如果没有指定 ID，使用 personId 或 record_id
+          const resourceId = personId || `res_${item.record_id.substring(0, 8)}`;
+
+          // 如果没有指定名称，使用 personName 或 record_id
+          const name = personName || resourceId;
 
           return {
-            id: item.record_id,
+            id: resourceId,
             name: name,
             type: 'human',
             workType: workType,
             level: level,
             efficiency: efficiency,
-            skills: skills,
+            skills: [], // 技能暂不提取
             availability: availability,
             hourlyRate: hourlyRate,
             email: email,
@@ -167,61 +160,60 @@ export async function GET(request: NextRequest) {
 
       const tasksData = await tasksResponse.json();
       if (tasksData.code === 0 && tasksData.data) {
-        log(`[飞书加载] 🔍 任务原始数据示例: ${JSON.stringify(tasksData.data.items[0]?.fields).substring(0, 200)}...`);
+        const sample = tasksData.data.items[0]?.fields;
+        log(`[飞书加载] 🔍 任务原始数据示例: ${JSON.stringify(sample).substring(0, 300)}...`);
 
         result.tasks = tasksData.data.items.map((item: any) => {
           const fields = item.fields;
 
-          // 解析任务名称
-          const name = parseStringField(fields.name || fields['任务名称'], `任务_${item.record_id.substring(0, 8)}`);
+          // 解析任务ID：可能是文本数组格式 [{text: "task-xxx", type: "text"}] 或直接字符串
+          const taskId = parseStringField(fields['任务ID'] || fields['id'] || fields['ID']);
 
-          // 解析项目ID
-          const projectId = parseStringField(fields.projectId || fields['项目ID'] || fields['项目']);
+          // 解析任务名称：直接字符串
+          const name = parseStringField(fields['任务名称'] || fields['name'] || fields['名称'], taskId || `任务_${item.record_id.substring(0, 8)}`);
 
-          // 解析负责人（人员字段，提取 ID）
-          const assignedResourceId = parsePersonField(fields.assignedResourceId || fields['负责人ID'] || fields['负责人']);
+          // 解析项目ID：可能是文本数组格式或直接字符串
+          const projectId = parseStringField(fields['所属项目'] || fields['项目ID'] || fields['项目'] || fields['projectId']);
 
-          // 解析任务类型（下拉选项）
-          const taskType = parseOptionField(fields.taskType || fields['任务类型'], true) || '';
+          // 解析负责人：从飞书人员字段中提取 ID 和名字
+          const assignedResourceId = parsePersonId(fields['负责人'] || fields['指定人员'] || fields['assignedResourceId']);
 
-          // 解析预估工时
-          const estimatedHours = parseNumberField(fields.estimatedHours || fields['预估工时'], 8);
+          // 解析任务类型：下拉选项，飞书返回的是字符串（如"平面设计"、"后期制作"）
+          const taskType = parseStringField(fields['任务类型'] || fields['taskType'], '');
 
-          // 解析优先级（下拉选项）
-          const priorityOption = parseOptionField(fields.priority || fields['优先级'], true);
+          // 解析预估工时：可能是数字或文本数组格式
+          const estimatedHours = parseNumberField(fields['预估工时'] || fields['estimatedHours'], 8);
+
+          // 解析优先级：下拉选项，飞书返回的是字符串（如"高"、"中"、"低"）
+          const priorityStr = parseStringField(fields['优先级'] || fields['priority'], 'normal');
           let priority: 'urgent' | 'high' | 'normal' | 'low' = 'normal';
-          if (typeof priorityOption === 'string') {
-            const lower = priorityOption.toLowerCase();
+          if (priorityStr) {
+            const lower = priorityStr.toLowerCase();
             if (lower === 'urgent' || lower === '紧急') priority = 'urgent';
             else if (lower === 'high' || lower === '高') priority = 'high';
             else if (lower === 'low' || lower === '低') priority = 'low';
             else priority = 'normal';
           }
 
-          // 解析依赖项（可能是文本、选项或多选）
-          let dependencies: string[] = [];
-          if (fields.dependencies) {
-            dependencies = parseArrayField(parseStringField(fields.dependencies), []);
-          } else if (fields['依赖项']) {
-            dependencies = parseArrayField(parseStringField(fields['依赖项']), []);
-          }
+          // 解析依赖关系：字符串数组
+          const dependencies = parseArrayField(fields['依赖关系'] || fields['依赖项'] || fields['dependencies'], []);
 
-          // 解析状态（下拉选项）
-          const statusOption = parseOptionField(fields.status || fields['状态'], true);
+          // 解析状态：下拉选项，飞书返回的是字符串（如"进行中"、"已完成"）
+          const statusStr = parseStringField(fields['任务状态'] || fields['状态'] || fields['status'], 'pending');
           let status: 'pending' | 'in-progress' | 'completed' | 'blocked' = 'pending';
-          if (typeof statusOption === 'string') {
-            const lower = statusOption.toLowerCase();
+          if (statusStr) {
+            const lower = statusStr.toLowerCase();
             if (lower === 'in-progress' || lower === '进行中') status = 'in-progress';
             else if (lower === 'completed' || lower === '已完成') status = 'completed';
             else if (lower === 'blocked' || lower === '阻塞') status = 'blocked';
             else status = 'pending';
           }
 
-          // 解析截止日期
-          const deadline = parseDateField(fields.deadline || fields['截止日期']);
+          // 解析截止日期：时间戳或日期字符串
+          const deadline = parseDateField(fields['截止日期'] || fields['deadline']);
 
           return {
-            id: item.record_id,
+            id: taskId || item.record_id,
             name: name,
             projectId: projectId,
             assignedResourceId: assignedResourceId,
@@ -256,7 +248,8 @@ export async function GET(request: NextRequest) {
 
       const projectsData = await projectsResponse.json();
       if (projectsData.code === 0 && projectsData.data) {
-        log(`[飞书加载] 🔍 项目原始数据示例: ${JSON.stringify(projectsData.data.items[0]?.fields).substring(0, 200)}...`);
+        const sample = projectsData.data.items[0]?.fields;
+        log(`[飞书加载] 🔍 项目原始数据示例: ${JSON.stringify(sample).substring(0, 300)}...`);
 
         result.projects = projectsData.data.items.map((item: any) => {
           const fields = item.fields;
@@ -269,34 +262,35 @@ export async function GET(request: NextRequest) {
               .filter((id: any) => id) // 过滤掉空值
           ));
 
-          // 解析项目名称
-          const name = parseStringField(fields.name || fields['项目名称'], `项目_${item.record_id.substring(0, 8)}`);
+          // 解析项目ID：可能是文本数组格式 [{text: "proj-xxx", type: "text"}] 或直接字符串
+          const projectId = parseStringField(fields['项目ID'] || fields['id'] || fields['ID']);
 
-          // 解析项目描述
-          const description = parseStringField(fields.description || fields['项目描述'], '');
+          // 解析项目名称：直接字符串
+          const name = parseStringField(fields['项目名称'] || fields['name'] || fields['名称'], projectId || `项目_${item.record_id.substring(0, 8)}`);
 
-          // 解析优先级（下拉选项）
-          const priorityOption = parseOptionField(fields.priority || fields['优先级'], true);
+          // 解析项目描述：可能是文本数组格式或直接字符串
+          const description = parseStringField(fields['项目描述'] || fields['description'], '');
+
+          // 解析优先级：下拉选项，飞书返回的是字符串（如"高"、"中"、"低"）
+          const priorityStr = parseStringField(fields['优先级'] || fields['priority'], 'medium');
           let priority = 5; // 默认 medium
-          if (typeof priorityOption === 'string') {
-            const lower = priorityOption.toLowerCase();
+          if (priorityStr) {
+            const lower = priorityStr.toLowerCase();
             if (lower === 'high' || lower === '高' || lower === '紧急') priority = 9;
             else if (lower === 'medium' || lower === '中') priority = 5;
             else if (lower === 'low' || lower === '低') priority = 1;
-          } else if (typeof priorityOption === 'number') {
-            priority = Math.min(10, Math.max(1, priorityOption));
           }
 
-          // 解析日期字段
-          const startDate = parseDateField(fields.startDate || fields['开始日期']);
-          const endDate = parseDateField(fields.endDate || fields['结束日期']);
-          const deadline = parseDateField(fields.deadline || fields['截止日期']);
+          // 解析日期字段：时间戳或日期字符串或文本数组格式
+          const startDate = parseDateField(fields['开始日期'] || fields['startDate']);
+          const endDate = parseDateField(fields['结束日期'] || fields['endDate']);
+          const deadline = parseDateField(fields['截止日期'] || fields['deadline']);
 
-          // 解析状态（下拉选项）
-          const statusOption = parseOptionField(fields.status || fields['状态'], true);
+          // 解析状态：下拉选项，飞书返回的是字符串（如"进行中"、"已完成"）
+          const statusStr = parseStringField(fields['项目状态'] || fields['状态'] || fields['status'], 'pending');
           let status: 'pending' | 'in-progress' | 'completed' | 'blocked' = 'pending';
-          if (typeof statusOption === 'string') {
-            const lower = statusOption.toLowerCase();
+          if (statusStr) {
+            const lower = statusStr.toLowerCase();
             if (lower === 'in-progress' || lower === '进行中') status = 'in-progress';
             else if (lower === 'completed' || lower === '已完成') status = 'completed';
             else if (lower === 'blocked' || lower === '阻塞') status = 'blocked';
@@ -304,7 +298,7 @@ export async function GET(request: NextRequest) {
           }
 
           return {
-            id: item.record_id,
+            id: projectId || item.record_id,
             name: name,
             description: description,
             priority: priority,
