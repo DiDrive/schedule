@@ -994,7 +994,8 @@ export default function ComplexScenario() {
       const url = `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
         `&app_secret=${encodeURIComponent(config.appSecret)}` +
         `&app_token=${encodeURIComponent(config.appToken)}` +
-        `&schedules_table_id=${encodeURIComponent(config.tableIds.schedules)}`;
+        `&schedules_table_id=${encodeURIComponent(config.tableIds.schedules)}` +
+        `&resources_table_id=${encodeURIComponent(config.tableIds.resources || '')}`;
       
       console.log('[Feishu Sync] 同步URL:', url);
 

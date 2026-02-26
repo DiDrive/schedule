@@ -65,6 +65,48 @@ export async function POST(request: NextRequest) {
     log(`[飞书同步] 开始同步排期结果: app_token=${appToken.substring(0, 10)}..., table_id=${schedulesTableId.substring(0, 10)}...`);
     log(`[飞书同步] 待同步任务数: ${tasks.length}`);
 
+    // 创建资源ID到飞书人员ID的映射表
+    // 需要先从人员表加载资源数据，获取 feishuPersonId
+    let resourceIdToFeishuPersonIdMap = new Map<string, string>();
+    try {
+      const resourcesTableId = searchParams.get('resources_table_id');
+      if (resourcesTableId) {
+        const resourcesResponse = await fetch(
+          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${resourcesTableId}/records/search`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${appAccessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ page_size: 100 }),
+          }
+        );
+
+        const resourcesData = await resourcesResponse.json();
+        if (resourcesData.code === 0 && resourcesData.data) {
+          const {
+            parseStringField,
+            parsePersonId,
+          } = require('@/lib/feishu-field-parser');
+
+          resourcesData.data.items.forEach((item: any) => {
+            const fields = item.fields;
+            const resourceId = parseStringField(fields['人员ID'] || fields['id'] || fields['ID']) || `res_${item.record_id.substring(0, 8)}`;
+            const feishuPersonId = parsePersonId(fields['姓名'] || fields['name'] || fields['人员']);
+
+            if (resourceId && feishuPersonId) {
+              resourceIdToFeishuPersonIdMap.set(resourceId, feishuPersonId);
+              log(`[飞书同步] 映射资源: ${resourceId} -> ${feishuPersonId}`);
+            }
+          });
+          log(`[飞书同步] ✅ 加载了 ${resourceIdToFeishuPersonIdMap.size} 个资源映射`);
+        }
+      }
+    } catch (error) {
+      log(`[飞书同步] ⚠️ 加载资源映射失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    }
+
     let successCount = 0;
     let errorCount = 0;
     const errors: string[] = [];
@@ -109,6 +151,9 @@ export async function POST(request: NextRequest) {
     // 同步每个任务的排期信息
     for (const task of tasks) {
       try {
+        // 将资源ID映射回飞书人员ID
+        const feishuPersonId = task.assignedResourceId ? resourceIdToFeishuPersonIdMap.get(task.assignedResourceId) || task.assignedResourceId : '';
+
         // 准备排期记录数据
         // 字段名需要与飞书多维表的字段名一致
         const scheduleRecord = {
@@ -118,13 +163,14 @@ export async function POST(request: NextRequest) {
             '任务ID': task.id || '',
             '项目名称': task.projectName || '',
 
-            // 负责人信息
-            '负责人ID': task.assignedResourceId || '',
-            '负责人': task.assignedResourceName || '',
+            // 负责人信息（使用飞书人员 ID）
+            // 注意：如果排期表中"负责人"字段是人员类型，需要传人员的 open_id
+            '负责人': feishuPersonId ? [{ id: feishuPersonId }] : [],
+            '负责人ID': feishuPersonId || '',
 
-            // 排期时间信息（使用时间戳）
-            '计划开始时间': task.startDate ? new Date(task.startDate).getTime() : 0,
-            '计划结束时间': task.endDate ? new Date(task.endDate).getTime() : 0,
+            // 排期时间信息（使用毫秒级时间戳）
+            '计划开始时间': task.startDate ? Math.floor(new Date(task.startDate).getTime() / 1000) * 1000 : 0,
+            '计划结束时间': task.endDate ? Math.floor(new Date(task.endDate).getTime() / 1000) * 1000 : 0,
 
             // 工时信息
             '预估工时': task.estimatedHours || 0,
@@ -138,7 +184,13 @@ export async function POST(request: NextRequest) {
           },
         };
 
-        log(`[飞书同步] 同步任务: ${task.name}, 负责人: ${task.assignedResourceName}, 开始时间: ${task.startDate}`);
+        log(`[飞书同步] 同步任务: ${task.name}`);
+        log(`[飞书同步]   - 系统资源ID: ${task.assignedResourceId || '(无)'}`);
+        log(`[飞书同步]   - 飞书人员ID: ${feishuPersonId || '(无)'}`);
+        log(`[飞书同步]   - 负责人名称: ${task.assignedResourceName || '(无)'}`);
+        log(`[飞书同步]   - 开始时间: ${task.startDate || '(无)'}`);
+        log(`[飞书同步]   - 结束时间: ${task.endDate || '(无)'}`);
+        log(`[飞书同步]   - 记录数据: ${JSON.stringify(scheduleRecord)}`);
 
         const response = await fetch(
           `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records`,
@@ -154,12 +206,14 @@ export async function POST(request: NextRequest) {
 
         const data = await response.json();
 
+        log(`[飞书同步] API响应: ${JSON.stringify(data)}`);
+
         if (data.code === 0) {
           successCount++;
           log(`[飞书同步] ✅ 同步任务成功: ${task.name}`);
         } else {
           errorCount++;
-          const errorMsg = `任务 "${task.name}" 同步失败: ${data.msg}`;
+          const errorMsg = `任务 "${task.name}" 同步失败: ${data.msg} (code: ${data.code})`;
           errors.push(errorMsg);
           log(`[飞书同步] ❌ ${errorMsg}`);
         }
