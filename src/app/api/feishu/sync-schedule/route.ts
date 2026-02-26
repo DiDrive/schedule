@@ -169,6 +169,9 @@ export async function POST(request: NextRequest) {
         // 字段名需要与飞书多维表的字段名一致
         const scheduleRecord: any = {
           fields: {
+            // 任务名称（文本型）：可以写入
+            '任务名称': task.name || '',
+
             // 任务类型（单选/关联型）
             '任务类型': task.taskType || '',
 
@@ -181,8 +184,8 @@ export async function POST(request: NextRequest) {
             // 结束时间（日期时间型）：传时间戳（毫秒）
             '结束时间': task.endDate ? Math.floor(new Date(task.endDate).getTime() / 1000) * 1000 : 0,
 
-            // 工时（数值型）：传数字
-            '工时': task.estimatedHours || 0,
+            // 预估工时（数值型）：传数字
+            '预估工时': task.estimatedHours || 0,
 
             // 状态（单选型）：映射为中文
             '状态': mapStatusToFeishu(task.status || 'pending'),
@@ -200,6 +203,7 @@ export async function POST(request: NextRequest) {
         }
 
         log(`[飞书同步] 同步任务: ${task.name}`);
+        log(`[飞书同步]   - 任务名称: ${task.name || '(无)'}`);
         log(`[飞书同步]   - 系统资源ID: ${task.assignedResourceId || '(无)'}`);
         log(`[飞书同步]   - 飞书人员ID: ${feishuPersonId || '(无)'}`);
         log(`[飞书同步]   - 负责人名称: ${task.assignedResourceName || '(无)'}`);
@@ -207,6 +211,7 @@ export async function POST(request: NextRequest) {
         log(`[飞书同步]   - 状态: ${task.status || 'pending'} -> ${mapStatusToFeishu(task.status || 'pending')}`);
         log(`[飞书同步]   - 开始时间: ${task.startDate || '(无)'}`);
         log(`[飞书同步]   - 结束时间: ${task.endDate || '(无)'}`);
+        log(`[飞书同步]   - 预估工时: ${task.estimatedHours || 0}`);
         log(`[飞书同步]   - 记录数据: ${JSON.stringify(scheduleRecord)}`);
 
         const response = await fetch(
