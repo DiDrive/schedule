@@ -1900,6 +1900,7 @@ export default function ComplexScenario() {
                         variant="outline"
                         className="gap-2"
                         disabled={isSyncingToFeishu || !scheduleResult}
+                        title={!scheduleResult ? '请先生成排期结果' : '同步到飞书'}
                       >
                         {isSyncingToFeishu ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -1907,6 +1908,9 @@ export default function ComplexScenario() {
                           <Globe className="h-4 w-4" />
                         )}
                         {isSyncingToFeishu ? '同步中...' : '同步到飞书'}
+                        {!scheduleResult && !isSyncingToFeishu && (
+                          <span className="text-xs text-muted-foreground">（请先生成排期）</span>
+                        )}
                       </Button>
                       <Button onClick={handleExportToExcel} size="sm" variant="outline" className="gap-2">
                         <Download className="h-4 w-4" />
