@@ -47,10 +47,12 @@ export default function ProjectScheduleSystem() {
     try {
       // 从飞书多维表加载数据
       const response = await fetch(
-        `/api/feishu/load-data?app_token=${config.appToken}` +
-        `&resources_table_id=${config.tableIds.resources}` +
-        `&projects_table_id=${config.tableIds.projects}` +
-        `&tasks_table_id=${config.tableIds.tasks}`
+        `/api/feishu/load-data?app_id=${encodeURIComponent(config.appId)}` +
+        `&app_secret=${encodeURIComponent(config.appSecret)}` +
+        `&app_token=${encodeURIComponent(config.appToken)}` +
+        `&resources_table_id=${encodeURIComponent(config.tableIds.resources)}` +
+        `&projects_table_id=${encodeURIComponent(config.tableIds.projects)}` +
+        `&tasks_table_id=${encodeURIComponent(config.tableIds.tasks)}`
       );
 
       const result = await response.json();

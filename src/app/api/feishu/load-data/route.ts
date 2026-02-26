@@ -18,6 +18,8 @@ const log = (message: string) => {
  * 从飞书多维表加载排期系统数据
  *
  * 请求参数（通过 URL 传递）:
+ * - app_id: 飞书应用 ID
+ * - app_secret: 飞书应用密钥
  * - app_token: 多维表格 App Token
  * - resources_table_id: 人员表 Table ID
  * - projects_table_id: 项目表 Table ID
@@ -26,10 +28,20 @@ const log = (message: string) => {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    const appId = searchParams.get('app_id');
+    const appSecret = searchParams.get('app_secret');
     const appToken = searchParams.get('app_token');
     const resourcesTableId = searchParams.get('resources_table_id');
     const projectsTableId = searchParams.get('projects_table_id');
     const tasksTableId = searchParams.get('tasks_table_id');
+
+    if (!appId || !appSecret) {
+      log('[飞书加载] ❌ 缺少 app_id 或 app_secret');
+      return NextResponse.json(
+        { error: '缺少 app_id 或 app_secret' },
+        { status: 400 }
+      );
+    }
 
     if (!appToken) {
       log('[飞书加载] ❌ 缺少 app_token');
@@ -39,7 +51,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const appAccessToken = await getAppAccessToken();
+    const appAccessToken = await getAppAccessToken(appId, appSecret);
     log(`[飞书加载] 开始从多维表加载数据: app_token=${appToken.substring(0, 10)}...`);
 
     const result: any = {

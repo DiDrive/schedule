@@ -18,6 +18,8 @@ const log = (message: string) => {
  * 同步排期结果到飞书多维表
  *
  * 请求参数（通过 URL 传递）:
+ * - app_id: 飞书应用 ID
+ * - app_secret: 飞书应用密钥
  * - app_token: 多维表格 App Token
  * - schedules_table_id: 排期表 Table ID
  *
@@ -28,8 +30,18 @@ const log = (message: string) => {
 export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    const appId = searchParams.get('app_id');
+    const appSecret = searchParams.get('app_secret');
     const appToken = searchParams.get('app_token');
     const schedulesTableId = searchParams.get('schedules_table_id');
+
+    if (!appId || !appSecret) {
+      log('[飞书同步] ❌ 缺少 app_id 或 app_secret');
+      return NextResponse.json(
+        { error: '缺少 app_id 或 app_secret' },
+        { status: 400 }
+      );
+    }
 
     if (!appToken || !schedulesTableId) {
       log('[飞书同步] ❌ 缺少 app_token 或 schedules_table_id');
@@ -50,7 +62,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const appAccessToken = await getAppAccessToken();
+    const appAccessToken = await getAppAccessToken(appId, appSecret);
     log(`[飞书同步] 开始同步排期结果: app_token=${appToken.substring(0, 10)}..., table_id=${schedulesTableId.substring(0, 10)}...`);
 
     let successCount = 0;
