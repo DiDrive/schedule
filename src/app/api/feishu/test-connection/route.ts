@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     log(`[飞书连接测试] 开始测试: app_id=${appId.substring(0, 10)}..., app_token=${appToken.substring(0, 10)}...`);
 
     // 步骤 1：获取 app_access_token
-    const tokenResponse = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
+    const tokenResponse = await fetch('https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

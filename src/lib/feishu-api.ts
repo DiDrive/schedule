@@ -42,7 +42,7 @@ export async function getAppAccessToken(appId?: string, appSecret?: string): Pro
   log('[飞书API] 开始获取 app_access_token');
 
   try {
-    const response = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
+    const response = await fetch('https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
