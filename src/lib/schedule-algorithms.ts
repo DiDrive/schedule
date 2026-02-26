@@ -1051,8 +1051,9 @@ export function generateSchedule(
 
           // 根据冲突处理策略决定是否允许切换资源
           // 优先使用用户的选择，如果没有则使用默认策略
-          // ★★★ 修复：移除 !task.fixedResourceId 条件，允许指定资源的任务也能自动切换 ★★★
-          const allowSwitch = userResolution === 'switch' || (userResolution === undefined && conflictStrategy === 'auto-switch');
+          // ★★★ 修复：如果任务有指定资源，禁止自动切换 ★★★
+          const allowSwitch = userResolution === 'switch' ||
+            (userResolution === undefined && conflictStrategy === 'auto-switch' && !task.fixedResourceId);
 
       // 如果允许切换，比较等待指定资源和其他资源的时间
       if (allowSwitch) {
