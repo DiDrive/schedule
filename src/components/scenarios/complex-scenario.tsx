@@ -1260,7 +1260,7 @@ export default function ComplexScenario() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {project.resourcePool.length}
+                        {project.resourcePool?.length || 0}
                       </Badge>
                     </TableCell>
                     <TableCell>

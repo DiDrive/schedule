@@ -89,6 +89,57 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // 加载任务数据（先加载任务，因为项目需要从任务中提取资源池）
+    if (tasksTableId) {
+      log(`[飞书加载] 加载任务数据: table_id=${tasksTableId}`);
+      const tasksResponse = await fetch(
+        `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tasksTableId}/records/search`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${appAccessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ page_size: 500 }),
+        }
+      );
+
+      const tasksData = await tasksResponse.json();
+      if (tasksData.code === 0 && tasksData.data) {
+        result.tasks = tasksData.data.items.map((item: any) => {
+          // 解析优先级
+          const priorityStr = item.fields.priority || item.fields['优先级'] || 'normal';
+          let priority: 'urgent' | 'high' | 'normal' | 'low' = 'normal';
+
+          if (typeof priorityStr === 'number') {
+            if (priorityStr >= 9) priority = 'urgent';
+            else if (priorityStr >= 7) priority = 'high';
+            else if (priorityStr >= 4) priority = 'normal';
+            else priority = 'low';
+          } else if (typeof priorityStr === 'string') {
+            const lower = priorityStr.toLowerCase();
+            if (lower === 'urgent' || lower === '紧急') priority = 'urgent';
+            else if (lower === 'high' || lower === '高') priority = 'high';
+            else if (lower === 'low' || lower === '低') priority = 'low';
+            else priority = 'normal'; // 默认 normal
+          }
+
+          return {
+            id: item.record_id,
+            name: item.fields.name || item.fields['任务名称'] || '',
+            projectId: item.fields.projectId || item.fields['项目ID'] || '',
+            assignedResourceId: item.fields.assignedResourceId || item.fields['负责人ID'] || '',
+            estimatedHours: item.fields.estimatedHours || item.fields['预估工时'] || 8,
+            priority: priority,
+            dependencies: item.fields.dependencies || item.fields['依赖项'] || [],
+            status: item.fields.status || item.fields['状态'] || 'pending',
+            deadline: item.fields.deadline || item.fields['截止日期'] || null,
+          };
+        });
+        log(`[飞书加载] ✅ 加载了 ${result.tasks.length} 个任务`);
+      }
+    }
+
     // 加载项目数据
     if (projectsTableId) {
       log(`[飞书加载] 加载项目数据: table_id=${projectsTableId}`);
@@ -106,48 +157,41 @@ export async function GET(request: NextRequest) {
 
       const projectsData = await projectsResponse.json();
       if (projectsData.code === 0 && projectsData.data) {
-        result.projects = projectsData.data.items.map((item: any) => ({
-          id: item.record_id,
-          name: item.fields.name || item.fields['项目名称'] || '',
-          description: item.fields.description || item.fields['项目描述'] || '',
-          priority: item.fields.priority || item.fields['优先级'] || 'medium',
-          startDate: item.fields.startDate || item.fields['开始日期'],
-          endDate: item.fields.endDate || item.fields['结束日期'],
-          status: item.fields.status || item.fields['状态'] || 'pending',
-        }));
+        result.projects = projectsData.data.items.map((item: any) => {
+          // 从任务中提取该项目的资源池
+          const projectTasks = result.tasks.filter((t: any) => t.projectId === item.record_id);
+          const resourcePool = Array.from(new Set(
+            projectTasks
+              .map((t: any) => t.assignedResourceId)
+              .filter((id: string) => id) // 过滤掉空值
+          ));
+
+          // 解析优先级：high -> 9, medium -> 5, low -> 1
+          const priorityStr = item.fields.priority || item.fields['优先级'] || 'medium';
+          let priority = 5; // 默认 medium
+          if (typeof priorityStr === 'number') {
+            priority = Math.min(10, Math.max(1, priorityStr));
+          } else if (typeof priorityStr === 'string') {
+            if (priorityStr.toLowerCase() === 'high') priority = 9;
+            else if (priorityStr.toLowerCase() === 'medium') priority = 5;
+            else if (priorityStr.toLowerCase() === 'low') priority = 1;
+          }
+
+          return {
+            id: item.record_id,
+            name: item.fields.name || item.fields['项目名称'] || '',
+            description: item.fields.description || item.fields['项目描述'] || '',
+            priority: priority,
+            startDate: item.fields.startDate || item.fields['开始日期'] || null,
+            endDate: item.fields.endDate || item.fields['结束日期'] || null,
+            deadline: item.fields.deadline || item.fields['截止日期'] || null,
+            status: item.fields.status || item.fields['状态'] || 'pending',
+            resourcePool: resourcePool.length > 0 ? resourcePool : [], // 确保始终是数组
+            color: '#3b82f6', // 默认颜色
+            tasks: [], // 空数组
+          };
+        });
         log(`[飞书加载] ✅ 加载了 ${result.projects.length} 个项目`);
-      }
-    }
-
-    // 加载任务数据
-    if (tasksTableId) {
-      log(`[飞书加载] 加载任务数据: table_id=${tasksTableId}`);
-      const tasksResponse = await fetch(
-        `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tasksTableId}/records/search`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${appAccessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ page_size: 500 }),
-        }
-      );
-
-      const tasksData = await tasksResponse.json();
-      if (tasksData.code === 0 && tasksData.data) {
-        result.tasks = tasksData.data.items.map((item: any) => ({
-          id: item.record_id,
-          name: item.fields.name || item.fields['任务名称'] || '',
-          projectId: item.fields.projectId || item.fields['项目ID'] || '',
-          assignedResourceId: item.fields.assignedResourceId || item.fields['负责人ID'] || '',
-          estimatedHours: item.fields.estimatedHours || item.fields['预估工时'] || 8,
-          priority: item.fields.priority || item.fields['优先级'] || 'medium',
-          dependencies: item.fields.dependencies || item.fields['依赖项'] || [],
-          status: item.fields.status || item.fields['状态'] || 'pending',
-          deadline: item.fields.deadline || item.fields['截止日期'],
-        }));
-        log(`[飞书加载] ✅ 加载了 ${result.tasks.length} 个任务`);
       }
     }
 
