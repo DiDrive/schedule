@@ -923,21 +923,39 @@ export default function ComplexScenario() {
 
   // 同步到飞书
   const handleSyncToFeishu = async () => {
+    console.log('[Feishu Sync] 开始同步到飞书');
+    
     if (!scheduleResult) {
+      console.log('[Feishu Sync] ❌ 没有排期结果');
       alert('请先生成排期结果');
       return;
     }
 
     const configStr = localStorage.getItem('feishu-config');
+    console.log('[Feishu Sync] 配置字符串:', configStr ? '存在' : '不存在');
+    
     if (!configStr) {
+      console.log('[Feishu Sync] ❌ 没有飞书配置');
       alert('请先配置飞书集成信息');
       return;
     }
 
     const config = JSON.parse(configStr);
+    console.log('[Feishu Sync] 配置内容:', {
+      appId: config.appId,
+      appSecret: config.appSecret ? '已填写' : '未填写',
+      appToken: config.appToken ? '已填写' : '未填写',
+      tableIds: config.tableIds,
+    });
 
     // 验证配置是否完整
     if (!config.appId || !config.appSecret || !config.appToken || !config.tableIds?.schedules) {
+      console.log('[Feishu Sync] ❌ 飞书配置不完整:', {
+        appId: !!config.appId,
+        appSecret: !!config.appSecret,
+        appToken: !!config.appToken,
+        schedulesTableId: !!config.tableIds?.schedules,
+      });
       alert('飞书配置不完整，请填写 App ID、App Secret、App Token 和排期表 Table ID');
       return;
     }
@@ -970,24 +988,28 @@ export default function ComplexScenario() {
         };
       });
 
+      console.log('[Feishu Sync] 准备同步', syncTasks.length, '个任务');
+
       // 调用同步接口
-      const response = await fetch(
-        `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
+      const url = `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
         `&app_secret=${encodeURIComponent(config.appSecret)}` +
         `&app_token=${encodeURIComponent(config.appToken)}` +
-        `&schedules_table_id=${encodeURIComponent(config.tableIds.schedules)}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            tasks: syncTasks,
-          }),
-        }
-      );
+        `&schedules_table_id=${encodeURIComponent(config.tableIds.schedules)}`;
+      
+      console.log('[Feishu Sync] 同步URL:', url);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tasks: syncTasks,
+        }),
+      });
 
       const result = await response.json();
+      console.log('[Feishu Sync] 同步结果:', result);
 
       if (result.success) {
         alert(`同步成功！\n\n成功: ${result.stats.success}\n失败: ${result.stats.error}`);
@@ -998,7 +1020,7 @@ export default function ComplexScenario() {
         alert(`同步失败: ${result.error || '未知错误'}`);
       }
     } catch (error) {
-      console.error('同步到飞书失败:', error);
+      console.error('[Feishu Sync] 同步异常:', error);
       alert(`同步失败: ${error instanceof Error ? error.message : '未知错误'}`);
     } finally {
       setIsSyncingToFeishu(false);
