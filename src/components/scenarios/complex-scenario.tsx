@@ -311,6 +311,7 @@ export default function ComplexScenario() {
   const [showTaskSplitDialog, setShowTaskSplitDialog] = useState(false);
   const [selectedTaskForSplit, setSelectedTaskForSplit] = useState<Task | null>(null);
   const [isSyncingToFeishu, setIsSyncingToFeishu] = useState(false);
+  const [isTestingSync, setIsTestingSync] = useState(false);
 
   // 标记是否需要强制生成排期（用于任务拆分后立即生成）
   const forceGenerateSchedule = useRef(false);
@@ -919,6 +920,51 @@ export default function ComplexScenario() {
     const taskTypeSuffix = activeTaskType === 'all' ? '' : `_${activeTaskType}`;
     const fileName = `复杂项目排期${taskTypeSuffix}_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`;
     XLSX.writeFile(wb, fileName);
+  };
+
+  // 测试飞书同步接口
+  const handleTestFeishuSync = async () => {
+    console.log('[Feishu Test] 开始测试飞书同步接口');
+
+    const configStr = localStorage.getItem('feishu-config');
+    if (!configStr) {
+      alert('请先配置飞书集成信息');
+      return;
+    }
+
+    const config = JSON.parse(configStr);
+    if (!config.appId || !config.appSecret || !config.appToken || !config.tableIds?.schedules) {
+      alert('飞书配置不完整，请填写 App ID、App Secret、App Token 和排期表 Table ID');
+      return;
+    }
+
+    setIsTestingSync(true);
+    try {
+      const url = `/api/feishu/test-sync?app_id=${encodeURIComponent(config.appId)}` +
+        `&app_secret=${encodeURIComponent(config.appSecret)}` +
+        `&app_token=${encodeURIComponent(config.appToken)}` +
+        `&schedules_table_id=${encodeURIComponent(config.tableIds.schedules)}`;
+
+      console.log('[Feishu Test] 测试URL:', url);
+
+      const response = await fetch(url);
+      const result = await response.json();
+
+      console.log('[Feishu Test] 测试结果:', result);
+
+      if (result.success) {
+        const summary = result.summary;
+        const steps = result.steps.map((s: any) => `${s.step}: ${s.success !== undefined ? (s.success ? '✅' : '❌') : ''} ${s.msg || s.error || ''}`).join('\n');
+        alert(`测试完成！\n\n功能状态：\n- App Access Token: ${summary.accessToken}\n- 读取排期表: ${summary.readTable}\n- 写入记录: ${summary.writeRecord}\n- 删除记录: ${summary.deleteRecord}\n\n详细步骤：\n${steps}`);
+      } else {
+        alert(`测试失败: ${result.error}\n\n详细步骤：\n${result.steps.map((s: any) => `${s.step}: ${s.error}`).join('\n')}`);
+      }
+    } catch (error) {
+      console.error('[Feishu Test] 测试异常:', error);
+      alert(`测试失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    } finally {
+      setIsTestingSync(false);
+    }
   };
 
   // 同步到飞书
@@ -1894,6 +1940,21 @@ export default function ComplexScenario() {
                           <Sparkles className="h-4 w-4" />
                         )}
                         {isAiOptimizing ? 'AI分析中...' : 'AI优化排期'}
+                      </Button>
+                      <Button
+                        onClick={handleTestFeishuSync}
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                        disabled={isTestingSync}
+                        title="测试飞书同步接口是否工作正常"
+                      >
+                        {isTestingSync ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4" />
+                        )}
+                        {isTestingSync ? '测试中...' : '测试同步'}
                       </Button>
                       <Button
                         onClick={handleSyncToFeishu}
