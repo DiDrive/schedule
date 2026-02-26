@@ -177,3 +177,49 @@ export interface CompositeScenarioInput {
     supplier: string;
   }[];
 }
+
+// ==================== 项目模板相关类型 ====================
+
+// 模板任务配置
+export interface TemplateTask {
+  id: string;
+  sequence: number; // 任务序号，用于确定依赖关系（如 1, 2, 3, 4）
+  name: string;
+  description?: string;
+  estimatedHours: number;
+  priority: 'urgent' | 'high' | 'normal' | 'low';
+  taskType: ResourceWorkType; // 平面/后期/物料
+  workType?: ResourceWorkType; // 工作类型（兼容性字段）
+  dependencies: number[]; // 依赖的任务序号数组（如 [1] 表示依赖序号为1的任务）
+  allowParallel: boolean; // 是否允许与其他同级任务并行
+  tags?: string[];
+  notes?: string; // 任务说明
+}
+
+// 项目模板配置
+export interface ProjectTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: string; // 模板分类：买量片、宣传片、广告片等
+  tasks: TemplateTask[];
+  defaultWorkingHours?: number; // 默认每天工作小时数
+  color?: string; // 模板在界面中的显示颜色
+  createdAt?: Date;
+  updatedAt?: Date;
+  isDefault?: boolean; // 是否为默认模板
+}
+
+// 从模板生成任务的配置
+export interface GenerateFromTemplateConfig {
+  templateId: string;
+  projectName: string;
+  projectDescription?: string;
+  startDate: Date;
+  priority: number;
+  resourcePool?: string[]; // 资源池（可选，如果不指定则使用共享资源池）
+  customizations?: {
+    taskOverrides?: Record<string, Partial<TemplateTask>>; // 自定义任务配置，key 为 taskId
+    skipTasks?: string[]; // 跳过的任务 IDs
+  };
+}

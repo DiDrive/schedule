@@ -24,7 +24,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2, Calendar, MoreVertical, Globe } from 'lucide-react';
+import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2, Calendar, MoreVertical, Globe, FileText } from 'lucide-react';
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import * as XLSX from 'xlsx';
 import { defaultWorkingHours } from '@/lib/sample-data';
@@ -35,6 +35,7 @@ import { ConflictResolutionDialog } from '@/components/conflict-resolution-dialo
 import { TaskSplitDialog } from '@/components/task-split-dialog';
 import { detectResourceConflicts } from '@/lib/schedule-algorithms';
 import FeishuIntegrationDialog from '@/components/feishu-integration-dialog';
+import TemplateDialog from '@/components/template-dialog';
 
 // 辅助函数：将 Date 或字符串转换为 YYYY-MM-DD 格式
 const formatDateToInputValue = (date: Date | string | undefined): string => {
@@ -307,6 +308,7 @@ export default function ComplexScenario() {
   const [showDeadlineWarningDialog, setShowDeadlineWarningDialog] = useState(false);
   const [deadlineWarningDays, setDeadlineWarningDays] = useState(3); // 默认3天
   const [showDeadlineSettingsDialog, setShowDeadlineSettingsDialog] = useState(false);
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [nearDeadlineCount, setNearDeadlineCount] = useState(0); // 临近任务数
   const [overdueCount, setOverdueCount] = useState(0); // 超期任务数
   const [showTaskSplitDialog, setShowTaskSplitDialog] = useState(false);
@@ -783,6 +785,21 @@ export default function ComplexScenario() {
       tasks: []
     };
     setProjects([...projects, newProject]);
+  };
+
+  // 处理从模板创建项目
+  const handleProjectFromTemplate = (project: Project) => {
+    // 添加到项目列表
+    setProjects([...projects, project]);
+
+    // 添加项目任务到任务列表
+    setTasks([...tasks, ...project.tasks]);
+
+    // 清空排期结果，需要重新计算
+    setScheduleResult(null);
+
+    // 显示成功消息
+    alert(`已成功从模板创建项目 "${project.name}"，包含 ${project.tasks.length} 个任务`);
   };
 
   const handleDeleteProject = (projectId: string) => {
@@ -1359,6 +1376,15 @@ export default function ComplexScenario() {
             >
               <Plus className="h-4 w-4" />
               添加项目
+            </Button>
+            <Button
+              onClick={() => setShowTemplateDialog(true)}
+              variant="outline"
+              size="sm"
+              className="gap-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0"
+            >
+              <FileText className="h-4 w-4" />
+              使用模板
             </Button>
           </CardTitle>
           <CardDescription>
@@ -2346,6 +2372,13 @@ export default function ComplexScenario() {
         open={showFeishuDialog}
         onOpenChange={setShowFeishuDialog}
         onSync={handleFeishuDialogSync}
+      />
+
+      {/* 模板创建对话框 */}
+      <TemplateDialog
+        open={showTemplateDialog}
+        onOpenChange={setShowTemplateDialog}
+        onProjectCreated={handleProjectFromTemplate}
       />
     </div>
   );
