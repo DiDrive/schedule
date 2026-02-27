@@ -406,9 +406,9 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                     <TableBody>
                       {formData.tasks.map((task, index) => (
                         <TableRow key={task.id}>
-                          <TableCell className="font-medium text-center align-middle py-2">{task.sequence}</TableCell>
-                          <TableCell className="align-middle py-2">
-                            <div className="space-y-2">
+                          <TableCell className="font-medium text-center align-middle py-4">{task.sequence}</TableCell>
+                          <TableCell className="align-middle py-4">
+                            <div className="space-y-3">
                               <Input
                                 value={task.name}
                                 onChange={(e) => handleUpdateTaskField(task.id, 'name', e.target.value)}
@@ -418,7 +418,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                               <Input
                                 value={task.description || ''}
                                 onChange={(e) => handleUpdateTaskField(task.id, 'description', e.target.value)}
-                                className="h-8 text-xs"
+                                className="h-9 text-xs"
                                 placeholder="任务描述（可选）"
                               />
                               {task.notes && (
@@ -426,7 +426,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="align-middle py-2">
+                          <TableCell className="align-middle py-4">
                             <Input
                               type="number"
                               min="1"
@@ -435,7 +435,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                               className="h-10 w-24"
                             />
                           </TableCell>
-                          <TableCell className="align-middle py-2">
+                          <TableCell className="align-middle py-4">
                             <Select 
                               value={task.taskType} 
                               onValueChange={(value: ResourceWorkType) => handleUpdateTaskField(task.id, 'taskType', value)}
@@ -450,7 +450,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                               </SelectContent>
                             </Select>
                           </TableCell>
-                          <TableCell className="align-middle py-2">
+                          <TableCell className="align-middle py-4">
                             <Select 
                               value={task.priority} 
                               onValueChange={(value: any) => handleUpdateTaskField(task.id, 'priority', value)}
@@ -466,13 +466,13 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                               </SelectContent>
                             </Select>
                           </TableCell>
-                          <TableCell className="align-middle py-2">
+                          <TableCell className="align-middle py-4">
                             <div className="flex flex-wrap gap-2">
                               {availableSequences.filter(seq => seq !== task.sequence).map(seq => {
                                 const depTask = getTaskBySequence(seq);
                                 const depTaskName = depTask?.name || `任务${seq}`;
                                 return (
-                                  <label key={seq} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 px-2 py-1 rounded border border-slate-200 dark:border-slate-700">
+                                  <label key={seq} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 px-2 py-1.5 rounded border border-slate-200 dark:border-slate-700">
                                     <input
                                       type="checkbox"
                                       checked={task.dependencies?.includes(seq)}
@@ -492,7 +492,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                               })}
                             </div>
                           </TableCell>
-                          <TableCell className="align-middle py-2">
+                          <TableCell className="align-middle py-4">
                             <label className="flex items-center gap-2 cursor-pointer">
                               <input
                                 type="checkbox"
@@ -503,14 +503,14 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                               <span className="text-xs whitespace-nowrap">{task.allowParallel ? '可并行' : '串行'}</span>
                             </label>
                           </TableCell>
-                          <TableCell className="align-middle py-2">
+                          <TableCell className="align-middle py-4">
                             <div className="flex items-center gap-1">
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleMoveTask(index, 'up')}
                                 disabled={index === 0}
-                                className="h-9 w-9 p-0"
+                                className="h-10 w-10 p-0"
                               >
                                 <ArrowUp className="h-4 w-4" />
                               </Button>
@@ -519,7 +519,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                                 size="sm"
                                 onClick={() => handleMoveTask(index, 'down')}
                                 disabled={index === formData.tasks!.length - 1}
-                                className="h-9 w-9 p-0"
+                                className="h-10 w-10 p-0"
                               >
                                 <ArrowDown className="h-4 w-4" />
                               </Button>
@@ -527,7 +527,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleDeleteTask(task.id)}
-                                className="h-9 w-9 p-0 text-red-600 hover:text-red-700"
+                                className="h-10 w-10 p-0 text-red-600 hover:text-red-700"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
