@@ -114,8 +114,11 @@ export function generateTasksFromTemplate(
   const calculateEndDate = (startDate: Date, remainingHours: number): Date => {
     let currentDate = new Date(startDate);
     let remainingWorkMinutes = remainingHours * 60; // 转换为分钟
+    let maxIterations = 1000; // 防止死循环的安全限制
+    let iterations = 0;
     
-    while (remainingWorkMinutes > 0) {
+    while (remainingWorkMinutes > 0 && iterations < maxIterations) {
+      iterations++;
       const currentHour = currentDate.getHours();
       const currentMinute = currentDate.getMinutes();
       
@@ -135,9 +138,10 @@ export function generateTasksFromTemplate(
           // 跳到下午1:30
           currentDate.setHours(13, 30, 0, 0);
         }
-      } else if (currentHour < 13.5 || (currentHour === 13 && currentMinute < 30)) {
-        // 在午休时段，跳到下午1:30
+      } else if (currentHour >= 12 && currentHour < 13.5 && !(currentHour === 13 && currentMinute >= 30)) {
+        // 在午休时段（12:00 - 13:30），跳到下午1:30
         currentDate.setHours(13, 30, 0, 0);
+        // 午休不消耗工作时间，不减少 remainingWorkMinutes
       } else {
         // 在下午时段
         const remainingAfternoonMinutes = getRemainingMinutesForDay(currentDate);
@@ -147,17 +151,22 @@ export function generateTasksFromTemplate(
           const endDate = new Date(currentDate);
           endDate.setTime(currentDate.getTime() + remainingWorkMinutes * 60 * 1000);
           return endDate;
-        } else {
+        } else if (remainingAfternoonMinutes > 0) {
           // 下午完成不了，减去下午时间
           remainingWorkMinutes -= remainingAfternoonMinutes;
           // 跳到下一个工作日上午9:30
+          currentDate.setDate(currentDate.getDate() + 1);
+          currentDate = skipWeekends(currentDate);
+        } else {
+          // 下午没有时间了（可能是过了18:30），跳到下一个工作日上午9:30
           currentDate.setDate(currentDate.getDate() + 1);
           currentDate = skipWeekends(currentDate);
         }
       }
     }
     
-    // 如果没有剩余工作小时数，返回开始日期
+    // 如果达到最大迭代次数或没有剩余工作小时数，返回开始日期
+    console.warn('calculateEndDate reached max iterations or no work minutes');
     return new Date(startDate);
   };
   
