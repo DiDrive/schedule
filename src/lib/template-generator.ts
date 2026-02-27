@@ -104,6 +104,7 @@ export function generateTasksFromTemplate(
  * @param priority 项目优先级
  * @param resourcePool 资源池
  * @param projectDescription 项目描述
+ * @param deadline 项目截止日期（可选）
  * @returns 创建的项目对象
  */
 export function createProjectFromTemplate(
@@ -112,23 +113,27 @@ export function createProjectFromTemplate(
   startDate: Date,
   priority: number = 5,
   resourcePool: string[] = [],
-  projectDescription?: string
+  projectDescription?: string,
+  deadline?: Date
 ): Project {
   const projectId = `proj-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
   // 生成任务
   const tasks = generateTasksFromTemplate(template, projectId, startDate);
 
-  // 计算项目结束日期（最后一个任务的结束日期）
-  const lastTask = tasks[tasks.length - 1];
-  const deadline = lastTask.endDate ? new Date(lastTask.endDate) : undefined;
+  // 使用传入的截止日期，如果没有则使用最后一个任务的结束日期
+  let projectDeadline = deadline;
+  if (!projectDeadline) {
+    const lastTask = tasks[tasks.length - 1];
+    projectDeadline = lastTask.endDate ? new Date(lastTask.endDate) : undefined;
+  }
 
   const project: Project = {
     id: projectId,
     name: projectName,
     description: projectDescription || template.description,
     priority: priority,
-    deadline: deadline,
+    deadline: projectDeadline,
     tasks: tasks,
     resourcePool: resourcePool,
     color: template.color,

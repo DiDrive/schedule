@@ -35,6 +35,7 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
   const [projectName, setProjectName] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
   const [startDate, setStartDate] = useState('');
+  const [deadline, setDeadline] = useState('');
   const [priority, setPriority] = useState(5);
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ProjectTemplate | undefined>(undefined);
@@ -52,6 +53,7 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
       setProjectName('');
       setProjectDescription('');
       setStartDate('');
+      setDeadline('');
       setPriority(5);
     }
   }, [open]);
@@ -130,7 +132,8 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
         new Date(startDate),
         priority,
         [],
-        projectDescription
+        projectDescription,
+        deadline ? new Date(deadline) : undefined
       );
 
       onProjectCreated(project);
@@ -141,6 +144,7 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
       setProjectName('');
       setProjectDescription('');
       setStartDate('');
+      setDeadline('');
       setPriority(5);
     } catch (error) {
       console.error('创建项目失败:', error);
@@ -348,7 +352,17 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                           className="mt-1"
                         />
                       </div>
-                      <div className="md:col-span-2">
+                      <div>
+                        <Label htmlFor="deadline">截止日期（可选）</Label>
+                        <Input
+                          id="deadline"
+                          type="date"
+                          value={deadline}
+                          onChange={(e) => setDeadline(e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
                         <Label htmlFor="projectDescription">项目描述（可选）</Label>
                         <Input
                           id="projectDescription"
