@@ -394,7 +394,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[60px] min-w-[60px]">序号</TableHead>
-                        <TableHead className="min-w-[300px]">任务信息</TableHead>
+                        <TableHead className="w-[280px] min-w-[280px]">任务信息</TableHead>
                         <TableHead className="w-[80px] min-w-[80px]">工时</TableHead>
                         <TableHead className="w-[100px] min-w-[100px]">类型</TableHead>
                         <TableHead className="w-[100px] min-w-[100px]">优先级</TableHead>
