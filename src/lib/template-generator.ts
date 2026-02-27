@@ -65,23 +65,39 @@ export function generateTasksFromTemplate(
     return result;
   };
 
-  // 辅助函数：从开始日期开始，计算任务结束日期（跳过周末）
-  const calculateEndDate = (startDate: Date, taskDays: number): Date => {
-    const endDate = new Date(startDate);
-    let workingDaysPassed = 0;
+  // 辅助函数：计算从开始时间到18:30还有多少分钟
+  const getRemainingMinutesForDay = (date: Date): number => {
+    const dayEnd = new Date(date);
+    dayEnd.setHours(18, 30, 0, 0);
+    const diff = dayEnd.getTime() - date.getTime();
+    return Math.max(0, Math.floor(diff / (1000 * 60))); // 转换为分钟
+  };
+
+  // 辅助函数：从开始日期开始，根据剩余工作小时数计算结束日期
+  const calculateEndDate = (startDate: Date, remainingHours: number): Date => {
+    let currentDate = new Date(startDate);
+    let remainingWorkMinutes = remainingHours * 60; // 转换为分钟
     
-    while (workingDaysPassed < taskDays - 1) {
-      endDate.setDate(endDate.getDate() + 1);
-      const day = endDate.getDay();
-      // 只计算周一到周五
-      if (day !== 0 && day !== 6) {
-        workingDaysPassed++;
+    while (remainingWorkMinutes > 0) {
+      // 计算当天剩余的工作分钟数
+      const remainingDayMinutes = getRemainingMinutesForDay(currentDate);
+      
+      if (remainingWorkMinutes <= remainingDayMinutes) {
+        // 当天能完成
+        const endDate = new Date(currentDate);
+        endDate.setTime(currentDate.getTime() + remainingWorkMinutes * 60 * 1000);
+        return endDate;
+      } else {
+        // 当天完成不了，跳到下一个工作日
+        remainingWorkMinutes -= remainingDayMinutes;
+        currentDate.setDate(currentDate.getDate() + 1);
+        currentDate = skipWeekends(currentDate, startDate);
+        currentDate.setHours(9, 30, 0, 0); // 下一工作日从9:30开始
       }
     }
     
-    // 设置结束时间为下班时间
-    endDate.setHours(18, 30, 0, 0);
-    return endDate;
+    // 如果没有剩余工作小时数，返回开始日期
+    return new Date(startDate);
   };
   
   sortedTemplateTasks.forEach((templateTask) => {
@@ -119,12 +135,10 @@ export function generateTasksFromTemplate(
     }
 
     // 设置任务开始和结束日期
-    const taskDays = Math.ceil(templateTask.estimatedHours / workingHours);
-    
     task.startDate = new Date(currentDate);
     
-    // 计算结束日期（跳过周末）
-    const endDate = calculateEndDate(currentDate, taskDays);
+    // 根据预估工时计算结束日期（考虑每天工作时间）
+    const endDate = calculateEndDate(currentDate, templateTask.estimatedHours);
     
     // 检查是否超过项目截止日期
     if (projectDeadline && endDate > projectDeadline) {
