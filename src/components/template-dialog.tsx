@@ -31,6 +31,7 @@ interface TemplateDialogProps {
 export default function TemplateDialog({ open, onOpenChange, onProjectCreated, existingTemplates }: TemplateDialogProps) {
   const [templates, setTemplates] = useState<ProjectTemplate[]>(defaultProjectTemplates);
   const [customTemplates, setCustomTemplates] = useState<ProjectTemplate[]>([]);
+  const [hiddenTemplates, setHiddenTemplates] = useState<string[]>([]); // 隐藏的默认模板 ID 列表
   const [selectedTemplate, setSelectedTemplate] = useState<ProjectTemplate | null>(null);
   const [projectName, setProjectName] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
@@ -40,9 +41,10 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ProjectTemplate | undefined>(undefined);
 
-  // 从 localStorage 加载自定义模板
+  // 从 localStorage 加载自定义模板和隐藏的默认模板
   useEffect(() => {
     loadCustomTemplates();
+    loadHiddenTemplates();
   }, []);
 
   // 当选择的模板或开始日期改变时，更新预览
@@ -68,19 +70,42 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
       try {
         const templates = JSON.parse(customTemplatesStr);
         setCustomTemplates(templates);
-        setTemplates([...defaultProjectTemplates, ...templates]);
+        // 过滤掉隐藏的模板
+        const visibleDefaultTemplates = defaultProjectTemplates.filter(t => !hiddenTemplates.includes(t.id));
+        setTemplates([...visibleDefaultTemplates, ...templates]);
       } catch (error) {
         console.error('Failed to load custom templates:', error);
       }
     } else {
-      setTemplates(defaultProjectTemplates);
+      // 过滤掉隐藏的模板
+      const visibleDefaultTemplates = defaultProjectTemplates.filter(t => !hiddenTemplates.includes(t.id));
+      setTemplates(visibleDefaultTemplates);
     }
+  };
+
+  const loadHiddenTemplates = () => {
+    const hiddenTemplatesStr = localStorage.getItem('hidden-templates');
+    if (hiddenTemplatesStr) {
+      try {
+        const templates = JSON.parse(hiddenTemplatesStr);
+        setHiddenTemplates(templates);
+      } catch (error) {
+        console.error('Failed to load hidden templates:', error);
+      }
+    }
+  };
+
+  const saveHiddenTemplates = (templates: string[]) => {
+    localStorage.setItem('hidden-templates', JSON.stringify(templates));
+    setHiddenTemplates(templates);
   };
 
   const saveCustomTemplates = (templates: ProjectTemplate[]) => {
     localStorage.setItem('project-templates', JSON.stringify(templates));
     setCustomTemplates(templates);
-    setTemplates([...defaultProjectTemplates, ...templates]);
+    // 过滤掉隐藏的模板
+    const visibleDefaultTemplates = defaultProjectTemplates.filter(t => !hiddenTemplates.includes(t.id));
+    setTemplates([...visibleDefaultTemplates, ...templates]);
   };
 
   const handleSelectTemplate = (template: ProjectTemplate) => {
@@ -133,15 +158,37 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
   };
 
   const handleEditTemplate = (template: ProjectTemplate) => {
-    setEditingTemplate(template);
+    // 如果编辑的是默认模板，将其转换为自定义模板
+    if (template.isDefault) {
+      const customTemplate: ProjectTemplate = {
+        ...template,
+        id: `custom-${template.id}-${Date.now()}`,
+        isDefault: false,
+        name: `${template.name} (副本)`,
+        description: `${template.description} (自定义版本)`
+      };
+      setEditingTemplate(customTemplate);
+    } else {
+      setEditingTemplate(template);
+    }
     setShowTemplateEditor(true);
   };
 
   const handleDeleteTemplate = (templateId: string) => {
     if (!confirm('确定要删除这个模板吗？')) return;
 
-    const updatedTemplates = customTemplates.filter(t => t.id !== templateId);
-    saveCustomTemplates(updatedTemplates);
+    // 检查是否是默认模板
+    const isDefaultTemplate = defaultProjectTemplates.some(t => t.id === templateId);
+
+    if (isDefaultTemplate) {
+      // 默认模板：添加到隐藏列表
+      const newHiddenTemplates = [...hiddenTemplates, templateId];
+      saveHiddenTemplates(newHiddenTemplates);
+    } else {
+      // 自定义模板：从列表中移除
+      const updatedTemplates = customTemplates.filter(t => t.id !== templateId);
+      saveCustomTemplates(updatedTemplates);
+    }
     
     // 如果删除的是当前选中的模板，取消选择
     if (selectedTemplate?.id === templateId) {
@@ -167,7 +214,7 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
     setEditingTemplate(undefined);
   };
 
-  const allTemplates = [...defaultProjectTemplates, ...customTemplates];
+  const allTemplates = [...defaultProjectTemplates, ...customTemplates].filter(t => !hiddenTemplates.includes(t.id));
 
   const totalHours = calculateTotalHours(previewTasks);
   const duration = calculateProjectDuration(previewTasks);
@@ -231,32 +278,28 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                           </CardDescription>
                         </div>
                         <div className="flex items-center gap-1">
-                          {!template.isDefault && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEditTemplate(template);
-                                }}
-                                className="h-8 w-8 p-0"
-                              >
-                                <Edit2 className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteTemplate(template.id);
-                                }}
-                                className="h-8 w-8 p-0 text-red-600"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </>
-                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditTemplate(template);
+                            }}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTemplate(template.id);
+                            }}
+                            className="h-8 w-8 p-0 text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                           {selectedTemplate?.id === template.id && (
                             <CheckCircle2 className="h-6 w-6 text-purple-500 flex-shrink-0" />
                           )}
