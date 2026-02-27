@@ -149,19 +149,8 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
   };
 
   const handleEditTemplate = (template: ProjectTemplate) => {
-    // 如果编辑的是默认模板，将其转换为自定义模板
-    if (template.isDefault) {
-      const customTemplate: ProjectTemplate = {
-        ...template,
-        id: `custom-${template.id}-${Date.now()}`,
-        isDefault: false,
-        name: `${template.name} (副本)`,
-        description: `${template.description} (自定义版本)`
-      };
-      setEditingTemplate(customTemplate);
-    } else {
-      setEditingTemplate(template);
-    }
+    // 直接编辑原模板，不创建副本
+    setEditingTemplate(template);
     setShowTemplateEditor(true);
   };
 
@@ -188,17 +177,36 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
   };
 
   const handleSaveTemplate = (template: ProjectTemplate) => {
-    // 检查是新增还是编辑
-    const existingIndex = customTemplates.findIndex(t => t.id === template.id);
-    
-    if (existingIndex >= 0) {
-      // 编辑现有模板
-      const updatedTemplates = [...customTemplates];
-      updatedTemplates[existingIndex] = template;
-      saveCustomTemplates(updatedTemplates);
+    // 如果编辑的是默认模板，需要将其转换为自定义模板并保存
+    if (template.isDefault) {
+      // 将默认模板转换为自定义模板
+      const customTemplate: ProjectTemplate = {
+        ...template,
+        id: `custom-${template.id}-${Date.now()}`,
+        isDefault: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      // 保存自定义模板
+      saveCustomTemplates([...customTemplates, customTemplate]);
+      
+      // 隐藏原始的默认模板
+      const updatedHiddenTemplates = [...hiddenTemplates, template.id];
+      saveHiddenTemplates(updatedHiddenTemplates);
     } else {
-      // 新增模板
-      saveCustomTemplates([...customTemplates, template]);
+      // 检查是新增还是编辑自定义模板
+      const existingIndex = customTemplates.findIndex(t => t.id === template.id);
+      
+      if (existingIndex >= 0) {
+        // 编辑现有模板
+        const updatedTemplates = [...customTemplates];
+        updatedTemplates[existingIndex] = template;
+        saveCustomTemplates(updatedTemplates);
+      } else {
+        // 新增模板
+        saveCustomTemplates([...customTemplates, template]);
+      }
     }
 
     setShowTemplateEditor(false);
