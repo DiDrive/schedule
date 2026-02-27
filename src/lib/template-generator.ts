@@ -6,13 +6,15 @@ import { Task, ProjectTemplate, TemplateTask, Project, Resource } from '@/types/
  * @param projectId 项目ID
  * @param startDate 项目开始日期
  * @param workingHours 每天工作小时数（默认8小时）
+ * @param projectDeadline 项目截止日期（可选，用于限制任务结束日期）
  * @returns 生成的任务列表
  */
 export function generateTasksFromTemplate(
   template: ProjectTemplate,
   projectId: string,
   startDate: Date,
-  workingHours: number = 8
+  workingHours: number = 8,
+  projectDeadline?: Date
 ): Task[] {
   const tasks: Task[] = [];
   const taskMap = new Map<number, Task>(); // 序号到任务的映射
@@ -124,11 +126,19 @@ export function generateTasksFromTemplate(
     
     // 计算结束日期（跳过周末）
     const endDate = calculateEndDate(currentDate, taskDays);
-    task.endDate = endDate;
-    task.deadline = new Date(endDate); // 设置截止日期
+    
+    // 检查是否超过项目截止日期
+    if (projectDeadline && endDate > projectDeadline) {
+      // 如果超过，使用项目截止日期
+      task.endDate = new Date(projectDeadline);
+      task.deadline = new Date(projectDeadline);
+    } else {
+      task.endDate = endDate;
+      task.deadline = new Date(endDate);
+    }
 
     // 更新当前日期为任务结束日期，并跳过周末，准备下一个任务
-    currentDate = new Date(endDate);
+    currentDate = new Date(task.endDate);
     currentDate.setDate(currentDate.getDate() + 1);
     currentDate = skipWeekends(currentDate);
   });
@@ -162,19 +172,20 @@ export function createProjectFromTemplate(
   const projectStartDate = new Date(startDate);
   projectStartDate.setHours(9, 30, 0, 0);
   
-  // 生成任务
-  const tasks = generateTasksFromTemplate(template, projectId, projectStartDate);
-
-  // 使用传入的截止日期，如果没有则使用最后一个任务的结束日期
+  // 设置项目截止日期时间为18:30（如果有）
   let projectDeadline = deadline;
+  if (projectDeadline) {
+    projectDeadline = new Date(projectDeadline);
+    projectDeadline.setHours(18, 30, 0, 0);
+  }
+  
+  // 生成任务（传入项目截止日期）
+  const tasks = generateTasksFromTemplate(template, projectId, projectStartDate, 8, projectDeadline);
+
+  // 如果没有传入截止日期，使用最后一个任务的结束日期
   if (!projectDeadline) {
     const lastTask = tasks[tasks.length - 1];
     projectDeadline = lastTask.endDate ? new Date(lastTask.endDate) : undefined;
-  }
-  
-  // 如果有截止日期，设置为18:30
-  if (projectDeadline) {
-    projectDeadline.setHours(18, 30, 0, 0);
   }
 
   const project: Project = {
