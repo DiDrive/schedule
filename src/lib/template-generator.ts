@@ -49,10 +49,13 @@ export function generateTasksFromTemplate(
   // 使用用户选择的开始时间，不强制设置为9:30
   
   // 工作时间配置
-  const WORK_END_HOUR = 18.5;  // 下午6点半下班（18.5 = 18:30）
+  const WORK_START_HOUR = 9.5;   // 上午9:30上班
+  const WORK_MORNING_END = 12;    // 中午12:00上午结束
+  const WORK_AFTERNOON_START = 13.5; // 下午1:30开始
+  const WORK_END_HOUR = 18.5;     // 下午6点半下班（18.5 = 18:30）
   
-  // 辅助函数：跳过周末，找到下一个工作日，设置为与开始时间相同的时间
-  const skipWeekends = (date: Date, referenceDate: Date): Date => {
+  // 辅助函数：跳过周末，找到下一个工作日，设置为9:30
+  const skipWeekends = (date: Date): Date => {
     const result = new Date(date);
     const day = result.getDay();
     if (day === 0) { // 周日
@@ -60,17 +63,51 @@ export function generateTasksFromTemplate(
     } else if (day === 6) { // 周六
       result.setDate(result.getDate() + 2);
     }
-    // 使用参考日期的时间（保持用户选择的时间）
-    result.setHours(referenceDate.getHours(), referenceDate.getMinutes(), 0, 0);
+    // 设置为上午9:30
+    result.setHours(9, 30, 0, 0);
     return result;
   };
 
-  // 辅助函数：计算从开始时间到18:30还有多少分钟
+  // 辅助函数：计算从开始时间到当天中午12:00还有多少分钟
+  const getRemainingMorningMinutes = (date: Date): number => {
+    const morningEnd = new Date(date);
+    morningEnd.setHours(12, 0, 0, 0);
+    const diff = morningEnd.getTime() - date.getTime();
+    return Math.max(0, Math.floor(diff / (1000 * 60)));
+  };
+
+  // 辅助函数：计算从下午1:30到下午6:30还有多少分钟
+  const getAfternoonMinutes = (): number => {
+    // 下午时间段：13:30 - 18:30 = 5小时 = 300分钟
+    return 300;
+  };
+
+  // 辅助函数：计算从开始时间到当天18:30还有多少分钟（考虑午休）
   const getRemainingMinutesForDay = (date: Date): number => {
-    const dayEnd = new Date(date);
-    dayEnd.setHours(18, 30, 0, 0);
-    const diff = dayEnd.getTime() - date.getTime();
-    return Math.max(0, Math.floor(diff / (1000 * 60))); // 转换为分钟
+    const currentHour = date.getHours();
+    const currentMinute = date.getMinutes();
+    
+    // 判断是在上午还是下午
+    if (currentHour < 12 || (currentHour === 12 && currentMinute === 0)) {
+      // 在上午时段
+      return getRemainingMorningMinutes(date);
+    } else if (currentHour < 13.5 || (currentHour === 13 && currentMinute < 30)) {
+      // 在午休时段，返回下午的时间
+      return getAfternoonMinutes();
+    } else {
+      // 在下午时段
+      const dayEnd = new Date(date);
+      dayEnd.setHours(18, 30, 0, 0);
+      const diff = dayEnd.getTime() - date.getTime();
+      return Math.max(0, Math.floor(diff / (1000 * 60)));
+    }
+  };
+
+  // 辅助函数：根据当前时间判断应该从上午还是下午开始计算
+  const getStartTimeForNextDay = (referenceTime: Date): Date => {
+    const result = new Date(referenceTime);
+    result.setHours(9, 30, 0, 0);
+    return result;
   };
 
   // 辅助函数：从开始日期开始，根据剩余工作小时数计算结束日期
@@ -79,20 +116,44 @@ export function generateTasksFromTemplate(
     let remainingWorkMinutes = remainingHours * 60; // 转换为分钟
     
     while (remainingWorkMinutes > 0) {
-      // 计算当天剩余的工作分钟数
-      const remainingDayMinutes = getRemainingMinutesForDay(currentDate);
+      const currentHour = currentDate.getHours();
+      const currentMinute = currentDate.getMinutes();
       
-      if (remainingWorkMinutes <= remainingDayMinutes) {
-        // 当天能完成
-        const endDate = new Date(currentDate);
-        endDate.setTime(currentDate.getTime() + remainingWorkMinutes * 60 * 1000);
-        return endDate;
+      // 判断当前时间段
+      if (currentHour < 12 || (currentHour === 12 && currentMinute === 0)) {
+        // 在上午时段
+        const remainingMorningMinutes = getRemainingMorningMinutes(currentDate);
+        
+        if (remainingWorkMinutes <= remainingMorningMinutes) {
+          // 当天上午能完成
+          const endDate = new Date(currentDate);
+          endDate.setTime(currentDate.getTime() + remainingWorkMinutes * 60 * 1000);
+          return endDate;
+        } else {
+          // 上午完成不了，减去上午时间
+          remainingWorkMinutes -= remainingMorningMinutes;
+          // 跳到下午1:30
+          currentDate.setHours(13, 30, 0, 0);
+        }
+      } else if (currentHour < 13.5 || (currentHour === 13 && currentMinute < 30)) {
+        // 在午休时段，跳到下午1:30
+        currentDate.setHours(13, 30, 0, 0);
       } else {
-        // 当天完成不了，跳到下一个工作日
-        remainingWorkMinutes -= remainingDayMinutes;
-        currentDate.setDate(currentDate.getDate() + 1);
-        currentDate = skipWeekends(currentDate, startDate);
-        currentDate.setHours(9, 30, 0, 0); // 下一工作日从9:30开始
+        // 在下午时段
+        const remainingAfternoonMinutes = getRemainingMinutesForDay(currentDate);
+        
+        if (remainingWorkMinutes <= remainingAfternoonMinutes) {
+          // 当天下午能完成
+          const endDate = new Date(currentDate);
+          endDate.setTime(currentDate.getTime() + remainingWorkMinutes * 60 * 1000);
+          return endDate;
+        } else {
+          // 下午完成不了，减去下午时间
+          remainingWorkMinutes -= remainingAfternoonMinutes;
+          // 跳到下一个工作日上午9:30
+          currentDate.setDate(currentDate.getDate() + 1);
+          currentDate = skipWeekends(currentDate);
+        }
       }
     }
     
@@ -130,7 +191,7 @@ export function generateTasksFromTemplate(
         currentDate = new Date(maxEndDate);
         // 从依赖任务结束日期的下一天开始，并跳过周末
         currentDate.setDate(currentDate.getDate() + 1);
-        currentDate = skipWeekends(currentDate, startDate);
+        currentDate = skipWeekends(currentDate);
       }
     }
 
@@ -153,7 +214,7 @@ export function generateTasksFromTemplate(
     // 更新当前日期为任务结束日期，并跳过周末，准备下一个任务
     currentDate = new Date(task.endDate);
     currentDate.setDate(currentDate.getDate() + 1);
-    currentDate = skipWeekends(currentDate, startDate);
+    currentDate = skipWeekends(currentDate);
   });
 
   return tasks;
