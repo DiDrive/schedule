@@ -15,10 +15,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Calendar, CheckCircle2, Clock, FileText, Sparkles, TrendingUp } from 'lucide-react';
+import { Calendar, CheckCircle2, Clock, FileText, Sparkles, TrendingUp, Plus, Trash2, Edit2 } from 'lucide-react';
 import { ProjectTemplate, Project, Task } from '@/types/schedule';
 import { defaultProjectTemplates } from '@/lib/project-templates';
 import { createProjectFromTemplate, calculateProjectDuration, calculateTotalHours, getTaskTypeStats } from '@/lib/template-generator';
+import TemplateEditor from '@/components/template-editor';
 
 interface TemplateDialogProps {
   open: boolean;
@@ -29,25 +30,20 @@ interface TemplateDialogProps {
 
 export default function TemplateDialog({ open, onOpenChange, onProjectCreated, existingTemplates }: TemplateDialogProps) {
   const [templates, setTemplates] = useState<ProjectTemplate[]>(defaultProjectTemplates);
+  const [customTemplates, setCustomTemplates] = useState<ProjectTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<ProjectTemplate | null>(null);
   const [projectName, setProjectName] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
   const [startDate, setStartDate] = useState('');
   const [priority, setPriority] = useState(5);
   const [previewTasks, setPreviewTasks] = useState<Task[]>([]);
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<ProjectTemplate | undefined>(undefined);
 
   // 从 localStorage 加载自定义模板
   useEffect(() => {
-    const customTemplatesStr = localStorage.getItem('project-templates');
-    if (customTemplatesStr) {
-      try {
-        const customTemplates = JSON.parse(customTemplatesStr);
-        setTemplates([...defaultProjectTemplates, ...customTemplates]);
-      } catch (error) {
-        console.error('Failed to load custom templates:', error);
-      }
-    }
-  }, [existingTemplates]);
+    loadCustomTemplates();
+  }, []);
 
   // 当选择的模板或开始日期改变时，更新预览
   useEffect(() => {
@@ -65,6 +61,27 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
       setPreviewTasks([]);
     }
   }, [selectedTemplate, startDate, priority]);
+
+  const loadCustomTemplates = () => {
+    const customTemplatesStr = localStorage.getItem('project-templates');
+    if (customTemplatesStr) {
+      try {
+        const templates = JSON.parse(customTemplatesStr);
+        setCustomTemplates(templates);
+        setTemplates([...defaultProjectTemplates, ...templates]);
+      } catch (error) {
+        console.error('Failed to load custom templates:', error);
+      }
+    } else {
+      setTemplates(defaultProjectTemplates);
+    }
+  };
+
+  const saveCustomTemplates = (templates: ProjectTemplate[]) => {
+    localStorage.setItem('project-templates', JSON.stringify(templates));
+    setCustomTemplates(templates);
+    setTemplates([...defaultProjectTemplates, ...templates]);
+  };
 
   const handleSelectTemplate = (template: ProjectTemplate) => {
     setSelectedTemplate(template);
@@ -115,6 +132,43 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
     }
   };
 
+  const handleEditTemplate = (template: ProjectTemplate) => {
+    setEditingTemplate(template);
+    setShowTemplateEditor(true);
+  };
+
+  const handleDeleteTemplate = (templateId: string) => {
+    if (!confirm('确定要删除这个模板吗？')) return;
+
+    const updatedTemplates = customTemplates.filter(t => t.id !== templateId);
+    saveCustomTemplates(updatedTemplates);
+    
+    // 如果删除的是当前选中的模板，取消选择
+    if (selectedTemplate?.id === templateId) {
+      setSelectedTemplate(null);
+    }
+  };
+
+  const handleSaveTemplate = (template: ProjectTemplate) => {
+    // 检查是新增还是编辑
+    const existingIndex = customTemplates.findIndex(t => t.id === template.id);
+    
+    if (existingIndex >= 0) {
+      // 编辑现有模板
+      const updatedTemplates = [...customTemplates];
+      updatedTemplates[existingIndex] = template;
+      saveCustomTemplates(updatedTemplates);
+    } else {
+      // 新增模板
+      saveCustomTemplates([...customTemplates, template]);
+    }
+
+    setShowTemplateEditor(false);
+    setEditingTemplate(undefined);
+  };
+
+  const allTemplates = [...defaultProjectTemplates, ...customTemplates];
+
   const totalHours = calculateTotalHours(previewTasks);
   const duration = calculateProjectDuration(previewTasks);
   const typeStats = getTaskTypeStats(previewTasks);
@@ -123,11 +177,25 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-3 text-2xl">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 text-white">
-              <FileText className="h-6 w-6" />
+          <DialogTitle className="flex items-center justify-between text-2xl">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 text-white">
+                <FileText className="h-6 w-6" />
+              </div>
+              使用模板创建项目
             </div>
-            使用模板创建项目
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEditingTemplate(undefined);
+                setShowTemplateEditor(true);
+              }}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              新建模板
+            </Button>
           </DialogTitle>
           <DialogDescription>
             选择项目模板，快速生成标准化的任务列表
@@ -145,7 +213,7 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
 
             <TabsContent value="select" className="space-y-4 mt-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {templates.map((template) => (
+                {allTemplates.map((template) => (
                   <Card
                     key={template.id}
                     className={`cursor-pointer transition-all hover:shadow-lg ${
@@ -153,7 +221,6 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                         ? 'ring-2 ring-purple-500 shadow-lg'
                         : ''
                     }`}
-                    onClick={() => handleSelectTemplate(template)}
                   >
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
@@ -163,9 +230,37 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                             {template.description}
                           </CardDescription>
                         </div>
-                        {selectedTemplate?.id === template.id && (
-                          <CheckCircle2 className="h-6 w-6 text-purple-500 flex-shrink-0" />
-                        )}
+                        <div className="flex items-center gap-1">
+                          {!template.isDefault && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditTemplate(template);
+                                }}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteTemplate(template.id);
+                                }}
+                                className="h-8 w-8 p-0 text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                          {selectedTemplate?.id === template.id && (
+                            <CheckCircle2 className="h-6 w-6 text-purple-500 flex-shrink-0" />
+                          )}
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent>
@@ -316,6 +411,8 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                           <TableHead>优先级</TableHead>
                           <TableHead>类型</TableHead>
                           <TableHead>依赖</TableHead>
+                          <TableHead className="w-[120px]">开始日期</TableHead>
+                          <TableHead className="w-[120px]">截止日期</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -362,6 +459,24 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                                   <span className="text-slate-400">无</span>
                                 )}
                               </TableCell>
+                              <TableCell>
+                                {task.startDate ? (
+                                  <span className="text-sm">
+                                    {new Date(task.startDate).toLocaleDateString('zh-CN')}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {task.endDate ? (
+                                  <span className="text-sm font-medium">
+                                    {new Date(task.endDate).toLocaleDateString('zh-CN')}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">-</span>
+                                )}
+                              </TableCell>
                             </TableRow>
                           );
                         })}
@@ -374,6 +489,14 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
           </Tabs>
         </div>
       </DialogContent>
+
+      {/* 模板编辑器 */}
+      <TemplateEditor
+        open={showTemplateEditor}
+        onOpenChange={setShowTemplateEditor}
+        template={editingTemplate}
+        onSave={handleSaveTemplate}
+      />
     </Dialog>
   );
 }
