@@ -45,6 +45,35 @@ export function generateTasksFromTemplate(
   // 第二遍：设置依赖关系并计算开始日期
   let currentDate = new Date(startDate);
   
+  // 辅助函数：跳过周末，找到下一个工作日
+  const skipWeekends = (date: Date): Date => {
+    const result = new Date(date);
+    const day = result.getDay();
+    if (day === 0) { // 周日
+      result.setDate(result.getDate() + 1);
+    } else if (day === 6) { // 周六
+      result.setDate(result.getDate() + 2);
+    }
+    return result;
+  };
+
+  // 辅助函数：从开始日期开始，计算任务结束日期（跳过周末）
+  const calculateEndDate = (startDate: Date, taskDays: number): Date => {
+    const endDate = new Date(startDate);
+    let workingDaysPassed = 0;
+    
+    while (workingDaysPassed < taskDays - 1) {
+      endDate.setDate(endDate.getDate() + 1);
+      const day = endDate.getDay();
+      // 只计算周一到周五
+      if (day !== 0 && day !== 6) {
+        workingDaysPassed++;
+      }
+    }
+    
+    return endDate;
+  };
+  
   sortedTemplateTasks.forEach((templateTask) => {
     const task = taskMap.get(templateTask.sequence);
     if (!task) return;
@@ -73,8 +102,9 @@ export function generateTasksFromTemplate(
         }, new Date(currentDate));
 
         currentDate = new Date(maxEndDate);
-        // 从下一个工作日开始
+        // 从依赖任务结束日期的下一天开始，并跳过周末
         currentDate.setDate(currentDate.getDate() + 1);
+        currentDate = skipWeekends(currentDate);
       }
     }
 
@@ -83,14 +113,15 @@ export function generateTasksFromTemplate(
     
     task.startDate = new Date(currentDate);
     
-    // 计算结束日期（包括任务执行天数）
-    const endDate = new Date(currentDate);
-    endDate.setDate(endDate.getDate() + taskDays - 1);
+    // 计算结束日期（跳过周末）
+    const endDate = calculateEndDate(currentDate, taskDays);
     task.endDate = endDate;
     task.deadline = new Date(endDate); // 设置截止日期
 
-    // 更新当前日期为任务结束日期
+    // 更新当前日期为任务结束日期，并跳过周末，准备下一个任务
     currentDate = new Date(endDate);
+    currentDate.setDate(currentDate.getDate() + 1);
+    currentDate = skipWeekends(currentDate);
   });
 
   return tasks;
