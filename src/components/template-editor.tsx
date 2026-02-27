@@ -394,9 +394,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[60px] min-w-[60px]">序号</TableHead>
-                        <TableHead className="w-[240px] min-w-[240px]">任务信息</TableHead>
-                        <TableHead className="w-[80px] min-w-[80px]">工时</TableHead>
-                        <TableHead className="w-[100px] min-w-[100px]">类型</TableHead>
+                        <TableHead className="w-[320px] min-w-[320px]">任务信息</TableHead>
                         <TableHead className="w-[100px] min-w-[100px]">优先级</TableHead>
                         <TableHead className="min-w-[200px]">依赖</TableHead>
                         <TableHead className="w-[70px] min-w-[70px]">并行</TableHead>
@@ -421,34 +419,33 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                                 className="h-9 text-xs"
                                 placeholder="任务描述（可选）"
                               />
+                              <div className="flex gap-2">
+                                <Select 
+                                  value={task.taskType} 
+                                  onValueChange={(value: ResourceWorkType) => handleUpdateTaskField(task.id, 'taskType', value)}
+                                >
+                                  <SelectTrigger className="h-9 flex-1">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="平面">平面</SelectItem>
+                                    <SelectItem value="后期">后期</SelectItem>
+                                    <SelectItem value="物料">物料</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={task.estimatedHours}
+                                  onChange={(e) => handleUpdateTaskField(task.id, 'estimatedHours', parseFloat(e.target.value) || 1)}
+                                  className="h-9 w-20"
+                                  placeholder="工时"
+                                />
+                              </div>
                               {task.notes && (
                                 <div className="text-xs text-blue-600 truncate">💡 {task.notes}</div>
                               )}
                             </div>
-                          </TableCell>
-                          <TableCell className="align-middle py-4">
-                            <Input
-                              type="number"
-                              min="1"
-                              value={task.estimatedHours}
-                              onChange={(e) => handleUpdateTaskField(task.id, 'estimatedHours', parseFloat(e.target.value) || 1)}
-                              className="h-10 w-24"
-                            />
-                          </TableCell>
-                          <TableCell className="align-middle py-4">
-                            <Select 
-                              value={task.taskType} 
-                              onValueChange={(value: ResourceWorkType) => handleUpdateTaskField(task.id, 'taskType', value)}
-                            >
-                              <SelectTrigger className="h-10 w-28">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="平面">平面</SelectItem>
-                                <SelectItem value="后期">后期</SelectItem>
-                                <SelectItem value="物料">物料</SelectItem>
-                              </SelectContent>
-                            </Select>
                           </TableCell>
                           <TableCell className="align-middle py-4">
                             <Select 
