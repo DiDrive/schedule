@@ -183,7 +183,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-2xl">
             {template ? '编辑项目模板' : '新建项目模板'}
@@ -389,18 +389,18 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
             </CardHeader>
             <CardContent>
               {formData.tasks && formData.tasks.length > 0 ? (
-                <div className="rounded-md border">
+                <div className="rounded-md border overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[60px]">序号</TableHead>
-                        <TableHead>任务名称</TableHead>
-                        <TableHead>工时</TableHead>
-                        <TableHead>类型</TableHead>
-                        <TableHead>优先级</TableHead>
-                        <TableHead>依赖</TableHead>
-                        <TableHead>并行</TableHead>
-                        <TableHead className="w-[120px]">操作</TableHead>
+                        <TableHead className="w-[50px] min-w-[50px]">序号</TableHead>
+                        <TableHead className="min-w-[250px]">任务名称</TableHead>
+                        <TableHead className="w-[70px] min-w-[70px]">工时</TableHead>
+                        <TableHead className="w-[90px] min-w-[90px]">类型</TableHead>
+                        <TableHead className="w-[90px] min-w-[90px]">优先级</TableHead>
+                        <TableHead className="min-w-[150px]">依赖</TableHead>
+                        <TableHead className="w-[60px] min-w-[60px]">并行</TableHead>
+                        <TableHead className="w-[140px] min-w-[140px]">操作</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -411,17 +411,17 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                             <Input
                               value={task.name}
                               onChange={(e) => handleUpdateTaskField(task.id, 'name', e.target.value)}
-                              className="h-8 text-sm"
+                              className="h-9 text-sm font-medium"
                               placeholder="任务名称"
                             />
                             <Input
                               value={task.description || ''}
                               onChange={(e) => handleUpdateTaskField(task.id, 'description', e.target.value)}
-                              className="h-7 text-xs mt-1"
+                              className="h-7 text-xs mt-2"
                               placeholder="任务描述（可选）"
                             />
                             {task.notes && (
-                              <div className="text-xs text-blue-600 mt-1">💡 {task.notes}</div>
+                              <div className="text-xs text-blue-600 mt-1 whitespace-nowrap overflow-hidden text-ellipsis">💡 {task.notes}</div>
                             )}
                           </TableCell>
                           <TableCell>
@@ -430,7 +430,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                               min="1"
                               value={task.estimatedHours}
                               onChange={(e) => handleUpdateTaskField(task.id, 'estimatedHours', parseFloat(e.target.value) || 1)}
-                              className="h-8 w-16"
+                              className="h-9 w-20"
                             />
                           </TableCell>
                           <TableCell>
@@ -438,7 +438,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                               value={task.taskType} 
                               onValueChange={(value: ResourceWorkType) => handleUpdateTaskField(task.id, 'taskType', value)}
                             >
-                              <SelectTrigger className="h-8 w-20">
+                              <SelectTrigger className="h-9 w-24">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -453,7 +453,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                               value={task.priority} 
                               onValueChange={(value: any) => handleUpdateTaskField(task.id, 'priority', value)}
                             >
-                              <SelectTrigger className="h-8 w-20">
+                              <SelectTrigger className="h-9 w-24">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -465,25 +465,29 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                             </Select>
                           </TableCell>
                           <TableCell>
-                            <div className="flex flex-wrap gap-1 max-w-[120px]">
-                              {availableSequences.filter(seq => seq !== task.sequence).map(seq => (
-                                <label key={seq} className="flex items-center gap-1 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={task.dependencies?.includes(seq)}
-                                    onChange={(e) => {
-                                      const deps = task.dependencies || [];
-                                      if (e.target.checked) {
-                                        handleUpdateTaskField(task.id, 'dependencies', [...deps, seq]);
-                                      } else {
-                                        handleUpdateTaskField(task.id, 'dependencies', deps.filter(d => d !== seq));
-                                      }
-                                    }}
-                                    className="h-3 w-3"
-                                  />
-                                  <span className="text-xs">{getTaskBySequence(seq)?.name || `任务${seq}`}</span>
-                                </label>
-                              ))}
+                            <div className="flex flex-wrap gap-1.5">
+                              {availableSequences.filter(seq => seq !== task.sequence).map(seq => {
+                                const depTask = getTaskBySequence(seq);
+                                const depTaskName = depTask?.name || `任务${seq}`;
+                                return (
+                                  <label key={seq} className="flex items-center gap-1.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 px-1 py-0.5 rounded">
+                                    <input
+                                      type="checkbox"
+                                      checked={task.dependencies?.includes(seq)}
+                                      onChange={(e) => {
+                                        const deps = task.dependencies || [];
+                                        if (e.target.checked) {
+                                          handleUpdateTaskField(task.id, 'dependencies', [...deps, seq]);
+                                        } else {
+                                          handleUpdateTaskField(task.id, 'dependencies', deps.filter(d => d !== seq));
+                                        }
+                                      }}
+                                      className="h-3.5 w-3.5"
+                                    />
+                                    <span className="text-xs whitespace-nowrap">{depTaskName}</span>
+                                  </label>
+                                );
+                              })}
                             </div>
                           </TableCell>
                           <TableCell>
