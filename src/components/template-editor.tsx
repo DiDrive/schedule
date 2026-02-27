@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -38,6 +38,25 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
       isDefault: false
     }
   );
+
+  // 当打开编辑器或 template 变化时，同步数据
+  useEffect(() => {
+    if (open) {
+      if (template) {
+        setFormData(template);
+      } else {
+        setFormData({
+          id: '',
+          name: '',
+          description: '',
+          category: '自定义',
+          tasks: [],
+          color: '#64748b',
+          isDefault: false
+        });
+      }
+    }
+  }, [open, template]);
 
   const [newTask, setNewTask] = useState<Partial<TemplateTask>>({
     id: '',
