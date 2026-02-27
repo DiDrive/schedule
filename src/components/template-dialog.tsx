@@ -108,6 +108,8 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
     if (!projectName) {
       setProjectName(`${template.name} - ${new Date().toLocaleDateString('zh-CN')}`);
     }
+    // 使用模板的默认优先级
+    setPriority(template.defaultPriority || 'normal');
   };
 
   const handleCreateProject = () => {

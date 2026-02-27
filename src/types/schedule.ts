@@ -204,6 +204,7 @@ export interface ProjectTemplate {
   category: string; // 模板分类：买量片、宣传片、广告片等
   tasks: TemplateTask[];
   defaultWorkingHours?: number; // 默认每天工作小时数
+  defaultPriority?: 'urgent' | 'normal'; // 默认项目优先级
   color?: string; // 模板在界面中的显示颜色
   createdAt?: Date;
   updatedAt?: Date;
@@ -216,7 +217,7 @@ export interface GenerateFromTemplateConfig {
   projectName: string;
   projectDescription?: string;
   startDate: Date;
-  priority: number;
+  priority: 'urgent' | 'normal';
   resourcePool?: string[]; // 资源池（可选，如果不指定则使用共享资源池）
   customizations?: {
     taskOverrides?: Record<string, Partial<TemplateTask>>; // 自定义任务配置，key 为 taskId

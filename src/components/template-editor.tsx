@@ -241,6 +241,21 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                     <span className="text-sm text-slate-500">{formData.color || '#64748b'}</span>
                   </div>
                 </div>
+                <div>
+                  <Label htmlFor="defaultPriority">默认项目优先级</Label>
+                  <Select
+                    value={formData.defaultPriority || 'normal'}
+                    onValueChange={(value: 'urgent' | 'normal') => setFormData({ ...formData, defaultPriority: value })}
+                  >
+                    <SelectTrigger id="defaultPriority" className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="normal">普通</SelectItem>
+                      <SelectItem value="urgent">紧急</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 <div className="pt-4 border-t">
                   <div className="grid grid-cols-2 gap-4 text-sm">
@@ -301,7 +316,6 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="urgent">紧急</SelectItem>
-                        <SelectItem value="high">高</SelectItem>
                         <SelectItem value="normal">普通</SelectItem>
                         <SelectItem value="low">低</SelectItem>
                       </SelectContent>
@@ -448,8 +462,8 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                             </div>
                           </TableCell>
                           <TableCell className="align-middle py-4">
-                            <Select 
-                              value={task.priority} 
+                            <Select
+                              value={task.priority}
                               onValueChange={(value: any) => handleUpdateTaskField(task.id, 'priority', value)}
                             >
                               <SelectTrigger className="h-10 w-28">
@@ -457,7 +471,6 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="urgent">紧急</SelectItem>
-                                <SelectItem value="high">高</SelectItem>
                                 <SelectItem value="normal">普通</SelectItem>
                                 <SelectItem value="low">低</SelectItem>
                               </SelectContent>
