@@ -183,7 +183,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
+      <DialogContent className="!max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-2xl">
             {template ? '编辑项目模板' : '新建项目模板'}

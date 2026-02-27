@@ -209,7 +209,7 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
+      <DialogContent className="!max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between text-2xl">
             <div className="flex items-center gap-3">
