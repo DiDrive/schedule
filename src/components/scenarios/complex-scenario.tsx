@@ -1578,7 +1578,7 @@ export default function ComplexScenario() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[200px]">任务名称</TableHead>
+                  <TableHead className="w-[250px]">任务名称</TableHead>
                   <TableHead>项目</TableHead>
                   <TableHead>任务类型</TableHead>
                   <TableHead>指定人员</TableHead>

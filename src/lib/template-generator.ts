@@ -87,6 +87,7 @@ export function generateTasksFromTemplate(
     const endDate = new Date(currentDate);
     endDate.setDate(endDate.getDate() + taskDays - 1);
     task.endDate = endDate;
+    task.deadline = new Date(endDate); // 设置截止日期
 
     // 更新当前日期为任务结束日期
     currentDate = new Date(endDate);
