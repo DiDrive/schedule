@@ -46,15 +46,13 @@ export function generateTasksFromTemplate(
 
   // 第二遍：设置依赖关系并计算开始日期
   let currentDate = new Date(startDate);
-  // 设置开始时间为上午9:30
-  currentDate.setHours(9, 30, 0, 0);
+  // 使用用户选择的开始时间，不强制设置为9:30
   
   // 工作时间配置
-  const WORK_START_HOUR = 9.5;  // 上午9:30上班
-  const WORK_END_HOUR = 18.5;   // 下午6点半下班（18.5 = 18:30）
+  const WORK_END_HOUR = 18.5;  // 下午6点半下班（18.5 = 18:30）
   
-  // 辅助函数：跳过周末，找到下一个工作日，并设置为上班时间
-  const skipWeekends = (date: Date): Date => {
+  // 辅助函数：跳过周末，找到下一个工作日，设置为与开始时间相同的时间
+  const skipWeekends = (date: Date, referenceDate: Date): Date => {
     const result = new Date(date);
     const day = result.getDay();
     if (day === 0) { // 周日
@@ -62,7 +60,8 @@ export function generateTasksFromTemplate(
     } else if (day === 6) { // 周六
       result.setDate(result.getDate() + 2);
     }
-    result.setHours(9, 30, 0, 0);  // 上午9:30
+    // 使用参考日期的时间（保持用户选择的时间）
+    result.setHours(referenceDate.getHours(), referenceDate.getMinutes(), 0, 0);
     return result;
   };
 
@@ -115,7 +114,7 @@ export function generateTasksFromTemplate(
         currentDate = new Date(maxEndDate);
         // 从依赖任务结束日期的下一天开始，并跳过周末
         currentDate.setDate(currentDate.getDate() + 1);
-        currentDate = skipWeekends(currentDate);
+        currentDate = skipWeekends(currentDate, startDate);
       }
     }
 
@@ -140,7 +139,7 @@ export function generateTasksFromTemplate(
     // 更新当前日期为任务结束日期，并跳过周末，准备下一个任务
     currentDate = new Date(task.endDate);
     currentDate.setDate(currentDate.getDate() + 1);
-    currentDate = skipWeekends(currentDate);
+    currentDate = skipWeekends(currentDate, startDate);
   });
 
   return tasks;
@@ -168,9 +167,8 @@ export function createProjectFromTemplate(
 ): Project {
   const projectId = `proj-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
-  // 设置项目开始时间为上午9:30
+  // 直接使用用户选择的开始日期和时间
   const projectStartDate = new Date(startDate);
-  projectStartDate.setHours(9, 30, 0, 0);
   
   // 设置项目截止日期时间为18:30（如果有）
   let projectDeadline = deadline;

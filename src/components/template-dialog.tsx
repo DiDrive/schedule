@@ -343,10 +343,10 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                         />
                       </div>
                       <div>
-                        <Label htmlFor="startDate">开始日期</Label>
+                        <Label htmlFor="startDate">开始日期和时间</Label>
                         <Input
                           id="startDate"
-                          type="date"
+                          type="datetime-local"
                           value={startDate}
                           onChange={(e) => setStartDate(e.target.value)}
                           className="mt-1"

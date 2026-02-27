@@ -1399,6 +1399,7 @@ export default function ComplexScenario() {
                   <TableHead>项目名称</TableHead>
                   <TableHead>描述</TableHead>
                   <TableHead>优先级</TableHead>
+                  <TableHead>开始日期</TableHead>
                   <TableHead>截止日期</TableHead>
                   <TableHead>颜色</TableHead>
                   <TableHead>任务数</TableHead>
@@ -1431,6 +1432,14 @@ export default function ComplexScenario() {
                         value={project.priority}
                         onChange={(e) => handleProjectChange(project.id, 'priority', parseInt(e.target.value))}
                         className="w-20 h-8"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="datetime-local"
+                        value={formatDateTimeToInputValue(project.startDate)}
+                        onChange={(e) => handleProjectChange(project.id, 'startDate', new Date(e.target.value))}
+                        className="w-40 h-8"
                       />
                     </TableCell>
                     <TableCell>
