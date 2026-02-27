@@ -39,7 +39,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
     }
   );
 
-  const [editingTask, setEditingTask] = useState<TemplateTask | null>(null);
+  const [editingCell, setEditingCell] = useState<{ taskId: string; field: string } | null>(null);
 
   // 当打开编辑器或 template 变化时，同步数据
   useEffect(() => {
@@ -166,59 +166,19 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
   const totalHours = formData.tasks?.reduce((sum, t) => sum + t.estimatedHours, 0) || 0;
   const availableSequences = formData.tasks?.map(t => t.sequence) || [];
 
-  const handleEditTask = (task: TemplateTask) => {
-    setEditingTask(task);
-    setNewTask({
-      ...task,
-      id: ''
-    });
+  const getTaskBySequence = (sequence: number) => {
+    return formData.tasks?.find(t => t.sequence === sequence);
   };
 
-  const handleSaveEditTask = () => {
-    if (!editingTask) return;
-
+  const handleUpdateTaskField = (taskId: string, field: keyof TemplateTask, value: any) => {
     setFormData({
       ...formData,
       tasks: formData.tasks?.map(t => 
-        t.id === editingTask.id 
-          ? { ...t, ...newTask, id: editingTask.id, sequence: editingTask.sequence }
+        t.id === taskId 
+          ? { ...t, [field]: value }
           : t
       ) || []
     });
-
-    setEditingTask(null);
-    setNewTask({
-      id: '',
-      sequence: (formData.tasks?.length || 0) + 1,
-      name: '',
-      description: '',
-      estimatedHours: 8,
-      priority: 'normal',
-      taskType: '平面',
-      dependencies: [],
-      allowParallel: false,
-      notes: ''
-    });
-  };
-
-  const handleCancelEditTask = () => {
-    setEditingTask(null);
-    setNewTask({
-      id: '',
-      sequence: (formData.tasks?.length || 0) + 1,
-      name: '',
-      description: '',
-      estimatedHours: 8,
-      priority: 'normal',
-      taskType: '平面',
-      dependencies: [],
-      allowParallel: false,
-      notes: ''
-    });
-  };
-
-  const getTaskBySequence = (sequence: number) => {
-    return formData.tasks?.find(t => t.sequence === sequence);
   };
 
   return (
@@ -245,7 +205,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                   <Label htmlFor="templateName">模板名称 *</Label>
                   <Input
                     id="templateName"
-                    value={formData.name}
+                    value={formData.name || ''}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="例如：买量片项目"
                   />
@@ -254,7 +214,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                   <Label htmlFor="templateCategory">模板分类 *</Label>
                   <Input
                     id="templateCategory"
-                    value={formData.category}
+                    value={formData.category || ''}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     placeholder="例如：买量片、宣传片、广告片"
                   />
@@ -263,7 +223,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                   <Label htmlFor="templateDescription">模板描述</Label>
                   <Input
                     id="templateDescription"
-                    value={formData.description}
+                    value={formData.description || ''}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     placeholder="描述该模板的用途和特点"
                   />
@@ -274,11 +234,11 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                     <Input
                       id="templateColor"
                       type="color"
-                      value={formData.color}
+                      value={formData.color || '#64748b'}
                       onChange={(e) => setFormData({ ...formData, color: e.target.value })}
                       className="w-20 h-10"
                     />
-                    <span className="text-sm text-slate-500">{formData.color}</span>
+                    <span className="text-sm text-slate-500">{formData.color || '#64748b'}</span>
                   </div>
                 </div>
 
@@ -307,7 +267,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                   <Label htmlFor="taskName">任务名称 *</Label>
                   <Input
                     id="taskName"
-                    value={newTask.name}
+                    value={newTask.name || ''}
                     onChange={(e) => setNewTask({ ...newTask, name: e.target.value })}
                     placeholder="例如：创意策划"
                   />
@@ -316,7 +276,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                   <Label htmlFor="taskDescription">任务描述</Label>
                   <Input
                     id="taskDescription"
-                    value={newTask.description}
+                    value={newTask.description || ''}
                     onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
                     placeholder="简要描述任务内容"
                   />
@@ -328,14 +288,14 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                       id="taskHours"
                       type="number"
                       min="1"
-                      value={newTask.estimatedHours}
-                      onChange={(e) => setNewTask({ ...newTask, estimatedHours: parseFloat(e.target.value) })}
+                      value={newTask.estimatedHours || 8}
+                      onChange={(e) => setNewTask({ ...newTask, estimatedHours: parseFloat(e.target.value) || 8 })}
                       placeholder="8"
                     />
                   </div>
                   <div>
                     <Label htmlFor="taskPriority">优先级</Label>
-                    <Select value={newTask.priority} onValueChange={(value: any) => setNewTask({ ...newTask, priority: value })}>
+                    <Select value={newTask.priority || 'normal'} onValueChange={(value: any) => setNewTask({ ...newTask, priority: value })}>
                       <SelectTrigger id="taskPriority">
                         <SelectValue />
                       </SelectTrigger>
@@ -351,7 +311,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="taskType">任务类型</Label>
-                    <Select value={newTask.taskType} onValueChange={(value: ResourceWorkType) => setNewTask({ ...newTask, taskType: value })}>
+                    <Select value={newTask.taskType || '平面'} onValueChange={(value: ResourceWorkType) => setNewTask({ ...newTask, taskType: value })}>
                       <SelectTrigger id="taskType">
                         <SelectValue />
                       </SelectTrigger>
@@ -366,7 +326,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                     <input
                       type="checkbox"
                       id="allowParallel"
-                      checked={newTask.allowParallel}
+                      checked={newTask.allowParallel || false}
                       onChange={(e) => setNewTask({ ...newTask, allowParallel: e.target.checked })}
                       className="h-4 w-4"
                     />
@@ -406,26 +366,15 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                   <Label htmlFor="taskNotes">任务说明</Label>
                   <Input
                     id="taskNotes"
-                    value={newTask.notes}
+                    value={newTask.notes || ''}
                     onChange={(e) => setNewTask({ ...newTask, notes: e.target.value })}
                     placeholder="补充说明（可选）"
                   />
                 </div>
-                {editingTask ? (
-                  <div className="flex gap-2">
-                    <Button onClick={handleSaveEditTask} className="flex-1">
-                      保存修改
-                    </Button>
-                    <Button onClick={handleCancelEditTask} variant="outline" className="flex-1">
-                      取消编辑
-                    </Button>
-                  </div>
-                ) : (
-                  <Button onClick={handleAddTask} className="w-full">
-                    <Plus className="h-4 w-4 mr-2" />
-                    添加任务
-                  </Button>
-                )}
+                <Button onClick={handleAddTask} className="w-full">
+                  <Plus className="h-4 w-4 mr-2" />
+                  添加任务
+                </Button>
               </CardContent>
             </Card>
           </div>
@@ -459,52 +408,94 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                         <TableRow key={task.id}>
                           <TableCell className="font-medium">{task.sequence}</TableCell>
                           <TableCell>
-                            <div>
-                              <div className="font-medium">{task.name}</div>
-                              {task.description && (
-                                <div className="text-xs text-slate-500">{task.description}</div>
-                              )}
-                              {task.notes && (
-                                <div className="text-xs text-blue-600 mt-1">💡 {task.notes}</div>
-                              )}
+                            <Input
+                              value={task.name}
+                              onChange={(e) => handleUpdateTaskField(task.id, 'name', e.target.value)}
+                              className="h-8 text-sm"
+                              placeholder="任务名称"
+                            />
+                            <Input
+                              value={task.description || ''}
+                              onChange={(e) => handleUpdateTaskField(task.id, 'description', e.target.value)}
+                              className="h-7 text-xs mt-1"
+                              placeholder="任务描述（可选）"
+                            />
+                            {task.notes && (
+                              <div className="text-xs text-blue-600 mt-1">💡 {task.notes}</div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={task.estimatedHours}
+                              onChange={(e) => handleUpdateTaskField(task.id, 'estimatedHours', parseFloat(e.target.value) || 1)}
+                              className="h-8 w-16"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Select 
+                              value={task.taskType} 
+                              onValueChange={(value: ResourceWorkType) => handleUpdateTaskField(task.id, 'taskType', value)}
+                            >
+                              <SelectTrigger className="h-8 w-20">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="平面">平面</SelectItem>
+                                <SelectItem value="后期">后期</SelectItem>
+                                <SelectItem value="物料">物料</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <Select 
+                              value={task.priority} 
+                              onValueChange={(value: any) => handleUpdateTaskField(task.id, 'priority', value)}
+                            >
+                              <SelectTrigger className="h-8 w-20">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="urgent">紧急</SelectItem>
+                                <SelectItem value="high">高</SelectItem>
+                                <SelectItem value="normal">普通</SelectItem>
+                                <SelectItem value="low">低</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1 max-w-[120px]">
+                              {availableSequences.filter(seq => seq !== task.sequence).map(seq => (
+                                <label key={seq} className="flex items-center gap-1 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={task.dependencies?.includes(seq)}
+                                    onChange={(e) => {
+                                      const deps = task.dependencies || [];
+                                      if (e.target.checked) {
+                                        handleUpdateTaskField(task.id, 'dependencies', [...deps, seq]);
+                                      } else {
+                                        handleUpdateTaskField(task.id, 'dependencies', deps.filter(d => d !== seq));
+                                      }
+                                    }}
+                                    className="h-3 w-3"
+                                  />
+                                  <span className="text-xs">{getTaskBySequence(seq)?.name || `任务${seq}`}</span>
+                                </label>
+                              ))}
                             </div>
                           </TableCell>
-                          <TableCell>{task.estimatedHours}h</TableCell>
                           <TableCell>
-                            <Badge variant="outline">{task.taskType}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                task.priority === 'urgent'
-                                  ? 'destructive'
-                                  : task.priority === 'high'
-                                  ? 'default'
-                                  : 'secondary'
-                              }
-                            >
-                              {task.priority === 'urgent' ? '紧急' : task.priority === 'high' ? '高' : task.priority === 'normal' ? '普通' : '低'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {task.dependencies && task.dependencies.length > 0 ? (
-                              <div className="flex gap-1">
-                                {task.dependencies.map(dep => (
-                                  <Badge key={dep} variant="secondary" className="text-xs">
-                                    {dep}
-                                  </Badge>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-slate-400">无</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {task.allowParallel ? (
-                              <Badge variant="outline" className="text-green-600">可并行</Badge>
-                            ) : (
-                              <span className="text-slate-400">串行</span>
-                            )}
+                            <label className="flex items-center gap-1 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={task.allowParallel}
+                                onChange={(e) => handleUpdateTaskField(task.id, 'allowParallel', e.target.checked)}
+                                className="h-4 w-4"
+                              />
+                              <span className="text-xs">{task.allowParallel ? '可并行' : '串行'}</span>
+                            </label>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
@@ -525,14 +516,6 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                                 className="h-8 w-8 p-0"
                               >
                                 <ArrowDown className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditTask(task)}
-                                className="h-8 w-8 p-0"
-                              >
-                                <Edit2 className="h-4 w-4" />
                               </Button>
                               <Button
                                 variant="ghost"
