@@ -393,52 +393,54 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[50px] min-w-[50px]">序号</TableHead>
-                        <TableHead className="min-w-[250px]">任务名称</TableHead>
-                        <TableHead className="w-[70px] min-w-[70px]">工时</TableHead>
-                        <TableHead className="w-[90px] min-w-[90px]">类型</TableHead>
-                        <TableHead className="w-[90px] min-w-[90px]">优先级</TableHead>
-                        <TableHead className="min-w-[150px]">依赖</TableHead>
-                        <TableHead className="w-[60px] min-w-[60px]">并行</TableHead>
-                        <TableHead className="w-[140px] min-w-[140px]">操作</TableHead>
+                        <TableHead className="w-[60px] min-w-[60px]">序号</TableHead>
+                        <TableHead className="min-w-[300px]">任务信息</TableHead>
+                        <TableHead className="w-[80px] min-w-[80px]">工时</TableHead>
+                        <TableHead className="w-[100px] min-w-[100px]">类型</TableHead>
+                        <TableHead className="w-[100px] min-w-[100px]">优先级</TableHead>
+                        <TableHead className="min-w-[200px]">依赖</TableHead>
+                        <TableHead className="w-[70px] min-w-[70px]">并行</TableHead>
+                        <TableHead className="w-[150px] min-w-[150px]">操作</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {formData.tasks.map((task, index) => (
                         <TableRow key={task.id}>
-                          <TableCell className="font-medium">{task.sequence}</TableCell>
-                          <TableCell>
-                            <Input
-                              value={task.name}
-                              onChange={(e) => handleUpdateTaskField(task.id, 'name', e.target.value)}
-                              className="h-9 text-sm font-medium"
-                              placeholder="任务名称"
-                            />
-                            <Input
-                              value={task.description || ''}
-                              onChange={(e) => handleUpdateTaskField(task.id, 'description', e.target.value)}
-                              className="h-7 text-xs mt-2"
-                              placeholder="任务描述（可选）"
-                            />
-                            {task.notes && (
-                              <div className="text-xs text-blue-600 mt-1 whitespace-nowrap overflow-hidden text-ellipsis">💡 {task.notes}</div>
-                            )}
+                          <TableCell className="font-medium text-center align-middle py-2">{task.sequence}</TableCell>
+                          <TableCell className="align-middle py-2">
+                            <div className="space-y-2">
+                              <Input
+                                value={task.name}
+                                onChange={(e) => handleUpdateTaskField(task.id, 'name', e.target.value)}
+                                className="h-10 text-sm font-medium"
+                                placeholder="任务名称"
+                              />
+                              <Input
+                                value={task.description || ''}
+                                onChange={(e) => handleUpdateTaskField(task.id, 'description', e.target.value)}
+                                className="h-8 text-xs"
+                                placeholder="任务描述（可选）"
+                              />
+                              {task.notes && (
+                                <div className="text-xs text-blue-600 truncate">💡 {task.notes}</div>
+                              )}
+                            </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="align-middle py-2">
                             <Input
                               type="number"
                               min="1"
                               value={task.estimatedHours}
                               onChange={(e) => handleUpdateTaskField(task.id, 'estimatedHours', parseFloat(e.target.value) || 1)}
-                              className="h-9 w-20"
+                              className="h-10 w-24"
                             />
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="align-middle py-2">
                             <Select 
                               value={task.taskType} 
                               onValueChange={(value: ResourceWorkType) => handleUpdateTaskField(task.id, 'taskType', value)}
                             >
-                              <SelectTrigger className="h-9 w-24">
+                              <SelectTrigger className="h-10 w-28">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -448,12 +450,12 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                               </SelectContent>
                             </Select>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="align-middle py-2">
                             <Select 
                               value={task.priority} 
                               onValueChange={(value: any) => handleUpdateTaskField(task.id, 'priority', value)}
                             >
-                              <SelectTrigger className="h-9 w-24">
+                              <SelectTrigger className="h-10 w-28">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -464,13 +466,13 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                               </SelectContent>
                             </Select>
                           </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1.5">
+                          <TableCell className="align-middle py-2">
+                            <div className="flex flex-wrap gap-2">
                               {availableSequences.filter(seq => seq !== task.sequence).map(seq => {
                                 const depTask = getTaskBySequence(seq);
                                 const depTaskName = depTask?.name || `任务${seq}`;
                                 return (
-                                  <label key={seq} className="flex items-center gap-1.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 px-1 py-0.5 rounded">
+                                  <label key={seq} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 px-2 py-1 rounded border border-slate-200 dark:border-slate-700">
                                     <input
                                       type="checkbox"
                                       checked={task.dependencies?.includes(seq)}
@@ -482,7 +484,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                                           handleUpdateTaskField(task.id, 'dependencies', deps.filter(d => d !== seq));
                                         }
                                       }}
-                                      className="h-3.5 w-3.5"
+                                      className="h-4 w-4"
                                     />
                                     <span className="text-xs whitespace-nowrap">{depTaskName}</span>
                                   </label>
@@ -490,25 +492,25 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                               })}
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <label className="flex items-center gap-1 cursor-pointer">
+                          <TableCell className="align-middle py-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
                               <input
                                 type="checkbox"
                                 checked={task.allowParallel}
                                 onChange={(e) => handleUpdateTaskField(task.id, 'allowParallel', e.target.checked)}
                                 className="h-4 w-4"
                               />
-                              <span className="text-xs">{task.allowParallel ? '可并行' : '串行'}</span>
+                              <span className="text-xs whitespace-nowrap">{task.allowParallel ? '可并行' : '串行'}</span>
                             </label>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="align-middle py-2">
                             <div className="flex items-center gap-1">
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleMoveTask(index, 'up')}
                                 disabled={index === 0}
-                                className="h-8 w-8 p-0"
+                                className="h-9 w-9 p-0"
                               >
                                 <ArrowUp className="h-4 w-4" />
                               </Button>
@@ -517,7 +519,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                                 size="sm"
                                 onClick={() => handleMoveTask(index, 'down')}
                                 disabled={index === formData.tasks!.length - 1}
-                                className="h-8 w-8 p-0"
+                                className="h-9 w-9 p-0"
                               >
                                 <ArrowDown className="h-4 w-4" />
                               </Button>
@@ -525,7 +527,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleDeleteTask(task.id)}
-                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                                className="h-9 w-9 p-0 text-red-600 hover:text-red-700"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
