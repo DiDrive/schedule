@@ -80,7 +80,7 @@ export interface Project {
   id: string;
   name: string;
   description?: string;
-  priority: number; // 1-10, 数字越大优先级越高
+  priority: 'urgent' | 'normal'; // 项目优先级：紧急/普通
   deadline?: Date;
   tasks: Task[];
   resourcePool: string[]; // Resource IDs

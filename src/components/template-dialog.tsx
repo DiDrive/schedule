@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -36,7 +37,7 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
   const [projectDescription, setProjectDescription] = useState('');
   const [startDate, setStartDate] = useState('');
   const [deadline, setDeadline] = useState('');
-  const [priority, setPriority] = useState(5);
+  const [priority, setPriority] = useState<'urgent' | 'normal'>('normal');
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ProjectTemplate | undefined>(undefined);
 
@@ -54,7 +55,7 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
       setProjectDescription('');
       setStartDate('');
       setDeadline('');
-      setPriority(5);
+      setPriority('normal');
     }
   }, [open]);
 
@@ -145,7 +146,7 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
       setProjectDescription('');
       setStartDate('');
       setDeadline('');
-      setPriority(5);
+      setPriority('normal');
     } catch (error) {
       console.error('创建项目失败:', error);
       alert('创建项目失败，请检查输入');
@@ -361,6 +362,21 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                           onChange={(e) => setDeadline(e.target.value)}
                           className="mt-1"
                         />
+                      </div>
+                      <div>
+                        <Label htmlFor="priority">项目优先级</Label>
+                        <Select
+                          value={priority}
+                          onValueChange={(value: 'urgent' | 'normal') => setPriority(value)}
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="normal">普通</SelectItem>
+                            <SelectItem value="urgent">紧急</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div>
                         <Label htmlFor="projectDescription">项目描述（可选）</Label>

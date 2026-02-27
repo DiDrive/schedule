@@ -175,7 +175,7 @@ export function feishuRecordToProject(record: Record<string, any>, recordId: str
     id: fields[FEISHU_FIELD_IDS.projects.id] as string || recordId,
     name: fields[FEISHU_FIELD_IDS.projects.name] as string || '',
     description: fields[FEISHU_FIELD_IDS.projects.description] as string || '',
-    priority: 5,
+    priority: 'normal',
     tasks: [],
     resourcePool: [],
     deadline: feishuDateToDate(fields[FEISHU_FIELD_IDS.projects.end_date] as number) || undefined,
@@ -299,7 +299,7 @@ export function feishuRecordToSchedule(record: Record<string, any>, tasks: Task[
   const project: Project = {
     id: projectId,
     name: '飞书导入项目',
-    priority: 5,
+    priority: 'normal',
     tasks: projectTasks,
     resourcePool: [],
   };

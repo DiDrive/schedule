@@ -140,7 +140,7 @@ export const complexScenarioSample: ComplexScenarioInput = {
       id: 'proj-1',
       name: '电商平台升级',
       description: '电商平台性能优化和功能升级',
-      priority: 9,
+      priority: 'urgent',
       deadline: new Date('2024-04-30'),
       resourcePool: ['res-1', 'res-2', 'res-3', 'res-4'],
       color: '#3b82f6' // blue
@@ -149,7 +149,7 @@ export const complexScenarioSample: ComplexScenarioInput = {
       id: 'proj-2',
       name: '移动APP开发',
       description: 'iOS和Android客户端开发',
-      priority: 8,
+      priority: 'urgent',
       deadline: new Date('2024-05-15'),
       resourcePool: ['res-1', 'res-3'],
       color: '#10b981' // green
@@ -158,7 +158,7 @@ export const complexScenarioSample: ComplexScenarioInput = {
       id: 'proj-3',
       name: '数据中台建设',
       description: '数据仓库和BI系统建设',
-      priority: 7,
+      priority: 'normal',
       deadline: new Date('2024-06-01'),
       resourcePool: ['res-2', 'res-5'],
       color: '#f59e0b' // orange

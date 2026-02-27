@@ -89,7 +89,7 @@ const defaultProjects: Project[] = [
     id: 'proj-1',
     name: '宣传片项目',
     description: '企业宣传视频制作',
-    priority: 9,
+    priority: 'urgent',
     deadline: new Date('2024-04-30T18:30:00'),
     resourcePool: ['res-1', 'res-2', 'res-3', 'res-4'],
     color: '#3b82f6',
@@ -99,7 +99,7 @@ const defaultProjects: Project[] = [
     id: 'proj-2',
     name: '广告片项目',
     description: '产品广告视频制作',
-    priority: 8,
+    priority: 'urgent',
     deadline: new Date('2024-05-15T18:30:00'),
     resourcePool: ['res-1', 'res-3'],
     color: '#10b981',
@@ -109,7 +109,7 @@ const defaultProjects: Project[] = [
     id: 'proj-3',
     name: '纪录片项目',
     description: '企业纪录片制作',
-    priority: 7,
+    priority: 'normal',
     deadline: new Date('2024-06-01T18:30:00'),
     resourcePool: ['res-2', 'res-5'],
     color: '#f59e0b',
@@ -788,7 +788,7 @@ export default function ComplexScenario() {
       id: `proj-${Date.now()}`,
       name: `新项目 ${projects.length + 1}`,
       description: '',
-      priority: 5,
+      priority: 'normal',
       resourcePool: [],
       color: '#64748b',
       tasks: []
@@ -826,6 +826,13 @@ export default function ComplexScenario() {
       value = deadline;
     }
     setProjects(projects.map(p => p.id === projectId ? { ...p, [field]: value } : p));
+    
+    // 如果修改的是项目优先级，同步更新所有子任务的优先级
+    if (field === 'priority' && (value === 'urgent' || value === 'normal')) {
+      setTasks(tasks.map(t => 
+        t.projectId === projectId ? { ...t, priority: value } : t
+      ));
+    }
   };
 
   const filteredTasks = activeProject === 'all' 
@@ -1434,14 +1441,18 @@ export default function ComplexScenario() {
                       />
                     </TableCell>
                     <TableCell>
-                      <Input
-                        type="number"
-                        min="1"
-                        max="10"
+                      <Select
                         value={project.priority}
-                        onChange={(e) => handleProjectChange(project.id, 'priority', parseInt(e.target.value))}
-                        className="w-20 h-8"
-                      />
+                        onValueChange={(value: 'urgent' | 'normal') => handleProjectChange(project.id, 'priority', value)}
+                      >
+                        <SelectTrigger className="h-8 w-20">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="normal">普通</SelectItem>
+                          <SelectItem value="urgent">紧急</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                     <TableCell>
                       <Input
@@ -1736,7 +1747,6 @@ export default function ComplexScenario() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="urgent">紧急</SelectItem>
-                                <SelectItem value="high">高</SelectItem>
                                 <SelectItem value="normal">普通</SelectItem>
                                 <SelectItem value="low">低</SelectItem>
                               </SelectContent>

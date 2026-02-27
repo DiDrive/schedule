@@ -19,7 +19,6 @@ const LEVEL_EFFICIENCY: Record<ResourceLevel, number> = {
 // 优先级对应的权重
 const PRIORITY_WEIGHT: Record<string, number> = {
   urgent: 3,
-  high: 2,
   normal: 1,
   low: 0.5
 };

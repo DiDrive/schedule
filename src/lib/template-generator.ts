@@ -31,7 +31,7 @@ export function generateTasksFromTemplate(
       name: templateTask.name,
       description: templateTask.description,
       estimatedHours: templateTask.estimatedHours,
-      priority: templateTask.priority,
+      priority: templateTask.priority || 'normal', // 使用模板中的优先级，默认为普通
       taskType: templateTask.taskType,
       status: 'pending',
       projectId: projectId,
@@ -244,7 +244,7 @@ export function createProjectFromTemplate(
   template: ProjectTemplate,
   projectName: string,
   startDate: Date,
-  priority: number = 5,
+  priority: 'urgent' | 'normal' = 'normal',
   resourcePool: string[] = [],
   projectDescription?: string,
   deadline?: Date
@@ -263,6 +263,11 @@ export function createProjectFromTemplate(
   
   // 生成任务（传入项目截止日期）
   const tasks = generateTasksFromTemplate(template, projectId, projectStartDate, 8, projectDeadline);
+
+  // 将项目优先级应用到所有子任务
+  tasks.forEach(task => {
+    task.priority = priority;
+  });
 
   // 如果没有传入截止日期，使用最后一个任务的结束日期
   if (!projectDeadline) {
