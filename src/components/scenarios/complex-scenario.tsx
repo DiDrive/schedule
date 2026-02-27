@@ -539,10 +539,19 @@ export default function ComplexScenario() {
   }, [scheduleResult, deadlineWarningDays]);
 
   const handleGenerateSchedule = (force = false, tasksOverride?: Task[]) => {
-    setIsComputing(true);
-
     const tasksToUse = tasksOverride || tasks;
     console.log('[ComplexScenario] handleGenerateSchedule called, force:', force, 'tasks count:', tasksToUse.length);
+
+    // 检查是否有物料任务未填写提供时间
+    const materialTasksWithoutDate = tasksToUse.filter(t => t.taskType === '物料' && !t.estimatedMaterialDate);
+    if (materialTasksWithoutDate.length > 0) {
+      setIsComputing(false);
+      const taskNames = materialTasksWithoutDate.map(t => t.name).join('、');
+      alert(`⚠️ 无法生成排期\n\n以下物料任务尚未填写提供时间：\n${taskNames}\n\n请先在任务管理中填写这些任务的提供时间。`);
+      return;
+    }
+
+    setIsComputing(true);
 
     // 如果刚刚解决过冲突，直接生成排期（跳过冲突检测）
     if (justResolvedConflict && savedResolutions) {
@@ -1685,13 +1694,20 @@ export default function ComplexScenario() {
                       {task.taskType === '物料' ? (
                         <>
                           <TableCell>
-                            <Input
-                              type="datetime-local"
-                              value={formatDateTimeToInputValue(task.estimatedMaterialDate)}
-                              onChange={(e) => handleTaskChange(task.id, 'estimatedMaterialDate', new Date(e.target.value))}
-                              className="w-48 h-8"
-                              placeholder="选择提供时间"
-                            />
+                            <div className="relative">
+                              <Input
+                                type="datetime-local"
+                                value={formatDateTimeToInputValue(task.estimatedMaterialDate)}
+                                onChange={(e) => handleTaskChange(task.id, 'estimatedMaterialDate', new Date(e.target.value))}
+                                className={`w-48 h-8 ${!task.estimatedMaterialDate ? 'border-red-500 bg-red-50 dark:bg-red-950/20' : ''}`}
+                                placeholder="选择提供时间"
+                              />
+                              {!task.estimatedMaterialDate && (
+                                <div className="absolute top-full left-0 mt-1 text-xs text-red-600 dark:text-red-400 whitespace-nowrap">
+                                  ⚠️ 请填写提供时间
+                                </div>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell>
                             <span className="text-slate-400">-</span>
@@ -2060,11 +2076,15 @@ export default function ComplexScenario() {
                               </td>
                               <td className="p-2 align-middle whitespace-nowrap min-w-[250px]">
                                 {task.taskType === '物料' ? (
-                                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                                  <div className="flex items-center gap-2 text-sm">
                                     <span>甲方提供</span>
-                                    {task.estimatedMaterialDate && (
+                                    {task.estimatedMaterialDate ? (
                                       <span className="text-xs">
                                         （{formatDateTime(task.estimatedMaterialDate)}）
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs text-red-600 dark:text-red-400 font-medium">
+                                        ⚠️ 未填写提供时间
                                       </span>
                                     )}
                                   </div>
