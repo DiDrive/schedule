@@ -413,12 +413,6 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                                 className="h-10 text-sm font-medium"
                                 placeholder="任务名称"
                               />
-                              <Input
-                                value={task.description || ''}
-                                onChange={(e) => handleUpdateTaskField(task.id, 'description', e.target.value)}
-                                className="h-9 text-xs"
-                                placeholder="任务描述（可选）"
-                              />
                               <div className="flex gap-2">
                                 <Select 
                                   value={task.taskType} 
@@ -442,6 +436,12 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                                   placeholder="工时"
                                 />
                               </div>
+                              <Input
+                                value={task.description || ''}
+                                onChange={(e) => handleUpdateTaskField(task.id, 'description', e.target.value)}
+                                className="h-9 text-xs"
+                                placeholder="任务描述（可选）"
+                              />
                               {task.notes && (
                                 <div className="text-xs text-blue-600 truncate">💡 {task.notes}</div>
                               )}
