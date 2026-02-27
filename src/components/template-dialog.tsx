@@ -13,12 +13,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Calendar, CheckCircle2, Clock, FileText, Sparkles, TrendingUp, Plus, Trash2, Edit2 } from 'lucide-react';
-import { ProjectTemplate, Project, Task } from '@/types/schedule';
+import { ProjectTemplate, Project } from '@/types/schedule';
 import { defaultProjectTemplates } from '@/lib/project-templates';
-import { createProjectFromTemplate, calculateProjectDuration, calculateTotalHours, getTaskTypeStats } from '@/lib/template-generator';
+import { createProjectFromTemplate } from '@/lib/template-generator';
 import TemplateEditor from '@/components/template-editor';
 
 interface TemplateDialogProps {
@@ -37,10 +36,8 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
   const [projectDescription, setProjectDescription] = useState('');
   const [startDate, setStartDate] = useState('');
   const [priority, setPriority] = useState(5);
-  const [previewTasks, setPreviewTasks] = useState<Task[]>([]);
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ProjectTemplate | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<'select' | 'preview'>('select');
 
   // 从 localStorage 加载自定义模板和隐藏的默认模板
   useEffect(() => {
@@ -56,27 +53,8 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
       setProjectDescription('');
       setStartDate('');
       setPriority(5);
-      setPreviewTasks([]);
-      setActiveTab('select');
     }
   }, [open]);
-
-  // 当选择的模板或开始日期改变时，更新预览
-  useEffect(() => {
-    if (selectedTemplate && startDate) {
-      const tasks = createProjectFromTemplate(
-        selectedTemplate,
-        '预览项目',
-        new Date(startDate),
-        priority,
-        [],
-        selectedTemplate.description
-      ).tasks;
-      setPreviewTasks(tasks);
-    } else {
-      setPreviewTasks([]);
-    }
-  }, [selectedTemplate, startDate, priority]);
 
   const loadCustomTemplates = () => {
     const customTemplatesStr = localStorage.getItem('project-templates');
@@ -127,8 +105,6 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
     if (!projectName) {
       setProjectName(`${template.name} - ${new Date().toLocaleDateString('zh-CN')}`);
     }
-    // 自动切换到预览页面
-    setActiveTab('preview');
   };
 
   const handleCreateProject = () => {
@@ -166,8 +142,6 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
       setProjectDescription('');
       setStartDate('');
       setPriority(5);
-      setPreviewTasks([]);
-      setActiveTab('select');
     } catch (error) {
       console.error('创建项目失败:', error);
       alert('创建项目失败，请检查输入');
@@ -210,7 +184,6 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
     // 如果删除的是当前选中的模板，取消选择
     if (selectedTemplate?.id === templateId) {
       setSelectedTemplate(null);
-      setActiveTab('select');
     }
   };
 
@@ -234,13 +207,9 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
 
   const allTemplates = [...defaultProjectTemplates, ...customTemplates].filter(t => !hiddenTemplates.includes(t.id));
 
-  const totalHours = calculateTotalHours(previewTasks);
-  const duration = calculateProjectDuration(previewTasks);
-  const typeStats = getTaskTypeStats(previewTasks);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between text-2xl">
             <div className="flex items-center gap-3">
@@ -268,15 +237,7 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto -mx-6 px-6">
-          <Tabs defaultValue="select" className="w-full" value={activeTab} onValueChange={(value) => setActiveTab(value as 'select' | 'preview')}>
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="select">选择模板</TabsTrigger>
-              <TabsTrigger value="preview" disabled={!selectedTemplate}>
-                预览任务
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="select" className="space-y-4 mt-4">
+          <div className="space-y-4 mt-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {allTemplates.map((template) => (
                   <Card
@@ -389,10 +350,7 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                         />
                       </div>
                     </div>
-                    <div className="mt-4 flex justify-end gap-2">
-                      <Button onClick={() => setActiveTab('preview')}>
-                        查看预览
-                      </Button>
+                    <div className="mt-4 flex justify-end">
                       <Button onClick={handleCreateProject} className="bg-gradient-to-r from-purple-500 to-pink-500">
                         创建项目
                       </Button>
@@ -400,151 +358,7 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                   </CardContent>
                 </Card>
               )}
-            </TabsContent>
-
-            <TabsContent value="preview" className="space-y-4 mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>项目概览</CardTitle>
-                  <CardDescription>
-                    {selectedTemplate?.name} - {projectName}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20">
-                      <FileText className="h-5 w-5 text-blue-600" />
-                      <div>
-                        <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                          {previewTasks.length}
-                        </div>
-                        <div className="text-sm text-blue-700 dark:text-blue-300">任务总数</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-950/20">
-                      <Clock className="h-5 w-5 text-green-600" />
-                      <div>
-                        <div className="text-2xl font-bold text-green-900 dark:text-green-100">
-                          {totalHours}
-                        </div>
-                        <div className="text-sm text-green-700 dark:text-green-300">总工时</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20">
-                      <Calendar className="h-5 w-5 text-purple-600" />
-                      <div>
-                        <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                          {duration}
-                        </div>
-                        <div className="text-sm text-purple-700 dark:text-purple-300">预计工期（天）</div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-4">
-                    <h5 className="font-semibold mb-2">任务类型分布</h5>
-                    <div className="flex flex-wrap gap-2">
-                      {Object.entries(typeStats).map(([type, stats]) => (
-                        <Badge key={type} variant="secondary">
-                          {type}: {stats.count} 个任务 ({stats.hours}h)
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>任务列表</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-md border overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[50px]">序号</TableHead>
-                          <TableHead className="min-w-[200px]">任务名称</TableHead>
-                          <TableHead className="w-[60px]">工时</TableHead>
-                          <TableHead className="w-[70px]">优先级</TableHead>
-                          <TableHead className="w-[80px]">类型</TableHead>
-                          <TableHead className="w-[60px]">依赖</TableHead>
-                          <TableHead className="w-[100px] min-w-[100px]">开始日期</TableHead>
-                          <TableHead className="w-[100px] min-w-[100px]">截止日期</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {previewTasks.map((task, index) => {
-                          const templateTask = selectedTemplate?.tasks[index];
-                          return (
-                            <TableRow key={task.id}>
-                              <TableCell className="font-medium">
-                                {templateTask?.sequence}
-                              </TableCell>
-                              <TableCell>
-                                <div>
-                                  <div className="font-medium">{task.name}</div>
-                                  {task.description && (
-                                    <div className="text-xs text-slate-500 mt-1">
-                                      {task.description}
-                                    </div>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell>{task.estimatedHours}h</TableCell>
-                              <TableCell>
-                                <Badge
-                                  variant={
-                                    task.priority === 'urgent'
-                                      ? 'destructive'
-                                      : task.priority === 'high'
-                                      ? 'default'
-                                      : 'secondary'
-                                  }
-                                >
-                                  {task.priority === 'urgent' ? '紧急' : task.priority === 'high' ? '高' : task.priority === 'normal' ? '普通' : '低'}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="outline">{task.taskType}</Badge>
-                              </TableCell>
-                              <TableCell>
-                                {task.dependencies && task.dependencies.length > 0 ? (
-                                  <Badge variant="secondary">
-                                    {task.dependencies.length} 个
-                                  </Badge>
-                                ) : (
-                                  <span className="text-slate-400">无</span>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                {task.startDate ? (
-                                  <span className="text-sm">
-                                    {new Date(task.startDate).toLocaleDateString('zh-CN')}
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-400">-</span>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                {task.endDate ? (
-                                  <span className="text-sm font-medium">
-                                    {new Date(task.endDate).toLocaleDateString('zh-CN')}
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-400">-</span>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          </div>
         </div>
       </DialogContent>
 

@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Trash2, ArrowUp, ArrowDown, Edit2 } from 'lucide-react';
 import { ProjectTemplate, TemplateTask, ResourceWorkType } from '@/types/schedule';
 
 interface TemplateEditorProps {
@@ -38,6 +38,8 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
       isDefault: false
     }
   );
+
+  const [editingTask, setEditingTask] = useState<TemplateTask | null>(null);
 
   // 当打开编辑器或 template 变化时，同步数据
   useEffect(() => {
@@ -163,6 +165,61 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
 
   const totalHours = formData.tasks?.reduce((sum, t) => sum + t.estimatedHours, 0) || 0;
   const availableSequences = formData.tasks?.map(t => t.sequence) || [];
+
+  const handleEditTask = (task: TemplateTask) => {
+    setEditingTask(task);
+    setNewTask({
+      ...task,
+      id: ''
+    });
+  };
+
+  const handleSaveEditTask = () => {
+    if (!editingTask) return;
+
+    setFormData({
+      ...formData,
+      tasks: formData.tasks?.map(t => 
+        t.id === editingTask.id 
+          ? { ...t, ...newTask, id: editingTask.id, sequence: editingTask.sequence }
+          : t
+      ) || []
+    });
+
+    setEditingTask(null);
+    setNewTask({
+      id: '',
+      sequence: (formData.tasks?.length || 0) + 1,
+      name: '',
+      description: '',
+      estimatedHours: 8,
+      priority: 'normal',
+      taskType: '平面',
+      dependencies: [],
+      allowParallel: false,
+      notes: ''
+    });
+  };
+
+  const handleCancelEditTask = () => {
+    setEditingTask(null);
+    setNewTask({
+      id: '',
+      sequence: (formData.tasks?.length || 0) + 1,
+      name: '',
+      description: '',
+      estimatedHours: 8,
+      priority: 'normal',
+      taskType: '平面',
+      dependencies: [],
+      allowParallel: false,
+      notes: ''
+    });
+  };
+
+  const getTaskBySequence = (sequence: number) => {
+    return formData.tasks?.find(t => t.sequence === sequence);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -320,24 +377,28 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                   <div>
                     <Label>依赖任务（可选）</Label>
                     <div className="mt-1 flex flex-wrap gap-2">
-                      {availableSequences.map(seq => (
-                        <label key={seq} className="flex items-center gap-1 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={newTask.dependencies?.includes(seq)}
-                            onChange={(e) => {
-                              const deps = newTask.dependencies || [];
-                              if (e.target.checked) {
-                                setNewTask({ ...newTask, dependencies: [...deps, seq] });
-                              } else {
-                                setNewTask({ ...newTask, dependencies: deps.filter(d => d !== seq) });
-                              }
-                            }}
-                            className="h-4 w-4"
-                          />
-                          <span className="text-sm">任务 {seq}</span>
-                        </label>
-                      ))}
+                      {availableSequences.map(seq => {
+                        const task = getTaskBySequence(seq);
+                        const taskName = task?.name || `任务 ${seq}`;
+                        return (
+                          <label key={seq} className="flex items-center gap-1 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={newTask.dependencies?.includes(seq)}
+                              onChange={(e) => {
+                                const deps = newTask.dependencies || [];
+                                if (e.target.checked) {
+                                  setNewTask({ ...newTask, dependencies: [...deps, seq] });
+                                } else {
+                                  setNewTask({ ...newTask, dependencies: deps.filter(d => d !== seq) });
+                                }
+                              }}
+                              className="h-4 w-4"
+                            />
+                            <span className="text-sm">{taskName}</span>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -350,10 +411,21 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                     placeholder="补充说明（可选）"
                   />
                 </div>
-                <Button onClick={handleAddTask} className="w-full">
-                  <Plus className="h-4 w-4 mr-2" />
-                  添加任务
-                </Button>
+                {editingTask ? (
+                  <div className="flex gap-2">
+                    <Button onClick={handleSaveEditTask} className="flex-1">
+                      保存修改
+                    </Button>
+                    <Button onClick={handleCancelEditTask} variant="outline" className="flex-1">
+                      取消编辑
+                    </Button>
+                  </div>
+                ) : (
+                  <Button onClick={handleAddTask} className="w-full">
+                    <Plus className="h-4 w-4 mr-2" />
+                    添加任务
+                  </Button>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -453,6 +525,14 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                                 className="h-8 w-8 p-0"
                               >
                                 <ArrowDown className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditTask(task)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Edit2 className="h-4 w-4" />
                               </Button>
                               <Button
                                 variant="ghost"
