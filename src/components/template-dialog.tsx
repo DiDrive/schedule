@@ -255,6 +255,7 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                         ? 'ring-2 ring-purple-500 shadow-lg'
                         : ''
                     }`}
+                    onClick={() => setSelectedTemplate(template)}
                   >
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between gap-3">
