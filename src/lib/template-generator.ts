@@ -44,8 +44,14 @@ export function generateTasksFromTemplate(
 
   // 第二遍：设置依赖关系并计算开始日期
   let currentDate = new Date(startDate);
+  // 设置开始时间为上午9点
+  currentDate.setHours(9, 0, 0, 0);
   
-  // 辅助函数：跳过周末，找到下一个工作日
+  // 工作时间配置
+  const WORK_START_HOUR = 9;  // 上午9点上班
+  const WORK_END_HOUR = 18.5; // 下午6点半下班（18.5 = 18:30）
+  
+  // 辅助函数：跳过周末，找到下一个工作日，并设置为上班时间
   const skipWeekends = (date: Date): Date => {
     const result = new Date(date);
     const day = result.getDay();
@@ -54,6 +60,7 @@ export function generateTasksFromTemplate(
     } else if (day === 6) { // 周六
       result.setDate(result.getDate() + 2);
     }
+    result.setHours(WORK_START_HOUR, 0, 0, 0);
     return result;
   };
 
@@ -71,6 +78,8 @@ export function generateTasksFromTemplate(
       }
     }
     
+    // 设置结束时间为下班时间
+    endDate.setHours(18, 30, 0, 0);
     return endDate;
   };
   
@@ -149,14 +158,23 @@ export function createProjectFromTemplate(
 ): Project {
   const projectId = `proj-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
+  // 设置项目开始时间为上午9点
+  const projectStartDate = new Date(startDate);
+  projectStartDate.setHours(9, 0, 0, 0);
+  
   // 生成任务
-  const tasks = generateTasksFromTemplate(template, projectId, startDate);
+  const tasks = generateTasksFromTemplate(template, projectId, projectStartDate);
 
   // 使用传入的截止日期，如果没有则使用最后一个任务的结束日期
   let projectDeadline = deadline;
   if (!projectDeadline) {
     const lastTask = tasks[tasks.length - 1];
     projectDeadline = lastTask.endDate ? new Date(lastTask.endDate) : undefined;
+  }
+  
+  // 如果有截止日期，设置为18:30
+  if (projectDeadline) {
+    projectDeadline.setHours(18, 30, 0, 0);
   }
 
   const project: Project = {
@@ -168,7 +186,7 @@ export function createProjectFromTemplate(
     tasks: tasks,
     resourcePool: resourcePool,
     color: template.color,
-    startDate: startDate
+    startDate: projectStartDate
   };
 
   return project;
