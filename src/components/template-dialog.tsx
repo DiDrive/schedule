@@ -40,12 +40,26 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
   const [previewTasks, setPreviewTasks] = useState<Task[]>([]);
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ProjectTemplate | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState<'select' | 'preview'>('select');
 
   // 从 localStorage 加载自定义模板和隐藏的默认模板
   useEffect(() => {
     loadCustomTemplates();
     loadHiddenTemplates();
   }, []);
+
+  // 当对话框打开时，重置状态
+  useEffect(() => {
+    if (open) {
+      setSelectedTemplate(null);
+      setProjectName('');
+      setProjectDescription('');
+      setStartDate('');
+      setPriority(5);
+      setPreviewTasks([]);
+      setActiveTab('select');
+    }
+  }, [open]);
 
   // 当选择的模板或开始日期改变时，更新预览
   useEffect(() => {
@@ -113,6 +127,8 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
     if (!projectName) {
       setProjectName(`${template.name} - ${new Date().toLocaleDateString('zh-CN')}`);
     }
+    // 自动切换到预览页面
+    setActiveTab('preview');
   };
 
   const handleCreateProject = () => {
@@ -151,6 +167,7 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
       setStartDate('');
       setPriority(5);
       setPreviewTasks([]);
+      setActiveTab('select');
     } catch (error) {
       console.error('创建项目失败:', error);
       alert('创建项目失败，请检查输入');
@@ -193,6 +210,7 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
     // 如果删除的是当前选中的模板，取消选择
     if (selectedTemplate?.id === templateId) {
       setSelectedTemplate(null);
+      setActiveTab('select');
     }
   };
 
@@ -238,20 +256,20 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                 setEditingTemplate(undefined);
                 setShowTemplateEditor(true);
               }}
-              className="gap-2"
+              className="gap-2 mr-2"
             >
               <Plus className="h-4 w-4" />
               新建模板
             </Button>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="mt-2">
             选择项目模板，快速生成标准化的任务列表
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto">
-          <Tabs defaultValue="select" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+        <div className="flex-1 overflow-y-auto -mx-6 px-6">
+          <Tabs defaultValue="select" className="w-full" value={activeTab} onValueChange={(value) => setActiveTab(value as 'select' | 'preview')}>
+            <TabsList className="grid w-full grid-cols-2 mb-4">
               <TabsTrigger value="select">选择模板</TabsTrigger>
               <TabsTrigger value="preview" disabled={!selectedTemplate}>
                 预览任务
@@ -270,14 +288,14 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                     }`}
                   >
                     <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <CardTitle className="text-lg">{template.name}</CardTitle>
-                          <CardDescription className="mt-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <CardTitle className="text-lg truncate">{template.name}</CardTitle>
+                          <CardDescription className="mt-1 line-clamp-2">
                             {template.description}
                           </CardDescription>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2 flex-shrink-0">
                           <Button
                             variant="ghost"
                             size="sm"
@@ -307,8 +325,8 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant="secondary">{template.category}</Badge>
                           {template.isDefault && (
                             <Badge variant="outline" className="text-purple-600 border-purple-600">
@@ -316,14 +334,14 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                             </Badge>
                           )}
                         </div>
-                        <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-4 w-4" />
-                            <span>{template.tasks.length} 个任务</span>
+                        <div className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-400">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 flex-shrink-0" />
+                            <span className="whitespace-nowrap">{template.tasks.length} 个任务</span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <TrendingUp className="h-4 w-4" />
-                            <span>{template.tasks.reduce((sum, t) => sum + t.estimatedHours, 0)} 小时</span>
+                          <div className="flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4 flex-shrink-0" />
+                            <span className="whitespace-nowrap">{template.tasks.reduce((sum, t) => sum + t.estimatedHours, 0)} 小时</span>
                           </div>
                         </div>
                       </div>
@@ -372,10 +390,7 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                       </div>
                     </div>
                     <div className="mt-4 flex justify-end gap-2">
-                      <Button onClick={() => {
-                        const previewTab = document.querySelector('[value="preview"]') as HTMLElement;
-                        previewTab?.click();
-                      }}>
+                      <Button onClick={() => setActiveTab('preview')}>
                         查看预览
                       </Button>
                       <Button onClick={handleCreateProject} className="bg-gradient-to-r from-purple-500 to-pink-500">
@@ -444,18 +459,18 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                   <CardTitle>任务列表</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="rounded-md border">
+                  <div className="rounded-md border overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[60px]">序号</TableHead>
-                          <TableHead>任务名称</TableHead>
-                          <TableHead>工时</TableHead>
-                          <TableHead>优先级</TableHead>
-                          <TableHead>类型</TableHead>
-                          <TableHead>依赖</TableHead>
-                          <TableHead className="w-[120px]">开始日期</TableHead>
-                          <TableHead className="w-[120px]">截止日期</TableHead>
+                          <TableHead className="w-[50px]">序号</TableHead>
+                          <TableHead className="min-w-[200px]">任务名称</TableHead>
+                          <TableHead className="w-[60px]">工时</TableHead>
+                          <TableHead className="w-[70px]">优先级</TableHead>
+                          <TableHead className="w-[80px]">类型</TableHead>
+                          <TableHead className="w-[60px]">依赖</TableHead>
+                          <TableHead className="w-[100px] min-w-[100px]">开始日期</TableHead>
+                          <TableHead className="w-[100px] min-w-[100px]">截止日期</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
