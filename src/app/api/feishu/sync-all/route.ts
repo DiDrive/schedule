@@ -106,6 +106,8 @@ export async function POST(request: NextRequest) {
 
     const appAccessToken = await getAppAccessToken(appId, appSecret);
     log('[飞书同步] 开始全量同步');
+    log(`[飞书同步] Table ID 配置: resources=${resourcesTableId || '未配置'}, projects=${projectsTableId || '未配置'}, tasks=${tasksTableId || '未配置'}, schedules=${schedulesTableId || '未配置'}`);
+    log(`[飞书同步] 待同步数据: resources=${resources?.length || 0}, projects=${projects?.length || 0}, tasks=${tasks?.length || 0}`);
 
     const stats = {
       resources: { success: 0, error: 0 },
@@ -117,8 +119,8 @@ export async function POST(request: NextRequest) {
     const allErrors: string[] = [];
 
     // 1. 同步人员数据
-    if (resourcesTableId && resources && Array.isArray(resources)) {
-      log(`[飞书同步] 开始同步人员数据: ${resources.length} 条`);
+    if (resourcesTableId && resourcesTableId.trim() !== '' && resources && Array.isArray(resources)) {
+      log(`[飞书同步] ✅ 开始同步人员数据: ${resources.length} 条`);
       const { success, error, errors } = await syncResources(
         appToken,
         appAccessToken,
@@ -128,11 +130,13 @@ export async function POST(request: NextRequest) {
       stats.resources.success = success;
       stats.resources.error = error;
       allErrors.push(...errors);
+    } else {
+      log(`[飞书同步] ⏭️  跳过人员数据同步: ${!resourcesTableId ? '未配置 Table ID' : !resources ? '无数据' : '数据格式错误'}`);
     }
 
     // 2. 同步项目数据
-    if (projectsTableId && projects && Array.isArray(projects)) {
-      log(`[飞书同步] 开始同步项目数据: ${projects.length} 条`);
+    if (projectsTableId && projectsTableId.trim() !== '' && projects && Array.isArray(projects)) {
+      log(`[飞书同步] ✅ 开始同步项目数据: ${projects.length} 条`);
       const { success, error, errors } = await syncProjects(
         appToken,
         appAccessToken,
@@ -142,11 +146,13 @@ export async function POST(request: NextRequest) {
       stats.projects.success = success;
       stats.projects.error = error;
       allErrors.push(...errors);
+    } else {
+      log(`[飞书同步] ⏭️  跳过项目数据同步: ${!projectsTableId ? '未配置 Table ID' : !projects ? '无数据' : '数据格式错误'}`);
     }
 
     // 3. 同步任务数据
-    if (tasksTableId && tasks && Array.isArray(tasks)) {
-      log(`[飞书同步] 开始同步任务数据: ${tasks.length} 条`);
+    if (tasksTableId && tasksTableId.trim() !== '' && tasks && Array.isArray(tasks)) {
+      log(`[飞书同步] ✅ 开始同步任务数据: ${tasks.length} 条`);
 
       // 创建资源ID到飞书人员ID的映射表
       let resourceIdToFeishuPersonIdMap = new Map<string, string>();
@@ -203,11 +209,13 @@ export async function POST(request: NextRequest) {
       stats.tasks.success = success;
       stats.tasks.error = error;
       allErrors.push(...errors);
+    } else {
+      log(`[飞书同步] ⏭️  跳过任务数据同步: ${!tasksTableId ? '未配置 Table ID' : !tasks ? '无数据' : '数据格式错误'}`);
     }
 
     // 4. 同步排期数据
-    if (schedulesTableId && tasks && Array.isArray(tasks)) {
-      log(`[飞书同步] 开始同步排期数据: ${tasks.length} 条`);
+    if (schedulesTableId && schedulesTableId.trim() !== '' && tasks && Array.isArray(tasks)) {
+      log(`[飞书同步] ✅ 开始同步排期数据: ${tasks.length} 条`);
 
       // 创建资源ID到飞书人员ID的映射表（从已同步的人员表）
       let resourceIdToFeishuPersonIdMap = new Map<string, string>();

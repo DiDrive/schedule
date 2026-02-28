@@ -284,6 +284,16 @@ export default function FeishuIntegrationDialog({
             </TabsContent>
 
             <TabsContent value="tables" className="space-y-4 mt-0">
+              <Card className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/10">
+                <CardHeader>
+                  <CardTitle className="text-blue-700 dark:text-blue-400">💡 提示：同步说明</CardTitle>
+                  <CardDescription className="text-blue-600 dark:text-blue-300">
+                    如果您希望同步所有数据到飞书，请配置以下所有表格的 Table ID。<br/>
+                    如果只配置部分表格，则只会同步已配置表格的数据。
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
               <Card>
                 <CardHeader>
                   <CardTitle>表格 ID 配置</CardTitle>

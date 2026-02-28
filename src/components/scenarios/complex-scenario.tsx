@@ -1097,6 +1097,31 @@ export default function ComplexScenario() {
         项目: syncProjects.length,
         任务: syncTasks.length,
       });
+      console.log('[Feishu Sync] Table ID 配置:', {
+        人员表: config.tableIds?.resources || '未配置（将跳过）',
+        项目表: config.tableIds?.projects || '未配置（将跳过）',
+        任务表: config.tableIds?.tasks || '未配置（将跳过）',
+        排期表: config.tableIds?.schedules || '未配置（将跳过）',
+      });
+
+      // 显示同步提示
+      const tablesToSync = [];
+      if (config.tableIds?.resources) tablesToSync.push('人员表');
+      if (config.tableIds?.projects) tablesToSync.push('项目表');
+      if (config.tableIds?.tasks) tablesToSync.push('任务表');
+      if (config.tableIds?.schedules) tablesToSync.push('排期表');
+
+      if (tablesToSync.length === 0) {
+        alert('请至少配置一个表的 Table ID 才能同步数据！');
+        setIsSyncingToFeishu(false);
+        return;
+      }
+
+      const confirmMsg = `即将同步以下数据到飞书：\n\n${tablesToSync.join('、')}\n\n是否继续？`;
+      if (!confirm(confirmMsg)) {
+        setIsSyncingToFeishu(false);
+        return;
+      }
 
       // 调用同步接口
       const url = `/api/feishu/sync-all?app_id=${encodeURIComponent(config.appId)}` +
