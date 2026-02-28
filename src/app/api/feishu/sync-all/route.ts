@@ -412,6 +412,8 @@ async function syncProjects(
         record.fields['开始日期'] = Math.floor(new Date(project.startDate).getTime() / 1000) * 1000;
       }
 
+      log(`[飞书同步] 同步项目: ${project.name}, ID: ${project.id}, 字段: ${JSON.stringify(Object.keys(record.fields))}`);
+
       const response = await fetch(
         `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records`,
         {
@@ -430,8 +432,11 @@ async function syncProjects(
         log(`[飞书同步] ✅ 同步项目成功: ${project.name}`);
       } else {
         errorCount++;
-        errors.push(`项目 "${project.name}" 同步失败: ${data.msg} (code: ${data.code})`);
-        log(`[飞书同步] ❌ 项目 "${project.name}" 同步失败: ${data.msg}`);
+        const errorMsg = `项目 "${project.name}" 同步失败: ${data.msg} (code: ${data.code})`;
+        errors.push(errorMsg);
+        log(`[飞书同步] ❌ ${errorMsg}`);
+        log(`[飞书同步]   请求数据: ${JSON.stringify(record)}`);
+        log(`[飞书同步]   响应数据: ${JSON.stringify(data)}`);
       }
     } catch (error) {
       errorCount++;
@@ -483,6 +488,8 @@ async function syncTasks(
         record.fields['截止日期'] = Math.floor(new Date(task.deadline).getTime() / 1000) * 1000;
       }
 
+      log(`[飞书同步] 同步任务: ${task.name}, ID: ${task.id}, 字段: ${JSON.stringify(Object.keys(record.fields))}`);
+
       const response = await fetch(
         `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records`,
         {
@@ -501,8 +508,11 @@ async function syncTasks(
         log(`[飞书同步] ✅ 同步任务成功: ${task.name}`);
       } else {
         errorCount++;
-        errors.push(`任务 "${task.name}" 同步失败: ${data.msg} (code: ${data.code})`);
-        log(`[飞书同步] ❌ 任务 "${task.name}" 同步失败: ${data.msg}`);
+        const errorMsg = `任务 "${task.name}" 同步失败: ${data.msg} (code: ${data.code})`;
+        errors.push(errorMsg);
+        log(`[飞书同步] ❌ ${errorMsg}`);
+        log(`[飞书同步]   请求数据: ${JSON.stringify(record)}`);
+        log(`[飞书同步]   响应数据: ${JSON.stringify(data)}`);
       }
     } catch (error) {
       errorCount++;
