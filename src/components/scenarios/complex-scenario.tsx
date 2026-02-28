@@ -321,8 +321,7 @@ export default function ComplexScenario() {
   const forceGenerateSchedule = useRef(false);
 
   // 全局任务ID计数器，确保ID唯一
-  // 初始值设为 0，在客户端挂载时从 localStorage 或任务中恢复
-  const taskIdCounter = useRef(0);
+  const taskIdCounter = useRef(Date.now());
 
   // 使用 ref 跟踪是否已经加载过数据，避免重复加载
   const hasLoadedData = useRef(false);
@@ -480,27 +479,6 @@ export default function ComplexScenario() {
         })
       };
       setScheduleResult(scheduleResultWithDates);
-    }
-
-    // 恢复 taskIdCounter，从现有任务中找出最大的ID号
-    if (savedTasks) {
-      const parsed = JSON.parse(savedTasks);
-      let maxTaskId = 0;
-      parsed.forEach((t: Task) => {
-        // 从任务ID中提取数字部分，例如 "task-123" -> 123
-        const match = t.id.match(/task-(\d+)/);
-        if (match) {
-          const taskIdNum = parseInt(match[1], 10);
-          if (taskIdNum > maxTaskId) {
-            maxTaskId = taskIdNum;
-          }
-        }
-      });
-      // 设置为最大ID + 1，确保新任务的ID是唯一的
-      taskIdCounter.current = maxTaskId + 1;
-    } else {
-      // 如果没有保存的任务，设置为 0
-      taskIdCounter.current = 0;
     }
   }, []);
 
