@@ -105,27 +105,12 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
     console.log(`  - ${task.name}: fixedResourceId=${task.fixedResourceId || '(无指定)'}, taskType=${task.taskType || '(未指定)'}`);
   });
 
-  // ★★★ 识别并发任务组（从同一时间开始的任务）★★★
-  // 并发任务是指：依赖关系相同，预期会从同一时间开始
-  // 修复：使用"依赖关系 + 任务类型"作为组的 key，确保只有真正可以并行的任务才会被分配给不同的人
-  const taskGroups = new Map<string, Task[]>();
-  sortedTasks.forEach(task => {
-    const depKey = (task.dependencies || []).sort().join(',');
-    const taskType = task.taskType || 'default';
-    // 组的 key = 依赖关系 + 任务类型
-    const groupKey = `${depKey}|${taskType}`;
-    if (!taskGroups.has(groupKey)) {
-      taskGroups.set(groupKey, []);
-    }
-    taskGroups.get(groupKey)!.push(task);
-  });
+  // ★★★ 移除并发任务组逻辑，改为流水线式排期 ★★★
+  // 不再强制分配给不同的人，让算法自动处理资源冲突（延后任务）
 
   // 跟踪每个资源的已分配工时
   const resourceLoad = new Map<string, number>();
   humanResources.forEach(r => resourceLoad.set(r.id, 0));
-
-  // 跟踪每个并发任务组已使用的资源（避免同一组任务分配给同一人）
-  const groupUsedResources = new Map<string, Set<string>>();
 
   // 记录每个资源已经分配的任务（用于计算时间冲突）
   const resourceTasks = new Map<string, Task[]>();
@@ -189,21 +174,6 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
 
     // 如果没有匹配的资源，使用所有资源（降级处理）
     let resourcesToScore = matchingResources.length > 0 ? matchingResources : humanResources;
-
-    // ★★★ 排除同一并发任务组已使用的资源 ★★★
-    const depKey = (task.dependencies || []).sort().join(',');
-    const groupKey = `${depKey}|${taskType || 'default'}`;
-    const usedResources = groupUsedResources.get(groupKey);
-    if (usedResources && usedResources.size > 0) {
-      resourcesToScore = resourcesToScore.filter(r => !usedResources.has(r.id));
-      // 如果过滤后没有资源，回退到所有可用资源
-      if (resourcesToScore.length === 0) {
-        console.log(`  ⚠ 任务 ${task.name} 的并发任务组已用完所有资源，回退到所有可用资源`);
-        resourcesToScore = matchingResources.length > 0 ? matchingResources : humanResources;
-      } else {
-        console.log(`  ✓ 排除已用资源: ${Array.from(usedResources).join(', ')}`);
-      }
-    }
 
     // 调试日志
     console.log(`任务 ${task.name} (${taskType || '未指定'}), 匹配资源: ${resourcesToScore.map(r => r.name).join(', ')}`);
@@ -273,13 +243,6 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
 
     // 更新资源负载
     resourceLoad.set(selectedResource.id, resourceLoadHours + task.estimatedHours);
-
-    // ★★★ 标记该资源为并发任务组已使用 ★★★
-    const finalGroupKey = `${depKey}|${taskType || 'default'}`;
-    if (!groupUsedResources.has(finalGroupKey)) {
-      groupUsedResources.set(finalGroupKey, new Set());
-    }
-    groupUsedResources.get(finalGroupKey)!.add(selectedResource.id);
 
     // 记录任务到资源列表
     const tasksForResource = resourceTasks.get(selectedResource.id) || [];
