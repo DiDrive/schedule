@@ -20,7 +20,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '平面',
         workType: '平面',
         dependencies: [],
-        allowParallel: false,
+
         notes: '需明确核心卖点和目标用户'
       },
       {
@@ -33,7 +33,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '平面',
         workType: '平面',
         dependencies: [1],
-        allowParallel: false,
+
         notes: '包含画面构图、镜头运动、时长预估'
       },
       {
@@ -46,7 +46,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '物料',
         workType: '物料',
         dependencies: [2],
-        allowParallel: true,
+
         notes: '提前3天准备完成'
       },
       {
@@ -59,7 +59,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [2, 3],
-        allowParallel: false,
+
         notes: '需协调演员、场地、设备'
       },
       {
@@ -72,7 +72,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [4],
-        allowParallel: false,
+
         notes: '确认故事线和基本节奏'
       },
       {
@@ -85,7 +85,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [5],
-        allowParallel: false,
+
         notes: '优化转场和镜头衔接'
       },
       {
@@ -98,7 +98,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [6],
-        allowParallel: true,
+
         notes: '根据需求添加字幕、贴纸等'
       },
       {
@@ -111,7 +111,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [6],
-        allowParallel: true,
+
         notes: '配音情绪需与画面匹配'
       },
       {
@@ -124,7 +124,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [6],
-        allowParallel: true,
+
         notes: '统一画面色调和氛围'
       },
       {
@@ -137,7 +137,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [7, 8, 9],
-        allowParallel: false,
+
         notes: '检查音画同步和质量'
       },
       {
@@ -150,7 +150,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [10],
-        allowParallel: false,
+
         notes: '预留修改时间'
       }
     ]
@@ -173,7 +173,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '平面',
         workType: '平面',
         dependencies: [],
-        allowParallel: false
+
       },
       {
         id: 'task-2',
@@ -185,7 +185,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '平面',
         workType: '平面',
         dependencies: [1],
-        allowParallel: false
+
       },
       {
         id: 'task-3',
@@ -197,7 +197,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '平面',
         workType: '平面',
         dependencies: [2],
-        allowParallel: false
+
       },
       {
         id: 'task-4',
@@ -209,7 +209,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '平面',
         workType: '平面',
         dependencies: [3],
-        allowParallel: true
+
       },
       {
         id: 'task-5',
@@ -221,7 +221,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '物料',
         workType: '物料',
         dependencies: [3],
-        allowParallel: true
+
       },
       {
         id: 'task-6',
@@ -233,7 +233,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [4, 5],
-        allowParallel: false
+
       },
       {
         id: 'task-7',
@@ -245,7 +245,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [6],
-        allowParallel: false
+
       },
       {
         id: 'task-8',
@@ -257,7 +257,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [7],
-        allowParallel: false
+
       },
       {
         id: 'task-9',
@@ -269,7 +269,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [8],
-        allowParallel: false
+
       },
       {
         id: 'task-10',
@@ -281,7 +281,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [8],
-        allowParallel: true
+
       },
       {
         id: 'task-11',
@@ -293,7 +293,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [9, 10],
-        allowParallel: false
+
       }
     ]
   },
@@ -315,7 +315,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '平面',
         workType: '平面',
         dependencies: [],
-        allowParallel: false
+
       },
       {
         id: 'task-2',
@@ -327,7 +327,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '平面',
         workType: '平面',
         dependencies: [1],
-        allowParallel: false
+
       },
       {
         id: 'task-3',
@@ -339,7 +339,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '平面',
         workType: '平面',
         dependencies: [2],
-        allowParallel: false
+
       },
       {
         id: 'task-4',
@@ -351,7 +351,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '平面',
         workType: '平面',
         dependencies: [3],
-        allowParallel: false
+
       },
       {
         id: 'task-5',
@@ -363,7 +363,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '物料',
         workType: '物料',
         dependencies: [4],
-        allowParallel: true
+
       },
       {
         id: 'task-6',
@@ -375,7 +375,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [4, 5],
-        allowParallel: false
+
       },
       {
         id: 'task-7',
@@ -387,7 +387,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [6],
-        allowParallel: false
+
       },
       {
         id: 'task-8',
@@ -399,7 +399,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [7],
-        allowParallel: false
+
       },
       {
         id: 'task-9',
@@ -411,7 +411,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [8],
-        allowParallel: false
+
       }
     ]
   },
@@ -433,7 +433,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '平面',
         workType: '平面',
         dependencies: [],
-        allowParallel: false
+
       },
       {
         id: 'task-2',
@@ -445,7 +445,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '平面',
         workType: '平面',
         dependencies: [1],
-        allowParallel: false
+
       },
       {
         id: 'task-3',
@@ -457,7 +457,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '物料',
         workType: '物料',
         dependencies: [2],
-        allowParallel: true
+
       },
       {
         id: 'task-4',
@@ -469,7 +469,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [3],
-        allowParallel: false
+
       },
       {
         id: 'task-5',
@@ -481,7 +481,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [4],
-        allowParallel: false
+
       },
       {
         id: 'task-6',
@@ -493,7 +493,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [5],
-        allowParallel: false
+
       },
       {
         id: 'task-7',
@@ -505,7 +505,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [6],
-        allowParallel: true
+
       },
       {
         id: 'task-8',
@@ -517,7 +517,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [7],
-        allowParallel: false
+
       },
       {
         id: 'task-9',
@@ -529,7 +529,7 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '后期',
         workType: '后期',
         dependencies: [8],
-        allowParallel: false
+
       }
     ]
   }

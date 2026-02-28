@@ -191,7 +191,6 @@ export interface TemplateTask {
   taskType: ResourceWorkType; // 平面/后期/物料
   workType?: ResourceWorkType; // 工作类型（兼容性字段）
   dependencies: number[]; // 依赖的任务序号数组（如 [1] 表示依赖序号为1的任务）
-  allowParallel: boolean; // 是否允许与其他同级任务并行
   tags?: string[];
   notes?: string; // 任务说明
 }

@@ -69,7 +69,6 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
     priority: 'normal',
     taskType: '平面',
     dependencies: [],
-    allowParallel: false,
     notes: ''
   });
 
@@ -88,7 +87,6 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
       priority: newTask.priority || 'normal',
       taskType: newTask.taskType || '平面',
       dependencies: newTask.dependencies || [],
-      allowParallel: newTask.allowParallel || false,
       notes: newTask.notes
     };
 
@@ -107,7 +105,6 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
       priority: 'normal',
       taskType: '平面',
       dependencies: [],
-      allowParallel: false,
       notes: ''
     });
   };
@@ -336,16 +333,6 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex items-center gap-2 pt-6">
-                    <input
-                      type="checkbox"
-                      id="allowParallel"
-                      checked={newTask.allowParallel || false}
-                      onChange={(e) => setNewTask({ ...newTask, allowParallel: e.target.checked })}
-                      className="h-4 w-4"
-                    />
-                    <Label htmlFor="allowParallel" className="cursor-pointer">允许并行</Label>
-                  </div>
                 </div>
                 {availableSequences.length > 0 && (
                   <div>
@@ -411,7 +398,6 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                         <TableHead className="w-[320px] min-w-[320px]">任务信息</TableHead>
                         <TableHead className="w-[100px] min-w-[100px]">优先级</TableHead>
                         <TableHead className="min-w-[200px]">依赖</TableHead>
-                        <TableHead className="w-[70px] min-w-[70px]">并行</TableHead>
                         <TableHead className="w-[150px] min-w-[150px]">操作</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -501,17 +487,6 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                                 );
                               })}
                             </div>
-                          </TableCell>
-                          <TableCell className="align-middle py-4">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={task.allowParallel}
-                                onChange={(e) => handleUpdateTaskField(task.id, 'allowParallel', e.target.checked)}
-                                className="h-4 w-4"
-                              />
-                              <span className="text-xs whitespace-nowrap">{task.allowParallel ? '可并行' : '串行'}</span>
-                            </label>
                           </TableCell>
                           <TableCell className="align-middle py-4">
                             <div className="flex items-center gap-1">
