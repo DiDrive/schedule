@@ -335,7 +335,8 @@ async function syncResources(
       const record: any = {
         fields: {
           '人员ID': resource.id,
-          '姓名': resource.name || '',
+          // 注意：不写入"姓名"字段，因为可能是成员类型而不是文本类型
+          // 如果需要写入姓名，请确保飞书表中"姓名"字段是文本类型
           '类型': mapResourceTypeToFeishu(resource.type),
           '工作类型': resource.workType || '',
           '等级': mapResourceLevelToFeishu(resource.level),
@@ -343,6 +344,8 @@ async function syncResources(
           '可用性': resource.availability || 1.0,
         },
       };
+
+      log(`[飞书同步] 同步人员: ${resource.name}, ID: ${resource.id}, 数据: ${JSON.stringify(record.fields)}`);
 
       const response = await fetch(
         `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records`,

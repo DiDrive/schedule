@@ -230,10 +230,26 @@ export default function ProjectScheduleSystem() {
           }
         });
 
+        // 检查是否有 UserFieldConvFail 错误（字段类型错误）
+        const hasFieldTypeError = result.errors && result.errors.some((err: string) =>
+          err.includes('UserFieldConvFail') || err.includes('1254066')
+        );
+
+        if (hasFieldTypeError) {
+          message += '\n⚠️ 部分数据因字段类型问题同步失败\n';
+          message += '请点击下方按钮查看修复指南：\n\n';
+          message += '[查看飞书表结构修复指南]';
+        }
+
         alert(message);
 
         if (result.errors && result.errors.length > 0) {
           console.error('同步错误详情:', result.errors);
+
+          // 如果有字段类型错误，打开修复指南
+          if (hasFieldTypeError) {
+            window.open('/docs/feishu-table-fix-guide.md', '_blank');
+          }
         }
       } else {
         alert(`同步失败: ${result.error || '未知错误'}`);
