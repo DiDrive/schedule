@@ -122,12 +122,38 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
 
     if (newIndex < 0 || newIndex >= tasks.length) return;
 
+    // 记录交换前的 sequence 到任务ID的映射
+    const oldSequenceToIdMap = new Map<number, string>();
+    tasks.forEach(task => {
+      oldSequenceToIdMap.set(task.sequence, task.id);
+    });
+
     // 交换位置
     [tasks[index], tasks[newIndex]] = [tasks[newIndex], tasks[index]];
 
     // 更新序号
+    const newSequenceToIdMap = new Map<number, string>();
     tasks.forEach((task, idx) => {
       task.sequence = idx + 1;
+      newSequenceToIdMap.set(task.sequence, task.id);
+    });
+
+    // 更新所有任务的依赖关系
+    tasks.forEach(task => {
+      if (task.dependencies && task.dependencies.length > 0) {
+        task.dependencies = task.dependencies.map(oldSeq => {
+          // 根据旧的 sequence 找到对应的任务ID
+          const taskId = oldSequenceToIdMap.get(oldSeq);
+          if (!taskId) return oldSeq;
+          // 根据任务ID找到新的 sequence
+          for (const [newSeq, id] of newSequenceToIdMap.entries()) {
+            if (id === taskId) {
+              return newSeq;
+            }
+          }
+          return oldSeq;
+        });
+      }
     });
 
     setFormData({ ...formData, tasks });
