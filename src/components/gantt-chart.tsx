@@ -48,14 +48,28 @@ export default function GanttChart({
   );
 
   // 标准化到整天0点
-  const startDayTime = new Date(firstTaskStart);
+  let startDayTime = new Date(firstTaskStart);
   startDayTime.setHours(0, 0, 0, 0);
 
-  const endDayTime = new Date(lastTaskEnd);
-  endDayTime.setHours(0, 0, 0, 0);
+  let endDayTime = new Date(lastTaskEnd);
+  endDayTime.setHours(23, 59, 59, 999);
+
+  // 如果开始日期是周末，回退到最近的工作日
+  while (!WORK_DAYS.includes(startDayTime.getDay())) {
+    startDayTime.setDate(startDayTime.getDate() - 1);
+  }
+
+  // 如果结束日期是周末，前进到最近的工作日
+  while (!WORK_DAYS.includes(endDayTime.getDay())) {
+    endDayTime.setDate(endDayTime.getDate() + 1);
+  }
 
   // 确保至少有1个工作日
-  if (startDayTime.getTime() === endDayTime.getTime()) {
+  const tempStart = new Date(startDayTime);
+  tempStart.setHours(0, 0, 0, 0);
+  const tempEnd = new Date(endDayTime);
+  tempEnd.setHours(0, 0, 0, 0);
+  if (tempStart.getTime() === tempEnd.getTime()) {
     endDayTime.setDate(endDayTime.getDate() + 1);
   }
 
@@ -312,16 +326,25 @@ export default function GanttChart({
           </div>
           {/* 日期刻度 */}
           <div className="flex flex-1">
-            {workDaysList.map((date, index) => (
-              <div
-                key={index}
-                className="text-xs text-center border-r dark:border-slate-700 py-2 px-1 flex-shrink-0"
-                style={{ width: `${columnPercent}%` }}
-                title={formatDateLong(date)}
-              >
-                {formatDateShort(date)}
-              </div>
-            ))}
+            {workDaysList.map((date, index) => {
+              const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+              const weekday = weekDays[date.getDay()];
+              return (
+                <div
+                  key={index}
+                  className="text-xs text-center border-r dark:border-slate-700 py-1 px-0.5 flex-shrink-0 flex flex-col justify-center"
+                  style={{ width: `${columnPercent}%` }}
+                  title={formatDateLong(date)}
+                >
+                  <div className="font-semibold text-slate-700 dark:text-slate-300">
+                    {formatDateShort(date)}
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-500">
+                    周{weekday}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
