@@ -130,6 +130,12 @@ export async function GET(request: NextRequest) {
           // 如果没有指定名称，使用 personName 或 record_id
           const name = personName || resourceId;
 
+          // 提取飞书人员ID
+          const nameField = fields['姓名'] || fields['name'] || fields['人员'];
+          const feishuPersonId = parsePersonId(nameField);
+
+          log(`[飞书加载] 处理人员: ${name} (ID: ${resourceId}, 工作类型: ${workType}, 飞书人员ID: ${feishuPersonId || '未设置'})`);
+
           return {
             id: resourceId,
             name: name,
@@ -143,10 +149,11 @@ export async function GET(request: NextRequest) {
             email: email,
             color: '#64748b', // 默认颜色
             // 保存飞书人员 ID，用于后续映射
-            feishuPersonId: parsePersonId(fields['姓名'] || fields['name'] || fields['人员']),
+            feishuPersonId: feishuPersonId,
           };
         });
         log(`[飞书加载] ✅ 加载了 ${result.resources.length} 个人员`);
+        log(`[飞书加载] 人员列表: ${result.resources.map((r: any) => r.name).join(', ')}`);
       } else {
         log(`[飞书加载] ❌ 加载人员数据失败: ${JSON.stringify(resourcesData)}`);
       }
@@ -274,15 +281,24 @@ export async function GET(request: NextRequest) {
           const projectId = projectName ? (projectNameToIdMap.get(projectName) || projectName) : '';
 
           // 解析负责人：从飞书人员字段中提取 ID，然后映射到系统资源 ID
-          const feishuPersonId = parsePersonId(fields['负责人'] || fields['指定人员'] || fields['assignedResourceId']);
+          const assigneeField = fields['负责人'] || fields['指定人员'] || fields['assignedResourceId'];
+          const feishuPersonId = parsePersonId(assigneeField);
+
+          // 调试：输出负责人字段的原始数据
+          log(`[飞书加载] 任务 ${name}: 负责人字段原始数据: ${JSON.stringify(assigneeField)}`);
+
           // 将飞书人员 ID 映射到系统资源 ID
           let fixedResourceId = '';
           if (feishuPersonId) {
+            // 调试：输出所有资源的 feishuPersonId
+            const resourceFeishuIds = result.resources.map((r: any) => `${r.name}: ${r.feishuPersonId || '未设置'}`);
+            log(`[飞书加载] 任务 ${name}: 所有资源的飞书人员ID: ${JSON.stringify(resourceFeishuIds)}`);
+
             const matchedResource = result.resources.find((r: any) => r.feishuPersonId === feishuPersonId);
             fixedResourceId = matchedResource?.id || '';
             log(`[飞书加载] 任务 ${name}: 飞书人员ID=${feishuPersonId}, 匹配资源ID=${fixedResourceId}, 资源名称=${matchedResource?.name || '未找到'}`);
           } else {
-            log(`[飞书加载] 任务 ${name}: 未找到负责人字段`);
+            log(`[飞书加载] 任务 ${name}: 未找到负责人字段或解析失败`);
           }
 
           // 解析任务类型：下拉选项，飞书返回的是字符串（如"平面设计"、"后期制作"）
@@ -344,6 +360,19 @@ export async function GET(request: NextRequest) {
           };
         });
         log(`[飞书加载] ✅ 加载了 ${result.tasks.length} 个任务`);
+
+        // 检查是否有任务负责人未匹配到资源
+        const unmatchedTasks = result.tasks.filter((t: any) => {
+          const hasFeishuPersonId = t.fields && parsePersonId(t.fields['负责人'] || t.fields['指定人员']);
+          return hasFeishuPersonId && !t.fixedResourceId;
+        });
+        if (unmatchedTasks.length > 0) {
+          log(`[飞书加载] ⚠️ 发现 ${unmatchedTasks.length} 个任务的负责人未匹配到资源:`);
+          unmatchedTasks.forEach((t: any) => {
+            const feishuPersonId = parsePersonId(t.fields?.['负责人'] || t.fields?.['指定人员']);
+            log(`[飞书加载]   - 任务: ${t.name}, 飞书人员ID: ${feishuPersonId}`);
+          });
+        }
       } else {
         log(`[飞书加载] ❌ 加载任务数据失败: ${JSON.stringify(tasksData)}`);
       }
