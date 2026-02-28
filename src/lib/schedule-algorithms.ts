@@ -187,6 +187,28 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
       }
     }
 
+    // ★★★ 新增：排除所有当前任务类型已使用的资源 ★★★
+    // 这样可以确保同一类型的任务不会分配给同一个人
+    let taskTypeUsedResources: string[] = [];
+    for (const [resourceId, tasksForResource] of resourceTasks.entries()) {
+      // 检查这个资源是否有相同类型的任务
+      const hasSameTypeTask = tasksForResource.some(t => t.taskType === taskType);
+      if (hasSameTypeTask) {
+        taskTypeUsedResources.push(resourceId);
+      }
+    }
+    if (taskTypeUsedResources.length > 0) {
+      const currentResourcesToScore = resourcesToScore;
+      resourcesToScore = resourcesToScore.filter(r => !taskTypeUsedResources.includes(r.id));
+      // 如果过滤后没有资源，说明资源不够用，回退到之前的资源列表
+      if (resourcesToScore.length === 0) {
+        console.log(`  ⚠ 任务类型 ${taskType} 的所有资源已被占用，允许资源复用`);
+        resourcesToScore = currentResourcesToScore;
+      } else {
+        console.log(`  ✓ 排除任务类型 ${taskType} 已使用的资源: ${taskTypeUsedResources.join(', ')}`);
+      }
+    }
+
     // 调试日志
     console.log(`任务 ${task.name} (${taskType || '未指定'}), 匹配资源: ${resourcesToScore.map(r => r.name).join(', ')}`);
 
