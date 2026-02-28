@@ -200,18 +200,115 @@ export function selectBestResource(
 ): string | null {
   const scores = calculateAllResourceMatchScores(task, resources, allTasks, workTypeFilter);
   
-  // 如果没有候选资源，返回null
-  if (scores.length === 0) return null;
-  
-  // 选择得分最高的资源
-  const bestMatch = scores[0];
-  
-  // 如果最佳资源的总分为负数（有严重冲突或完全不匹配），返回null
-  if (bestMatch.totalScore < 0) {
+  if (scores.length === 0) {
     return null;
   }
   
-  return bestMatch.resourceId;
+  return scores[0].resourceId;
+}
+
+/**
+ * 简化版匹配度计算（用于schedule-algorithms.ts中的快速评估）
+ * @param task 任务对象
+ * @param resource 资源对象
+ * @param resourceTasks 资源已分配的任务列表（用于检测时间冲突）
+ * @returns 匹配度得分详情
+ */
+export function calculateQuickMatchScore(
+  task: Task,
+  resource: Resource,
+  resourceTasks: Task[]
+): {
+  skillScore: number;
+  specialtyScore: number;
+  efficiencyScore: number;
+  totalScore: number;
+  hasTimeConflict: boolean;
+  matchedSkills: string[];
+  matchedSpecialties: string[];
+  missingSkills: string[];
+  missingSpecialties: string[];
+} {
+  const requiredSkills = task.requiredSkills || [];
+  const requiredSpecialties = task.requiredSpecialties || [];
+  const resourceSkills = resource.skills || [];
+  const resourceSpecialties = resource.specialties || [];
+  const resourceEfficiency = resource.efficiency || 1.0;
+
+  // 1. 技能匹配度：0-80分
+  let skillScore = 0;
+  const matchedSkills: string[] = [];
+  const missingSkills: string[] = [];
+
+  if (requiredSkills.length === 0) {
+    // 无技能要求，给基础分20分
+    skillScore = 20;
+  } else {
+    const matchedCount = requiredSkills.filter(skill => resourceSkills.includes(skill)).length;
+    const ratio = matchedCount / requiredSkills.length;
+    skillScore = ratio * 80;
+    matchedSkills.push(...requiredSkills.filter(skill => resourceSkills.includes(skill)));
+    missingSkills.push(...requiredSkills.filter(skill => !resourceSkills.includes(skill)));
+  }
+
+  // 2. 擅长匹配度：每个匹配30分（无上限）
+  let specialtyScore = 0;
+  const matchedSpecialties: string[] = [];
+  const missingSpecialties: string[] = [];
+
+  requiredSpecialties.forEach(specialty => {
+    if (resourceSpecialties.includes(specialty)) {
+      specialtyScore += 30;
+      matchedSpecialties.push(specialty);
+    } else {
+      missingSpecialties.push(specialty);
+    }
+  });
+
+  // 3. 资源效率分：高级20分、中级10分、初级5分
+  let efficiencyScore = 5; // 初级
+  if (resourceEfficiency >= 1.5) {
+    efficiencyScore = 20; // 高级
+  } else if (resourceEfficiency >= 1.2) {
+    efficiencyScore = 10; // 中级
+  }
+
+  // 4. 时间冲突检测：-1000分
+  let hasTimeConflict = false;
+  if (task.startDate && task.endDate) {
+    const taskStart = new Date(task.startDate);
+    const taskEnd = new Date(task.endDate);
+
+    for (const existingTask of resourceTasks) {
+      if (existingTask.startDate && existingTask.endDate) {
+        const existingStart = new Date(existingTask.startDate);
+        const existingEnd = new Date(existingTask.endDate);
+
+        // 检查时间是否有重叠
+        const hasOverlap = taskStart < existingEnd && taskEnd > existingStart;
+        if (hasOverlap) {
+          hasTimeConflict = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // 综合得分
+  const timeConflictPenalty = hasTimeConflict ? -1000 : 0;
+  const totalScore = skillScore + specialtyScore + efficiencyScore + timeConflictPenalty;
+
+  return {
+    skillScore,
+    specialtyScore,
+    efficiencyScore,
+    totalScore,
+    hasTimeConflict,
+    matchedSkills,
+    matchedSpecialties,
+    missingSkills,
+    missingSpecialties
+  };
 }
 
 /**

@@ -93,6 +93,18 @@ export interface Task {
   startHour?: number; // 开始小时，如 9.5 表示 9:30
   endHour?: number; // 结束小时
   isCritical?: boolean; // 是否在关键路径上
+
+  // 技能匹配度信息（新增）
+  matchScore?: {
+    skillScore: number; // 技能匹配得分 0-80
+    specialtyScore: number; // 擅长匹配得分（无上限）
+    efficiencyScore: number; // 效率得分
+    totalScore: number; // 综合得分
+    matchedSkills: string[]; // 实际匹配的技能
+    matchedSpecialties: string[]; // 实际匹配的擅长
+    missingSkills: string[]; // 缺失的技能
+    missingSpecialties: string[]; // 缺失的擅长
+  };
 }
 
 export interface Project {
