@@ -196,6 +196,11 @@ export function feishuRecordToProject(record: Record<string, any>, recordId: str
  * 将系统任务转换为飞书记录格式
  */
 export function taskToFeishuRecord(task: Task): Record<string, any> {
+  // 优先使用 assignedResources（已排期），如果没有则使用 fixedResourceId（手动指定）
+  const assigneeResources = task.assignedResources && task.assignedResources.length > 0
+    ? task.assignedResources
+    : (task.fixedResourceId ? [task.fixedResourceId] : []);
+
   return {
     [FEISHU_FIELD_IDS.tasks.id]: task.id,
     [FEISHU_FIELD_IDS.tasks.name]: task.name,
@@ -204,7 +209,7 @@ export function taskToFeishuRecord(task: Task): Record<string, any> {
     [FEISHU_FIELD_IDS.tasks.estimated_hours]: task.estimatedHours,
     [FEISHU_FIELD_IDS.tasks.deadline]: dateToFeishuDate(task.deadline, false),
     [FEISHU_FIELD_IDS.tasks.priority]: task.priority === 'urgent' ? '紧急' : task.priority === 'low' ? '低' : '普通',
-    [FEISHU_FIELD_IDS.tasks.assignee]: task.assignedResources || [],
+    [FEISHU_FIELD_IDS.tasks.assignee]: assigneeResources,
     [FEISHU_FIELD_IDS.tasks.dependencies]: task.dependencies || [],
   };
 }
@@ -214,10 +219,16 @@ export function taskToFeishuRecord(task: Task): Record<string, any> {
  */
 export function feishuRecordToTask(record: Record<string, any>, recordId: string): Task {
   const fields = record.fields || {};
-  
+
   // 从飞书读取优先级
   const priorityValue = fields[FEISHU_FIELD_IDS.tasks.priority] as string;
   const priority = priorityValue === '紧急' ? 'urgent' : priorityValue === '低' ? 'low' : 'normal';
+
+  // 从飞书读取负责人（分配给 assignedResources）
+  const assignedResources = (fields[FEISHU_FIELD_IDS.tasks.assignee] as string[]) || [];
+
+  // 将负责人设置到 fixedResourceId，以便在任务管理中显示
+  const fixedResourceId = assignedResources.length > 0 ? assignedResources[0] : undefined;
 
   return {
     id: fields[FEISHU_FIELD_IDS.tasks.id] as string || recordId,
@@ -225,7 +236,8 @@ export function feishuRecordToTask(record: Record<string, any>, recordId: string
     taskType: fields[FEISHU_FIELD_IDS.tasks.type] === '平面设计' ? '平面' : fields[FEISHU_FIELD_IDS.tasks.type] === '后期制作' ? '后期' : '物料',
     projectId: (fields[FEISHU_FIELD_IDS.tasks.project] as string)?.[0] || undefined,
     estimatedHours: (fields[FEISHU_FIELD_IDS.tasks.estimated_hours] as number) || 0,
-    assignedResources: (fields[FEISHU_FIELD_IDS.tasks.assignee] as string[]) || [],
+    assignedResources: assignedResources, // 用于排期算法
+    fixedResourceId: fixedResourceId, // 用于任务管理中显示指定人员
     dependencies: (fields[FEISHU_FIELD_IDS.tasks.dependencies] as string[]) || [],
     status: 'pending',
     priority: priority,

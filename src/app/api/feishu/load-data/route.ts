@@ -333,7 +333,8 @@ export async function GET(request: NextRequest) {
             id: taskId || item.record_id,
             name: name,
             projectId: projectId,
-            fixedResourceId: fixedResourceId, // 使用映射后的资源 ID
+            assignedResources: fixedResourceId ? [fixedResourceId] : [], // 设置 assignedResources 以便排期算法使用
+            fixedResourceId: fixedResourceId, // 设置 fixedResourceId 以便任务管理中显示
             taskType: taskType,
             estimatedHours: estimatedHours,
             priority: priority,
