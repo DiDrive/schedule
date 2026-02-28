@@ -923,8 +923,12 @@ export function generateSchedule(
 
     console.log(`当前可并行任务数: ${availableTasks.length}, 任务: ${availableTasks.map(t => t.name).join(', ')}`);
 
-    // 为所有可用任务同时安排时间（实现并行）
-    for (const task of availableTasks) {
+    // ★★★ 按任务ID排序，确保确定性 ★★★
+    // 这样可以确保资源冲突检测时，先处理的任务不会影响后处理的任务
+    const availableTasksSorted = [...availableTasks].sort((a, b) => a.id.localeCompare(b.id));
+
+    // 为每个任务安排时间（按顺序处理，确保资源冲突检测正确）
+    for (const task of availableTasksSorted) {
       // 物料任务特殊处理
       if (task.taskType === '物料') {
         // 使用实际提供日期（如果有），否则使用预估提供日期
