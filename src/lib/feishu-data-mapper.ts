@@ -24,6 +24,7 @@ export const FEISHU_FIELD_IDS = {
     id: '项目ID',
     name: '项目名称',
     description: '项目描述',
+    priority: '优先级',
     end_date: '截止日期',
     status: '项目状态',
   },
@@ -66,14 +67,18 @@ export const FEISHU_OPTION_VALUES = {
     '已完成': 'completed',
     '已暂停': 'paused',
   },
+  projectPriority: {
+    '紧急': 'urgent',
+    '普通': 'normal',
+  },
   taskType: {
     '平面设计': 'graphic',
     '后期制作': 'post',
     '物料': 'material',
   },
   taskPriority: {
-    '高': 'high',
-    '中': 'medium',
+    '紧急': 'urgent',
+    '普通': 'normal',
     '低': 'low',
   },
   taskStatus: {
@@ -160,6 +165,7 @@ export function projectToFeishuRecord(project: Project): Record<string, any> {
     [FEISHU_FIELD_IDS.projects.id]: project.id,
     [FEISHU_FIELD_IDS.projects.name]: project.name,
     [FEISHU_FIELD_IDS.projects.description]: project.description || '',
+    [FEISHU_FIELD_IDS.projects.priority]: project.priority === 'urgent' ? '紧急' : '普通',
     [FEISHU_FIELD_IDS.projects.end_date]: dateToFeishuDate(project.deadline, false),
     [FEISHU_FIELD_IDS.projects.status]: '进行中',
   };
@@ -170,12 +176,16 @@ export function projectToFeishuRecord(project: Project): Record<string, any> {
  */
 export function feishuRecordToProject(record: Record<string, any>, recordId: string): Project {
   const fields = record.fields || {};
+  
+  // 从飞书读取优先级
+  const priorityValue = fields[FEISHU_FIELD_IDS.projects.priority] as string;
+  const priority = priorityValue === '紧急' ? 'urgent' : 'normal';
 
   return {
     id: fields[FEISHU_FIELD_IDS.projects.id] as string || recordId,
     name: fields[FEISHU_FIELD_IDS.projects.name] as string || '',
     description: fields[FEISHU_FIELD_IDS.projects.description] as string || '',
-    priority: 'normal',
+    priority: priority,
     tasks: [],
     resourcePool: [],
     deadline: feishuDateToDate(fields[FEISHU_FIELD_IDS.projects.end_date] as number) || undefined,
@@ -193,7 +203,7 @@ export function taskToFeishuRecord(task: Task): Record<string, any> {
     [FEISHU_FIELD_IDS.tasks.type]: task.taskType === '平面' ? '平面设计' : task.taskType === '后期' ? '后期制作' : '物料',
     [FEISHU_FIELD_IDS.tasks.estimated_hours]: task.estimatedHours,
     [FEISHU_FIELD_IDS.tasks.deadline]: dateToFeishuDate(task.deadline, false),
-    [FEISHU_FIELD_IDS.tasks.priority]: task.priority === 'urgent' || task.priority === 'high' ? '高' : task.priority === 'low' ? '低' : '中',
+    [FEISHU_FIELD_IDS.tasks.priority]: task.priority === 'urgent' ? '紧急' : task.priority === 'low' ? '低' : '普通',
     [FEISHU_FIELD_IDS.tasks.assignee]: task.assignedResources || [],
     [FEISHU_FIELD_IDS.tasks.dependencies]: task.dependencies || [],
   };
@@ -204,6 +214,10 @@ export function taskToFeishuRecord(task: Task): Record<string, any> {
  */
 export function feishuRecordToTask(record: Record<string, any>, recordId: string): Task {
   const fields = record.fields || {};
+  
+  // 从飞书读取优先级
+  const priorityValue = fields[FEISHU_FIELD_IDS.tasks.priority] as string;
+  const priority = priorityValue === '紧急' ? 'urgent' : priorityValue === '低' ? 'low' : 'normal';
 
   return {
     id: fields[FEISHU_FIELD_IDS.tasks.id] as string || recordId,
@@ -214,7 +228,7 @@ export function feishuRecordToTask(record: Record<string, any>, recordId: string
     assignedResources: (fields[FEISHU_FIELD_IDS.tasks.assignee] as string[]) || [],
     dependencies: (fields[FEISHU_FIELD_IDS.tasks.dependencies] as string[]) || [],
     status: 'pending',
-    priority: fields[FEISHU_FIELD_IDS.tasks.priority] === '高' ? 'high' : fields[FEISHU_FIELD_IDS.tasks.priority] === '低' ? 'low' : 'normal',
+    priority: priority,
     deadline: feishuDateToDate(fields[FEISHU_FIELD_IDS.tasks.deadline] as number) || undefined,
   };
 }
