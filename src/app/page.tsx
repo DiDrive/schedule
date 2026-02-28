@@ -54,7 +54,19 @@ export default function ProjectScheduleSystem() {
       localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
       localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
 
-      alert(`成功从飞书多维表加载数据！\n\n人员：${resources.length}\n项目：${projects.length}\n任务：${tasks.length}`);
+      const stats = result.stats || {};
+      const message = `成功从飞书多维表加载数据！
+
+📊 数据统计：
+  • 人员：${resources.length} 个
+  • 项目：${projects.length} 个
+  • 任务：${tasks.length} 个
+
+👤 负责人映射：
+  • 已设置负责人：${stats.tasksWithAssignee || 0} 个
+  • 自动分配：${stats.tasksWithoutAssignee || 0} 个`;
+
+      alert(message);
 
       // 刷新页面以加载数据
       window.location.reload();

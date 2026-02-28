@@ -289,6 +289,7 @@ export async function GET(request: NextRequest) {
 
           // 将飞书人员 ID 映射到系统资源 ID
           let fixedResourceId = '';
+          let assigneeName = '';
           if (feishuPersonId) {
             // 调试：输出所有资源的 feishuPersonId
             const resourceFeishuIds = result.resources.map((r: any) => `${r.name}: ${r.feishuPersonId || '未设置'}`);
@@ -296,9 +297,15 @@ export async function GET(request: NextRequest) {
 
             const matchedResource = result.resources.find((r: any) => r.feishuPersonId === feishuPersonId);
             fixedResourceId = matchedResource?.id || '';
-            log(`[飞书加载] 任务 ${name}: 飞书人员ID=${feishuPersonId}, 匹配资源ID=${fixedResourceId}, 资源名称=${matchedResource?.name || '未找到'}`);
+            assigneeName = matchedResource?.name || '';
+
+            if (matchedResource) {
+              log(`[飞书加载] 任务 ${name}: ✓ 成功匹配负责人 - ${assigneeName} (资源ID: ${fixedResourceId})`);
+            } else {
+              log(`[飞书加载] 任务 ${name}: ✗ 匹配失败 - 飞书人员ID ${feishuPersonId} 未在资源列表中找到`);
+            }
           } else {
-            log(`[飞书加载] 任务 ${name}: 未找到负责人字段或解析失败`);
+            log(`[飞书加载] 任务 ${name}: 未设置负责人字段`);
           }
 
           // 解析任务类型：下拉选项，飞书返回的是字符串（如"平面设计"、"后期制作"）
@@ -361,16 +368,29 @@ export async function GET(request: NextRequest) {
         });
         log(`[飞书加载] ✅ 加载了 ${result.tasks.length} 个任务`);
 
-        // 检查是否有任务负责人未匹配到资源
-        const unmatchedTasks = result.tasks.filter((t: any) => {
-          const hasFeishuPersonId = t.fields && parsePersonId(t.fields['负责人'] || t.fields['指定人员']);
-          return hasFeishuPersonId && !t.fixedResourceId;
-        });
-        if (unmatchedTasks.length > 0) {
-          log(`[飞书加载] ⚠️ 发现 ${unmatchedTasks.length} 个任务的负责人未匹配到资源:`);
-          unmatchedTasks.forEach((t: any) => {
-            const feishuPersonId = parsePersonId(t.fields?.['负责人'] || t.fields?.['指定人员']);
-            log(`[飞书加载]   - 任务: ${t.name}, 飞书人员ID: ${feishuPersonId}`);
+        // 统计负责人映射结果
+        const tasksWithAssignee = result.tasks.filter((t: any) => t.fixedResourceId);
+        const tasksWithoutAssignee = result.tasks.filter((t: any) => !t.fixedResourceId);
+
+        log(`[飞书加载] 📊 负责人映射统计:`);
+        log(`[飞书加载]   - 总任务数: ${result.tasks.length}`);
+        log(`[飞书加载]   - 已设置负责人: ${tasksWithAssignee.length}`);
+        log(`[飞书加载]   - 未设置负责人: ${tasksWithoutAssignee.length}`);
+
+        // 列出已设置负责人的任务
+        if (tasksWithAssignee.length > 0) {
+          log(`[飞书加载] ✓ 已设置负责人的任务:`);
+          tasksWithAssignee.forEach((t: any) => {
+            const resource = result.resources.find((r: any) => r.id === t.fixedResourceId);
+            log(`[飞书加载]   - ${t.name}: ${resource?.name || '未找到'}`);
+          });
+        }
+
+        // 列出未设置负责人的任务
+        if (tasksWithoutAssignee.length > 0) {
+          log(`[飞书加载] ℹ️ 未设置负责人的任务 (将自动分配):`);
+          tasksWithoutAssignee.forEach((t: any) => {
+            log(`[飞书加载]   - ${t.name}`);
           });
         }
       } else {
@@ -407,6 +427,10 @@ export async function GET(request: NextRequest) {
     log('[飞书加载] ✅ 数据加载完成');
     log(`[飞书加载] 📊 统计: ${result.resources.length} 个人员, ${result.projects.length} 个项目, ${result.tasks.length} 个任务`);
 
+    // 统计负责人映射
+    const tasksWithAssignee = result.tasks.filter((t: any) => t.fixedResourceId);
+    const tasksWithoutAssignee = result.tasks.filter((t: any) => !t.fixedResourceId);
+
     return NextResponse.json({
       success: true,
       data: result,
@@ -414,6 +438,8 @@ export async function GET(request: NextRequest) {
         resources: result.resources.length,
         projects: result.projects.length,
         tasks: result.tasks.length,
+        tasksWithAssignee: tasksWithAssignee.length,
+        tasksWithoutAssignee: tasksWithoutAssignee.length,
       },
     });
   } catch (error: any) {
