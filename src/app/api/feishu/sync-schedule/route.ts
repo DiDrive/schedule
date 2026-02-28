@@ -163,7 +163,13 @@ export async function POST(request: NextRequest) {
     for (const task of tasks) {
       try {
         // 将资源ID映射回飞书人员ID
-        const feishuPersonId = task.assignedResourceId ? resourceIdToFeishuPersonIdMap.get(task.assignedResourceId) || task.assignedResourceId : '';
+        // 如果映射表中找不到，使用空数组而不是无效的ID
+        const feishuPersonId = task.assignedResourceId ? resourceIdToFeishuPersonIdMap.get(task.assignedResourceId) || '' : '';
+
+        // 记录映射调试信息
+        if (task.assignedResourceId && !resourceIdToFeishuPersonIdMap.has(task.assignedResourceId)) {
+          log(`[飞书同步] ⚠️ 未找到资源映射: ${task.assignedResourceId}, 可用的资源ID: ${Array.from(resourceIdToFeishuPersonIdMap.keys()).join(', ')}`);
+        }
 
         // 准备排期记录数据
         // 字段名需要与飞书多维表的字段名一致
