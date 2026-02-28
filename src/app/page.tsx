@@ -31,6 +31,17 @@ export default function ProjectScheduleSystem() {
       return;
     }
 
+    // 询问是否清理旧数据
+    const shouldClear = confirm('是否清理旧数据后再加载？\n\n建议：是（确保数据一致性）\n否（保留可能存在的冲突）');
+    if (shouldClear) {
+      console.log('[Feishu Load] 清理旧数据...');
+      localStorage.removeItem('complex-scenario-projects');
+      localStorage.removeItem('complex-scenario-tasks');
+      localStorage.removeItem('complex-scenario-resources');
+      localStorage.removeItem('complex-scenario-schedule-result');
+      alert('旧数据已清理，开始从飞书加载新数据...');
+    }
+
     setIsLoadingFromFeishu(true);
     try {
       const response = await fetch(
