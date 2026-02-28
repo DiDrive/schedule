@@ -326,6 +326,11 @@ export default function ComplexScenario() {
   // 使用 ref 跟踪是否已经加载过数据，避免重复加载
   const hasLoadedData = useRef(false);
 
+  // 调试：输出资源列表
+  useEffect(() => {
+    console.log('[任务管理] 当前资源列表:', sharedResources.map(r => `${r.name} (type: ${r.type}, workType: ${r.workType})`));
+  }, [sharedResources]);
+
   // 数据加载：只在组件首次挂载时执行
   useEffect(() => {
     // 如果已经加载过数据，则不再加载
@@ -1682,20 +1687,41 @@ export default function ComplexScenario() {
                             value={task.fixedResourceId || 'none'}
                             onValueChange={(value) => handleTaskChange(task.id, 'fixedResourceId', value !== 'none' ? value : undefined)}
                           >
-                            <SelectTrigger className="h-8">
+                            <SelectTrigger className="h-8 min-w-[140px]">
                               <SelectValue placeholder={task.taskType ? "选择人员" : "先选择任务类型"} />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">自动分配</SelectItem>
-                              {task.taskType ? (
-                                sharedResources.filter(r => r.workType === task.taskType).map(resource => (
+                              {task.taskType && sharedResources.length > 0 ? (() => {
+                                const filteredResources = sharedResources.filter(r =>
+                                  r.type === 'human' && r.workType === task.taskType
+                                );
+
+                                // 调试日志
+                                console.log(`[任务管理] 任务 ${task.name} (type: ${task.taskType}) 可用资源:`, filteredResources.map(r => `${r.name} (${r.workType})`));
+
+                                if (filteredResources.length === 0) {
+                                  console.warn(`[任务管理] 任务 ${task.name} (type: ${task.taskType}) 找不到匹配资源`);
+                                  console.warn(`[任务管理] 所有资源:`, sharedResources.map(r => `${r.name} (type: ${r.type}, workType: ${r.workType})`));
+                                }
+
+                                return filteredResources.map(resource => (
                                   <SelectItem key={resource.id} value={resource.id}>
-                                    {resource.name}
+                                    <div className="flex items-center gap-2">
+                                      <div
+                                        className="w-3 h-3 rounded-full"
+                                        style={{ backgroundColor: resource.color }}
+                                      />
+                                      <span>{resource.name}</span>
+                                      <span className="text-xs text-slate-500">
+                                        ({resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'})
+                                      </span>
+                                    </div>
                                   </SelectItem>
-                                ))
-                              ) : (
+                                ));
+                              })() : (
                                 <div className="p-2 text-xs text-slate-500">
-                                  请先选择任务类型
+                                  {!task.taskType ? "请先选择任务类型" : sharedResources.length === 0 ? "暂无可用人员" : `无${task.taskType}类型人员`}
                                 </div>
                               )}
                             </SelectContent>
