@@ -191,14 +191,16 @@ export async function GET(request: NextRequest) {
           // 解析项目描述：可能是文本数组格式或直接字符串
           const description = parseStringField(fields['项目描述'] || fields['description'], '');
 
-          // 解析优先级：下拉选项，飞书返回的是字符串（如"高"、"中"、"低"）
-          const priorityStr = parseStringField(fields['优先级'] || fields['priority'], 'medium');
-          let priority = 5; // 默认 medium
+          // 解析优先级：下拉选项，飞书返回的是字符串（如"紧急"、"普通"、"低"）
+          const priorityStr = parseStringField(fields['优先级'] || fields['priority'], '普通');
+          let priority: 'urgent' | 'normal' | 'low' = 'normal'; // 默认 normal
           if (priorityStr) {
-            const lower = priorityStr.toLowerCase();
-            if (lower === 'high' || lower === '高' || lower === '紧急') priority = 9;
-            else if (lower === 'medium' || lower === '中') priority = 5;
-            else if (lower === 'low' || lower === '低') priority = 1;
+            if (priorityStr === '紧急') priority = 'urgent';
+            else if (priorityStr === '普通') priority = 'normal';
+            else if (priorityStr === '低') priority = 'low';
+            // 兼容旧值
+            else if (priorityStr === '高' || priorityStr === 'high') priority = 'urgent';
+            else if (priorityStr === '中' || priorityStr === 'medium') priority = 'normal';
           }
 
           // 解析日期字段：时间戳或日期字符串或文本数组格式
@@ -297,15 +299,16 @@ export async function GET(request: NextRequest) {
           // 解析预估工时：可能是数字或文本数组格式
           const estimatedHours = parseNumberField(fields['预估工时'] || fields['estimatedHours'], 8);
 
-          // 解析优先级：下拉选项，飞书返回的是字符串（如"高"、"中"、"低"）
-          const priorityStr = parseStringField(fields['优先级'] || fields['priority'], 'normal');
-          let priority: 'urgent' | 'high' | 'normal' | 'low' = 'normal';
+          // 解析优先级：下拉选项，飞书返回的是字符串（如"紧急"、"普通"、"低"）
+          const priorityStr = parseStringField(fields['优先级'] || fields['priority'], '普通');
+          let priority: 'urgent' | 'normal' | 'low' = 'normal';
           if (priorityStr) {
-            const lower = priorityStr.toLowerCase();
-            if (lower === 'urgent' || lower === '紧急') priority = 'urgent';
-            else if (lower === 'high' || lower === '高') priority = 'high';
-            else if (lower === 'low' || lower === '低') priority = 'low';
-            else priority = 'normal';
+            if (priorityStr === '紧急') priority = 'urgent';
+            else if (priorityStr === '普通') priority = 'normal';
+            else if (priorityStr === '低') priority = 'low';
+            // 兼容旧值
+            else if (priorityStr === '高' || priorityStr === 'high') priority = 'urgent';
+            else if (priorityStr === '中' || priorityStr === 'medium') priority = 'normal';
           }
 
           // 解析依赖关系：字符串数组（任务名称），需要转换为任务 ID
