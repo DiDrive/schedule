@@ -328,7 +328,10 @@ export default function ComplexScenario() {
 
   // 调试：输出资源列表
   useEffect(() => {
-    console.log('[任务管理] 当前资源列表:', sharedResources.map(r => `${r.name} (type: ${r.type}, workType: ${r.workType})`));
+    console.log('[任务管理] 当前资源列表:');
+    sharedResources.forEach(r => {
+      console.log(`  - ${r.name} (id: ${r.id}, type: ${r.type}, workType: ${r.workType})`);
+    });
   }, [sharedResources]);
 
   // 调试：输出任务列表的指定人员信息
@@ -336,20 +339,42 @@ export default function ComplexScenario() {
     console.log('[任务管理] 当前任务列表的指定人员:');
     tasks.forEach(task => {
       console.log(`  - ${task.name} (type: ${task.taskType}): fixedResourceId = ${task.fixedResourceId || '未设置'}, assignedResources = ${JSON.stringify(task.assignedResources)}`);
+      // 检查 fixedResourceId 是否存在
+      if (task.fixedResourceId) {
+        const resource = sharedResources.find(r => r.id === task.fixedResourceId);
+        if (resource) {
+          console.log(`    ✓ 找到匹配资源: ${resource.name}`);
+        } else {
+          console.log(`    ✗ 找不到匹配的资源ID: ${task.fixedResourceId}`);
+        }
+      }
     });
-  }, [tasks]);
+  }, [tasks, sharedResources]);
 
   // 数据加载：只在组件首次挂载时执行
   useEffect(() => {
-    // 如果已经加载过数据，则不再加载
     if (hasLoadedData.current) return;
-    
     hasLoadedData.current = true;
+
+    console.log('[数据加载] 开始加载数据...');
 
     const savedProjects = localStorage.getItem('complex-scenario-projects');
     const savedTasks = localStorage.getItem('complex-scenario-tasks');
     const savedResources = localStorage.getItem('complex-scenario-resources');
     const savedScheduleResult = localStorage.getItem('complex-scenario-schedule-result');
+
+    // 检查并清理可能存在的不一致数据
+    if (savedResources) {
+      const resources = JSON.parse(savedResources);
+      console.log('[数据加载] 检测到已保存的资源数据，数量:', resources.length);
+
+      // 检查资源是否有 feishuPersonId 字段（飞书数据的标志）
+      const hasFeishuData = resources.some((r: any) => r.feishuPersonId);
+
+      if (!hasFeishuData && resources.length > 0) {
+        console.warn('[数据加载] 检测到旧格式的资源数据，建议从飞书重新加载以确保数据一致性');
+      }
+    }
 
     if (savedProjects) {
       const parsed = JSON.parse(savedProjects);
@@ -368,6 +393,12 @@ export default function ComplexScenario() {
       });
       setProjects(projectsWithDates);
     }
+
+    // 先加载资源，这样在加载任务时可以验证资源ID
+    if (savedResources) {
+      setSharedResources(JSON.parse(savedResources));
+    }
+
     if (savedTasks) {
       // 检测是否有重复ID问题（只检查 tasks 中的数据）
       let hasDuplicateIds = false;
@@ -418,11 +449,19 @@ export default function ComplexScenario() {
     
     if (savedTasks) {
       const parsed = JSON.parse(savedTasks);
-      
+
+      // 从已加载的资源中提取所有有效的资源ID
+      const resourceIds = new Set<string>();
+      if (savedResources) {
+        const resources = JSON.parse(savedResources);
+        resources.forEach((r: any) => resourceIds.add(r.id));
+        console.log('[数据加载] 可用的资源ID列表:', Array.from(resourceIds));
+      }
+
       // 重新构建任务ID集合（因为之前可能因为重复ID而返回）
       const taskIdSet = new Set<string>();
       parsed.forEach((t: Task) => taskIdSet.add(t.id));
-      
+
       // 将日期字符串转换回 Date 对象
       const tasksWithDates = parsed.map((t: Task) => {
         const deadline = t.deadline ? new Date(t.deadline) : undefined;
@@ -430,7 +469,7 @@ export default function ComplexScenario() {
         if (deadline) {
           deadline.setHours(18, 30, 0, 0);
         }
-        
+
         // 清理无效的依赖关系（指向不存在的任务ID）
         const validDependencies = (t.dependencies || []).filter(depId => {
           const isValid = taskIdSet.has(depId) && depId !== t.id; // 检查依赖是否存在且不是自依赖
@@ -439,20 +478,45 @@ export default function ComplexScenario() {
           }
           return isValid;
         });
-        
+
+        // 验证并清理无效的资源引用
+        let validFixedResourceId = t.fixedResourceId;
+        let validAssignedResources = t.assignedResources || [];
+
+        // 检查 fixedResourceId 是否存在
+        if (t.fixedResourceId && !resourceIds.has(t.fixedResourceId)) {
+          console.warn(`[数据加载] 任务 ${t.name} (${t.id}): fixedResourceId ${t.fixedResourceId} 不存在，已清除`);
+          validFixedResourceId = undefined;
+        }
+
+        // 检查 assignedResources 中的资源ID是否都存在
+        validAssignedResources = (t.assignedResources || []).filter(resourceId => {
+          if (!resourceIds.has(resourceId)) {
+            console.warn(`[数据加载] 任务 ${t.name} (${t.id}): assignedResources ${resourceId} 不存在，已移除`);
+            return false;
+          }
+          return true;
+        });
+
+        if (t.fixedResourceId !== validFixedResourceId || JSON.stringify(t.assignedResources) !== JSON.stringify(validAssignedResources)) {
+          console.log(`[数据加载] 任务 ${t.name} (${t.id}): 资源引用已清理`);
+        }
+
         return {
           ...t,
           deadline,
           startDate: t.startDate ? new Date(t.startDate) : undefined,
           endDate: t.endDate ? new Date(t.endDate) : undefined,
-          dependencies: validDependencies
+          dependencies: validDependencies,
+          fixedResourceId: validFixedResourceId,
+          assignedResources: validAssignedResources
         };
       });
       setTasks(tasksWithDates);
     }
-    if (savedResources) {
-      setSharedResources(JSON.parse(savedResources));
-    }
+
+    // 资源已经在前面的代码中加载了，这里不需要重复加载
+
     if (savedScheduleResult) {
       const parsed = JSON.parse(savedScheduleResult);
       // 将日期字符串转换回 Date 对象
