@@ -331,6 +331,14 @@ export default function ComplexScenario() {
     console.log('[任务管理] 当前资源列表:', sharedResources.map(r => `${r.name} (type: ${r.type}, workType: ${r.workType})`));
   }, [sharedResources]);
 
+  // 调试：输出任务列表的指定人员信息
+  useEffect(() => {
+    console.log('[任务管理] 当前任务列表的指定人员:');
+    tasks.forEach(task => {
+      console.log(`  - ${task.name} (type: ${task.taskType}): fixedResourceId = ${task.fixedResourceId || '未设置'}, assignedResources = ${JSON.stringify(task.assignedResources)}`);
+    });
+  }, [tasks]);
+
   // 数据加载：只在组件首次挂载时执行
   useEffect(() => {
     // 如果已经加载过数据，则不再加载
