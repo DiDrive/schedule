@@ -10,6 +10,7 @@ import {
   FeishuTask,
   FeishuScheduleResult,
 } from '@/types/feishu-extended';
+import { parseArrayField } from '@/lib/feishu-field-parser';
 
 // 飞书字段ID常量（使用中文字段名）
 export const FEISHU_FIELD_IDS = {
@@ -18,6 +19,8 @@ export const FEISHU_FIELD_IDS = {
     id: '人员ID',
     name: '姓名',
     type: '工作类型',
+    skills: '技能',        // 技能（多选）
+    specialties: '擅长',    // 擅长（多选）
   },
   // 项目表
   projects: {
@@ -39,6 +42,8 @@ export const FEISHU_FIELD_IDS = {
     priority: '优先级',
     assignee: '负责人',
     dependencies: '依赖关系',
+    requiredSkills: '所需技能',      // 所需技能（多选）
+    requiredSpecialties: '所需擅长', // 所需擅长（多选）
   },
   // 排期表（排期结果表格）
   schedules: {
@@ -137,6 +142,8 @@ export function resourceToFeishuRecord(resource: Resource): Record<string, any> 
     [FEISHU_FIELD_IDS.resources.id]: resource.id,
     [FEISHU_FIELD_IDS.resources.name]: resource.name,
     [FEISHU_FIELD_IDS.resources.type]: resource.workType === '平面' ? '平面设计' : resource.workType === '后期' ? '后期制作' : '物料',
+    [FEISHU_FIELD_IDS.resources.skills]: resource.skills || [],
+    [FEISHU_FIELD_IDS.resources.specialties]: resource.specialties || [],
   };
 }
 
@@ -152,6 +159,8 @@ export function feishuRecordToResource(record: Record<string, any>, recordId: st
     name: fields[FEISHU_FIELD_IDS.resources.name] as string || '',
     type: 'human',
     workType: resourceType === '平面设计' ? '平面' : resourceType === '后期制作' ? '后期' : '物料',
+    skills: parseArrayField(fields[FEISHU_FIELD_IDS.resources.skills], []),
+    specialties: parseArrayField(fields[FEISHU_FIELD_IDS.resources.specialties], []),
     efficiency: 1,
     availability: 1,
   };
@@ -206,6 +215,8 @@ export function taskToFeishuRecord(task: Task): Record<string, any> {
     [FEISHU_FIELD_IDS.tasks.priority]: task.priority === 'urgent' ? '紧急' : task.priority === 'low' ? '低' : '普通',
     [FEISHU_FIELD_IDS.tasks.assignee]: task.assignedResources || [],
     [FEISHU_FIELD_IDS.tasks.dependencies]: task.dependencies || [],
+    [FEISHU_FIELD_IDS.tasks.requiredSkills]: task.requiredSkills || [],
+    [FEISHU_FIELD_IDS.tasks.requiredSpecialties]: task.requiredSpecialties || [],
   };
 }
 
@@ -227,6 +238,8 @@ export function feishuRecordToTask(record: Record<string, any>, recordId: string
     estimatedHours: (fields[FEISHU_FIELD_IDS.tasks.estimated_hours] as number) || 0,
     assignedResources: (fields[FEISHU_FIELD_IDS.tasks.assignee] as string[]) || [],
     dependencies: (fields[FEISHU_FIELD_IDS.tasks.dependencies] as string[]) || [],
+    requiredSkills: parseArrayField(fields[FEISHU_FIELD_IDS.tasks.requiredSkills], []),
+    requiredSpecialties: parseArrayField(fields[FEISHU_FIELD_IDS.tasks.requiredSpecialties], []),
     status: 'pending',
     priority: priority,
     deadline: feishuDateToDate(fields[FEISHU_FIELD_IDS.tasks.deadline] as number) || undefined,
