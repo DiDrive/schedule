@@ -163,31 +163,6 @@ export default function FeishuIntegrationDialog({
     }
   };
 
-  const [checkResult, setCheckResult] = useState<any>(null);
-
-  const checkTableFields = async (tableKey: string, tableName: string, tableId: string) => {
-    try {
-      const url = `/api/feishu/check-table-fields?app_id=${encodeURIComponent(config.appId)}` +
-        `&app_secret=${encodeURIComponent(config.appSecret)}` +
-        `&app_token=${encodeURIComponent(config.appToken)}` +
-        `&table_id=${encodeURIComponent(tableId)}`;
-
-      const response = await fetch(url);
-      const result = await response.json();
-
-      if (result.success) {
-        setCheckResult({
-          tableName,
-          fields: result.fields,
-        });
-      } else {
-        alert(`检查失败: ${result.error}`);
-      }
-    } catch (error) {
-      alert(`检查异常: ${error instanceof Error ? error.message : '未知错误'}`);
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -309,16 +284,6 @@ export default function FeishuIntegrationDialog({
             </TabsContent>
 
             <TabsContent value="tables" className="space-y-4 mt-0">
-              <Card className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/10">
-                <CardHeader>
-                  <CardTitle className="text-blue-700 dark:text-blue-400">💡 提示：同步说明</CardTitle>
-                  <CardDescription className="text-blue-600 dark:text-blue-300">
-                    如果您希望同步所有数据到飞书，请配置以下所有表格的 Table ID。<br/>
-                    如果只配置部分表格，则只会同步已配置表格的数据。
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-
               <Card>
                 <CardHeader>
                   <CardTitle>表格 ID 配置</CardTitle>
@@ -418,73 +383,6 @@ export default function FeishuIntegrationDialog({
                   >
                     查看详细创建教程 →
                   </a>
-                </CardContent>
-              </Card>
-
-              {/* 字段检查工具 */}
-              <Card className="border-blue-200 dark:border-blue-800">
-                <CardHeader>
-                  <CardTitle>检查飞书表字段</CardTitle>
-                  <CardDescription>
-                    点击下方按钮检查飞书表中有哪些字段，确保字段名称正确
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    {config.tableIds.resources && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => checkTableFields('resources', '人员表', config.tableIds.resources)}
-                      >
-                        检查人员表字段
-                      </Button>
-                    )}
-                    {config.tableIds.projects && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => checkTableFields('projects', '项目表', config.tableIds.projects)}
-                      >
-                        检查项目表字段
-                      </Button>
-                    )}
-                    {config.tableIds.tasks && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => checkTableFields('tasks', '任务表', config.tableIds.tasks)}
-                      >
-                        检查任务表字段
-                      </Button>
-                    )}
-                    {config.tableIds.schedules && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => checkTableFields('schedules', '排期表', config.tableIds.schedules)}
-                      >
-                        检查排期表字段
-                      </Button>
-                    )}
-                  </div>
-                  {checkResult && (
-                    <div className="mt-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
-                      <div className="font-semibold mb-2">{checkResult.tableName} 字段列表：</div>
-                      <div className="text-sm space-y-1">
-                        {checkResult.fields.length === 0 ? (
-                          <div className="text-red-600">未找到字段，请检查 Table ID 是否正确</div>
-                        ) : (
-                          checkResult.fields.map((field: any, index: number) => (
-                            <div key={index} className="flex items-center gap-2">
-                              <span className="font-mono">{field.name}</span>
-                              <Badge variant="outline" className="text-xs">{field.type}</Badge>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             </TabsContent>

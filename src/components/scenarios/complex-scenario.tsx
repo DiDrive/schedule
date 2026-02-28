@@ -1019,10 +1019,16 @@ export default function ComplexScenario() {
   // 同步到飞书
   const handleSyncToFeishu = async () => {
     console.log('[Feishu Sync] 开始同步到飞书');
+    
+    if (!scheduleResult) {
+      console.log('[Feishu Sync] ❌ 没有排期结果');
+      alert('请先生成排期结果');
+      return;
+    }
 
     const configStr = localStorage.getItem('feishu-config');
     console.log('[Feishu Sync] 配置字符串:', configStr ? '存在' : '不存在');
-
+    
     if (!configStr) {
       console.log('[Feishu Sync] ❌ 没有飞书配置');
       alert('请先配置飞书集成信息');
@@ -1038,23 +1044,14 @@ export default function ComplexScenario() {
     });
 
     // 验证配置是否完整
-    if (!config.appId || !config.appSecret || !config.appToken) {
+    if (!config.appId || !config.appSecret || !config.appToken || !config.tableIds?.schedules) {
       console.log('[Feishu Sync] ❌ 飞书配置不完整:', {
         appId: !!config.appId,
         appSecret: !!config.appSecret,
         appToken: !!config.appToken,
+        schedulesTableId: !!config.tableIds?.schedules,
       });
-      alert('飞书配置不完整，请填写 App ID、App Secret 和 App Token');
-      return;
-    }
-
-    // 至少需要一个 Table ID 才能同步
-    const hasAnyTableId = config.tableIds?.resources || config.tableIds?.projects ||
-                          config.tableIds?.tasks || config.tableIds?.schedules;
-
-    if (!hasAnyTableId) {
-      console.log('[Feishu Sync] ❌ 未配置任何 Table ID');
-      alert('请至少配置一个表的 Table ID（人员、项目、任务或排期表）');
+      alert('飞书配置不完整，请填写 App ID、App Secret、App Token 和排期表 Table ID');
       return;
     }
 
@@ -1062,76 +1059,39 @@ export default function ComplexScenario() {
 
     try {
       // 准备同步数据
-      const syncResources = sharedResources.map(resource => ({
-        ...resource,
-      }));
-
-      const syncProjects = projects.map(project => ({
-        ...project,
-      }));
-
-      const syncTasks = tasks.map(task => {
+      const syncTasks = scheduleResult.tasks.map(task => {
         const resource = sharedResources.find(r => r.id === task.assignedResources[0]);
         const project = getProjectById(task.projectId || '');
 
         return {
           id: task.id,
           name: task.name,
-          description: task.description,
+          // 项目信息
+          projectName: project?.name || '',
+          // 负责人信息
+          assignedResourceId: task.assignedResources[0] || '',
+          assignedResourceName: resource?.name || '',
+          // 排期信息
+          startDate: task.startDate ? task.startDate.toISOString() : '',
+          endDate: task.endDate ? task.endDate.toISOString() : '',
           estimatedHours: task.estimatedHours,
-          assignedResources: task.assignedResources,
-          deadline: task.deadline ? task.deadline.toISOString() : undefined,
-          priority: task.priority,
+          // 状态和优先级
           status: task.status,
-          taskType: task.taskType,
-          projectId: task.projectId,
-          dependencies: task.dependencies,
-          // 排期信息（如果有）
-          startDate: task.startDate ? task.startDate.toISOString() : undefined,
-          endDate: task.endDate ? task.endDate.toISOString() : undefined,
+          priority: task.priority,
+          // 其他信息
+          taskType: task.taskType || '',
         };
       });
 
-      console.log('[Feishu Sync] 准备同步数据:', {
-        人员: syncResources.length,
-        项目: syncProjects.length,
-        任务: syncTasks.length,
-      });
-      console.log('[Feishu Sync] Table ID 配置:', {
-        人员表: config.tableIds?.resources || '未配置（将跳过）',
-        项目表: config.tableIds?.projects || '未配置（将跳过）',
-        任务表: config.tableIds?.tasks || '未配置（将跳过）',
-        排期表: config.tableIds?.schedules || '未配置（将跳过）',
-      });
-
-      // 显示同步提示
-      const tablesToSync = [];
-      if (config.tableIds?.resources) tablesToSync.push('人员表');
-      if (config.tableIds?.projects) tablesToSync.push('项目表');
-      if (config.tableIds?.tasks) tablesToSync.push('任务表');
-      if (config.tableIds?.schedules) tablesToSync.push('排期表');
-
-      if (tablesToSync.length === 0) {
-        alert('请至少配置一个表的 Table ID 才能同步数据！');
-        setIsSyncingToFeishu(false);
-        return;
-      }
-
-      const confirmMsg = `即将同步以下数据到飞书：\n\n${tablesToSync.join('、')}\n\n是否继续？`;
-      if (!confirm(confirmMsg)) {
-        setIsSyncingToFeishu(false);
-        return;
-      }
+      console.log('[Feishu Sync] 准备同步', syncTasks.length, '个任务');
 
       // 调用同步接口
-      const url = `/api/feishu/sync-all?app_id=${encodeURIComponent(config.appId)}` +
+      const url = `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
         `&app_secret=${encodeURIComponent(config.appSecret)}` +
         `&app_token=${encodeURIComponent(config.appToken)}` +
-        `&resources_table_id=${encodeURIComponent(config.tableIds?.resources || '')}` +
-        `&projects_table_id=${encodeURIComponent(config.tableIds?.projects || '')}` +
-        `&tasks_table_id=${encodeURIComponent(config.tableIds?.tasks || '')}` +
-        `&schedules_table_id=${encodeURIComponent(config.tableIds?.schedules || '')}`;
-
+        `&schedules_table_id=${encodeURIComponent(config.tableIds.schedules)}` +
+        `&resources_table_id=${encodeURIComponent(config.tableIds.resources || '')}`;
+      
       console.log('[Feishu Sync] 同步URL:', url);
 
       const response = await fetch(url, {
@@ -1140,8 +1100,6 @@ export default function ComplexScenario() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          resources: syncResources,
-          projects: syncProjects,
           tasks: syncTasks,
         }),
       });
@@ -1150,44 +1108,9 @@ export default function ComplexScenario() {
       console.log('[Feishu Sync] 同步结果:', result);
 
       if (result.success) {
-        const { stats } = result;
-
-        // 构建详细的成功/失败信息
-        let message = '同步完成！\n\n';
-
-        const sections = [
-          { name: '人员', stats: stats.resources, enabled: !!config.tableIds?.resources },
-          { name: '项目', stats: stats.projects, enabled: !!config.tableIds?.projects },
-          { name: '任务', stats: stats.tasks, enabled: !!config.tableIds?.tasks },
-          { name: '排期', stats: stats.schedules, enabled: !!config.tableIds?.schedules },
-        ];
-
-        sections.forEach(section => {
-          if (section.enabled && section.stats) {
-            message += `${section.name}: 成功 ${section.stats.success}, 失败 ${section.stats.error}\n`;
-          }
-        });
-
-        // 检查是否有 UserFieldConvFail 错误（字段类型错误）
-        const hasFieldTypeError = result.errors && result.errors.some((err: string) =>
-          err.includes('UserFieldConvFail') || err.includes('1254066')
-        );
-
-        if (hasFieldTypeError) {
-          message += '\n⚠️ 部分数据因字段类型问题同步失败\n';
-          message += '请点击下方按钮查看修复指南：\n\n';
-          message += '[查看飞书表结构修复指南]';
-        }
-
-        alert(message);
-
+        alert(`同步成功！\n\n成功: ${result.stats.success}\n失败: ${result.stats.error}`);
         if (result.errors && result.errors.length > 0) {
           console.error('同步错误详情:', result.errors);
-
-          // 如果有字段类型错误，打开修复指南
-          if (hasFieldTypeError) {
-            window.open('/docs/feishu-table-fix-guide.md', '_blank');
-          }
         }
       } else {
         alert(`同步失败: ${result.error || '未知错误'}`);
