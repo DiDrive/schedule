@@ -24,7 +24,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2, Calendar, MoreVertical, Globe, FileText } from 'lucide-react';
+import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2, Calendar, MoreVertical, Globe, FileText, Tag } from 'lucide-react';
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import * as XLSX from 'xlsx';
 import { defaultWorkingHours } from '@/lib/sample-data';
@@ -36,6 +36,7 @@ import { TaskSplitDialog } from '@/components/task-split-dialog';
 import { detectResourceConflicts } from '@/lib/schedule-algorithms';
 import FeishuIntegrationDialog from '@/components/feishu-integration-dialog';
 import TemplateDialog from '@/components/template-dialog';
+import ResourceSkillsDialog from '@/components/resource-skills-dialog';
 
 // 辅助函数：将 Date 或字符串转换为 YYYY-MM-DD 格式
 const formatDateToInputValue = (date: Date | string | undefined): string => {
@@ -316,6 +317,10 @@ export default function ComplexScenario() {
   const [isSyncingToFeishu, setIsSyncingToFeishu] = useState(false);
   const [isLoadingFromFeishu, setIsLoadingFromFeishu] = useState(false);
   const [showFeishuDialog, setShowFeishuDialog] = useState(false);
+  const [showSkillConfigDialog, setShowSkillConfigDialog] = useState(false);
+  const [editingResourceForSkills, setEditingResourceForSkills] = useState<Resource | null>(null);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([]);
 
   // 标记是否需要强制生成排期（用于任务拆分后立即生成）
   const forceGenerateSchedule = useRef(false);
@@ -871,6 +876,26 @@ export default function ComplexScenario() {
     setSharedResources(sharedResources.filter(r => r.id !== resourceId));
   };
 
+  const handleEditSkills = (resource: Resource) => {
+    setEditingResourceForSkills(resource);
+    setSelectedSkills(resource.skills || []);
+    setSelectedSpecialties(resource.specialties || []);
+    setShowSkillConfigDialog(true);
+  };
+
+  const handleSaveSkills = () => {
+    if (!editingResourceForSkills) return;
+    
+    setSharedResources(sharedResources.map(r => 
+      r.id === editingResourceForSkills.id 
+        ? { ...r, skills: selectedSkills, specialties: selectedSpecialties }
+        : r
+    ));
+    
+    setShowSkillConfigDialog(false);
+    setEditingResourceForSkills(null);
+  };
+
   const handleResourceChange = (resourceId: string, field: keyof Resource, value: any) => {
     setSharedResources(sharedResources.map(r => r.id === resourceId ? { ...r, [field]: value } : r));
   };
@@ -1319,6 +1344,30 @@ export default function ComplexScenario() {
                         />
                         <span>%</span>
                       </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">技能:</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditSkills(resource)}
+                        className="h-6 px-2 text-xs"
+                      >
+                        {resource.skills && resource.skills.length > 0 ? `${resource.skills.length}个` : '设置'}
+                        <Tag className="h-3 w-3 ml-1" />
+                      </Button>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">擅长:</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditSkills(resource)}
+                        className="h-6 px-2 text-xs"
+                      >
+                        {resource.specialties && resource.specialties.length > 0 ? `${resource.specialties.length}个` : '设置'}
+                        <Tag className="h-3 w-3 ml-1" />
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -2418,6 +2467,18 @@ export default function ComplexScenario() {
         open={showTemplateDialog}
         onOpenChange={setShowTemplateDialog}
         onProjectCreated={handleProjectFromTemplate}
+      />
+
+      {/* 技能配置对话框 */}
+      <ResourceSkillsDialog
+        open={showSkillConfigDialog}
+        onOpenChange={setShowSkillConfigDialog}
+        resource={editingResourceForSkills}
+        selectedSkills={selectedSkills}
+        selectedSpecialties={selectedSpecialties}
+        onSkillsChange={setSelectedSkills}
+        onSpecialtiesChange={setSelectedSpecialties}
+        onSave={handleSaveSkills}
       />
     </div>
   );
