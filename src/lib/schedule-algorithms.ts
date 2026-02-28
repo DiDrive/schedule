@@ -107,13 +107,17 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
 
   // ★★★ 识别并发任务组（从同一时间开始的任务）★★★
   // 并发任务是指：依赖关系相同，预期会从同一时间开始
+  // 修复：使用"依赖关系 + 任务类型"作为组的 key，确保只有真正可以并行的任务才会被分配给不同的人
   const taskGroups = new Map<string, Task[]>();
   sortedTasks.forEach(task => {
     const depKey = (task.dependencies || []).sort().join(',');
-    if (!taskGroups.has(depKey)) {
-      taskGroups.set(depKey, []);
+    const taskType = task.taskType || 'default';
+    // 组的 key = 依赖关系 + 任务类型
+    const groupKey = `${depKey}|${taskType}`;
+    if (!taskGroups.has(groupKey)) {
+      taskGroups.set(groupKey, []);
     }
-    taskGroups.get(depKey)!.push(task);
+    taskGroups.get(groupKey)!.push(task);
   });
 
   // 跟踪每个资源的已分配工时
@@ -188,7 +192,8 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
 
     // ★★★ 排除同一并发任务组已使用的资源 ★★★
     const depKey = (task.dependencies || []).sort().join(',');
-    const usedResources = groupUsedResources.get(depKey);
+    const groupKey = `${depKey}|${taskType || 'default'}`;
+    const usedResources = groupUsedResources.get(groupKey);
     if (usedResources && usedResources.size > 0) {
       resourcesToScore = resourcesToScore.filter(r => !usedResources.has(r.id));
       // 如果过滤后没有资源，回退到所有可用资源
@@ -270,10 +275,11 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
     resourceLoad.set(selectedResource.id, resourceLoadHours + task.estimatedHours);
 
     // ★★★ 标记该资源为并发任务组已使用 ★★★
-    if (!groupUsedResources.has(depKey)) {
-      groupUsedResources.set(depKey, new Set());
+    const finalGroupKey = `${depKey}|${taskType || 'default'}`;
+    if (!groupUsedResources.has(finalGroupKey)) {
+      groupUsedResources.set(finalGroupKey, new Set());
     }
-    groupUsedResources.get(depKey)!.add(selectedResource.id);
+    groupUsedResources.get(finalGroupKey)!.add(selectedResource.id);
 
     // 记录任务到资源列表
     const tasksForResource = resourceTasks.get(selectedResource.id) || [];
