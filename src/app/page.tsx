@@ -97,8 +97,17 @@ export default function ProjectScheduleSystem() {
     }
 
     const config = JSON.parse(configStr);
-    if (!config.appId || !config.appSecret || !config.appToken || !config.tableIds?.schedules) {
-      alert('飞书配置不完整，请填写 App ID、App Secret、App Token 和排期表 Table ID');
+    if (!config.appId || !config.appSecret || !config.appToken) {
+      alert('飞书配置不完整，请填写 App ID、App Secret 和 App Token');
+      return;
+    }
+
+    // 至少需要一个 Table ID 才能同步
+    const hasAnyTableId = config.tableIds?.resources || config.tableIds?.projects ||
+                          config.tableIds?.tasks || config.tableIds?.schedules;
+
+    if (!hasAnyTableId) {
+      alert('请至少配置一个表的 Table ID（人员、项目、任务或排期表）');
       return;
     }
 
@@ -108,41 +117,83 @@ export default function ProjectScheduleSystem() {
       // 从 localStorage 读取资源和项目数据
       const resourcesStr = localStorage.getItem('complex-scenario-resources');
       const projectsStr = localStorage.getItem('complex-scenario-projects');
-      
+      const tasksStr = localStorage.getItem('complex-scenario-tasks');
+
       const sharedResources = resourcesStr ? JSON.parse(resourcesStr) : [];
       const projects = projectsStr ? JSON.parse(projectsStr) : [];
-
-      const getProjectById = (id: string) => projects.find((p: any) => p.id === id);
+      const tasks = tasksStr ? JSON.parse(tasksStr) : [];
 
       // 准备同步数据
-      const syncTasks = scheduleResult.tasks.map((task: any) => {
+      const syncResources = sharedResources.map((resource: any) => ({
+        ...resource,
+      }));
+
+      const syncProjects = projects.map((project: any) => ({
+        ...project,
+      }));
+
+      const syncTasks = tasks.map((task: any) => {
         const resource = sharedResources.find((r: any) => r.id === task.assignedResources[0]);
-        const project = getProjectById(task.projectId || '');
+        const project = projects.find((p: any) => p.id === task.projectId);
 
         return {
           id: task.id,
           name: task.name,
-          projectName: project?.name || '',
-          assignedResourceId: task.assignedResources[0] || '',
-          assignedResourceName: resource?.name || '',
-          startDate: task.startDate ? task.startDate : '',
-          endDate: task.endDate ? task.endDate : '',
+          description: task.description,
           estimatedHours: task.estimatedHours,
-          status: task.status,
+          assignedResources: task.assignedResources,
+          deadline: task.deadline ? new Date(task.deadline).toISOString() : undefined,
           priority: task.priority,
-          taskType: task.taskType || '',
+          status: task.status,
+          taskType: task.taskType,
+          projectId: task.projectId,
+          dependencies: task.dependencies,
+          // 排期信息（如果有）
+          startDate: task.startDate ? new Date(task.startDate).toISOString() : undefined,
+          endDate: task.endDate ? new Date(task.endDate).toISOString() : undefined,
         };
       });
 
-      console.log('[Feishu Sync] 准备同步', syncTasks.length, '个任务');
+      console.log('[Feishu Sync] 准备同步数据:', {
+        人员: syncResources.length,
+        项目: syncProjects.length,
+        任务: syncTasks.length,
+      });
+      console.log('[Feishu Sync] Table ID 配置:', {
+        人员表: config.tableIds?.resources || '未配置（将跳过）',
+        项目表: config.tableIds?.projects || '未配置（将跳过）',
+        任务表: config.tableIds?.tasks || '未配置（将跳过）',
+        排期表: config.tableIds?.schedules || '未配置（将跳过）',
+      });
+
+      // 显示同步提示
+      const tablesToSync = [];
+      if (config.tableIds?.resources) tablesToSync.push('人员表');
+      if (config.tableIds?.projects) tablesToSync.push('项目表');
+      if (config.tableIds?.tasks) tablesToSync.push('任务表');
+      if (config.tableIds?.schedules) tablesToSync.push('排期表');
+
+      if (tablesToSync.length === 0) {
+        alert('请至少配置一个表的 Table ID 才能同步数据！');
+        setIsSyncingToFeishu(false);
+        return;
+      }
+
+      const confirmMsg = `即将同步以下数据到飞书：\n\n${tablesToSync.join('、')}\n\n是否继续？`;
+      if (!confirm(confirmMsg)) {
+        setIsSyncingToFeishu(false);
+        return;
+      }
 
       // 调用同步接口
-      const url = `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
+      const url = `/api/feishu/sync-all?app_id=${encodeURIComponent(config.appId)}` +
         `&app_secret=${encodeURIComponent(config.appSecret)}` +
         `&app_token=${encodeURIComponent(config.appToken)}` +
-        `&schedules_table_id=${encodeURIComponent(config.tableIds.schedules)}` +
-        `&resources_table_id=${encodeURIComponent(config.tableIds.resources || '')}`;
-      
+        `&resources_table_id=${encodeURIComponent(config.tableIds?.resources || '')}` +
+        `&projects_table_id=${encodeURIComponent(config.tableIds?.projects || '')}` +
+        `&tasks_table_id=${encodeURIComponent(config.tableIds?.tasks || '')}` +
+        `&schedules_table_id=${encodeURIComponent(config.tableIds?.schedules || '')}`;
+
       console.log('[Feishu Sync] 同步URL:', url);
 
       const response = await fetch(url, {
@@ -151,6 +202,8 @@ export default function ProjectScheduleSystem() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          resources: syncResources,
+          projects: syncProjects,
           tasks: syncTasks,
         }),
       });
@@ -159,7 +212,26 @@ export default function ProjectScheduleSystem() {
       console.log('[Feishu Sync] 同步结果:', result);
 
       if (result.success) {
-        alert(`同步成功！\n\n成功: ${result.stats.success}\n失败: ${result.stats.error}`);
+        const { stats } = result;
+
+        // 构建详细的成功/失败信息
+        let message = '同步完成！\n\n';
+
+        const sections = [
+          { name: '人员', stats: stats.resources, enabled: !!config.tableIds?.resources },
+          { name: '项目', stats: stats.projects, enabled: !!config.tableIds?.projects },
+          { name: '任务', stats: stats.tasks, enabled: !!config.tableIds?.tasks },
+          { name: '排期', stats: stats.schedules, enabled: !!config.tableIds?.schedules },
+        ];
+
+        sections.forEach(section => {
+          if (section.enabled && section.stats) {
+            message += `${section.name}: 成功 ${section.stats.success}, 失败 ${section.stats.error}\n`;
+          }
+        });
+
+        alert(message);
+
         if (result.errors && result.errors.length > 0) {
           console.error('同步错误详情:', result.errors);
         }
