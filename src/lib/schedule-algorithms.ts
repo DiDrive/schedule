@@ -1,6 +1,4 @@
 import { Task, Resource, ScheduleResult, ResourceConflict, WorkingHoursConfig, ResourceLevel, ResourceConflictStrategy, ConflictTask } from '@/types/schedule';
-import { getSkillScarcity, getScarcityScore } from '@/lib/skill-scarcity';
-import { calculateQuickMatchScore } from '@/lib/resource-matching';
 
 // 默认工作时间配置
 const DEFAULT_WORKING_HOURS: WorkingHoursConfig = {
@@ -63,14 +61,10 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
     });
   });
 
-  // 计算技能稀缺性映射（用于任务排序）
-  const skillScarcity = getSkillScarcity(humanResources);
-
   // 按以下因素对任务排序（优先级从高到低）：
   // 1. 被依赖数（越多越优先，避免阻塞）
   // 2. 优先级（urgent > high > normal > low）
-  // 3. 技能稀缺性（技能越稀缺越优先）
-  // 4. 工时（高工时优先）
+  // 3. 工时（高工时优先）
   const sortedTasks = [...cleanedTasks].sort((a, b) => {
     const aDependents = (dependentsMap.get(a.id) || []).length;
     const bDependents = (dependentsMap.get(b.id) || []).length;
@@ -87,14 +81,7 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
       return bPriority - aPriority;
     }
 
-    // 3. 技能稀缺性（新增）
-    const aScarcityScore = getScarcityScore(a.requiredSkills || [], skillScarcity);
-    const bScarcityScore = getScarcityScore(b.requiredSkills || [], skillScarcity);
-    if (aScarcityScore !== bScarcityScore) {
-      return bScarcityScore - aScarcityScore; // 稀缺性高的先分配
-    }
-
-    // 4. 工时
+    // 3. 工时
     return b.estimatedHours - a.estimatedHours;
   });
 
@@ -105,12 +92,23 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
     console.log(`  - ${task.name}: fixedResourceId=${task.fixedResourceId || '(无指定)'}, taskType=${task.taskType || '(未指定)'}`);
   });
 
-  // ★★★ 移除并发任务组逻辑，改为流水线式排期 ★★★
-  // 不再强制分配给不同的人，让算法自动处理资源冲突（延后任务）
+  // ★★★ 识别并发任务组（从同一时间开始的任务）★★★
+  // 并发任务是指：依赖关系相同，预期会从同一时间开始
+  const taskGroups = new Map<string, Task[]>();
+  sortedTasks.forEach(task => {
+    const depKey = (task.dependencies || []).sort().join(',');
+    if (!taskGroups.has(depKey)) {
+      taskGroups.set(depKey, []);
+    }
+    taskGroups.get(depKey)!.push(task);
+  });
 
   // 跟踪每个资源的已分配工时
   const resourceLoad = new Map<string, number>();
   humanResources.forEach(r => resourceLoad.set(r.id, 0));
+
+  // 跟踪每个并发任务组已使用的资源（避免同一组任务分配给同一人）
+  const groupUsedResources = new Map<string, Set<string>>();
 
   // 记录每个资源已经分配的任务（用于计算时间冲突）
   const resourceTasks = new Map<string, Task[]>();
@@ -175,6 +173,20 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
     // 如果没有匹配的资源，使用所有资源（降级处理）
     let resourcesToScore = matchingResources.length > 0 ? matchingResources : humanResources;
 
+    // ★★★ 排除同一并发任务组已使用的资源 ★★★
+    const depKey = (task.dependencies || []).sort().join(',');
+    const usedResources = groupUsedResources.get(depKey);
+    if (usedResources && usedResources.size > 0) {
+      resourcesToScore = resourcesToScore.filter(r => !usedResources.has(r.id));
+      // 如果过滤后没有资源，回退到所有可用资源
+      if (resourcesToScore.length === 0) {
+        console.log(`  ⚠ 任务 ${task.name} 的并发任务组已用完所有资源，回退到所有可用资源`);
+        resourcesToScore = matchingResources.length > 0 ? matchingResources : humanResources;
+      } else {
+        console.log(`  ✓ 排除已用资源: ${Array.from(usedResources).join(', ')}`);
+      }
+    }
+
     // 调试日志
     console.log(`任务 ${task.name} (${taskType || '未指定'}), 匹配资源: ${resourcesToScore.map(r => r.name).join(', ')}`);
 
@@ -187,15 +199,15 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
     const totalLoad = Array.from(resourceLoad.values()).reduce((sum, load) => sum + load, 0);
     const avgLoad = totalLoad / humanResources.length;
 
-    // ★★★ 综合评分公式：工时 + 效率 + 技能匹配 + 擅长匹配 ★★★
-    // 评分 = 工时得分 + 效率得分 + 技能匹配得分 + 擅长匹配得分
-    // 工时得分（权重：30%）：累计工时越低得分越高
+    // ★★★ 综合评分公式：累计工时 + 效率 ★★★
+    // 评分 = 工时得分 + 效率得分
+    // 工时得分（权重：70%）：累计工时越低得分越高
     //   - 得分范围：0-100
     //   - 公式：100 - (累计工时 / 平均工时 + 1) * 70
-    // 效率得分（权重：10%）：效率越高得分越高
-    //   - 得分范围：10-20（效率1.0-2.0）
-    // 技能匹配得分（权重：35%）：匹配度0-80分
-    // 擅长匹配得分（权重：25%）：每个匹配擅长30分
+    //   - 如果所有资源工时都是0，得分为100
+    //   - 差异1小时的工时会导致约7分的差异
+    // 效率得分（权重：30%）：效率越高得分越高
+    //   - 得分范围：30-60（效率1.0-2.0）
 
     const sortedResources = [...resourcesToScore].sort((a, b) => {
       const loadA = resourceLoad.get(a.id) || 0;
@@ -209,22 +221,16 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
       const hoursScoreB = 100 - (loadB / (avgLoad + 1)) * 70;
 
       // 效率得分：效率越高得分越高
-      const effScoreA = effA * 10;
-      const effScoreB = effB * 10;
-
-      // 技能和擅长匹配度得分
-      const matchScoreA = calculateQuickMatchScore(task, a, resourceTasks.get(a.id) || []);
-      const matchScoreB = calculateQuickMatchScore(task, b, resourceTasks.get(b.id) || []);
+      const effScoreA = effA * 30;
+      const effScoreB = effB * 30;
 
       // 综合得分
-      const totalScoreA = hoursScoreA * 0.3 + effScoreA * 0.1 + matchScoreA.skillScore * 0.35 + matchScoreA.specialtyScore * 0.25;
-      const totalScoreB = hoursScoreB * 0.3 + effScoreB * 0.1 + matchScoreB.skillScore * 0.35 + matchScoreB.specialtyScore * 0.25;
+      const totalScoreA = hoursScoreA * 0.7 + effScoreA * 0.3;
+      const totalScoreB = hoursScoreB * 0.7 + effScoreB * 0.3;
 
       // 添加调试日志
-      console.log(`    ${a.name}: 负载=${loadA}h, 工时得分=${hoursScoreA.toFixed(1)}, 效率=${effA}, 效率得分=${effScoreA.toFixed(1)}`);
-      console.log(`         技能匹配=${matchScoreA.skillScore.toFixed(1)}/80, 擅长匹配=${matchScoreA.specialtyScore.toFixed(1)}/∞, 总分=${totalScoreA.toFixed(1)}`);
-      console.log(`    ${b.name}: 负载=${loadB}h, 工时得分=${hoursScoreB.toFixed(1)}, 效率=${effB}, 效率得分=${effScoreB.toFixed(1)}`);
-      console.log(`         技能匹配=${matchScoreB.skillScore.toFixed(1)}/80, 擅长匹配=${matchScoreB.specialtyScore.toFixed(1)}/∞, 总分=${totalScoreB.toFixed(1)}`);
+      console.log(`    ${a.name}: 负载=${loadA}h, 工时得分=${hoursScoreA.toFixed(1)}, 效率=${effA}, 效率得分=${effScoreA.toFixed(1)}, 总分=${totalScoreA.toFixed(1)}`);
+      console.log(`    ${b.name}: 负载=${loadB}h, 工时得分=${hoursScoreB.toFixed(1)}, 效率=${effB}, 效率得分=${effScoreB.toFixed(1)}, 总分=${totalScoreB.toFixed(1)}`);
 
       return totalScoreB - totalScoreA; // 得分高的排在前面
     });
@@ -232,17 +238,19 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
     // 选择负载最低的资源
     const selectedResource = sortedResources[0];
 
-    // 计算并保存匹配度信息
-    const matchScore = calculateQuickMatchScore(task, selectedResource, resourceTasks.get(selectedResource.id) || []);
-
     // 调试日志
     const resourceLoadHours = resourceLoad.get(selectedResource.id) || 0;
     console.log(`  → 分配给 ${selectedResource.name} (负载: ${resourceLoadHours}h, 效率: ${selectedResource.efficiency || LEVEL_EFFICIENCY[selectedResource.level as ResourceLevel] || 1.0})`);
     console.log(`     所有资源负载: ${sortedResources.map(r => `${r.name}:${resourceLoad.get(r.id) || 0}h`).join(', ')}`);
-    console.log(`     匹配度: 技能=${matchScore.skillScore.toFixed(1)}/80, 擅长=${matchScore.specialtyScore.toFixed(1)}, 效率=${matchScore.efficiencyScore}`);
 
     // 更新资源负载
     resourceLoad.set(selectedResource.id, resourceLoadHours + task.estimatedHours);
+
+    // ★★★ 标记该资源为并发任务组已使用 ★★★
+    if (!groupUsedResources.has(depKey)) {
+      groupUsedResources.set(depKey, new Set());
+    }
+    groupUsedResources.get(depKey)!.add(selectedResource.id);
 
     // 记录任务到资源列表
     const tasksForResource = resourceTasks.get(selectedResource.id) || [];
@@ -251,17 +259,7 @@ export function autoAssignResources(tasks: Task[], resources: Resource[]): Task[
 
     return {
       ...task,
-      assignedResources: [selectedResource.id],
-      matchScore: {
-        skillScore: matchScore.skillScore,
-        specialtyScore: matchScore.specialtyScore,
-        efficiencyScore: matchScore.efficiencyScore,
-        totalScore: matchScore.totalScore,
-        matchedSkills: matchScore.matchedSkills,
-        matchedSpecialties: matchScore.matchedSpecialties,
-        missingSkills: matchScore.missingSkills,
-        missingSpecialties: matchScore.missingSpecialties
-      }
+      assignedResources: [selectedResource.id]
     };
   });
 

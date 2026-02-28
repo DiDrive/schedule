@@ -17,22 +17,6 @@ export interface ConflictTask {
   resourceName: string;
 }
 
-// 技能定义
-export interface Skill {
-  id: string;
-  name: string;
-  description?: string;
-  category: 'graphic' | 'post' | 'common'; // 平面/后期/通用
-}
-
-// 擅长领域定义
-export interface Specialty {
-  id: string;
-  name: string;
-  description?: string;
-  category: string; // 如：短视频、宣传片、广告片
-}
-
 // 基础数据类型
 export interface Resource {
   id: string;
@@ -41,8 +25,7 @@ export interface Resource {
   workType?: ResourceWorkType; // 工作类型：平面/后期
   level?: ResourceLevel; // 资源等级
   efficiency?: number; // 效率系数，0.5-2.0，1.0为标准效率
-  skills?: string[]; // 技能列表
-  specialties?: string[]; // 擅长领域列表
+  skills?: string[];
   availability: number; // 0-1, 可用性系数
   color?: string; // 资源在甘特图中的显示颜色
 }
@@ -67,8 +50,6 @@ export interface Task {
   status: 'pending' | 'in-progress' | 'completed' | 'blocked';
   taskType?: ResourceWorkType; // 任务类型：平面/后期/物料
   fixedResourceId?: string; // 指定的资源ID（如果指定，则优先使用该资源，不进行自动分配）
-  requiredSkills?: string[]; // 所需技能列表
-  requiredSpecialties?: string[]; // 所需擅长领域列表
 
   // 复杂场景扩展
   projectId?: string;
@@ -93,18 +74,6 @@ export interface Task {
   startHour?: number; // 开始小时，如 9.5 表示 9:30
   endHour?: number; // 结束小时
   isCritical?: boolean; // 是否在关键路径上
-
-  // 技能匹配度信息（新增）
-  matchScore?: {
-    skillScore: number; // 技能匹配得分 0-80
-    specialtyScore: number; // 擅长匹配得分（无上限）
-    efficiencyScore: number; // 效率得分
-    totalScore: number; // 综合得分
-    matchedSkills: string[]; // 实际匹配的技能
-    matchedSpecialties: string[]; // 实际匹配的擅长
-    missingSkills: string[]; // 缺失的技能
-    missingSpecialties: string[]; // 缺失的擅长
-  };
 }
 
 export interface Project {
@@ -223,8 +192,6 @@ export interface TemplateTask {
   workType?: ResourceWorkType; // 工作类型（兼容性字段）
   dependencies: number[]; // 依赖的任务序号数组（如 [1] 表示依赖序号为1的任务）
   tags?: string[];
-  skills?: string[]; // 所需技能列表
-  specialties?: string[]; // 所需擅长领域列表
   notes?: string; // 任务说明
 }
 

@@ -33,14 +33,6 @@ export default function GanttChart({
     );
   }
 
-  // 获取匹配度颜色
-  const getMatchScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-600 dark:text-green-400';
-    if (score >= 60) return 'text-yellow-600 dark:text-yellow-400';
-    if (score >= 40) return 'text-orange-500';
-    return 'text-red-500';
-  };
-
   // 工作时间配置
   const WORK_START_HOUR = 9.5; // 9:30
   const WORK_END_HOUR = 18.5; // 18:30
@@ -547,29 +539,6 @@ export default function GanttChart({
                                   const actualHours = task.estimatedHours / efficiency;
                                   return `效率: ${efficiency}× | 预估${task.estimatedHours}h → 实际${actualHours.toFixed(1)}h`;
                                 })()}
-                              </div>
-                            )}
-                            {task.matchScore && (
-                              <div className="text-xs mt-1 pl-4">
-                                <span className="text-slate-500">匹配度: </span>
-                                <span className={`font-medium ${getMatchScoreColor(task.matchScore.skillScore)}`}>
-                                  {task.matchScore.skillScore.toFixed(0)}%
-                                </span>
-                                {task.matchScore.matchedSkills.length > 0 && (
-                                  <span className="text-xs text-slate-400 ml-2">
-                                    ({task.matchScore.matchedSkills.join(', ')})
-                                  </span>
-                                )}
-                                {task.matchScore.missingSkills.length > 0 && (
-                                  <span className="text-xs text-amber-500 ml-2">
-                                    缺: {task.matchScore.missingSkills.join(', ')}
-                                  </span>
-                                )}
-                                {task.matchScore.skillScore < 40 && (
-                                  <Badge className="text-xs ml-2 bg-red-500 hover:bg-red-600">
-                                    匹配度低
-                                  </Badge>
-                                )}
                               </div>
                             )}
                           </div>
