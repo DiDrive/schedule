@@ -1351,21 +1351,7 @@ export default function ComplexScenario() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="mb-3">
-                    <Select
-                      value={resource.level || 'junior'}
-                      onValueChange={(value: ResourceLevel) => handleResourceChange(resource.id, 'level', value)}
-                    >
-                      <SelectTrigger className="h-7 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="assistant">助理</SelectItem>
-                        <SelectItem value="junior">初级</SelectItem>
-                        <SelectItem value="senior">高级</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+
                   <div className="space-y-2 text-xs text-slate-500">
                     <div className="flex items-center justify-between">
                       <span>效率:</span>
@@ -1382,21 +1368,7 @@ export default function ComplexScenario() {
                         <span>%</span>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span>可用性:</span>
-                      <div className="flex items-center gap-1">
-                        <Input
-                          type="number"
-                          step="1"
-                          min="1"
-                          max="100"
-                          value={(resource.availability * 100).toFixed(0)}
-                          onChange={(e) => handleResourceChange(resource.id, 'availability', parseFloat(e.target.value) / 100)}
-                          className="h-6 w-16 text-right text-xs"
-                        />
-                        <span>%</span>
-                      </div>
-                    </div>
+
                   </div>
                 </div>
               );
