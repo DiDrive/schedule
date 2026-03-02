@@ -1428,13 +1428,11 @@ export default function ComplexScenario() {
                 return sortedResources.map(resource => {
                   const eff = resource.efficiency || 1.0;
                   const actualHours = baseHours / eff;
-                  const efficiencyLabel = eff >= 1.5 ? '高' : eff >= 1.0 ? '中' : '低';
-                  const colorClass = eff >= 1.5 ? 'text-purple-500' : eff >= 1.0 ? 'text-blue-500' : 'text-slate-500';
 
                   return (
                     <div key={resource.id} className="flex items-start gap-2">
-                      <span className={`${colorClass} font-bold min-w-[60px]}`}>{resource.name}</span>
-                      <span>效率{(eff * 100).toFixed(0)}%，{baseHours}小时任务实际用时{actualHours.toFixed(1)}小时（{efficiencyLabel}效率）</span>
+                      <span className="font-bold">{resource.name}</span>
+                      <span>效率{(eff * 100).toFixed(0)}%，{baseHours}小时任务实际用时{actualHours.toFixed(1)}小时</span>
                     </div>
                   );
                 });
@@ -1684,7 +1682,7 @@ export default function ComplexScenario() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[250px]">任务名称</TableHead>
+                  <TableHead className="w-[350px]">任务名称</TableHead>
                   <TableHead>项目</TableHead>
                   <TableHead>任务类型</TableHead>
                   <TableHead>指定人员</TableHead>
@@ -1770,10 +1768,7 @@ export default function ComplexScenario() {
                                           className="w-3 h-3 rounded-full"
                                           style={{ backgroundColor: resource.color }}
                                         />
-                                        <span className="text-sm">{resource.name}</span>
-                                        <span className="text-xs text-slate-500">
-                                          ({resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'})
-                                        </span>
+                                        <span>{resource.name}</span>
                                         {resource.workType !== task.taskType && (
                                           <span className="text-xs text-amber-600 dark:text-amber-400 ml-1">
                                             ({resource.workType})
@@ -1821,9 +1816,6 @@ export default function ComplexScenario() {
                                         style={{ backgroundColor: resource.color }}
                                       />
                                       <span>{resource.name}</span>
-                                      <span className="text-xs text-slate-500">
-                                        ({resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'})
-                                      </span>
                                       {resource.workType !== task.taskType && (
                                         <Badge variant="outline" className="text-xs text-amber-600 dark:text-amber-400 border-amber-600 dark:border-amber-400">
                                           {resource.workType}
