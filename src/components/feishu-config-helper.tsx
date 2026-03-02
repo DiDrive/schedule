@@ -15,7 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, CheckCircle2, Copy, Download, Upload, Info, FileText, AlertTriangle } from 'lucide-react';
 import { downloadTableTemplateMarkdown } from '@/lib/feishu-table-templates';
-import ExcelTemplateGenerator from './excel-template-generator';
+
 
 interface FeishuConfig {
   appId: string;
@@ -574,9 +574,6 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
               </div>
             </CardContent>
           </Card>
-
-          {/* Excel 模板生成器 */}
-          <ExcelTemplateGenerator />
         </div>
 
         <div className="flex gap-2 pt-4 border-t">
