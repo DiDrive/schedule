@@ -994,7 +994,6 @@ export default function ComplexScenario() {
         '所属项目': project?.name || '-',
         '任务类型': task.taskType || '未指定',
         '负责人': resource ? resource.name : '未分配',
-        '负责人等级': resource ? (resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理') : '-',
         '负责人类型': resource ? resource.workType || '-' : '-',
         '预估工时(小时)': task.estimatedHours,
         '优先级': task.priority,
@@ -1414,7 +1413,6 @@ export default function ComplexScenario() {
               <strong>说明：</strong>
               <ul className="list-disc list-inside mt-1 space-y-1">
                 <li>效率越高，完成任务用时越短（实际工时 = 预估工时 / 效率）</li>
-                <li>等级（高级/初级/助理）仅作为默认效率值的参考，可以自定义</li>
                 <li>甘特图任务条长度反映实际完成时间，高效率人员的任务条更短</li>
                 <li>人员分配会综合考虑累计工时和效率，确保负载均衡</li>
               </ul>
@@ -2234,19 +2232,12 @@ export default function ComplexScenario() {
                                                 style={{ backgroundColor: r.color }}
                                               />
                                               <span>{r.name}</span>
-                                              <span className="text-xs text-slate-500">
-                                                ({r.level === 'senior' ? '高级' : r.level === 'junior' ? '初级' : '助理'})
-                                              </span>
                                             </div>
                                           </SelectItem>
                                         ))}
                                       </SelectContent>
                                     </Select>
-                                    {resource && (
-                                      <Badge className={getLevelBadgeColor(resource.level || 'junior')} variant="secondary" style={{ fontSize: '10px', padding: '2px 6px' }} title={resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}>
-                                        {resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'}
-                                      </Badge>
-                                    )}
+
                                   </div>
                                 )}
                               </td>
