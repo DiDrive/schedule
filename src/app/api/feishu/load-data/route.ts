@@ -134,7 +134,9 @@ export async function GET(request: NextRequest) {
           const nameField = fields['姓名'] || fields['name'] || fields['人员'];
           const feishuPersonId = parsePersonId(nameField);
 
-          log(`[飞书加载] 处理人员: ${name} (ID: ${resourceId}, 工作类型: ${workType}, 飞书人员ID: ${feishuPersonId || '未设置'})`);
+          log(`[飞书加载] 处理人员: ${name} (ID: ${resourceId}, 工作类型: ${workType})`);
+          log(`[飞书加载]   姓名字段原始数据: ${JSON.stringify(nameField)}`);
+          log(`[飞书加载]   提取的飞书人员ID: ${feishuPersonId || '未设置'}`);
 
           return {
             id: resourceId,
@@ -286,13 +288,18 @@ export async function GET(request: NextRequest) {
 
           // 调试：输出负责人字段的原始数据
           log(`[飞书加载] 任务 ${name}: 负责人字段原始数据: ${JSON.stringify(assigneeField)}`);
+          log(`[飞书加载] 任务 ${name}: 解析出的飞书人员ID: ${feishuPersonId || '空'}`);
 
           // 将飞书人员 ID 映射到系统资源 ID
           let fixedResourceId = '';
           let assigneeName = '';
           if (feishuPersonId) {
             // 调试：输出所有资源的 feishuPersonId
-            const resourceFeishuIds = result.resources.map((r: any) => `${r.name}: ${r.feishuPersonId || '未设置'}`);
+            const resourceFeishuIds = result.resources.map((r: any) => ({
+              name: r.name,
+              feishuPersonId: r.feishuPersonId || '未设置',
+              resourceId: r.id
+            }));
             log(`[飞书加载] 任务 ${name}: 所有资源的飞书人员ID: ${JSON.stringify(resourceFeishuIds)}`);
 
             const matchedResource = result.resources.find((r: any) => r.feishuPersonId === feishuPersonId);
@@ -303,6 +310,7 @@ export async function GET(request: NextRequest) {
               log(`[飞书加载] 任务 ${name}: ✓ 成功匹配负责人 - ${assigneeName} (资源ID: ${fixedResourceId})`);
             } else {
               log(`[飞书加载] 任务 ${name}: ✗ 匹配失败 - 飞书人员ID ${feishuPersonId} 未在资源列表中找到`);
+              log(`[飞书加载] 任务 ${name}: 请检查飞书任务表的"负责人"字段和人员表的"姓名"字段是否引用同一个人`);
             }
           } else {
             log(`[飞书加载] 任务 ${name}: 未设置负责人字段`);
