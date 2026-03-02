@@ -1760,24 +1760,60 @@ export default function ComplexScenario() {
                             onValueChange={(value) => handleTaskChange(task.id, 'fixedResourceId', value !== 'none' ? value : undefined)}
                           >
                             <SelectTrigger className="h-8 min-w-[140px]">
-                              <SelectValue placeholder={task.taskType ? "选择人员" : "先选择任务类型"} />
+                              <SelectValue>
+                                {task.fixedResourceId ? (() => {
+                                  const resource = sharedResources.find(r => r.id === task.fixedResourceId);
+                                  if (resource) {
+                                    return (
+                                      <div className="flex items-center gap-2">
+                                        <div
+                                          className="w-3 h-3 rounded-full"
+                                          style={{ backgroundColor: resource.color }}
+                                        />
+                                        <span className="text-sm">{resource.name}</span>
+                                        <span className="text-xs text-slate-500">
+                                          ({resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'})
+                                        </span>
+                                        {resource.workType !== task.taskType && (
+                                          <span className="text-xs text-amber-600 dark:text-amber-400 ml-1">
+                                            ({resource.workType})
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+                                  return <span className="text-slate-400 text-sm">未分配</span>;
+                                })() : (
+                                  <span className="text-slate-400 text-sm">自动分配</span>
+                                )}
+                              </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">自动分配</SelectItem>
                               {task.taskType && sharedResources.length > 0 ? (() => {
+                                // 获取同类型的资源
                                 const filteredResources = sharedResources.filter(r =>
                                   r.type === 'human' && r.workType === task.taskType
                                 );
 
+                                // 如果当前选中的资源不在过滤列表中（类型不匹配），也显示出来
+                                const currentResource = task.fixedResourceId ? sharedResources.find(r => r.id === task.fixedResourceId) : null;
+                                const displayResources = currentResource && !filteredResources.find(r => r.id === task.fixedResourceId)
+                                  ? [currentResource, ...filteredResources]
+                                  : filteredResources;
+
                                 // 调试日志
                                 console.log(`[任务管理] 任务 ${task.name} (type: ${task.taskType}) 可用资源:`, filteredResources.map(r => `${r.name} (${r.workType})`));
+                                if (currentResource && !filteredResources.find(r => r.id === task.fixedResourceId)) {
+                                  console.warn(`[任务管理] 任务 ${task.name}: 当前负责人 ${currentResource.name} 是 ${currentResource.workType} 类型，但任务是 ${task.taskType} 类型`);
+                                }
 
-                                if (filteredResources.length === 0) {
+                                if (displayResources.length === 0) {
                                   console.warn(`[任务管理] 任务 ${task.name} (type: ${task.taskType}) 找不到匹配资源`);
                                   console.warn(`[任务管理] 所有资源:`, sharedResources.map(r => `${r.name} (type: ${r.type}, workType: ${r.workType})`));
                                 }
 
-                                return filteredResources.map(resource => (
+                                return displayResources.map(resource => (
                                   <SelectItem key={resource.id} value={resource.id}>
                                     <div className="flex items-center gap-2">
                                       <div
@@ -1788,6 +1824,11 @@ export default function ComplexScenario() {
                                       <span className="text-xs text-slate-500">
                                         ({resource.level === 'senior' ? '高级' : resource.level === 'junior' ? '初级' : '助理'})
                                       </span>
+                                      {resource.workType !== task.taskType && (
+                                        <Badge variant="outline" className="text-xs text-amber-600 dark:text-amber-400 border-amber-600 dark:border-amber-400">
+                                          {resource.workType}
+                                        </Badge>
+                                      )}
                                     </div>
                                   </SelectItem>
                                 ));
