@@ -258,25 +258,6 @@ export default function ExcelTemplateGenerator({ scenario }: ExcelTemplateGenera
             </>
           )}
         </Button>
-
-        <div className="text-sm text-slate-600 dark:text-slate-400 space-y-2">
-          <p className="font-medium">导出说明：</p>
-          <ul className="list-disc list-inside space-y-1">
-            <li><strong>人员表</strong>：系统中的所有人员信息（人员ID、姓名、工作类型）</li>
-            <li><strong>任务表</strong>：任务管理中的数据（任务定义），不包含排期信息</li>
-            <li><strong>排期表</strong>：排期结果表格（每个任务的具体排期信息）</li>
-            {scenario === 'complex' && <li><strong>项目表</strong>：系统中的所有项目信息</li>}
-          </ul>
-          <p className="font-medium mt-3">使用说明：</p>
-          <ol className="list-decimal list-inside space-y-1">
-            <li>点击按钮导出数据到 Excel</li>
-            <li>在飞书多维表中创建对应的数据表</li>
-            <li>创建字段时，Excel 第一行就是字段名称</li>
-            <li>将 Excel 数据导入到飞书表格中</li>
-            <li>配置关联关系（所属项目关联项目表）</li>
-            <li>在系统中配置 Table ID 后即可同步</li>
-          </ol>
-        </div>
       </CardContent>
     </Card>
   );
