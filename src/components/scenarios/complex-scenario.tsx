@@ -845,6 +845,16 @@ export default function ComplexScenario() {
     setSavedResolutions(null); // 重置保存的解决方案
     setPendingConflicts(new Map()); // 清除待处理的冲突
     taskIdCounter.current += 1; // 确保ID唯一
+    // 设置默认截止日期为一周后（工作日）
+    const defaultDeadline = new Date();
+    let daysToAdd = 7;
+    while (daysToAdd > 0) {
+      defaultDeadline.setDate(defaultDeadline.getDate() + 1);
+      const dayOfWeek = defaultDeadline.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) { // 跳过周末
+        daysToAdd--;
+      }
+    }
     const newTask: Task = {
       id: `task-${taskIdCounter.current}`,
       name: `新任务 ${tasks.length + 1}`,
@@ -855,7 +865,8 @@ export default function ComplexScenario() {
       status: 'pending',
       projectId: activeProject === 'all' ? projects[0]?.id : activeProject,
       dependencies: [],
-      taskType
+      taskType,
+      deadline: defaultDeadline
     };
     setTasks([...tasks, newTask]);
   };

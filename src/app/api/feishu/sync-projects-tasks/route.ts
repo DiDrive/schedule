@@ -312,10 +312,24 @@ export async function POST(request: NextRequest) {
                 projectName: (task.projectId && projectsMap) ? projectsMap[task.projectId] || '' : '' 
               };
           
-          // 调试：输出任务的原始资源信息
-          log(`[任务同步] 任务名称: ${taskForSync.name}, assignedResources: ${JSON.stringify(taskForSync.assignedResources)}, fixedResourceId: ${taskForSync.fixedResourceId}`);
+          // 调试：输出任务的原始资源信息和日期信息
+          log(`[任务同步] 任务名称: ${taskForSync.name}, assignedResources: ${JSON.stringify(taskForSync.assignedResources)}, fixedResourceId: ${taskForSync.fixedResourceId}, deadline: ${taskForSync.deadline}, dependencies: ${JSON.stringify(taskForSync.dependencies)}`);
           
           const taskRecord = taskToFeishuRecord(taskForSync, resourceIdToFeishuPersonIdMap);
+          
+          // 调试：输出转换后的飞书记录
+          log(`[任务同步] 转换后的飞书记录字段: ${JSON.stringify(Object.keys(taskRecord))}`);
+          if (taskRecord[FEISHU_FIELD_IDS.tasks.assignee]) {
+            log(`[任务同步] 负责人字段: ${JSON.stringify(taskRecord[FEISHU_FIELD_IDS.tasks.assignee])}`);
+          }
+          if (taskRecord[FEISHU_FIELD_IDS.tasks.deadline]) {
+            const deadline = taskRecord[FEISHU_FIELD_IDS.tasks.deadline];
+            const date = new Date(deadline * 1000);
+            log(`[任务同步] 截止日期字段: ${deadline} (${date.toISOString().split('T')[0]})`);
+          }
+          if (taskRecord[FEISHU_FIELD_IDS.tasks.dependencies]) {
+            log(`[任务同步] 依赖关系字段: ${JSON.stringify(taskRecord[FEISHU_FIELD_IDS.tasks.dependencies])}`);
+          }
           const existingRecordId = existingTasksMap.get(task.id);
 
           if (existingRecordId) {
