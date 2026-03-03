@@ -108,9 +108,10 @@ Object.entries(FEISHU_OPTION_VALUES).forEach(([category, values]) => {
  * 将日期对象转换为飞书日期格式
  * 对于不包含时间的日期字段，返回秒级时间戳
  * 对于包含时间的日期字段，返回毫秒级时间戳
+ * 如果日期为空，返回 undefined（不发送该字段）
  */
-function dateToFeishuDate(date: Date | string | null | undefined, includeTime: boolean = false): number {
-  if (!date) return 0;
+function dateToFeishuDate(date: Date | string | null | undefined, includeTime: boolean = false): number | undefined {
+  if (!date) return undefined;
 
   // 如果是字符串，先转换为 Date 对象
   let dateObj: Date;
@@ -119,13 +120,13 @@ function dateToFeishuDate(date: Date | string | null | undefined, includeTime: b
     // 检查转换是否有效
     if (isNaN(dateObj.getTime())) {
       console.warn('[Feishu Data Mapper] 无效的日期字符串:', date);
-      return 0;
+      return undefined;
     }
   } else if (date instanceof Date) {
     dateObj = date;
   } else {
     console.warn('[Feishu Data Mapper] 未知的日期类型:', typeof date, date);
-    return 0;
+    return undefined;
   }
 
   if (includeTime) {
@@ -182,14 +183,20 @@ export function feishuRecordToResource(record: Record<string, any>, recordId: st
  * 将系统项目转换为飞书记录格式
  */
 export function projectToFeishuRecord(project: Project): Record<string, any> {
-  return {
+  const record: Record<string, any> = {
     [FEISHU_FIELD_IDS.projects.id]: project.id,
     [FEISHU_FIELD_IDS.projects.name]: project.name,
     [FEISHU_FIELD_IDS.projects.description]: project.description || '',
     [FEISHU_FIELD_IDS.projects.priority]: project.priority === 'urgent' ? '紧急' : '普通',
-    [FEISHU_FIELD_IDS.projects.end_date]: dateToFeishuDate(project.deadline, false),
     [FEISHU_FIELD_IDS.projects.status]: '进行中',
   };
+
+  const deadline = dateToFeishuDate(project.deadline, false);
+  if (deadline !== undefined) {
+    record[FEISHU_FIELD_IDS.projects.end_date] = deadline;
+  }
+
+  return record;
 }
 
 /**
@@ -238,17 +245,42 @@ export function taskToFeishuRecord(
         .filter(Boolean)
     : [];
 
-  return {
+  const record: Record<string, any> = {
     [FEISHU_FIELD_IDS.tasks.id]: task.id,
     [FEISHU_FIELD_IDS.tasks.name]: task.name,
-    [FEISHU_FIELD_IDS.tasks.project]: task.projectName || (task.projectId ? [task.projectId] : []),
-    [FEISHU_FIELD_IDS.tasks.type]: task.taskType === '平面' ? '平面设计' : task.taskType === '后期' ? '后期制作' : '物料',
-    [FEISHU_FIELD_IDS.tasks.estimated_hours]: task.estimatedHours,
-    [FEISHU_FIELD_IDS.tasks.deadline]: dateToFeishuDate(task.deadline, false),
-    [FEISHU_FIELD_IDS.tasks.priority]: task.priority === 'urgent' ? '紧急' : task.priority === 'low' ? '低' : '普通',
-    [FEISHU_FIELD_IDS.tasks.assignee]: feishuAssignee,
-    [FEISHU_FIELD_IDS.tasks.dependencies]: task.dependencies || [],
   };
+
+  // 只在有空值时添加这些字段
+  if (task.projectName || task.projectId) {
+    record[FEISHU_FIELD_IDS.tasks.project] = task.projectName || (task.projectId ? [task.projectId] : []);
+  }
+
+  if (task.taskType) {
+    record[FEISHU_FIELD_IDS.tasks.type] = task.taskType === '平面' ? '平面设计' : task.taskType === '后期' ? '后期制作' : '物料';
+  }
+
+  if (task.estimatedHours) {
+    record[FEISHU_FIELD_IDS.tasks.estimated_hours] = task.estimatedHours;
+  }
+
+  const deadline = dateToFeishuDate(task.deadline, false);
+  if (deadline !== undefined) {
+    record[FEISHU_FIELD_IDS.tasks.deadline] = deadline;
+  }
+
+  if (task.priority) {
+    record[FEISHU_FIELD_IDS.tasks.priority] = task.priority === 'urgent' ? '紧急' : task.priority === 'low' ? '低' : '普通';
+  }
+
+  if (feishuAssignee.length > 0) {
+    record[FEISHU_FIELD_IDS.tasks.assignee] = feishuAssignee;
+  }
+
+  if (task.dependencies && task.dependencies.length > 0) {
+    record[FEISHU_FIELD_IDS.tasks.dependencies] = task.dependencies;
+  }
+
+  return record;
 }
 
 /**

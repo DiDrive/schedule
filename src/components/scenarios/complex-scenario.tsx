@@ -1335,7 +1335,7 @@ export default function ComplexScenario() {
 
         console.log('[Feishu Sync] 准备同步任务数据:', {
           totalTasks: tasksWithProjectName.length,
-          sampleTask: tasksWithProjectName[0]
+          sampleTask: JSON.stringify(tasksWithProjectName[0], null, 2)
         });
 
         const response = await fetch('/api/feishu/sync-projects-tasks', {
