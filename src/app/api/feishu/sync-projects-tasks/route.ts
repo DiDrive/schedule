@@ -248,8 +248,8 @@ export async function POST(request: NextRequest) {
         log('⚠️ 未配置资源表，无法映射资源ID到飞书人员ID');
       }
       
-      // 先获取飞书中的现有任务记录，使用任务名称进行匹配
-      const existingTasksMap = new Map<string, string>(); // taskName -> record_id
+      // 先获取飞书中的现有任务记录，使用任务ID进行匹配
+      const existingTasksMap = new Map<string, string>(); // taskId -> record_id
       
       try {
         // 使用 records/list 接口获取所有记录
@@ -281,16 +281,17 @@ export async function POST(request: NextRequest) {
         
         log(`总共获取到 ${allRecords.length} 个任务记录`);
         
-        // 使用任务名称建立映射（而不是任务ID）
+        // 使用任务ID建立映射
         allRecords.forEach((item: any) => {
           const taskId = item.fields[FEISHU_FIELD_IDS.tasks.id];
           const taskName = item.fields[FEISHU_FIELD_IDS.tasks.name];
           
-          if (taskName) {
-            existingTasksMap.set(String(taskName), item.record_id);
-            log(`✅ 映射任务: 名称="${taskName}", record_id=${item.record_id}, 任务ID=${taskId}`);
+          if (taskId) {
+            existingTasksMap.set(String(taskId), item.record_id);
+            log(`✅ 映射任务: ID="${taskId}", record_id=${item.record_id}, 名称="${taskName}"`);
           } else {
-            log(`⚠️ 任务记录缺少名称字段: record_id=${item.record_id}, 任务ID=${taskId}`);
+            log(`⚠️ 任务记录缺少 ID 字段: record_id=${item.record_id}, 名称="${taskName}"`);
+            log(`⚠️ 完整字段: ${JSON.stringify(item.fields)}`);
           }
         });
         log(`飞书中已有 ${existingTasksMap.size} 个任务记录`);
@@ -299,11 +300,12 @@ export async function POST(request: NextRequest) {
         log(`获取现有任务记录失败: ${error instanceof Error ? error.message : '未知错误'}`);
       }
 
-      // 收集系统中所有任务的名称
-      const systemTaskNames = new Set(tasks.map(t => t.name));
-      log(`系统中共有 ${systemTaskNames.size} 个任务`);
-      log(`系统中任务名称列表: ${Array.from(systemTaskNames).join(', ')}`);
-      log(`飞书任务名称列表: ${Array.from(existingTasksMap.keys()).join(', ')}`);
+      // 收集系统中所有任务的ID
+      const systemTaskIds = new Set(tasks.map(t => t.id));
+      log(`系统中共有 ${systemTaskIds.size} 个任务`);
+      log(`系统中任务ID列表: ${Array.from(systemTaskIds).join(', ')}`);
+      log(`系统中任务名称列表: ${tasks.map(t => t.name).join(', ')}`);
+      log(`飞书任务ID列表: ${Array.from(existingTasksMap.keys()).join(', ')}`);
 
       // 同步每个任务
       for (const task of tasks) {
@@ -335,9 +337,9 @@ export async function POST(request: NextRequest) {
           if (taskRecord[FEISHU_FIELD_IDS.tasks.dependencies]) {
             log(`[任务同步] 依赖关系字段: ${JSON.stringify(taskRecord[FEISHU_FIELD_IDS.tasks.dependencies])}`);
           }
-          const existingRecordId = existingTasksMap.get(String(task.name));
+          const existingRecordId = existingTasksMap.get(String(task.id));
           
-          log(`[任务同步] 任务 "${task.name}" (ID=${task.id}): ${existingRecordId ? '找到现有记录，将更新' : '未找到现有记录，将创建'} ${existingRecordId ? `record_id=${existingRecordId}` : ''}`);
+          log(`[任务同步] 任务 "${task.name}" (ID="${task.id}"): ${existingRecordId ? '找到现有记录，将更新' : '未找到现有记录，将创建'} ${existingRecordId ? `record_id=${existingRecordId}` : ''}`);
 
           if (existingRecordId) {
             // 更新现有记录
@@ -394,9 +396,9 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 删除飞书中多余的任务记录（使用任务名称匹配）
-      for (const [taskName, recordId] of existingTasksMap.entries()) {
-        if (!systemTaskNames.has(taskName)) {
+      // 删除飞书中多余的任务记录（使用任务ID匹配）
+      for (const [taskId, recordId] of existingTasksMap.entries()) {
+        if (!systemTaskIds.has(taskId)) {
           try {
             await fetch(
               `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableIds.tasks}/records/${recordId}`,
@@ -408,9 +410,9 @@ export async function POST(request: NextRequest) {
               }
             );
             stats.tasks.deleted = (stats.tasks.deleted || 0) + 1;
-            log(`🗑️ 删除多余任务: "${taskName}"`);
+            log(`🗑️ 删除多余任务: ID="${taskId}"`);
           } catch (error) {
-            log(`❌ 删除任务失败: "${taskName}", 错误: ${error instanceof Error ? error.message : '未知错误'}`);
+            log(`❌ 删除任务失败: ID="${taskId}", 错误: ${error instanceof Error ? error.message : '未知错误'}`);
           }
         }
       }
