@@ -135,7 +135,11 @@ export default function ProjectScheduleSystem() {
         const result = await response.json();
         console.log('[Feishu Sync] 项目同步结果:', result);
         if (result.success) {
-          results.push(`✅ 项目：创建 ${result.stats.projects.created}，更新 ${result.stats.projects.updated}`);
+          const deleted = result.stats.projects.deleted || 0;
+          const projectResult = deleted > 0 
+            ? `✅ 项目：创建 ${result.stats.projects.created}，更新 ${result.stats.projects.updated}，删除 ${deleted}`
+            : `✅ 项目：创建 ${result.stats.projects.created}，更新 ${result.stats.projects.updated}`;
+          results.push(projectResult);
         } else {
           results.push(`❌ 项目：${result.message}`);
         }
@@ -171,7 +175,11 @@ export default function ProjectScheduleSystem() {
         const result = await response.json();
         console.log('[Feishu Sync] 任务同步结果:', result);
         if (result.success) {
-          results.push(`✅ 任务：创建 ${result.stats.tasks.created}，更新 ${result.stats.tasks.updated}`);
+          const deleted = result.stats.tasks.deleted || 0;
+          const taskResult = deleted > 0 
+            ? `✅ 任务：创建 ${result.stats.tasks.created}，更新 ${result.stats.tasks.updated}，删除 ${deleted}`
+            : `✅ 任务：创建 ${result.stats.tasks.created}，更新 ${result.stats.tasks.updated}`;
+          results.push(taskResult);
         } else {
           results.push(`❌ 任务：${result.message}`);
         }

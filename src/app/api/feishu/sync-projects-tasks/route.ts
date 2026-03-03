@@ -61,8 +61,8 @@ export async function POST(request: NextRequest) {
     log('成功获取飞书访问令牌');
 
     const stats = {
-      projects: { created: 0, updated: 0, failed: 0 },
-      tasks: { created: 0, updated: 0, failed: 0 },
+      projects: { created: 0, updated: 0, failed: 0, deleted: 0 },
+      tasks: { created: 0, updated: 0, failed: 0, deleted: 0 },
     };
     const errors: string[] = [];
 
@@ -118,6 +118,10 @@ export async function POST(request: NextRequest) {
         log(`获取现有项目记录失败: ${error instanceof Error ? error.message : '未知错误'}`);
       }
 
+      // 收集系统中所有项目的ID
+      const systemProjectIds = new Set(projects.map(p => p.id));
+      log(`系统中共有 ${systemProjectIds.size} 个项目`);
+
       // 同步每个项目
       for (const project of projects) {
         try {
@@ -160,6 +164,27 @@ export async function POST(request: NextRequest) {
           const errorMsg = `项目 "${project.name}" 同步失败: ${error instanceof Error ? error.message : '未知错误'}`;
           errors.push(errorMsg);
           log(`❌ ${errorMsg}`);
+        }
+      }
+
+      // 删除飞书中多余的项目记录
+      for (const [projectId, recordId] of existingProjectsMap.entries()) {
+        if (!systemProjectIds.has(projectId)) {
+          try {
+            await fetch(
+              `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableIds.projects}/records/${recordId}`,
+              {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${appAccessToken}`,
+                },
+              }
+            );
+            stats.projects.deleted = (stats.projects.deleted || 0) + 1;
+            log(`🗑️ 删除多余项目: ${projectId}`);
+          } catch (error) {
+            log(`❌ 删除项目失败: ${projectId}, 错误: ${error instanceof Error ? error.message : '未知错误'}`);
+          }
         }
       }
     }
@@ -216,6 +241,10 @@ export async function POST(request: NextRequest) {
         log(`获取现有任务记录失败: ${error instanceof Error ? error.message : '未知错误'}`);
       }
 
+      // 收集系统中所有任务的ID
+      const systemTaskIds = new Set(tasks.map(t => t.id));
+      log(`系统中共有 ${systemTaskIds.size} 个任务`);
+
       // 同步每个任务
       for (const task of tasks) {
         try {
@@ -258,6 +287,27 @@ export async function POST(request: NextRequest) {
           const errorMsg = `任务 "${task.name}" 同步失败: ${error instanceof Error ? error.message : '未知错误'}`;
           errors.push(errorMsg);
           log(`❌ ${errorMsg}`);
+        }
+      }
+
+      // 删除飞书中多余的任务记录
+      for (const [taskId, recordId] of existingTasksMap.entries()) {
+        if (!systemTaskIds.has(taskId)) {
+          try {
+            await fetch(
+              `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableIds.tasks}/records/${recordId}`,
+              {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${appAccessToken}`,
+                },
+              }
+            );
+            stats.tasks.deleted = (stats.tasks.deleted || 0) + 1;
+            log(`🗑️ 删除多余任务: ${taskId}`);
+          } catch (error) {
+            log(`❌ 删除任务失败: ${taskId}, 错误: ${error instanceof Error ? error.message : '未知错误'}`);
+          }
         }
       }
     }
