@@ -388,9 +388,13 @@ export async function POST(request: NextRequest) {
               errors.push(`任务 "${task.name}" 创建失败: ${errorText}`);
             } else {
               const createData = await createResponse.json();
+              const recordId = createData.data?.record?.record_id || createData.data?.record_id;
               stats.tasks.created++;
-              log(`✅ 创建任务: ${task.name}, record_id=${createData.data?.record?.record_id}`);
-              log(`创建返回数据: ${JSON.stringify(createData.data?.record)}`);
+              log(`✅ 创建任务: ${task.name}, record_id=${recordId}`);
+              log(`创建返回数据: ${JSON.stringify(createData)}`);
+              if (!recordId) {
+                log(`⚠️ 创建任务返回数据异常: ${JSON.stringify(createData)}`);
+              }
             }
           }
         } catch (error) {
