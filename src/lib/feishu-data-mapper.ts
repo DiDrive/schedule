@@ -263,7 +263,7 @@ export function taskToFeishuRecord(
     record[FEISHU_FIELD_IDS.tasks.estimated_hours] = task.estimatedHours;
   }
 
-  const deadline = dateToFeishuDate(task.deadline, false);
+  const deadline = dateToFeishuDate(task.deadline, true);
   if (deadline !== undefined) {
     record[FEISHU_FIELD_IDS.tasks.deadline] = deadline;
   }
