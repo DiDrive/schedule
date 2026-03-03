@@ -74,28 +74,46 @@ export async function POST(request: NextRequest) {
       const existingProjectsMap = new Map<string, string>(); // projectId -> record_id
       
       try {
-        const listResponse = await fetch(
-          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableIds.projects}/records/search`,
-          {
-            method: 'POST',
+        // 使用 records/list 接口获取所有记录
+        let allRecords: any[] = [];
+        let pageToken = '';
+        
+        do {
+          const url = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableIds.projects}/records?page_size=500${pageToken ? `&page_token=${pageToken}` : ''}`;
+          
+          const listResponse = await fetch(url, {
+            method: 'GET',
             headers: {
               'Authorization': `Bearer ${appAccessToken}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ page_size: 500 }),
-          }
-        );
-
-        const listData = await listResponse.json();
-        if (listData.code === 0 && listData.data) {
-          listData.data.items.forEach((item: any) => {
-            const projectId = item.fields[FEISHU_FIELD_IDS.projects.id];
-            if (projectId) {
-              existingProjectsMap.set(projectId, item.record_id);
-            }
           });
-          log(`飞书中已有 ${existingProjectsMap.size} 个项目记录`);
-        }
+
+          const listData = await listResponse.json();
+          log(`获取项目记录响应: code=${listData.code}, has_data=${!!listData.data}, items=${listData.data?.items?.length || 0}`);
+          
+          if (listData.code === 0 && listData.data && listData.data.items) {
+            allRecords = allRecords.concat(listData.data.items);
+            pageToken = listData.data.page_token || '';
+          } else {
+            log(`获取项目记录失败: ${JSON.stringify(listData)}`);
+            break;
+          }
+        } while (pageToken);
+        
+        log(`总共获取到 ${allRecords.length} 个项目记录`);
+        
+        allRecords.forEach((item: any) => {
+          log(`项目记录 - record_id=${item.record_id}, fields=${JSON.stringify(item.fields).substring(0, 200)}`);
+          const projectId = item.fields[FEISHU_FIELD_IDS.projects.id];
+          if (projectId) {
+            existingProjectsMap.set(projectId, item.record_id);
+            log(`✅ 映射项目: ${projectId} -> ${item.record_id}`);
+          } else {
+            log(`⚠️ 项目记录缺少 ID 字段: ${item.record_id}, 可用字段: ${Object.keys(item.fields).join(', ')}`);
+          }
+        });
+        log(`飞书中已有 ${existingProjectsMap.size} 个项目记录`);
       } catch (error) {
         log(`获取现有项目记录失败: ${error instanceof Error ? error.message : '未知错误'}`);
       }
@@ -154,28 +172,46 @@ export async function POST(request: NextRequest) {
       const existingTasksMap = new Map<string, string>(); // taskId -> record_id
       
       try {
-        const listResponse = await fetch(
-          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableIds.tasks}/records/search`,
-          {
-            method: 'POST',
+        // 使用 records/list 接口获取所有记录
+        let allRecords: any[] = [];
+        let pageToken = '';
+        
+        do {
+          const url = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableIds.tasks}/records?page_size=500${pageToken ? `&page_token=${pageToken}` : ''}`;
+          
+          const listResponse = await fetch(url, {
+            method: 'GET',
             headers: {
               'Authorization': `Bearer ${appAccessToken}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ page_size: 500 }),
-          }
-        );
-
-        const listData = await listResponse.json();
-        if (listData.code === 0 && listData.data) {
-          listData.data.items.forEach((item: any) => {
-            const taskId = item.fields[FEISHU_FIELD_IDS.tasks.id];
-            if (taskId) {
-              existingTasksMap.set(taskId, item.record_id);
-            }
           });
-          log(`飞书中已有 ${existingTasksMap.size} 个任务记录`);
-        }
+
+          const listData = await listResponse.json();
+          log(`获取任务记录响应: code=${listData.code}, has_data=${!!listData.data}, items=${listData.data?.items?.length || 0}`);
+          
+          if (listData.code === 0 && listData.data && listData.data.items) {
+            allRecords = allRecords.concat(listData.data.items);
+            pageToken = listData.data.page_token || '';
+          } else {
+            log(`获取任务记录失败: ${JSON.stringify(listData)}`);
+            break;
+          }
+        } while (pageToken);
+        
+        log(`总共获取到 ${allRecords.length} 个任务记录`);
+        
+        allRecords.forEach((item: any) => {
+          log(`任务记录 - record_id=${item.record_id}, fields=${JSON.stringify(item.fields).substring(0, 200)}`);
+          const taskId = item.fields[FEISHU_FIELD_IDS.tasks.id];
+          if (taskId) {
+            existingTasksMap.set(taskId, item.record_id);
+            log(`✅ 映射任务: ${taskId} -> ${item.record_id}`);
+          } else {
+            log(`⚠️ 任务记录缺少 ID 字段: ${item.record_id}, 可用字段: ${Object.keys(item.fields).join(', ')}`);
+          }
+        });
+        log(`飞书中已有 ${existingTasksMap.size} 个任务记录`);
       } catch (error) {
         log(`获取现有任务记录失败: ${error instanceof Error ? error.message : '未知错误'}`);
       }
