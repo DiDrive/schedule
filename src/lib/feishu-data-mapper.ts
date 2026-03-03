@@ -139,10 +139,15 @@ function dateToFeishuDate(date: Date | string | null | undefined, includeTime: b
 
 /**
  * 将飞书日期格式转换为日期对象
+ * 支持秒级和毫秒级时间戳
  */
 function feishuDateToDate(timestamp: number | null | undefined): Date | null {
   if (!timestamp || timestamp === 0) return null;
-  return new Date(timestamp);
+  
+  // 如果时间戳小于 100000000000（1973年左右），则认为是秒级时间戳
+  // 如果时间戳大于 100000000000，则认为是毫秒级时间戳
+  const isSeconds = timestamp < 100000000000;
+  return new Date(isSeconds ? timestamp * 1000 : timestamp);
 }
 
 /**
@@ -210,8 +215,13 @@ export function feishuRecordToProject(record: Record<string, any>, recordId: str
 
 /**
  * 将系统任务转换为飞书记录格式
+ * @param task 系统任务
+ * @param resourceMap 系统资源ID到飞书人员ID的映射（可选）
  */
-export function taskToFeishuRecord(task: Task & { projectName?: string }): Record<string, any> {
+export function taskToFeishuRecord(
+  task: Task & { projectName?: string },
+  resourceMap?: Map<string, string>
+): Record<string, any> {
   // 优先使用 assignedResources（已排期），如果没有则使用 fixedResourceId（手动指定）
   const assigneeResources = task.assignedResources && task.assignedResources.length > 0
     ? task.assignedResources
@@ -219,7 +229,13 @@ export function taskToFeishuRecord(task: Task & { projectName?: string }): Recor
 
   // 将资源ID数组转换为飞书人员格式：[{ id: 'ou_xxxx' }, ...]
   const feishuAssignee = assigneeResources.length > 0
-    ? assigneeResources.map((id: string) => ({ id }))
+    ? assigneeResources
+        .map((id: string) => {
+          // 如果有资源映射，将系统资源ID转换为飞书人员ID
+          const feishuPersonId = resourceMap?.get(id);
+          return feishuPersonId ? { id: feishuPersonId } : null;
+        })
+        .filter(Boolean)
     : [];
 
   return {
@@ -237,16 +253,43 @@ export function taskToFeishuRecord(task: Task & { projectName?: string }): Recor
 
 /**
  * 将飞书记录转换为系统任务
+ * @param record 飞书记录
+ * @param recordId 记录ID
+ * @param resourceMap 飞书人员ID到系统资源ID的映射（可选）
  */
-export function feishuRecordToTask(record: Record<string, any>, recordId: string): Task {
+export function feishuRecordToTask(
+  record: Record<string, any>,
+  recordId: string,
+  resourceMap?: Map<string, string>
+): Task {
   const fields = record.fields || {};
 
   // 从飞书读取优先级
   const priorityValue = fields[FEISHU_FIELD_IDS.tasks.priority] as string;
   const priority = priorityValue === '紧急' ? 'urgent' : priorityValue === '低' ? 'low' : 'normal';
 
-  // 从飞书读取负责人（分配给 assignedResources）
-  const assignedResources = (fields[FEISHU_FIELD_IDS.tasks.assignee] as string[]) || [];
+  // 从飞书读取负责人（飞书人员字段返回对象数组）
+  // 格式：[{ "type": 1, "person": { "open_id": "ou_xxx" } }, ...]
+  const assigneeField = fields[FEISHU_FIELD_IDS.tasks.assignee];
+  let assignedResources: string[] = [];
+  
+  if (assigneeField) {
+    if (Array.isArray(assigneeField)) {
+      // 多选人员
+      assignedResources = assigneeField
+        .map((item: any) => {
+          const openId = item?.person?.open_id;
+          // 如果有资源映射，将飞书人员ID转换为系统资源ID
+          return resourceMap?.get(openId) || openId;
+        })
+        .filter(Boolean);
+    } else if (assigneeField.person?.open_id) {
+      // 单选人员
+      const openId = assigneeField.person.open_id;
+      const resourceId = resourceMap?.get(openId) || openId;
+      assignedResources = [resourceId];
+    }
+  }
 
   // 将负责人设置到 fixedResourceId，以便在任务管理中显示
   const fixedResourceId = assignedResources.length > 0 ? assignedResources[0] : undefined;

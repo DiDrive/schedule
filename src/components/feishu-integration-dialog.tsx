@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { AlertCircle, CheckCircle2, Clock, RefreshCw, Settings, Globe } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, Clock, RefreshCw, Settings, Globe } from 'lucide-react';
 
 interface FeishuConfig {
   appId: string;
