@@ -1252,7 +1252,13 @@ export default function ComplexScenario() {
       appSecret: config.appSecret ? '已填写' : '未填写',
       appToken: config.appToken ? '已填写' : '未填写',
       tableIds: config.tableIds,
+      hasResources: !!config.tableIds?.resources,
     });
+
+    // 如果配置中没有资源表ID，尝试从其他地方获取
+    if (!config.tableIds?.resources && config.tableIds?.schedules) {
+      console.log('[Feishu Sync] 配置中没有资源表ID，但排期表ID存在，可能是配置不完整');
+    }
 
     // 同步项目
     if (syncType === 'projects' || syncType === undefined) {
