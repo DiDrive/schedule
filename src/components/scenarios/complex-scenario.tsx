@@ -1318,6 +1318,21 @@ export default function ComplexScenario() {
 
       setIsSyncingToFeishu(true);
       try {
+        // 构建项目ID到名称的映射
+        const projectIdToName = new Map<string, string>();
+        projects.forEach(p => projectIdToName.set(p.id, p.name));
+
+        // 为每个任务添加 projectName 字段
+        const tasksWithProjectName = tasks.map(task => ({
+          ...task,
+          projectName: projectIdToName.get(task.projectId || '') || ''
+        }));
+
+        console.log('[Feishu Sync] 准备同步任务数据:', {
+          totalTasks: tasksWithProjectName.length,
+          sampleTask: tasksWithProjectName[0]
+        });
+
         const response = await fetch('/api/feishu/sync-projects-tasks', {
           method: 'POST',
           headers: {
@@ -1325,7 +1340,7 @@ export default function ComplexScenario() {
           },
           body: JSON.stringify({
             projects: [],
-            tasks: tasks,
+            tasks: tasksWithProjectName,
             config: {
               appId: config.appId,
               appSecret: config.appSecret,

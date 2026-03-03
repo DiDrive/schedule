@@ -196,6 +196,46 @@ export async function POST(request: NextRequest) {
     if (tasks && Array.isArray(tasks) && tasks.length > 0) {
       log(`开始同步 ${tasks.length} 个任务`);
       
+      // 加载资源ID到飞书人员ID的映射
+      const resourceIdToFeishuPersonIdMap = new Map<string, string>();
+      
+      if (tableIds.resources) {
+        try {
+          const resourcesResponse = await fetch(
+            `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableIds.resources}/records?page_size=500`,
+            {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${appAccessToken}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+
+          const resourcesData = await resourcesResponse.json();
+          
+          if (resourcesData.code === 0 && resourcesData.data && resourcesData.data.items) {
+            resourcesData.data.items.forEach((item: any) => {
+              const fields = item.fields;
+              const resourceId = fields['人员ID'];
+              // 从姓名字段提取飞书人员ID（飞书的"人员"类型字段返回的是 [{id: 'ou_xxxx', name: 'xxx'}]）
+              const nameField = fields['姓名'];
+              const feishuPersonId = Array.isArray(nameField) && nameField.length > 0 ? nameField[0].id : null;
+
+              if (resourceId && feishuPersonId) {
+                resourceIdToFeishuPersonIdMap.set(resourceId, feishuPersonId);
+                log(`映射资源: ${resourceId} -> ${feishuPersonId}`);
+              }
+            });
+            log(`✅ 加载了 ${resourceIdToFeishuPersonIdMap.size} 个资源映射`);
+          }
+        } catch (error) {
+          log(`⚠️ 加载资源映射失败: ${error instanceof Error ? error.message : '未知错误'}`);
+        }
+      } else {
+        log('⚠️ 未配置资源表，无法映射资源ID到飞书人员ID');
+      }
+      
       // 先获取飞书中的现有任务记录
       const existingTasksMap = new Map<string, string>(); // taskId -> record_id
       
@@ -260,7 +300,29 @@ export async function POST(request: NextRequest) {
                 projectName: (task.projectId && projectsMap) ? projectsMap[task.projectId] || '' : '' 
               };
           
-          const taskRecord = taskToFeishuRecord(taskForSync);
+          // 将资源ID映射为飞书人员ID
+          const assigneeResources = taskForSync.assignedResources && Array.isArray(taskForSync.assignedResources)
+            ? taskForSync.assignedResources.map((resourceId: string) => {
+                const feishuPersonId = resourceIdToFeishuPersonIdMap.get(resourceId);
+                return feishuPersonId || resourceId;
+              })
+            : [];
+          
+          // 如果有 fixedResourceId，也映射为飞书人员ID
+          let fixedResourceId: string | undefined;
+          if (taskForSync.fixedResourceId) {
+            const feishuPersonId = resourceIdToFeishuPersonIdMap.get(taskForSync.fixedResourceId);
+            fixedResourceId = feishuPersonId || taskForSync.fixedResourceId;
+          }
+          
+          // 创建一个新的任务对象，使用映射后的飞书人员ID
+          const taskWithFeishuIds = {
+            ...taskForSync,
+            assignedResources: assigneeResources,
+            fixedResourceId: fixedResourceId
+          };
+          
+          const taskRecord = taskToFeishuRecord(taskWithFeishuIds);
           const existingRecordId = existingTasksMap.get(task.id);
 
           if (existingRecordId) {
