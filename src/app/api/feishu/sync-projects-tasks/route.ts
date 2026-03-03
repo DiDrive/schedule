@@ -217,17 +217,23 @@ export async function POST(request: NextRequest) {
           if (resourcesData.code === 0 && resourcesData.data && resourcesData.data.items) {
             resourcesData.data.items.forEach((item: any) => {
               const fields = item.fields;
-              const resourceId = fields['人员ID'];
-              // 从姓名字段提取飞书人员ID（飞书的"人员"类型字段返回的是 [{id: 'ou_xxxx', name: 'xxx'}]）
-              const nameField = fields['姓名'];
+              // 从多个可能的字段名中获取资源ID
+              const resourceId = fields['人员ID'] || fields['id'] || fields['ID'] || fields['Id'] || fields['resourceId'];
+              
+              // 从姓名字段提取飞书人员ID
+              const nameField = fields['姓名'] || fields['name'] || fields['人员'];
               const feishuPersonId = Array.isArray(nameField) && nameField.length > 0 ? nameField[0].id : null;
 
               if (resourceId && feishuPersonId) {
-                resourceIdToFeishuPersonIdMap.set(resourceId, feishuPersonId);
+                resourceIdToFeishuPersonIdMap.set(String(resourceId), String(feishuPersonId));
                 log(`映射资源: ${resourceId} -> ${feishuPersonId}`);
+              } else {
+                log(`⚠️ 资源记录缺少必要字段: recordId=${item.record_id}, resourceId=${resourceId}, feishuPersonId=${feishuPersonId}`);
               }
             });
             log(`✅ 加载了 ${resourceIdToFeishuPersonIdMap.size} 个资源映射`);
+          } else {
+            log(`⚠️ 获取资源数据失败: ${JSON.stringify(resourcesData)}`);
           }
         } catch (error) {
           log(`⚠️ 加载资源映射失败: ${error instanceof Error ? error.message : '未知错误'}`);
@@ -300,10 +306,14 @@ export async function POST(request: NextRequest) {
                 projectName: (task.projectId && projectsMap) ? projectsMap[task.projectId] || '' : '' 
               };
           
+          // 调试：输出任务的原始资源信息
+          log(`[任务同步] 任务名称: ${taskForSync.name}, assignedResources: ${JSON.stringify(taskForSync.assignedResources)}, fixedResourceId: ${taskForSync.fixedResourceId}`);
+          
           // 将资源ID映射为飞书人员ID
           const assigneeResources = taskForSync.assignedResources && Array.isArray(taskForSync.assignedResources)
             ? taskForSync.assignedResources.map((resourceId: string) => {
-                const feishuPersonId = resourceIdToFeishuPersonIdMap.get(resourceId);
+                const feishuPersonId = resourceIdToFeishuPersonIdMap.get(String(resourceId));
+                log(`[任务同步] 映射资源ID: ${resourceId} -> ${feishuPersonId || '未找到'}`);
                 return feishuPersonId || resourceId;
               })
             : [];
@@ -311,8 +321,9 @@ export async function POST(request: NextRequest) {
           // 如果有 fixedResourceId，也映射为飞书人员ID
           let fixedResourceId: string | undefined;
           if (taskForSync.fixedResourceId) {
-            const feishuPersonId = resourceIdToFeishuPersonIdMap.get(taskForSync.fixedResourceId);
+            const feishuPersonId = resourceIdToFeishuPersonIdMap.get(String(taskForSync.fixedResourceId));
             fixedResourceId = feishuPersonId || taskForSync.fixedResourceId;
+            log(`[任务同步] 映射固定资源ID: ${taskForSync.fixedResourceId} -> ${fixedResourceId}`);
           }
           
           // 创建一个新的任务对象，使用映射后的飞书人员ID
@@ -321,6 +332,8 @@ export async function POST(request: NextRequest) {
             assignedResources: assigneeResources,
             fixedResourceId: fixedResourceId
           };
+          
+          log(`[任务同步] 映射后 - assignedResources: ${JSON.stringify(assigneeResources)}, fixedResourceId: ${fixedResourceId}`);
           
           const taskRecord = taskToFeishuRecord(taskWithFeishuIds);
           const existingRecordId = existingTasksMap.get(task.id);

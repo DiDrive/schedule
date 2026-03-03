@@ -217,6 +217,11 @@ export function taskToFeishuRecord(task: Task & { projectName?: string }): Recor
     ? task.assignedResources
     : (task.fixedResourceId ? [task.fixedResourceId] : []);
 
+  // 将资源ID数组转换为飞书人员格式：[{ id: 'ou_xxxx' }, ...]
+  const feishuAssignee = assigneeResources.length > 0
+    ? assigneeResources.map((id: string) => ({ id }))
+    : [];
+
   return {
     [FEISHU_FIELD_IDS.tasks.id]: task.id,
     [FEISHU_FIELD_IDS.tasks.name]: task.name,
@@ -225,7 +230,7 @@ export function taskToFeishuRecord(task: Task & { projectName?: string }): Recor
     [FEISHU_FIELD_IDS.tasks.estimated_hours]: task.estimatedHours,
     [FEISHU_FIELD_IDS.tasks.deadline]: dateToFeishuDate(task.deadline, false),
     [FEISHU_FIELD_IDS.tasks.priority]: task.priority === 'urgent' ? '紧急' : task.priority === 'low' ? '低' : '普通',
-    [FEISHU_FIELD_IDS.tasks.assignee]: assigneeResources,
+    [FEISHU_FIELD_IDS.tasks.assignee]: feishuAssignee,
     [FEISHU_FIELD_IDS.tasks.dependencies]: task.dependencies || [],
   };
 }
