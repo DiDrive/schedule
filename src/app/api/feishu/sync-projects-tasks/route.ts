@@ -43,6 +43,8 @@ export async function POST(request: NextRequest) {
 
     const { appId, appSecret, appToken, tableIds } = config;
 
+    log(`接收到的 tableIds: ${JSON.stringify(tableIds)}`);
+
     if (!appId || !appSecret || !appToken || !tableIds) {
       return NextResponse.json(
         { success: false, message: '飞书配置不完整，请检查appId、appSecret、appToken和tableIds' },
@@ -55,6 +57,10 @@ export async function POST(request: NextRequest) {
         { success: false, message: '缺少项目表或任务表的Table ID' },
         { status: 400 }
       );
+    }
+
+    if (!tableIds.resources) {
+      log('⚠️ tableIds.resources 为空，无法映射资源ID到飞书人员ID');
     }
 
     // 获取飞书访问令牌

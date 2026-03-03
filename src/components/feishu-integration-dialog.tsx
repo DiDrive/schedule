@@ -335,6 +335,14 @@ export default function FeishuIntegrationDialog({
                         tableIds: { ...config.tableIds, tasks: e.target.value }
                       })}
                     />
+                    {!config.tableIds.resources && config.tableIds.tasks && (
+                      <div className="flex items-start gap-2 p-2 rounded bg-amber-50 dark:bg-amber-900/20 text-sm">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                        <span className="text-amber-700 dark:text-amber-400">
+                          要同步任务表中的"负责人"字段，必须同时填写人员表Table ID
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="table-schedules">排期表 Table ID</Label>
