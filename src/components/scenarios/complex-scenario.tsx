@@ -24,7 +24,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2, Calendar, MoreVertical, Globe, FileText } from 'lucide-react';
+import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2, Calendar, MoreVertical, Globe, FileText, RefreshCw } from 'lucide-react';
 import { generateSchedule } from '@/lib/schedule-algorithms';
 import * as XLSX from 'xlsx';
 import { defaultWorkingHours } from '@/lib/sample-data';
@@ -1092,15 +1092,9 @@ export default function ComplexScenario() {
     }
   };
 
-  // 同步到飞书
-  const handleSyncToFeishu = async () => {
-    console.log('[Feishu Sync] 开始同步到飞书');
-    
-    if (!scheduleResult) {
-      console.log('[Feishu Sync] ❌ 没有排期结果');
-      alert('请先生成排期结果');
-      return;
-    }
+  // 同步到飞书（支持同步项目、任务或排期）
+  const handleSyncToFeishu = async (syncType?: 'projects' | 'tasks' | 'schedules') => {
+    console.log('[Feishu Sync] 开始同步到飞书，类型:', syncType || 'schedules');
 
     const configStr = localStorage.getItem('feishu-config');
     console.log('[Feishu Sync] 配置字符串:', configStr ? '存在' : '不存在');
@@ -1119,15 +1113,123 @@ export default function ComplexScenario() {
       tableIds: config.tableIds,
     });
 
-    // 验证配置是否完整
-    if (!config.appId || !config.appSecret || !config.appToken || !config.tableIds?.schedules) {
-      console.log('[Feishu Sync] ❌ 飞书配置不完整:', {
-        appId: !!config.appId,
-        appSecret: !!config.appSecret,
-        appToken: !!config.appToken,
-        schedulesTableId: !!config.tableIds?.schedules,
-      });
-      alert('飞书配置不完整，请填写 App ID、App Secret、App Token 和排期表 Table ID');
+    // 同步项目
+    if (syncType === 'projects' || syncType === undefined) {
+      if (!config.tableIds?.projects) {
+        alert('请先配置项目表的 Table ID');
+        return;
+      }
+
+      if (projects.length === 0) {
+        alert('当前没有项目数据');
+        return;
+      }
+
+      setIsSyncingToFeishu(true);
+      try {
+        const response = await fetch('/api/feishu/sync-projects-tasks', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            projects: projects,
+            tasks: [],
+            config: {
+              appId: config.appId,
+              appSecret: config.appSecret,
+              appToken: config.appToken,
+              tableIds: {
+                projects: config.tableIds.projects,
+                tasks: config.tableIds.tasks || '',
+              },
+            },
+          }),
+        });
+
+        const result = await response.json();
+        console.log('[Feishu Sync] 项目同步结果:', result);
+
+        if (result.success) {
+          alert(`项目同步成功！\n\n创建: ${result.stats.projects.created}\n更新: ${result.stats.projects.updated}\n失败: ${result.stats.projects.failed}`);
+          if (result.errors && result.errors.length > 0) {
+            console.error('同步错误详情:', result.errors);
+          }
+        } else {
+          alert(`项目同步失败: ${result.message}`);
+        }
+      } catch (error) {
+        console.error('[Feishu Sync] 项目同步异常:', error);
+        alert(`项目同步失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      } finally {
+        setIsSyncingToFeishu(false);
+      }
+      return;
+    }
+
+    // 同步任务
+    if (syncType === 'tasks') {
+      if (!config.tableIds?.tasks) {
+        alert('请先配置任务表的 Table ID');
+        return;
+      }
+
+      if (tasks.length === 0) {
+        alert('当前没有任务数据');
+        return;
+      }
+
+      setIsSyncingToFeishu(true);
+      try {
+        const response = await fetch('/api/feishu/sync-projects-tasks', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            projects: [],
+            tasks: tasks,
+            config: {
+              appId: config.appId,
+              appSecret: config.appSecret,
+              appToken: config.appToken,
+              tableIds: {
+                projects: config.tableIds.projects || '',
+                tasks: config.tableIds.tasks,
+              },
+            },
+          }),
+        });
+
+        const result = await response.json();
+        console.log('[Feishu Sync] 任务同步结果:', result);
+
+        if (result.success) {
+          alert(`任务同步成功！\n\n创建: ${result.stats.tasks.created}\n更新: ${result.stats.tasks.updated}\n失败: ${result.stats.tasks.failed}`);
+          if (result.errors && result.errors.length > 0) {
+            console.error('同步错误详情:', result.errors);
+          }
+        } else {
+          alert(`任务同步失败: ${result.message}`);
+        }
+      } catch (error) {
+        console.error('[Feishu Sync] 任务同步异常:', error);
+        alert(`任务同步失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      } finally {
+        setIsSyncingToFeishu(false);
+      }
+      return;
+    }
+
+    // 同步排期（默认行为，不传参数时）
+    if (!scheduleResult) {
+      console.log('[Feishu Sync] ❌ 没有排期结果');
+      alert('请先生成排期结果');
+      return;
+    }
+
+    if (!config.tableIds?.schedules) {
+      alert('请先配置排期表的 Table ID');
       return;
     }
 
@@ -1426,24 +1528,40 @@ export default function ComplexScenario() {
               <Network className="h-5 w-5 text-purple-500" />
               项目管理
             </div>
-            <Button
-              onClick={handleAddProject}
-              variant="outline"
-              size="sm"
-              className="gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              添加项目
-            </Button>
-            <Button
-              onClick={() => setShowTemplateDialog(true)}
-              variant="outline"
-              size="sm"
-              className="gap-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0"
-            >
-              <FileText className="h-4 w-4" />
-              使用模板
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handleAddProject}
+                variant="outline"
+                size="sm"
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                添加项目
+              </Button>
+              <Button
+                onClick={() => setShowTemplateDialog(true)}
+                variant="outline"
+                size="sm"
+                className="gap-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0"
+              >
+                <FileText className="h-4 w-4" />
+                使用模板
+              </Button>
+              <Button
+                onClick={() => handleSyncToFeishu('projects')}
+                variant="outline"
+                size="sm"
+                className="gap-2 text-green-600 border-green-600 hover:bg-green-50"
+                disabled={isSyncingToFeishu}
+              >
+                {isSyncingToFeishu ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                同步到飞书
+              </Button>
+            </div>
           </CardTitle>
           <CardDescription>
             当前管理 {projects.length} 个并行项目，共享人员池
@@ -1641,6 +1759,20 @@ export default function ComplexScenario() {
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                onClick={() => handleSyncToFeishu('tasks')}
+                variant="outline"
+                size="sm"
+                className="gap-2 text-green-600 border-green-600 hover:bg-green-50"
+                disabled={isSyncingToFeishu}
+              >
+                {isSyncingToFeishu ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                同步到飞书
+              </Button>
             </div>
           </div>
         </CardHeader>
