@@ -26,12 +26,13 @@ const log = (message: string) => {
  * 请求体:
  * - projects: 项目数组
  * - tasks: 任务数组
+ * - projectsMap: 项目ID到项目名称的映射（用于任务同步时转换项目ID为名称）
  * - config: 飞书配置
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { projects, tasks, config } = body;
+    const { projects, tasks, projectsMap, config } = body;
 
     if (!config) {
       return NextResponse.json(
@@ -248,7 +249,16 @@ export async function POST(request: NextRequest) {
       // 同步每个任务
       for (const task of tasks) {
         try {
-          const taskRecord = taskToFeishuRecord(task);
+          // 如果任务有 projectName 字段（前端已处理），直接使用
+          // 否则使用 projectsMap 将 projectId 转换为项目名称
+          const taskForSync = task.projectName 
+            ? task 
+            : { 
+                ...task, 
+                projectName: (task.projectId && projectsMap) ? projectsMap[task.projectId] || '' : '' 
+              };
+          
+          const taskRecord = taskToFeishuRecord(taskForSync);
           const existingRecordId = existingTasksMap.get(task.id);
 
           if (existingRecordId) {

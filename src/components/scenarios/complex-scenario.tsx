@@ -1081,13 +1081,26 @@ export default function ComplexScenario() {
 
     // 同步任务
     if (tasks.length > 0 && config.tableIds?.tasks) {
+      // 创建项目ID到项目名称的映射
+      const projectIdToName = new Map<string, string>();
+      projects.forEach((p: any) => {
+        if (p.id) projectIdToName.set(p.id, p.name);
+      });
+      
+      // 将任务中的项目ID替换为项目名称
+      const tasksWithProjectNames = tasks.map((task: any) => ({
+        ...task,
+        projectName: task.projectId ? projectIdToName.get(task.projectId) || '' : ''
+      }));
+      
       try {
         const response = await fetch('/api/feishu/sync-projects-tasks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             projects: [],
-            tasks: tasks,
+            tasks: tasksWithProjectNames,
+            projectsMap: Object.fromEntries(projectIdToName),
             config: {
               appId: config.appId,
               appSecret: config.appSecret,

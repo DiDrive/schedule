@@ -107,7 +107,9 @@ export default function ProjectScheduleSystem() {
       tasksCount: tasks.length,
       hasSchedule: !!scheduleResult,
       hasResources: sharedResources.length > 0,
-      configTableIds: config.tableIds
+      configTableIds: config.tableIds,
+      projectsStr: projectsStr ? projectsStr.substring(0, 100) : 'null',
+      tasksStr: tasksStr ? tasksStr.substring(0, 100) : 'null',
     });
 
     const getProjectById = (id: string) => projects.find((p: any) => p.id === id);
@@ -157,13 +159,27 @@ export default function ProjectScheduleSystem() {
     // 同步任务
     if (tasks.length > 0 && config.tableIds?.tasks) {
       console.log('[Feishu Sync] 准备同步任务:', tasks.length, '个');
+      
+      // 创建项目ID到项目名称的映射
+      const projectIdToName = new Map<string, string>();
+      projects.forEach((p: any) => {
+        if (p.id) projectIdToName.set(p.id, p.name);
+      });
+      
+      // 将任务中的项目ID替换为项目名称
+      const tasksWithProjectNames = tasks.map((task: any) => ({
+        ...task,
+        projectName: task.projectId ? projectIdToName.get(task.projectId) || '' : ''
+      }));
+      
       try {
         const response = await fetch('/api/feishu/sync-projects-tasks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             projects: [],
-            tasks: tasks,
+            tasks: tasksWithProjectNames,
+            projectsMap: Object.fromEntries(projectIdToName), // 传递项目映射
             config: {
               appId: config.appId,
               appSecret: config.appSecret,

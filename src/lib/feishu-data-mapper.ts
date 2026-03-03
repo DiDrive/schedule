@@ -211,7 +211,7 @@ export function feishuRecordToProject(record: Record<string, any>, recordId: str
 /**
  * 将系统任务转换为飞书记录格式
  */
-export function taskToFeishuRecord(task: Task): Record<string, any> {
+export function taskToFeishuRecord(task: Task & { projectName?: string }): Record<string, any> {
   // 优先使用 assignedResources（已排期），如果没有则使用 fixedResourceId（手动指定）
   const assigneeResources = task.assignedResources && task.assignedResources.length > 0
     ? task.assignedResources
@@ -220,7 +220,7 @@ export function taskToFeishuRecord(task: Task): Record<string, any> {
   return {
     [FEISHU_FIELD_IDS.tasks.id]: task.id,
     [FEISHU_FIELD_IDS.tasks.name]: task.name,
-    [FEISHU_FIELD_IDS.tasks.project]: task.projectId || [],
+    [FEISHU_FIELD_IDS.tasks.project]: task.projectName || (task.projectId ? [task.projectId] : []),
     [FEISHU_FIELD_IDS.tasks.type]: task.taskType === '平面' ? '平面设计' : task.taskType === '后期' ? '后期制作' : '物料',
     [FEISHU_FIELD_IDS.tasks.estimated_hours]: task.estimatedHours,
     [FEISHU_FIELD_IDS.tasks.deadline]: dateToFeishuDate(task.deadline, false),
