@@ -1105,7 +1105,11 @@ export default function ComplexScenario() {
               appId: config.appId,
               appSecret: config.appSecret,
               appToken: config.appToken,
-              tableIds: { projects: config.tableIds.projects || '', tasks: config.tableIds.tasks },
+              tableIds: {
+                projects: config.tableIds.projects || '',
+                tasks: config.tableIds.tasks,
+                resources: config.tableIds.resources || ''
+              },
             },
           }),
         });
