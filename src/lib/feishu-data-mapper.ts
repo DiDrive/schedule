@@ -109,15 +109,31 @@ Object.entries(FEISHU_OPTION_VALUES).forEach(([category, values]) => {
  * 对于不包含时间的日期字段，返回秒级时间戳
  * 对于包含时间的日期字段，返回毫秒级时间戳
  */
-function dateToFeishuDate(date: Date | null | undefined, includeTime: boolean = false): number {
+function dateToFeishuDate(date: Date | string | null | undefined, includeTime: boolean = false): number {
   if (!date) return 0;
+
+  // 如果是字符串，先转换为 Date 对象
+  let dateObj: Date;
+  if (typeof date === 'string') {
+    dateObj = new Date(date);
+    // 检查转换是否有效
+    if (isNaN(dateObj.getTime())) {
+      console.warn('[Feishu Data Mapper] 无效的日期字符串:', date);
+      return 0;
+    }
+  } else if (date instanceof Date) {
+    dateObj = date;
+  } else {
+    console.warn('[Feishu Data Mapper] 未知的日期类型:', typeof date, date);
+    return 0;
+  }
 
   if (includeTime) {
     // 包含时间的日期：返回毫秒级时间戳
-    return date.getTime();
+    return dateObj.getTime();
   } else {
     // 不包含时间的日期：返回秒级时间戳
-    return Math.floor(date.getTime() / 1000);
+    return Math.floor(dateObj.getTime() / 1000);
   }
 }
 

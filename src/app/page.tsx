@@ -102,12 +102,21 @@ export default function ProjectScheduleSystem() {
     const scheduleResult = scheduleResultStr ? JSON.parse(scheduleResultStr) : null;
     const sharedResources = resourcesStr ? JSON.parse(resourcesStr) : [];
 
+    console.log('[Feishu Sync] 数据读取结果:', {
+      projectsCount: projects.length,
+      tasksCount: tasks.length,
+      hasSchedule: !!scheduleResult,
+      hasResources: sharedResources.length > 0,
+      configTableIds: config.tableIds
+    });
+
     const getProjectById = (id: string) => projects.find((p: any) => p.id === id);
 
     setIsSyncingToFeishu(true);
 
     // 同步项目
     if (projects.length > 0 && config.tableIds?.projects) {
+      console.log('[Feishu Sync] 准备同步项目:', projects.length, '个');
       try {
         const response = await fetch('/api/feishu/sync-projects-tasks', {
           method: 'POST',
@@ -124,18 +133,26 @@ export default function ProjectScheduleSystem() {
           }),
         });
         const result = await response.json();
+        console.log('[Feishu Sync] 项目同步结果:', result);
         if (result.success) {
           results.push(`✅ 项目：创建 ${result.stats.projects.created}，更新 ${result.stats.projects.updated}`);
         } else {
           results.push(`❌ 项目：${result.message}`);
         }
       } catch (error) {
+        console.error('[Feishu Sync] 项目同步错误:', error);
         results.push(`❌ 项目：${error instanceof Error ? error.message : '同步失败'}`);
       }
+    } else {
+      console.log('[Feishu Sync] 跳过项目同步，原因:', {
+        hasProjects: projects.length > 0,
+        hasProjectTableId: !!config.tableIds?.projects
+      });
     }
 
     // 同步任务
     if (tasks.length > 0 && config.tableIds?.tasks) {
+      console.log('[Feishu Sync] 准备同步任务:', tasks.length, '个');
       try {
         const response = await fetch('/api/feishu/sync-projects-tasks', {
           method: 'POST',
@@ -152,14 +169,21 @@ export default function ProjectScheduleSystem() {
           }),
         });
         const result = await response.json();
+        console.log('[Feishu Sync] 任务同步结果:', result);
         if (result.success) {
           results.push(`✅ 任务：创建 ${result.stats.tasks.created}，更新 ${result.stats.tasks.updated}`);
         } else {
           results.push(`❌ 任务：${result.message}`);
         }
       } catch (error) {
+        console.error('[Feishu Sync] 任务同步错误:', error);
         results.push(`❌ 任务：${error instanceof Error ? error.message : '同步失败'}`);
       }
+    } else {
+      console.log('[Feishu Sync] 跳过任务同步，原因:', {
+        hasTasks: tasks.length > 0,
+        hasTaskTableId: !!config.tableIds?.tasks
+      });
     }
 
     // 同步排期
