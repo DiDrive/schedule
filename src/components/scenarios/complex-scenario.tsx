@@ -1036,7 +1036,123 @@ export default function ComplexScenario() {
   // 处理飞书集成对话框中的同步操作
   // 处理飞书集成对话框中的同步操作（同步到飞书）
   const handleFeishuDialogSync = async () => {
-    await handleSyncToFeishu();
+    console.log('[Feishu Sync Dialog] 开始同步所有数据到飞书');
+    
+    const configStr = localStorage.getItem('feishu-config');
+    if (!configStr) {
+      alert('请先配置飞书集成信息');
+      return;
+    }
+
+    const config = JSON.parse(configStr);
+    const results: string[] = [];
+
+    // 同步项目
+    if (projects.length > 0 && config.tableIds?.projects) {
+      try {
+        const response = await fetch('/api/feishu/sync-projects-tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projects: projects,
+            tasks: [],
+            config: {
+              appId: config.appId,
+              appSecret: config.appSecret,
+              appToken: config.appToken,
+              tableIds: { projects: config.tableIds.projects, tasks: config.tableIds.tasks || '' },
+            },
+          }),
+        });
+        const result = await response.json();
+        if (result.success) {
+          results.push(`✅ 项目：创建 ${result.stats.projects.created}，更新 ${result.stats.projects.updated}`);
+        } else {
+          results.push(`❌ 项目：${result.message}`);
+        }
+      } catch (error) {
+        results.push(`❌ 项目：${error instanceof Error ? error.message : '同步失败'}`);
+      }
+    }
+
+    // 同步任务
+    if (tasks.length > 0 && config.tableIds?.tasks) {
+      try {
+        const response = await fetch('/api/feishu/sync-projects-tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projects: [],
+            tasks: tasks,
+            config: {
+              appId: config.appId,
+              appSecret: config.appSecret,
+              appToken: config.appToken,
+              tableIds: { projects: config.tableIds.projects || '', tasks: config.tableIds.tasks },
+            },
+          }),
+        });
+        const result = await response.json();
+        if (result.success) {
+          results.push(`✅ 任务：创建 ${result.stats.tasks.created}，更新 ${result.stats.tasks.updated}`);
+        } else {
+          results.push(`❌ 任务：${result.message}`);
+        }
+      } catch (error) {
+        results.push(`❌ 任务：${error instanceof Error ? error.message : '同步失败'}`);
+      }
+    }
+
+    // 同步排期
+    if (scheduleResult && config.tableIds?.schedules) {
+      try {
+        const syncTasks = scheduleResult.tasks.map(task => {
+          const resource = sharedResources.find(r => r.id === task.assignedResources[0]);
+          const project = getProjectById(task.projectId || '');
+          return {
+            id: task.id,
+            name: task.name,
+            projectName: project?.name || '',
+            assignedResourceId: task.assignedResources[0] || '',
+            assignedResourceName: resource?.name || '',
+            startDate: task.startDate ? task.startDate.toISOString() : '',
+            endDate: task.endDate ? task.endDate.toISOString() : '',
+            estimatedHours: task.estimatedHours,
+            status: task.status,
+            priority: task.priority,
+            taskType: task.taskType || '',
+          };
+        });
+
+        const url = `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
+          `&app_secret=${encodeURIComponent(config.appSecret)}` +
+          `&app_token=${encodeURIComponent(config.appToken)}` +
+          `&schedules_table_id=${encodeURIComponent(config.tableIds.schedules)}` +
+          `&resources_table_id=${encodeURIComponent(config.tableIds.resources || '')}`;
+        
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tasks: syncTasks }),
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          results.push(`✅ 排期：成功 ${result.stats.success}，失败 ${result.stats.error}`);
+        } else {
+          results.push(`❌ 排期：${result.error || '未知错误'}`);
+        }
+      } catch (error) {
+        results.push(`❌ 排期：${error instanceof Error ? error.message : '同步失败'}`);
+      }
+    }
+
+    // 显示汇总结果
+    if (results.length > 0) {
+      alert(`同步完成！\n\n${results.join('\n')}`);
+    } else {
+      alert('没有数据可同步或未配置飞书表格 ID');
+    }
   };
 
   // 从飞书加载数据
@@ -1547,20 +1663,6 @@ export default function ComplexScenario() {
                 <FileText className="h-4 w-4" />
                 使用模板
               </Button>
-              <Button
-                onClick={() => handleSyncToFeishu('projects')}
-                variant="outline"
-                size="sm"
-                className="gap-2 text-green-600 border-green-600 hover:bg-green-50"
-                disabled={isSyncingToFeishu}
-              >
-                {isSyncingToFeishu ? (
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                同步到飞书
-              </Button>
             </div>
           </CardTitle>
           <CardDescription>
@@ -1759,20 +1861,6 @@ export default function ComplexScenario() {
                   ))}
                 </SelectContent>
               </Select>
-              <Button
-                onClick={() => handleSyncToFeishu('tasks')}
-                variant="outline"
-                size="sm"
-                className="gap-2 text-green-600 border-green-600 hover:bg-green-50"
-                disabled={isSyncingToFeishu}
-              >
-                {isSyncingToFeishu ? (
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                同步到飞书
-              </Button>
             </div>
           </div>
         </CardHeader>
