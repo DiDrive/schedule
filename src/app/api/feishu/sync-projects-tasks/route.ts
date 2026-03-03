@@ -282,16 +282,19 @@ export async function POST(request: NextRequest) {
         log(`总共获取到 ${allRecords.length} 个任务记录`);
         
         allRecords.forEach((item: any) => {
-          log(`任务记录 - record_id=${item.record_id}, fields=${JSON.stringify(item.fields).substring(0, 200)}`);
           const taskId = item.fields[FEISHU_FIELD_IDS.tasks.id];
+          const taskName = item.fields[FEISHU_FIELD_IDS.tasks.name];
+          
           if (taskId) {
             existingTasksMap.set(taskId, item.record_id);
-            log(`✅ 映射任务: ${taskId} -> ${item.record_id}`);
+            log(`✅ 映射任务: ID=${taskId}, record_id=${item.record_id}, 名称="${taskName}"`);
           } else {
-            log(`⚠️ 任务记录缺少 ID 字段: ${item.record_id}, 可用字段: ${Object.keys(item.fields).join(', ')}`);
+            log(`⚠️ 任务记录缺少 ID 字段: record_id=${item.record_id}, 名称="${taskName}", 可用字段: ${Object.keys(item.fields).join(', ')}`);
+            log(`⚠️ 完整字段: ${JSON.stringify(item.fields)}`);
           }
         });
         log(`飞书中已有 ${existingTasksMap.size} 个任务记录`);
+        
       } catch (error) {
         log(`获取现有任务记录失败: ${error instanceof Error ? error.message : '未知错误'}`);
       }
@@ -299,6 +302,8 @@ export async function POST(request: NextRequest) {
       // 收集系统中所有任务的ID
       const systemTaskIds = new Set(tasks.map(t => t.id));
       log(`系统中共有 ${systemTaskIds.size} 个任务`);
+      log(`系统中任务ID列表: ${Array.from(systemTaskIds).join(', ')}`);
+      log(`飞书任务ID列表: ${Array.from(existingTasksMap.keys()).join(', ')}`);
 
       // 同步每个任务
       for (const task of tasks) {
@@ -331,10 +336,12 @@ export async function POST(request: NextRequest) {
             log(`[任务同步] 依赖关系字段: ${JSON.stringify(taskRecord[FEISHU_FIELD_IDS.tasks.dependencies])}`);
           }
           const existingRecordId = existingTasksMap.get(task.id);
+          
+          log(`[任务同步] 任务 "${task.name}" (ID=${task.id}): ${existingRecordId ? '找到现有记录' : '未找到现有记录，将创建'} ${existingRecordId ? `record_id=${existingRecordId}` : ''}`);
 
           if (existingRecordId) {
             // 更新现有记录
-            await fetch(
+            const updateResponse = await fetch(
               `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableIds.tasks}/records/${existingRecordId}`,
               {
                 method: 'PATCH',
@@ -345,11 +352,19 @@ export async function POST(request: NextRequest) {
                 body: JSON.stringify({ fields: taskRecord }),
               }
             );
-            stats.tasks.updated++;
-            log(`✅ 更新任务: ${task.name}`);
+            
+            if (!updateResponse.ok) {
+              const errorText = await updateResponse.text();
+              log(`❌ 更新任务失败: ${task.name}, 状态码=${updateResponse.status}, 响应=${errorText}`);
+              stats.tasks.failed++;
+              errors.push(`任务 "${task.name}" 更新失败: ${errorText}`);
+            } else {
+              stats.tasks.updated++;
+              log(`✅ 更新任务: ${task.name}`);
+            }
           } else {
             // 创建新记录
-            await fetch(
+            const createResponse = await fetch(
               `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableIds.tasks}/records`,
               {
                 method: 'POST',
@@ -360,8 +375,16 @@ export async function POST(request: NextRequest) {
                 body: JSON.stringify({ fields: taskRecord }),
               }
             );
-            stats.tasks.created++;
-            log(`✅ 创建任务: ${task.name}`);
+            
+            if (!createResponse.ok) {
+              const errorText = await createResponse.text();
+              log(`❌ 创建任务失败: ${task.name}, 状态码=${createResponse.status}, 响应=${errorText}`);
+              stats.tasks.failed++;
+              errors.push(`任务 "${task.name}" 创建失败: ${errorText}`);
+            } else {
+              stats.tasks.created++;
+              log(`✅ 创建任务: ${task.name}`);
+            }
           }
         } catch (error) {
           stats.tasks.failed++;
