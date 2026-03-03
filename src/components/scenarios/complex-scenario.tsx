@@ -1283,6 +1283,7 @@ export default function ComplexScenario() {
               tableIds: {
                 projects: config.tableIds.projects,
                 tasks: config.tableIds.tasks || '',
+                resources: config.tableIds.resources || '',
               },
             },
           }),
@@ -1352,6 +1353,7 @@ export default function ComplexScenario() {
               tableIds: {
                 projects: config.tableIds.projects || '',
                 tasks: config.tableIds.tasks,
+                resources: config.tableIds.resources || '',
               },
             },
           }),
