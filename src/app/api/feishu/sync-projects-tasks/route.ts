@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     const errors: string[] = [];
 
     // 1. 同步项目数据
-    if (projects && Array.isArray(projects)) {
+    if (projects && Array.isArray(projects) && projects.length > 0) {
       log(`开始同步 ${projects.length} 个项目`);
       
       // 先获取飞书中的现有项目记录
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 删除飞书中多余的项目记录
+      // 删除飞书中多余的项目记录（只在同步项目数据时执行删除）
       for (const [projectId, recordId] of existingProjectsMap.entries()) {
         if (!systemProjectIds.has(projectId)) {
           try {
@@ -188,10 +188,12 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+    } else {
+      log('跳过项目同步：没有项目数据或项目数组为空');
     }
 
     // 2. 同步任务数据
-    if (tasks && Array.isArray(tasks)) {
+    if (tasks && Array.isArray(tasks) && tasks.length > 0) {
       log(`开始同步 ${tasks.length} 个任务`);
       
       // 先获取飞书中的现有任务记录
@@ -320,6 +322,8 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+    } else {
+      log('跳过任务同步：没有任务数据或任务数组为空');
     }
 
     log(`同步完成: ${JSON.stringify(stats)}`);
