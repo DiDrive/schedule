@@ -130,13 +130,29 @@ export async function GET(request: NextRequest) {
           // 如果没有指定名称，使用 personName 或 record_id
           const name = personName || resourceId;
 
-          // 提取飞书人员ID
-          const nameField = fields['姓名'] || fields['name'] || fields['人员'];
-          const feishuPersonId = parsePersonId(nameField);
+          // 提取飞书人员ID：优先从"飞书用户ID"字段获取，如果没有则尝试"姓名"字段
+          let feishuPersonId: string | string[] = '';
+          
+          // 首先尝试从"飞书用户ID"字段获取（人员类型）
+          const feishuUserField = fields['飞书用户ID'] || fields['feishu_user'] || fields['飞书用户'];
+          if (feishuUserField) {
+            feishuPersonId = parsePersonId(feishuUserField);
+            if (feishuPersonId) {
+              log(`[飞书加载] 从"飞书用户ID"字段提取到飞书人员ID: ${feishuPersonId}`);
+            }
+          }
+          
+          // 如果没有找到，尝试从"姓名"字段获取（兼容旧数据）
+          if (!feishuPersonId) {
+            const nameField = fields['姓名'] || fields['name'] || fields['人员'];
+            feishuPersonId = parsePersonId(nameField);
+            if (feishuPersonId) {
+              log(`[飞书加载] 从"姓名"字段提取到飞书人员ID: ${feishuPersonId}`);
+            }
+          }
 
           log(`[飞书加载] 处理人员: ${name} (ID: ${resourceId}, 工作类型: ${workType})`);
-          log(`[飞书加载]   姓名字段原始数据: ${JSON.stringify(nameField)}`);
-          log(`[飞书加载]   提取的飞书人员ID: ${feishuPersonId || '未设置'}`);
+          log(`[飞书加载]   最终提取的飞书人员ID: ${feishuPersonId || '未设置'}`);
 
           return {
             id: resourceId,

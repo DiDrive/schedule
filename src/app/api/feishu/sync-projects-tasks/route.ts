@@ -226,15 +226,33 @@ export async function POST(request: NextRequest) {
               // 从多个可能的字段名中获取资源ID
               const resourceId = fields['人员ID'] || fields['id'] || fields['ID'] || fields['Id'] || fields['resourceId'];
               
-              // 从姓名字段提取飞书人员ID
-              const nameField = fields['姓名'] || fields['name'] || fields['人员'];
-              const feishuPersonId = Array.isArray(nameField) && nameField.length > 0 ? nameField[0].id : null;
+              // 从"飞书用户ID"字段（人员类型）提取飞书人员ID
+              // 人员类型字段格式: [{ id: 'ou_xxxx', name: '张三', en_name: 'Zhang San' }]
+              const feishuUserField = fields['飞书用户ID'] || fields['feishu_user'] || fields['飞书用户'];
+              let feishuPersonId = null;
+              
+              if (Array.isArray(feishuUserField) && feishuUserField.length > 0) {
+                feishuPersonId = feishuUserField[0].id;
+              } else if (feishuUserField && typeof feishuUserField === 'object') {
+                feishuPersonId = feishuUserField.id;
+              }
+              
+              // 如果没有找到飞书用户ID，尝试从"姓名"字段获取（兼容旧数据）
+              if (!feishuPersonId) {
+                const nameField = fields['姓名'] || fields['name'] || fields['人员'];
+                if (Array.isArray(nameField) && nameField.length > 0) {
+                  feishuPersonId = nameField[0].id;
+                } else if (nameField && typeof nameField === 'object') {
+                  feishuPersonId = nameField.id;
+                }
+              }
 
               if (resourceId && feishuPersonId) {
                 resourceIdToFeishuPersonIdMap.set(String(resourceId), String(feishuPersonId));
                 log(`映射资源: ${resourceId} -> ${feishuPersonId}`);
               } else {
                 log(`⚠️ 资源记录缺少必要字段: recordId=${item.record_id}, resourceId=${resourceId}, feishuPersonId=${feishuPersonId}`);
+                log(`⚠️ 字段数据: 人员ID=${JSON.stringify(fields['人员ID'])}, 飞书用户ID=${JSON.stringify(feishuUserField)}, 姓名=${JSON.stringify(fields['姓名'])}`);
               }
             });
             log(`✅ 加载了 ${resourceIdToFeishuPersonIdMap.size} 个资源映射`);
@@ -308,6 +326,17 @@ export async function POST(request: NextRequest) {
       log(`系统中任务ID列表: ${Array.from(systemTaskIds).join(', ')}`);
       log(`系统中任务名称列表: ${tasks.map(t => t.name).join(', ')}`);
       log(`飞书任务ID列表: ${Array.from(existingTasksMap.keys()).join(', ')}`);
+      
+      // 检查资源映射
+      if (resourceIdToFeishuPersonIdMap.size === 0) {
+        log(`⚠️ 警告：资源映射为空！负责人字段将无法设置。请确保：
+1. 人员表已创建并包含数据
+2. 人员表的"飞书用户ID"字段已设置为人员类型
+3. 已在"飞书用户ID"字段中选择对应的飞书用户`);
+      } else {
+        log(`✅ 资源映射已加载: ${resourceIdToFeishuPersonIdMap.size} 个映射`);
+        log(`资源映射详情: ${JSON.stringify(Object.fromEntries(resourceIdToFeishuPersonIdMap))}`);
+      }
 
       // 同步每个任务（第一步：不设置依赖关系，收集 record_id 映射）
       const taskIdToRecordIdMap = new Map<string, string>(); // taskId -> record_id
