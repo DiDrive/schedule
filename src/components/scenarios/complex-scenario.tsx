@@ -1098,8 +1098,13 @@ export default function ComplexScenario() {
         if (p.id) projectIdToName.set(p.id, p.name);
       });
       
+      // 使用排期后的任务数据（如果存在），否则使用原始任务数据
+      // 排期后的数据包含负责人(assignedResources)和依赖关系(dependencies)
+      const tasksToSync = scheduleResult?.tasks || tasks;
+      console.log(`[Feishu Sync] 任务同步: 原始任务${tasks.length}个, 排期后任务${scheduleResult?.tasks?.length || 0}个, 将同步${tasksToSync.length}个任务`);
+      
       // 将任务中的项目ID替换为项目名称
-      const tasksWithProjectNames = tasks.map((task: any) => ({
+      const tasksWithProjectNames = tasksToSync.map((task: any) => ({
         ...task,
         projectName: task.projectId ? projectIdToName.get(task.projectId) || '' : ''
       }));
