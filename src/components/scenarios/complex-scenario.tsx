@@ -24,8 +24,9 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2, Calendar, MoreVertical, Globe, FileText, RefreshCw } from 'lucide-react';
-import { generateSchedule } from '@/lib/schedule-algorithms';
+import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2, Calendar, MoreVertical, Globe, FileText, RefreshCw, Lock } from 'lucide-react';
+import { generateSchedule, generateIncrementalSchedule, detectResourceConflicts } from '@/lib/schedule-algorithms';
+import { Checkbox } from '@/components/ui/checkbox';
 import * as XLSX from 'xlsx';
 import { defaultWorkingHours } from '@/lib/sample-data';
 import { Task, ScheduleResult, Project, Resource, ResourceLevel, ResourceConflictStrategy, ConflictTask } from '@/types/schedule';
@@ -33,7 +34,6 @@ import GanttChart from '@/components/gantt-chart';
 import { CalendarView } from '@/components/views/calendar-view';
 import { ConflictResolutionDialog } from '@/components/conflict-resolution-dialog';
 import { TaskSplitDialog } from '@/components/task-split-dialog';
-import { detectResourceConflicts } from '@/lib/schedule-algorithms';
 import FeishuIntegrationDialog from '@/components/feishu-integration-dialog';
 import TemplateDialog from '@/components/template-dialog';
 
@@ -316,6 +316,9 @@ export default function ComplexScenario() {
   const [isSyncingToFeishu, setIsSyncingToFeishu] = useState(false);
   const [isLoadingFromFeishu, setIsLoadingFromFeishu] = useState(false);
   const [showFeishuDialog, setShowFeishuDialog] = useState(false);
+  
+  // 增量排期相关状态
+  const [forceFullReschedule, setForceFullReschedule] = useState(false); // 强制完全重新排期
 
   // 标记是否需要强制生成排期（用于任务拆分后立即生成）
   const forceGenerateSchedule = useRef(false);
@@ -618,6 +621,7 @@ export default function ComplexScenario() {
   const handleGenerateSchedule = (force = false, tasksOverride?: Task[]) => {
     const tasksToUse = tasksOverride || tasks;
     console.log('[ComplexScenario] handleGenerateSchedule called, force:', force, 'tasks count:', tasksToUse.length);
+    console.log('[ComplexScenario] 强制完全重新排期:', forceFullReschedule);
 
     // 检查是否有物料任务未填写提供时间
     const materialTasksWithoutDate = tasksToUse.filter(t => t.taskType === '物料' && !t.estimatedMaterialDate);
@@ -634,7 +638,15 @@ export default function ComplexScenario() {
     if (justResolvedConflict && savedResolutions) {
       setTimeout(() => {
         console.log('[ComplexScenario] 生成排期（使用保存的解决方案）');
-        const result = generateSchedule(tasksToUse, sharedResources, new Date(), defaultWorkingHours, conflictStrategy, savedResolutions);
+        // 使用增量排期
+        const result = generateIncrementalSchedule(
+          tasksToUse, 
+          sharedResources, 
+          new Date(), 
+          defaultWorkingHours, 
+          conflictStrategy, 
+          forceFullReschedule
+        );
         setScheduleResult(result);
 
         // 基于新生成的排期结果重新检测冲突，更新 pendingConflicts
@@ -642,6 +654,9 @@ export default function ComplexScenario() {
         setPendingConflicts(newConflicts);
 
         setIsComputing(false);
+        
+        // 显示增量排期提示
+        showIncrementalScheduleNotification(result, tasksToUse);
       }, 500);
       return;
     }
@@ -650,7 +665,15 @@ export default function ComplexScenario() {
     if (force) {
       setTimeout(() => {
         console.log('[ComplexScenario] 强制生成排期（跳过冲突检测）');
-        const result = generateSchedule(tasksToUse, sharedResources, new Date(), defaultWorkingHours, conflictStrategy);
+        // 使用增量排期
+        const result = generateIncrementalSchedule(
+          tasksToUse, 
+          sharedResources, 
+          new Date(), 
+          defaultWorkingHours, 
+          conflictStrategy, 
+          forceFullReschedule
+        );
         setScheduleResult(result);
 
         // 基于 scheduleResult 重新检测冲突，确保 pendingConflicts 同步
@@ -658,6 +681,9 @@ export default function ComplexScenario() {
         setPendingConflicts(newConflicts);
 
         setIsComputing(false);
+        
+        // 显示增量排期提示
+        showIncrementalScheduleNotification(result, tasksToUse);
       }, 500);
       return;
     }
@@ -676,7 +702,15 @@ export default function ComplexScenario() {
       // 没有冲突，直接生成排期
       setTimeout(() => {
         console.log('[ComplexScenario] 生成排期（无冲突）');
-        const result = generateSchedule(tasksToUse, sharedResources, new Date(), defaultWorkingHours, conflictStrategy);
+        // 使用增量排期
+        const result = generateIncrementalSchedule(
+          tasksToUse, 
+          sharedResources, 
+          new Date(), 
+          defaultWorkingHours, 
+          conflictStrategy, 
+          forceFullReschedule
+        );
         setScheduleResult(result);
 
         // 基于 scheduleResult 重新检测冲突，确保 pendingConflicts 同步
@@ -684,7 +718,27 @@ export default function ComplexScenario() {
         setPendingConflicts(newConflicts);
 
         setIsComputing(false);
+        
+        // 显示增量排期提示
+        showIncrementalScheduleNotification(result, tasksToUse);
       }, 500);
+    }
+  };
+  
+  // 显示增量排期结果通知
+  const showIncrementalScheduleNotification = (result: ScheduleResult, allTasks: Task[]) => {
+    const lockedCount = allTasks.filter(t => 
+      t.status === 'completed' || t.status === 'in-progress' || t.isLocked
+    ).length;
+    const newScheduledCount = result.tasks.length - lockedCount;
+    
+    if (lockedCount > 0 && !forceFullReschedule) {
+      console.log(`[增量排期] 已保留 ${lockedCount} 个锁定任务，新排 ${newScheduledCount} 个任务`);
+      
+      // 如果有警告，显示提示
+      if (result.warnings.length > 0) {
+        console.warn('[增量排期警告]', result.warnings);
+      }
     }
   };
 
@@ -693,8 +747,16 @@ export default function ComplexScenario() {
     setJustResolvedConflict(true); // 标记刚刚解决了冲突
     setSavedResolutions(resolutions); // 保存用户的选择
     setTimeout(() => {
-      // 根据用户的选择生成排期
-      const result = generateSchedule(tasks, sharedResources, new Date(), defaultWorkingHours, conflictStrategy, resolutions);
+      // 根据用户的选择生成排期（使用增量排期）
+      const result = generateIncrementalSchedule(
+        tasks, 
+        sharedResources, 
+        new Date(), 
+        defaultWorkingHours, 
+        conflictStrategy, 
+        forceFullReschedule,
+        resolutions
+      );
       setScheduleResult(result);
 
       // 基于新生成的排期结果重新检测冲突
@@ -702,6 +764,9 @@ export default function ComplexScenario() {
       setPendingConflicts(newConflicts);
 
       setIsComputing(false);
+      
+      // 显示增量排期提示
+      showIncrementalScheduleNotification(result, tasks);
     }, 500);
   };
 
@@ -750,6 +815,18 @@ export default function ComplexScenario() {
       .filter(t => t.id !== taskId);
 
     setTasks(updatedTasks);
+  };
+
+  // 切换任务锁定状态
+  const handleToggleTaskLock = (taskId: string) => {
+    setTasks(tasks.map(t => {
+      if (t.id === taskId) {
+        const newLocked = !t.isLocked;
+        console.log(`[ComplexScenario] 任务 ${t.name} 锁定状态: ${newLocked ? '已锁定' : '已解锁'}`);
+        return { ...t, isLocked: newLocked };
+      }
+      return t;
+    }));
   };
 
   // 处理任务拆分
@@ -1887,14 +1964,32 @@ export default function ComplexScenario() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button
-            onClick={() => handleGenerateSchedule()}
-            disabled={isComputing}
-            className="gap-2"
-          >
-            <Play className="h-4 w-4" />
-            {isComputing ? '计算中...' : '生成综合排期'}
-          </Button>
+          <div className="flex items-center gap-3">
+            {/* 增量排期选项 */}
+            <div className="flex items-center space-x-2 bg-slate-50 px-3 py-2 rounded-md border">
+              <Checkbox
+                id="forceFullReschedule"
+                checked={forceFullReschedule}
+                onCheckedChange={(checked) => setForceFullReschedule(checked as boolean)}
+              />
+              <label
+                htmlFor="forceFullReschedule"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-1"
+                title="勾选后，所有任务（包括已完成/进行中的任务）将重新排期；不勾选则保留锁定任务的时间分配"
+              >
+                <Lock className="h-3.5 w-3.5 text-slate-500" />
+                强制完全重新排期
+              </label>
+            </div>
+            <Button
+              onClick={() => handleGenerateSchedule()}
+              disabled={isComputing}
+              className="gap-2"
+            >
+              <Play className="h-4 w-4" />
+              {isComputing ? '计算中...' : '生成综合排期'}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -2202,13 +2297,26 @@ export default function ComplexScenario() {
                         </>
                       )}
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteTask(task.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          {/* 锁定/解锁按钮 */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleToggleTaskLock(task.id)}
+                            title={task.isLocked ? '任务已锁定，排期时将保留当前时间分配' : '点击锁定任务，排期时保留当前时间分配'}
+                          >
+                            <Lock 
+                              className={`h-4 w-4 ${task.isLocked ? 'text-amber-500 fill-amber-500' : 'text-slate-400'}`} 
+                            />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteTask(task.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

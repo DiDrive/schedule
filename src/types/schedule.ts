@@ -48,6 +48,7 @@ export interface Task {
   deadline?: Date;
   priority: 'urgent' | 'high' | 'normal' | 'low';
   status: 'pending' | 'in-progress' | 'completed' | 'blocked';
+  isLocked?: boolean; // 用户手动锁定，重新排期时保持原分配不变
   taskType?: ResourceWorkType; // 任务类型：平面/后期/物料
   fixedResourceId?: string; // 指定的资源ID（如果指定，则优先使用该资源，不进行自动分配）
 

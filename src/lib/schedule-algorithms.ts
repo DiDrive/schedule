@@ -1564,3 +1564,354 @@ function findAvailableResource(
 
   return selected;
 }
+
+/**
+ * 判断任务是否处于锁定状态
+ * 锁定条件：状态为"进行中"或"已完成"，或被用户手动标记为锁定
+ */
+function isTaskLocked(task: Task): boolean {
+  return task.status === 'in-progress' || 
+         task.status === 'completed' || 
+         task.isLocked === true;
+}
+
+/**
+ * 生成增量排期结果
+ * 
+ * 核心逻辑：
+ * 1. 识别锁定任务（进行中/已完成/手动锁定），保持原分配和时间不变
+ * 2. 计算资源剩余容量（扣除锁定任务已占用的时间）
+ * 3. 只对未锁定任务重新进行资源分配和排期
+ * 4. 新任务必须在依赖的锁定任务结束后开始
+ * 5. 如果资源被占满，新任务往后顺延
+ * 
+ * @param tasks 所有任务（包含锁定和未锁定）
+ * @param resources 资源列表
+ * @param startDate 排期开始日期
+ * @param workingHoursConfig 工作时间配置
+ * @param conflictStrategy 冲突处理策略
+ * @param forceFullReschedule 是否强制完全重新排期（忽略锁定状态）
+ * @returns 排期结果
+ */
+export function generateIncrementalSchedule(
+  tasks: Task[],
+  resources: Resource[],
+  startDate: Date = new Date(),
+  workingHoursConfig: WorkingHoursConfig = DEFAULT_WORKING_HOURS,
+  conflictStrategy: ResourceConflictStrategy = 'auto-switch',
+  forceFullReschedule: boolean = false,
+  conflictResolutions?: Map<string, 'switch' | 'delay'>
+): ScheduleResult {
+  console.log('========================================');
+  console.log('开始增量排期');
+  console.log(`总任务数: ${tasks.length}, 资源数: ${resources.length}`);
+  console.log(`强制完全重新排期: ${forceFullReschedule}`);
+
+  // 1. 分离锁定任务和待排任务
+  let lockedTasks: Task[] = [];
+  let pendingTasks: Task[] = [];
+
+  if (forceFullReschedule) {
+    // 强制完全重新排期：所有任务都作为待排任务
+    pendingTasks = [...tasks];
+    console.log('强制完全重新排期模式：所有任务都将重新排期');
+  } else {
+    // 增量排期模式：分离锁定任务
+    lockedTasks = tasks.filter(isTaskLocked);
+    pendingTasks = tasks.filter(t => !isTaskLocked(t));
+    console.log(`锁定任务: ${lockedTasks.length}个`);
+    console.log(`待排任务: ${pendingTasks.length}个`);
+    
+    if (lockedTasks.length > 0) {
+      console.log('锁定任务列表:');
+      lockedTasks.forEach(t => {
+        const lockReason = t.status === 'completed' ? '已完成' : 
+                          t.status === 'in-progress' ? '进行中' : '手动锁定';
+        console.log(`  - ${t.name} (${lockReason})`);
+      });
+    }
+  }
+
+  // 2. 验证锁定任务的有效性
+  // 锁定任务必须有资源分配和时间信息
+  const validLockedTasks = lockedTasks.filter(t => {
+    const hasResource = t.assignedResources && t.assignedResources.length > 0;
+    const hasTime = t.startDate && t.endDate;
+    if (!hasResource || !hasTime) {
+      console.warn(`⚠ 任务 "${t.name}" 被锁定但缺少资源或时间信息，将重新排期`);
+      pendingTasks.push(t);
+      return false;
+    }
+    return true;
+  });
+
+  const invalidLockedCount = lockedTasks.length - validLockedTasks.length;
+  if (invalidLockedCount > 0) {
+    console.log(`${invalidLockedCount}个锁定任务因缺少信息被转为待排任务`);
+  }
+  lockedTasks = validLockedTasks;
+
+  // 3. 计算资源占用情况（从锁定任务）
+  const resourceSchedules = new Map<string, Array<{ start: Date; end: Date }>>();
+  resources.forEach(r => resourceSchedules.set(r.id, []));
+  
+  lockedTasks.forEach(task => {
+    const resourceId = task.assignedResources?.[0];
+    if (resourceId && task.startDate && task.endDate) {
+      const schedule = resourceSchedules.get(resourceId) || [];
+      schedule.push({ start: task.startDate, end: task.endDate });
+      resourceSchedules.set(resourceId, schedule);
+    }
+  });
+
+  console.log('资源占用情况（来自锁定任务）:');
+  resourceSchedules.forEach((schedule, resourceId) => {
+    if (schedule.length > 0) {
+      const resource = resources.find(r => r.id === resourceId);
+      const totalHours = schedule.reduce((sum, s) => sum + (s.end.getTime() - s.start.getTime()) / (1000 * 60 * 60), 0);
+      console.log(`  - ${resource?.name || resourceId}: ${schedule.length}个任务, 共${Math.round(totalHours)}小时`);
+    }
+  });
+
+  // 4. 对未锁定任务进行自动资源分配
+  // 注意：这里不清理 assignedResources，因为用户可能指定了资源
+  const pendingTasksWithResources = autoAssignResources(pendingTasks, resources);
+
+  // 5. 创建任务映射和调度
+  const taskMap = new Map<string, Task>();
+  const scheduledTasks: Task[] = [];
+
+  // 首先添加所有锁定任务到映射
+  lockedTasks.forEach(task => {
+    taskMap.set(task.id, task);
+    scheduledTasks.push(task);
+  });
+
+  // 6. 调度未锁定任务
+  const unscheduledTaskIds = new Set(pendingTasksWithResources.map(t => t.id));
+  let loopCount = 0;
+  const maxLoops = pendingTasksWithResources.length * 2; // 防止无限循环
+
+  while (unscheduledTaskIds.size > 0 && loopCount < maxLoops) {
+    loopCount++;
+
+    // 找出所有依赖已满足的可用任务
+    const availableTasks = pendingTasksWithResources.filter(task =>
+      unscheduledTaskIds.has(task.id) &&
+      areDependenciesSatisfied(task, taskMap)
+    );
+
+    if (availableTasks.length === 0) {
+      console.error('无法继续调度：存在循环依赖或无法满足的依赖');
+      console.error('未安排的任务:', 
+        pendingTasksWithResources
+          .filter(t => unscheduledTaskIds.has(t.id))
+          .map(t => t.name)
+      );
+      break;
+    }
+
+    // 按任务ID排序，确保确定性
+    const sortedAvailableTasks = [...availableTasks].sort((a, b) => a.id.localeCompare(b.id));
+
+    // 逐个处理可用任务
+    for (const task of sortedAvailableTasks) {
+      let taskStart = new Date(startDate);
+
+      // 考虑前置任务的结束时间（包括锁定任务）
+      if (task.dependencies && task.dependencies.length > 0) {
+        let latestDepEnd: Date | null = null;
+
+        for (const depId of task.dependencies) {
+          const depTask = taskMap.get(depId);
+          if (depTask?.endDate) {
+            if (!latestDepEnd || depTask.endDate > latestDepEnd) {
+              latestDepEnd = depTask.endDate;
+            }
+          }
+        }
+
+        if (latestDepEnd) {
+          taskStart = new Date(latestDepEnd);
+        }
+      }
+
+      // 获取任务分配的资源
+      const resourceId = task.assignedResources?.[0];
+      if (!resourceId) {
+        console.warn(`任务 "${task.name}" 没有分配资源，跳过`);
+        unscheduledTaskIds.delete(task.id);
+        continue;
+      }
+
+      const resource = resources.find(r => r.id === resourceId);
+      if (!resource) {
+        console.error(`资源 ${resourceId} 不存在`);
+        unscheduledTaskIds.delete(task.id);
+        continue;
+      }
+
+      // 物料任务特殊处理
+      if (task.taskType === '物料') {
+        const scheduledTask: Task = {
+          ...task,
+          startDate: new Date(taskStart),
+          endDate: new Date(taskStart),
+          isCritical: false,
+          assignedResources: []
+        };
+        taskMap.set(task.id, scheduledTask);
+        scheduledTasks.push(scheduledTask);
+        unscheduledTaskIds.delete(task.id);
+        continue;
+      }
+
+      // 计算任务结束时间
+      const resourceSchedule = resourceSchedules.get(resourceId) || [];
+      const efficiency = resource.efficiency || LEVEL_EFFICIENCY[resource.level as ResourceLevel] || 1.0;
+      const actualHours = task.estimatedHours / efficiency;
+
+      // 检查资源冲突并调整开始时间
+      let hasConflict = true;
+      let maxIterations = 100;
+      let iteration = 0;
+
+      while (hasConflict && iteration < maxIterations) {
+        hasConflict = false;
+        iteration++;
+
+        // 重新检查依赖
+        if (task.dependencies && task.dependencies.length > 0) {
+          let latestDepEnd: Date | null = null;
+          for (const depId of task.dependencies) {
+            const depTask = taskMap.get(depId);
+            if (depTask?.endDate && (!latestDepEnd || depTask.endDate > latestDepEnd)) {
+              latestDepEnd = depTask.endDate;
+            }
+          }
+          if (latestDepEnd && taskStart < latestDepEnd) {
+            taskStart = new Date(latestDepEnd);
+          }
+        }
+
+        // 检查与已调度任务的冲突（包括锁定任务）
+        for (const scheduled of resourceSchedule) {
+          const scheduledStart = scheduled.start.getTime();
+          const scheduledEnd = scheduled.end.getTime();
+          const proposedStart = taskStart.getTime();
+          const proposedEnd = taskStart.getTime() + actualHours * 60 * 60 * 1000;
+
+          // 检查是否有重叠
+          if (proposedStart < scheduledEnd && proposedEnd > scheduledStart) {
+            // 有冲突，将开始时间调整到冲突结束后
+            taskStart = new Date(scheduledEnd);
+            hasConflict = true;
+            break;
+          }
+        }
+      }
+
+      // 计算最终结束时间
+      const taskEnd = new Date(taskStart.getTime() + actualHours * 60 * 60 * 1000);
+
+      // 创建已调度任务
+      const scheduledTask: Task = {
+        ...task,
+        startDate: taskStart,
+        endDate: taskEnd,
+        assignedResources: [resourceId],
+        isCritical: false
+      };
+
+      taskMap.set(task.id, scheduledTask);
+      scheduledTasks.push(scheduledTask);
+      unscheduledTaskIds.delete(task.id);
+
+      // 更新资源时间表
+      resourceSchedule.push({ start: taskStart, end: taskEnd });
+      resourceSchedules.set(resourceId, resourceSchedule);
+    }
+  }
+
+  // 7. 计算关键路径（基于所有已调度任务）
+  const criticalPath = calculateCriticalPath(scheduledTasks);
+  scheduledTasks.forEach(task => {
+    task.isCritical = criticalPath.includes(task.id);
+  });
+
+  // 8. 检测资源冲突
+  const conflicts = detectResourceConflicts(scheduledTasks, resources);
+
+  // 9. 计算资源利用率
+  const utilization = calculateResourceUtilization(scheduledTasks, resources);
+
+  // 10. 生成警告和建议
+  const warnings: string[] = [];
+  const recommendations: string[] = [];
+
+  // 检测延后任务
+  const delayedTasks = pendingTasksWithResources.filter(task => {
+    const scheduled = scheduledTasks.find(t => t.id === task.id);
+    if (!scheduled || !task.deadline) return false;
+    return scheduled.endDate && scheduled.endDate > task.deadline;
+  });
+
+  if (delayedTasks.length > 0) {
+    warnings.push(`${delayedTasks.length}个任务因资源冲突被延后到截止日期之后`);
+    recommendations.push('建议：检查资源分配，考虑增加资源或调整截止日期');
+  }
+
+  // 11. 计算总工期和总工时
+  const latestEndDate = scheduledTasks.reduce((latest, task) => {
+    const end = task.endDate || startDate;
+    return end > latest ? end : latest;
+  }, startDate);
+
+  const totalDuration = Math.ceil((latestEndDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  const totalHours = scheduledTasks.reduce((sum, task) => sum + task.estimatedHours, 0);
+
+  // 12. 转换冲突格式
+  const finalConflicts: ResourceConflict[] = [];
+  conflicts.forEach((conflictTasks, resourceId) => {
+    if (conflictTasks.length > 1) {
+      const resource = resources.find(r => r.id === resourceId);
+      const taskIds = conflictTasks.map(ct => ct.task.id);
+      
+      let conflictStart = conflictTasks[0].startTime;
+      let conflictEnd = conflictTasks[0].endTime;
+      
+      conflictTasks.forEach(ct => {
+        if (ct.startTime > conflictStart) conflictStart = ct.startTime;
+        if (ct.endTime < conflictEnd) conflictEnd = ct.endTime;
+      });
+      
+      finalConflicts.push({
+        resourceId,
+        resourceName: resource?.name || '未知资源',
+        tasks: taskIds,
+        timeRange: { start: conflictStart, end: conflictEnd },
+        severity: 'high',
+        suggestedResolution: `多个任务指定了同一人员 ${resource?.name || '未知资源'}`
+      });
+    }
+  });
+
+  console.log('========================================');
+  console.log('增量排期完成');
+  console.log(`总工期: ${totalDuration}天, 总工时: ${totalHours}小时`);
+  console.log(`锁定任务: ${lockedTasks.length}个, 新排任务: ${scheduledTasks.length - lockedTasks.length}个`);
+
+  return {
+    tasks: scheduledTasks,
+    projects: [],
+    criticalPath,
+    criticalChain: criticalPath,
+    resourceConflicts: finalConflicts,
+    resourceUtilization: utilization,
+    totalDuration,
+    totalHours,
+    workingHoursConfig,
+    warnings,
+    recommendations
+  };
+}
