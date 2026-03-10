@@ -602,43 +602,60 @@ export default function GanttChart({
                               />
                             ))}
 
-                            {/* 任务条 */}
-                            <div
-                              className={`absolute top-1/2 -translate-y-1/2 h-5 rounded shadow-sm cursor-pointer hover:shadow-md transition-all hover:h-6 ${
-                                isCompleted ? 'border-2 border-green-600' : ''
-                              } ${isOverdue ? 'border-2 border-red-600 shadow-lg' : ''}`}
-                              style={{
-                                left: `${position.left}%`,
-                                width: `${Math.max(position.width, 0.3)}%`,
-                                backgroundColor: isCompleted ? '#dcfce7' : (isOverdue ? '#fee2e2' : taskColor)
-                              }}
-                              title={isCompleted && task.actualEndDate 
-                                ? `${task.name}: ${formatDateTime(task.startDate || startDayTime)} - ${formatDateTime(task.actualEndDate)} (实际完成)`
-                                : `${task.name}: ${formatDateTime(task.startDate || startDayTime)} - ${formatDateTime(task.endDate || endDayTime)}${isCompleted ? ' (已完成)' : ''}${isOverdue ? ' (已超期)' : ''}`
-                              }
-                              onClick={() => (isOverdue || isCompleted) && onTaskClick && onTaskClick(task)}
-                            />
-
-                            {/* 完成标记 */}
-                            {isCompleted && (
+                            {/* 任务条 - 已完成任务不显示柱状图 */}
+                            {!isCompleted && (
                               <div
-                                className="absolute top-1/2 -translate-y-1/2 text-green-600 font-bold flex items-center justify-center"
-                                style={{ left: `${position.left}%`, width: `${Math.max(position.width, 0.3)}%` }}
+                                className={`absolute top-1/2 -translate-y-1/2 h-5 rounded shadow-sm cursor-pointer hover:shadow-md transition-all hover:h-6 ${
+                                  isOverdue ? 'border-2 border-red-600 shadow-lg' : ''
+                                }`}
+                                style={{
+                                  left: `${position.left}%`,
+                                  width: `${Math.max(position.width, 0.3)}%`,
+                                  backgroundColor: isOverdue ? '#fee2e2' : taskColor
+                                }}
+                                title={`${task.name}: ${formatDateTime(task.startDate || startDayTime)} - ${formatDateTime(task.endDate || endDayTime)}${isOverdue ? ' (已超期)' : ''}`}
+                                onClick={() => isOverdue && onTaskClick && onTaskClick(task)}
+                              />
+                            )}
+
+                            {/* 已完成任务 - 显示完成里程碑标记 */}
+                            {isCompleted && task.actualEndDate && (
+                              <div
+                                className="absolute top-1/2 -translate-y-1/2 cursor-pointer"
+                                style={{ left: `${position.left}%` }}
+                                title={`${task.name}: 实际完成于 ${formatDateTime(task.actualEndDate)}`}
+                                onClick={() => onTaskClick && onTaskClick(task)}
                               >
-                                ✓
+                                <div className="flex items-center gap-1">
+                                  <div className="w-5 h-5 rounded-full bg-green-500 border-2 border-green-600 flex items-center justify-center">
+                                    <span className="text-white text-xs font-bold">✓</span>
+                                  </div>
+                                  <span className="text-xs text-green-600 font-medium whitespace-nowrap">
+                                    {formatDateTime(task.actualEndDate)}
+                                  </span>
+                                </div>
                               </div>
                             )}
 
-                            {/* 工时标记 - 已完成任务显示实际用时 */}
-                            <div
-                              className="absolute top-1/2 -translate-y-1/2 -right-1 text-xs font-medium bg-white dark:bg-slate-900 px-1 rounded ${isCompleted ? 'text-green-600' : 'text-slate-500'}"
-                              style={{ left: `${Math.min(position.left + position.width + 0.5, 95)}%` }}
-                            >
-                              {isCompleted && task.actualEndDate && task.startDate
-                                ? `${Math.round((task.actualEndDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60))}h`
-                                : `${task.estimatedHours}h`
-                              }
-                            </div>
+                            {/* 工时标记 - 未完成任务显示 */}
+                            {!isCompleted && (
+                              <div
+                                className="absolute top-1/2 -translate-y-1/2 -right-1 text-xs font-medium text-slate-500 bg-white dark:bg-slate-900 px-1 rounded"
+                                style={{ left: `${Math.min(position.left + position.width + 0.5, 95)}%` }}
+                              >
+                                {task.estimatedHours}h
+                              </div>
+                            )}
+
+                            {/* 已完成任务 - 显示实际用时 */}
+                            {isCompleted && task.actualEndDate && task.startDate && (
+                              <div
+                                className="absolute top-1/2 -translate-y-1/2 text-xs font-medium text-green-600 bg-white dark:bg-slate-900 px-1 rounded"
+                                style={{ left: `${Math.min(position.left + 8, 95)}%` }}
+                              >
+                                实际{Math.round((task.actualEndDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60))}h
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
