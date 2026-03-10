@@ -626,13 +626,8 @@ export default function GanttChart({
                                 title={`${task.name}: 实际完成于 ${formatDateTime(task.actualEndDate)}`}
                                 onClick={() => onTaskClick && onTaskClick(task)}
                               >
-                                <div className="flex items-center gap-1">
-                                  <div className="w-5 h-5 rounded-full bg-green-500 border-2 border-green-600 flex items-center justify-center">
-                                    <span className="text-white text-xs font-bold">✓</span>
-                                  </div>
-                                  <span className="text-xs text-green-600 font-medium whitespace-nowrap">
-                                    {formatDateTime(task.actualEndDate)}
-                                  </span>
+                                <div className="w-5 h-5 rounded-full bg-green-500 border-2 border-green-600 flex items-center justify-center">
+                                  <span className="text-white text-xs font-bold">✓</span>
                                 </div>
                               </div>
                             )}
@@ -644,16 +639,6 @@ export default function GanttChart({
                                 style={{ left: `${Math.min(position.left + position.width + 0.5, 95)}%` }}
                               >
                                 {task.estimatedHours}h
-                              </div>
-                            )}
-
-                            {/* 已完成任务 - 显示实际用时 */}
-                            {isCompleted && task.actualEndDate && task.startDate && (
-                              <div
-                                className="absolute top-1/2 -translate-y-1/2 text-xs font-medium text-green-600 bg-white dark:bg-slate-900 px-1 rounded"
-                                style={{ left: `${Math.min(position.left + 8, 95)}%` }}
-                              >
-                                实际{Math.round((task.actualEndDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60))}h
                               </div>
                             )}
                           </div>
