@@ -24,7 +24,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2, Calendar, MoreVertical, Globe, FileText, RefreshCw, Lock } from 'lucide-react';
+import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2, Calendar, MoreVertical, Globe, FileText, RefreshCw, Lock, Zap } from 'lucide-react';
 import { generateSchedule, generateIncrementalSchedule, detectResourceConflicts } from '@/lib/schedule-algorithms';
 import { Checkbox } from '@/components/ui/checkbox';
 import * as XLSX from 'xlsx';
@@ -649,6 +649,9 @@ export default function ComplexScenario() {
         );
         setScheduleResult(result);
 
+        // 同步更新原始任务的时间和状态
+        syncTasksWithScheduleResult(result.tasks);
+
         // 基于新生成的排期结果重新检测冲突，更新 pendingConflicts
         const newConflicts = detectResourceConflicts(result.tasks, sharedResources, undefined);
         setPendingConflicts(newConflicts);
@@ -675,6 +678,9 @@ export default function ComplexScenario() {
           forceFullReschedule
         );
         setScheduleResult(result);
+
+        // 同步更新原始任务的时间和状态
+        syncTasksWithScheduleResult(result.tasks);
 
         // 基于 scheduleResult 重新检测冲突，确保 pendingConflicts 同步
         const newConflicts = detectResourceConflicts(result.tasks, sharedResources, undefined);
@@ -713,6 +719,9 @@ export default function ComplexScenario() {
         );
         setScheduleResult(result);
 
+        // 同步更新原始任务的时间和状态
+        syncTasksWithScheduleResult(result.tasks);
+
         // 基于 scheduleResult 重新检测冲突，确保 pendingConflicts 同步
         const newConflicts = detectResourceConflicts(result.tasks, sharedResources, undefined);
         setPendingConflicts(newConflicts);
@@ -723,6 +732,39 @@ export default function ComplexScenario() {
         showIncrementalScheduleNotification(result, tasksToUse);
       }, 500);
     }
+  };
+  
+  // 同步任务列表与排期结果（更新时间和自动计算状态）
+  const syncTasksWithScheduleResult = (scheduledTasks: Task[]) => {
+    const now = new Date();
+    setTasks(prevTasks => prevTasks.map(task => {
+      const scheduled = scheduledTasks.find(t => t.id === task.id);
+      if (scheduled) {
+        // 计算自动状态
+        let autoStatus: 'pending' | 'in-progress' | 'completed' = 'pending';
+        if (scheduled.startDate && scheduled.endDate) {
+          if (now < scheduled.startDate) {
+            autoStatus = 'pending';
+          } else if (now >= scheduled.endDate) {
+            autoStatus = 'completed';
+          } else {
+            autoStatus = 'in-progress';
+          }
+        }
+        
+        // 只有非阻塞、非手动锁定的任务才自动更新状态
+        const newStatus = (task.status === 'blocked' || task.isLocked) ? task.status : autoStatus;
+        
+        return {
+          ...task,
+          startDate: scheduled.startDate,
+          endDate: scheduled.endDate,
+          assignedResources: scheduled.assignedResources,
+          status: newStatus
+        };
+      }
+      return task;
+    }));
   };
   
   // 显示增量排期结果通知
@@ -758,6 +800,9 @@ export default function ComplexScenario() {
         resolutions
       );
       setScheduleResult(result);
+
+      // 同步更新原始任务的时间和状态
+      syncTasksWithScheduleResult(result.tasks);
 
       // 基于新生成的排期结果重新检测冲突
       const newConflicts = detectResourceConflicts(result.tasks, sharedResources, undefined);
@@ -1006,6 +1051,65 @@ export default function ComplexScenario() {
 
   const getProjectById = (projectId: string) => {
     return projects.find(p => p.id === projectId);
+  };
+
+  // 根据排期时间自动计算任务状态
+  const calculateAutoStatus = (task: Task): 'pending' | 'in-progress' | 'completed' => {
+    const now = new Date();
+    
+    // 如果没有排期信息，保持待处理
+    if (!task.startDate || !task.endDate) {
+      return 'pending';
+    }
+    
+    // 当前时间在开始时间之前 -> 待处理
+    if (now < task.startDate) {
+      return 'pending';
+    }
+    
+    // 当前时间在结束时间之后 -> 已完成（自动判断）
+    if (now >= task.endDate) {
+      return 'completed';
+    }
+    
+    // 当前时间在开始时间和结束时间之间 -> 进行中
+    return 'in-progress';
+  };
+
+  // 获取任务的实际状态（优先使用手动设置的状态，否则使用自动计算的状态）
+  const getTaskActualStatus = (task: Task): 'pending' | 'in-progress' | 'completed' | 'blocked' => {
+    // 如果用户手动设置了状态为阻塞，保留阻塞状态
+    if (task.status === 'blocked') {
+      return 'blocked';
+    }
+    
+    // 如果用户手动锁定了任务，使用手动设置的状态
+    if (task.isLocked && task.status) {
+      return task.status;
+    }
+    
+    // 否则使用自动计算的状态
+    return calculateAutoStatus(task);
+  };
+
+  // 自动更新所有任务状态
+  const handleAutoUpdateStatus = () => {
+    if (!scheduleResult) {
+      alert('请先生成排期结果');
+      return;
+    }
+    
+    const updatedTasks = tasks.map(task => {
+      const autoStatus = calculateAutoStatus(task);
+      // 只有当任务没有被手动锁定且不是阻塞状态时，才自动更新状态
+      if (!task.isLocked && task.status !== 'blocked') {
+        return { ...task, status: autoStatus };
+      }
+      return task;
+    });
+    
+    setTasks(updatedTasks);
+    console.log('[ComplexScenario] 已自动更新任务状态');
   };
 
   const getLevelBadgeColor = (level: string) => {
@@ -1989,6 +2093,17 @@ export default function ComplexScenario() {
               <Play className="h-4 w-4" />
               {isComputing ? '计算中...' : '生成综合排期'}
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAutoUpdateStatus}
+              disabled={!scheduleResult}
+              className="gap-2"
+              title="根据当前时间和排期自动更新任务状态"
+            >
+              <Zap className="h-4 w-4" />
+              自动更新状态
+            </Button>
           </div>
         </div>
       </div>
@@ -2234,26 +2349,38 @@ export default function ComplexScenario() {
                             </Select>
                           </TableCell>
                           <TableCell>
-                            <Select
-                              value={task.status || 'pending'}
-                              onValueChange={(value) => handleTaskChange(task.id, 'status', value)}
-                            >
-                              <SelectTrigger className="h-8 min-w-[100px]">
-                                <SelectValue>
-                                  {task.status === 'pending' && <span className="text-slate-500">待处理</span>}
-                                  {task.status === 'in-progress' && <span className="text-blue-500">进行中</span>}
-                                  {task.status === 'completed' && <span className="text-green-500">已完成</span>}
-                                  {task.status === 'blocked' && <span className="text-red-500">已阻塞</span>}
-                                  {!task.status && <span className="text-slate-500">待处理</span>}
-                                </SelectValue>
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="pending">待处理</SelectItem>
-                                <SelectItem value="in-progress">进行中</SelectItem>
-                                <SelectItem value="completed">已完成</SelectItem>
-                                <SelectItem value="blocked">已阻塞</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            {(() => {
+                              const actualStatus = getTaskActualStatus(task);
+                              const isAutoStatus = !task.isLocked && task.status !== 'blocked' && task.startDate && task.endDate;
+                              return (
+                                <div className="flex items-center gap-1">
+                                  <Select
+                                    value={task.status || 'pending'}
+                                    onValueChange={(value) => handleTaskChange(task.id, 'status', value)}
+                                  >
+                                    <SelectTrigger className="h-8 min-w-[100px]">
+                                      <SelectValue>
+                                        {actualStatus === 'pending' && <span className="text-slate-500">待处理</span>}
+                                        {actualStatus === 'in-progress' && <span className="text-blue-500">进行中</span>}
+                                        {actualStatus === 'completed' && <span className="text-green-500">已完成</span>}
+                                        {actualStatus === 'blocked' && <span className="text-red-500">已阻塞</span>}
+                                      </SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="pending">待处理</SelectItem>
+                                      <SelectItem value="in-progress">进行中</SelectItem>
+                                      <SelectItem value="completed">已完成</SelectItem>
+                                      <SelectItem value="blocked">已阻塞</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  {isAutoStatus && actualStatus !== task.status && (
+                                    <span className="text-[10px] text-amber-500" title="自动计算的状态与手动设置不同">
+                                      ⚡
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell>
                             {(task.taskType as string) === '物料' ? (
