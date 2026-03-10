@@ -740,20 +740,31 @@ export default function ComplexScenario() {
     setTasks(prevTasks => prevTasks.map(task => {
       const scheduled = scheduledTasks.find(t => t.id === task.id);
       if (scheduled) {
-        // 计算自动状态
-        let autoStatus: 'pending' | 'in-progress' | 'completed' = 'pending';
+        // 计算自动状态（新逻辑：completed需要手动确认）
+        let autoStatus: 'pending' | 'in-progress' | 'to-confirm' = 'pending';
         if (scheduled.startDate && scheduled.endDate) {
           if (now < scheduled.startDate) {
             autoStatus = 'pending';
           } else if (now >= scheduled.endDate) {
-            autoStatus = 'completed';
+            autoStatus = 'to-confirm'; // 改为待确认完成
           } else {
             autoStatus = 'in-progress';
           }
         }
         
-        // 只有非阻塞、非手动锁定的任务才自动更新状态
-        const newStatus = (task.status === 'blocked' || task.isLocked) ? task.status : autoStatus;
+        // 已完成和已阻塞是终态，保持不变
+        // 其他状态根据时间自动计算
+        let newStatus = task.status;
+        if (task.status === 'completed' || task.status === 'blocked') {
+          // 保持原状态
+          newStatus = task.status;
+        } else if (task.isLocked && task.status) {
+          // 手动锁定的任务保持原状态
+          newStatus = task.status;
+        } else {
+          // 自动计算状态
+          newStatus = autoStatus;
+        }
         
         return {
           ...task,
@@ -1054,7 +1065,13 @@ export default function ComplexScenario() {
   };
 
   // 根据排期时间自动计算任务状态
-  const calculateAutoStatus = (task: Task): 'pending' | 'in-progress' | 'completed' => {
+  // 新逻辑：
+  // - 当前时间 < 开始时间 → 待处理
+  // - 开始时间 ≤ 当前时间 < 结束时间 → 进行中
+  // - 当前时间 ≥ 结束时间 且 未手动确认 → 待确认完成
+  // - 用户手动确认 → 已完成
+  // - 当前时间 > 截止日期且未完成 → 超期（显示警告，但不改变状态）
+  const calculateAutoStatus = (task: Task): 'pending' | 'in-progress' | 'to-confirm' => {
     const now = new Date();
     
     // 如果没有排期信息，保持待处理
@@ -1067,25 +1084,42 @@ export default function ComplexScenario() {
       return 'pending';
     }
     
-    // 当前时间在结束时间之后 -> 已完成（自动判断）
+    // 当前时间在结束时间之后 -> 待确认完成（需要人工确认）
     if (now >= task.endDate) {
-      return 'completed';
+      return 'to-confirm';
     }
     
     // 当前时间在开始时间和结束时间之间 -> 进行中
     return 'in-progress';
   };
 
-  // 获取任务的实际状态（优先使用手动设置的状态，否则使用自动计算的状态）
-  const getTaskActualStatus = (task: Task): 'pending' | 'in-progress' | 'completed' | 'blocked' => {
-    // 如果用户手动设置了状态为阻塞，保留阻塞状态
-    if (task.status === 'blocked') {
-      return 'blocked';
+  // 检查任务是否超期（当前时间 > 截止日期，且任务未完成）
+  const isTaskOverdue = (task: Task): boolean => {
+    if (!task.deadline || task.status === 'completed') {
+      return false;
+    }
+    const now = new Date();
+    return now > task.deadline;
+  };
+
+  // 获取任务的实际状态
+  // - 已完成和已阻塞是终态，不会自动改变
+  // - 其他状态根据时间自动计算
+  const getTaskActualStatus = (task: Task): 'pending' | 'in-progress' | 'to-confirm' | 'completed' | 'overdue' | 'blocked' => {
+    // 已完成和已阻塞是终态，保持不变
+    if (task.status === 'completed' || task.status === 'blocked') {
+      return task.status;
     }
     
-    // 如果用户手动锁定了任务，使用手动设置的状态
-    if (task.isLocked && task.status) {
-      return task.status;
+    // 如果已超期（超过截止日期且未完成），显示超期警告
+    // 但实际状态仍然根据时间计算
+    if (isTaskOverdue(task)) {
+      // 如果已经到了结束时间，显示待确认
+      if (task.endDate && new Date() >= task.endDate) {
+        return 'to-confirm';
+      }
+      // 否则显示进行中或待处理
+      return calculateAutoStatus(task);
     }
     
     // 否则使用自动计算的状态
@@ -2351,17 +2385,21 @@ export default function ComplexScenario() {
                           <TableCell>
                             {(() => {
                               const actualStatus = getTaskActualStatus(task);
-                              const isAutoStatus = !task.isLocked && task.status !== 'blocked' && task.startDate && task.endDate;
+                              const isOverdue = isTaskOverdue(task);
+                              const canConfirmComplete = actualStatus === 'to-confirm' && task.status !== 'completed';
+                              const isAutoStatus = !task.isLocked && task.status !== 'blocked' && task.status !== 'completed' && task.startDate && task.endDate;
+                              
                               return (
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1 flex-wrap">
                                   <Select
                                     value={task.status || 'pending'}
                                     onValueChange={(value) => handleTaskChange(task.id, 'status', value)}
                                   >
-                                    <SelectTrigger className="h-8 min-w-[100px]">
+                                    <SelectTrigger className="h-8 min-w-[90px]">
                                       <SelectValue>
                                         {actualStatus === 'pending' && <span className="text-slate-500">待处理</span>}
                                         {actualStatus === 'in-progress' && <span className="text-blue-500">进行中</span>}
+                                        {actualStatus === 'to-confirm' && <span className="text-amber-500">待确认</span>}
                                         {actualStatus === 'completed' && <span className="text-green-500">已完成</span>}
                                         {actualStatus === 'blocked' && <span className="text-red-500">已阻塞</span>}
                                       </SelectValue>
@@ -2373,10 +2411,24 @@ export default function ComplexScenario() {
                                       <SelectItem value="blocked">已阻塞</SelectItem>
                                     </SelectContent>
                                   </Select>
-                                  {isAutoStatus && actualStatus !== task.status && (
-                                    <span className="text-[10px] text-amber-500" title="自动计算的状态与手动设置不同">
-                                      ⚡
+                                  
+                                  {/* 超期警告 */}
+                                  {isOverdue && actualStatus !== 'completed' && (
+                                    <span className="text-xs text-red-500 font-medium" title="已超过截止日期">
+                                      ⚠️超期
                                     </span>
+                                  )}
+                                  
+                                  {/* 确认完成按钮 */}
+                                  {canConfirmComplete && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 text-xs bg-green-50 hover:bg-green-100 text-green-600 border-green-200"
+                                      onClick={() => handleTaskChange(task.id, 'status', 'completed')}
+                                    >
+                                      ✓ 确认完成
+                                    </Button>
                                   )}
                                 </div>
                               );
