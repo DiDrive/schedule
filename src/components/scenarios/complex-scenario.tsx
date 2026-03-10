@@ -2039,6 +2039,7 @@ export default function ComplexScenario() {
                     ).some(t => t.taskType === '物料') ? '工时/提供时间' : '预估工时'}
                   </TableHead>
                   <TableHead>优先级</TableHead>
+                  <TableHead>状态</TableHead>
                   <TableHead>截止日期</TableHead>
                   <TableHead>依赖任务</TableHead>
                   <TableHead className="w-[100px]">操作</TableHead>
@@ -2203,6 +2204,9 @@ export default function ComplexScenario() {
                           <TableCell>
                             <span className="text-slate-400">-</span>
                           </TableCell>
+                          <TableCell>
+                            <span className="text-slate-400">-</span>
+                          </TableCell>
                         </>
                       ) : (
                         <>
@@ -2226,6 +2230,28 @@ export default function ComplexScenario() {
                                 <SelectItem value="urgent">紧急</SelectItem>
                                 <SelectItem value="normal">普通</SelectItem>
                                 <SelectItem value="low">低</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <Select
+                              value={task.status || 'pending'}
+                              onValueChange={(value) => handleTaskChange(task.id, 'status', value)}
+                            >
+                              <SelectTrigger className="h-8 min-w-[100px]">
+                                <SelectValue>
+                                  {task.status === 'pending' && <span className="text-slate-500">待处理</span>}
+                                  {task.status === 'in-progress' && <span className="text-blue-500">进行中</span>}
+                                  {task.status === 'completed' && <span className="text-green-500">已完成</span>}
+                                  {task.status === 'blocked' && <span className="text-red-500">已阻塞</span>}
+                                  {!task.status && <span className="text-slate-500">待处理</span>}
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pending">待处理</SelectItem>
+                                <SelectItem value="in-progress">进行中</SelectItem>
+                                <SelectItem value="completed">已完成</SelectItem>
+                                <SelectItem value="blocked">已阻塞</SelectItem>
                               </SelectContent>
                             </Select>
                           </TableCell>
