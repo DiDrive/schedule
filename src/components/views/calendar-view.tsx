@@ -357,14 +357,17 @@ export function CalendarView({ scheduledTasks, resources, tasks, onTaskClick }: 
                       const resource = getResource(scheduledTask.assignedResources[0]!);
                       const isMultiDay = isMultiDayTask(scheduledTask, day);
 
-                      // 直接使用已排期的任务进行超期检测
-                      const isOverdue = scheduledTask.deadline && scheduledTask.endDate && scheduledTask.endDate > scheduledTask.deadline;
+                      // 检查任务状态
+                      const isCompleted = scheduledTask.status === 'completed';
+                      const isOverdue = !isCompleted && scheduledTask.deadline && scheduledTask.endDate && scheduledTask.endDate > scheduledTask.deadline;
 
                       return (
                         <div
                           key={taskIndex}
                           className={`text-xs p-1.5 rounded cursor-pointer border-2 ${
-                            isOverdue
+                            isCompleted
+                              ? 'bg-green-50 text-green-800 border-green-600 hover:bg-green-100'
+                              : isOverdue
                               ? 'bg-red-50 text-red-800 border-red-600 hover:bg-red-100'
                               : scheduledTask.taskType === '平面'
                               ? 'bg-green-100 text-green-800 border-green-300 hover:bg-green-200'
@@ -372,11 +375,15 @@ export function CalendarView({ scheduledTasks, resources, tasks, onTaskClick }: 
                               ? 'bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200'
                               : 'bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-200'
                           }`}
-                          title={`${scheduledTask.name}\n负责人: ${resource?.name || '未分配'}\n时间: ${timeRanges.join(', ')}${isOverdue ? '\n⚠️ 已超期' : ''}`}
-                          onClick={() => isOverdue && onTaskClick && onTaskClick(scheduledTask)}
+                          title={`${scheduledTask.name}\n负责人: ${resource?.name || '未分配'}\n时间: ${timeRanges.join(', ')}${isCompleted ? '\n✓ 已完成' : ''}${isOverdue ? '\n⚠️ 已超期' : ''}`}
+                          onClick={() => (isOverdue || isCompleted) && onTaskClick && onTaskClick(scheduledTask)}
                         >
                           <div className="flex items-center justify-between">
-                            <span className="truncate flex-1 font-medium">{scheduledTask.name}</span>
+                            <span className={`truncate flex-1 font-medium ${isCompleted ? 'line-through' : ''}`}>
+                              {isCompleted && <span className="mr-1">✓</span>}
+                              {scheduledTask.name}
+                            </span>
+                            {isCompleted && <span className="text-[10px] text-green-600 font-bold ml-1">完成</span>}
                             {isOverdue && <span className="text-[10px] text-red-600 font-bold ml-1">超期</span>}
                             {isMultiDay && <span className="text-[10px] ml-1">↔</span>}
                           </div>
@@ -401,6 +408,10 @@ export function CalendarView({ scheduledTasks, resources, tasks, onTaskClick }: 
         {/* 统计信息 */}
         <div className="mt-4 pt-4 border-t border-slate-200">
           <div className="flex flex-wrap gap-4 text-sm text-slate-600">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded bg-green-50 border-2 border-green-600"></div>
+              <span className="text-green-600 font-medium">已完成任务</span>
+            </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded bg-green-100 border-2 border-green-300"></div>
               <span>平面任务</span>

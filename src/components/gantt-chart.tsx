@@ -522,8 +522,9 @@ export default function GanttChart({
                       const position = getTaskPosition(task);
                       const taskColor = getTaskColor(task, isCritical);
 
-                      // 检查任务是否超期
-                      const isOverdue = task.deadline && task.endDate && task.endDate > task.deadline;
+                      // 检查任务状态
+                      const isCompleted = task.status === 'completed';
+                      const isOverdue = !isCompleted && task.deadline && task.endDate && task.endDate > task.deadline;
 
                       return (
                         <div
@@ -535,18 +536,24 @@ export default function GanttChart({
                             <div className="flex items-center gap-2">
                               {!project && (
                                 <div
-                                  className="w-2 h-2 rounded-full"
-                                  style={{ backgroundColor: taskColor }}
+                                  className={`w-2 h-2 rounded-full ${isCompleted ? 'bg-green-500' : ''}`}
+                                  style={isCompleted ? {} : { backgroundColor: taskColor }}
                                 />
                               )}
-                              <div className="text-sm font-medium truncate" title={task.name}>
+                              <div className={`text-sm font-medium truncate ${isCompleted ? 'text-green-600 line-through' : ''}`} title={task.name}>
+                                {isCompleted && <span className="mr-1">✓</span>}
                                 {task.name}
                               </div>
                             </div>
                             <div className="text-xs text-slate-500 mt-1 pl-4">
                               {showHour ? formatDateTime(task.startDate || startDayTime) : (task.startDate || startDayTime).toLocaleDateString()}
                             </div>
-                            {isCritical && (
+                            {isCompleted && (
+                              <Badge className="text-xs ml-4 mt-1 bg-green-600 hover:bg-green-700">
+                                已完成
+                              </Badge>
+                            )}
+                            {isCritical && !isCompleted && (
                               <Badge variant="destructive" className="text-xs ml-4 mt-1">
                                 关键路径
                               </Badge>
@@ -587,16 +594,26 @@ export default function GanttChart({
                             {/* 任务条 */}
                             <div
                               className={`absolute top-1/2 -translate-y-1/2 h-5 rounded shadow-sm cursor-pointer hover:shadow-md transition-all hover:h-6 ${
-                                isOverdue ? 'border-2 border-red-600 shadow-lg' : ''
-                              }`}
+                                isCompleted ? 'border-2 border-green-600' : ''
+                              } ${isOverdue ? 'border-2 border-red-600 shadow-lg' : ''}`}
                               style={{
                                 left: `${position.left}%`,
                                 width: `${Math.max(position.width, 0.3)}%`,
-                                backgroundColor: isOverdue ? '#fee2e2' : taskColor
+                                backgroundColor: isCompleted ? '#dcfce7' : (isOverdue ? '#fee2e2' : taskColor)
                               }}
-                              title={`${task.name}: ${formatDateTime(task.startDate || startDayTime)} - ${formatDateTime(task.endDate || endDayTime)}${isOverdue ? ' (已超期)' : ''}`}
-                              onClick={() => isOverdue && onTaskClick && onTaskClick(task)}
+                              title={`${task.name}: ${formatDateTime(task.startDate || startDayTime)} - ${formatDateTime(task.endDate || endDayTime)}${isCompleted ? ' (已完成)' : ''}${isOverdue ? ' (已超期)' : ''}`}
+                              onClick={() => (isOverdue || isCompleted) && onTaskClick && onTaskClick(task)}
                             />
+
+                            {/* 完成标记 */}
+                            {isCompleted && (
+                              <div
+                                className="absolute top-1/2 -translate-y-1/2 text-green-600 font-bold flex items-center justify-center"
+                                style={{ left: `${position.left}%`, width: `${Math.max(position.width, 0.3)}%` }}
+                              >
+                                ✓
+                              </div>
+                            )}
 
                             {/* 工时标记 */}
                             <div
@@ -628,6 +645,12 @@ export default function GanttChart({
           <div className="flex items-center gap-2">
             <Badge variant="destructive" className="text-xs py-0 px-2">关键路径</Badge>
             <span>关键路径任务</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded bg-green-100 border-2 border-green-600 flex items-center justify-center text-[8px] text-green-600 font-bold">
+              ✓
+            </div>
+            <span>已完成任务</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded bg-red-100 border-2 border-red-600" />
