@@ -135,12 +135,31 @@ export default function GanttChart({
 
   // 计算任务在甘特图上的位置（基于工作日和时间段）
   const getTaskPosition = (task: Task) => {
-    // 确保 taskStart 和 taskEnd 是 Date 对象
+    // 对于已完成的任务，只显示实际完成时间的位置（里程碑）
+    if (task.status === 'completed' && task.actualEndDate) {
+      let taskStart = task.actualEndDate;
+      let taskEnd = task.actualEndDate;
+
+      if (!(taskStart instanceof Date)) {
+        taskStart = new Date(taskStart);
+      }
+      if (!(taskEnd instanceof Date)) {
+        taskEnd = new Date(taskEnd);
+      }
+
+      // 找到任务完成日期在工作日列表中的索引
+      const taskStartDayStr = taskStart.toDateString();
+      const dayIndex = workDayIndexMap.get(taskStartDayStr) ?? 0;
+
+      // 计算位置（里程碑点）
+      const left = (dayIndex / totalWorkDays) * 100;
+      
+      return { left, width: 0 }; // 宽度为0，因为只显示里程碑点
+    }
+
+    // 未完成任务：正常计算位置
     let taskStart = task.startDate || startDayTime;
-    // 对于已完成的任务，使用实际完成时间
-    let taskEnd = (task.status === 'completed' && task.actualEndDate) 
-      ? task.actualEndDate 
-      : (task.endDate || startDayTime);
+    let taskEnd = task.endDate || startDayTime;
 
     if (!(taskStart instanceof Date)) {
       taskStart = new Date(taskStart);

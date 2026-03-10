@@ -387,14 +387,16 @@ export function CalendarView({ scheduledTasks, resources, tasks, onTaskClick }: 
                             {isOverdue && <span className="text-[10px] text-red-600 font-bold ml-1">超期</span>}
                             {isMultiDay && <span className="text-[10px] ml-1">↔</span>}
                           </div>
-                          {resource && (
+                          {resource && !isCompleted && (
                             <div className="truncate text-[10px] opacity-75">
                               {resource.name}
                             </div>
                           )}
-                          <div className="truncate text-[10px] opacity-75 mt-0.5">
-                            {timeRanges.join(', ')}
-                          </div>
+                          {!isCompleted && (
+                            <div className="truncate text-[10px] opacity-75 mt-0.5">
+                              {timeRanges.join(', ')}
+                            </div>
+                          )}
                         </div>
                       );
                     })}

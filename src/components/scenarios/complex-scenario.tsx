@@ -2855,10 +2855,10 @@ export default function ComplexScenario() {
                                 )}
                               </td>
                               <td className="p-2 align-middle whitespace-nowrap">
-                                {task.startDate ? formatDateTime(task.startDate) : '-'}
+                                {task.status !== 'completed' && task.startDate ? formatDateTime(task.startDate) : '-'}
                               </td>
                               <td className="p-2 align-middle whitespace-nowrap">
-                                {task.endDate ? formatDateTime(task.endDate) : '-'}
+                                {task.status !== 'completed' && task.endDate ? formatDateTime(task.endDate) : '-'}
                               </td>
                               <td className="p-2 align-middle whitespace-nowrap">
                                 {task.taskType === '物料' ? (

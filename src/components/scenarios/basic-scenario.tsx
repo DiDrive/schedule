@@ -1505,10 +1505,10 @@ export default function BasicScenario() {
                                   )}
                                 </td>
                                 <td className="p-2 align-middle whitespace-nowrap text-sm">
-                                  {task.startDate && formatDateTime(task.startDate)}
+                                  {task.status !== 'completed' && task.startDate && formatDateTime(task.startDate)}
                                 </td>
                                 <td className="p-2 align-middle whitespace-nowrap text-sm">
-                                  {task.endDate && formatDateTime(task.endDate)}
+                                  {task.status !== 'completed' && task.endDate && formatDateTime(task.endDate)}
                                 </td>
                                 <td className="p-2 align-middle whitespace-nowrap">
                                   <span className="text-sm font-medium">{task.estimatedHours}h</span>
