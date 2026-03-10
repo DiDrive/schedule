@@ -852,6 +852,18 @@ export default function ComplexScenario() {
         }
       }
 
+      // 如果状态变为已完成，记录实际完成时间
+      if (field === 'status' && value === 'completed') {
+        const now = new Date();
+        console.log(`[ComplexScenario] 任务 ${t.name} 已完成，实际完成时间: ${now.toLocaleString()}`);
+        return { ...t, [field]: value, actualEndDate: now };
+      }
+
+      // 如果状态从已完成变为其他状态，清除实际完成时间
+      if (field === 'status' && t.status === 'completed' && value !== 'completed') {
+        return { ...t, [field]: value, actualEndDate: undefined };
+      }
+
       return { ...t, [field]: value };
     }));
   };
@@ -2444,8 +2456,15 @@ export default function ComplexScenario() {
                                   value={formatDateToInputValue(task.deadline)}
                                   onChange={(e) => handleTaskChange(task.id, 'deadline', new Date(e.target.value))}
                                   className="w-36 h-8"
+                                  disabled={task.status === 'completed'}
                                 />
                                 <p className="text-[10px] text-slate-500">默认到当天18:30</p>
+                                {/* 已完成任务显示实际完成时间 */}
+                                {task.status === 'completed' && task.actualEndDate && (
+                                  <div className="text-[10px] text-green-600 font-medium">
+                                    ✓ 实际完成: {formatDateTime(task.actualEndDate)}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </TableCell>

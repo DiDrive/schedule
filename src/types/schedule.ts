@@ -79,6 +79,7 @@ export interface Task {
   // 排期结果（精确到小时）
   startDate?: Date;
   endDate?: Date;
+  actualEndDate?: Date; // 实际完成时间（用户确认完成时记录）
   startHour?: number; // 开始小时，如 9.5 表示 9:30
   endHour?: number; // 结束小时
   isCritical?: boolean; // 是否在关键路径上

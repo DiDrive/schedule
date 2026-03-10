@@ -137,7 +137,10 @@ export default function GanttChart({
   const getTaskPosition = (task: Task) => {
     // 确保 taskStart 和 taskEnd 是 Date 对象
     let taskStart = task.startDate || startDayTime;
-    let taskEnd = task.endDate || startDayTime;
+    // 对于已完成的任务，使用实际完成时间
+    let taskEnd = (task.status === 'completed' && task.actualEndDate) 
+      ? task.actualEndDate 
+      : (task.endDate || startDayTime);
 
     if (!(taskStart instanceof Date)) {
       taskStart = new Date(taskStart);
@@ -546,7 +549,15 @@ export default function GanttChart({
                               </div>
                             </div>
                             <div className="text-xs text-slate-500 mt-1 pl-4">
-                              {showHour ? formatDateTime(task.startDate || startDayTime) : (task.startDate || startDayTime).toLocaleDateString()}
+                              {isCompleted && task.actualEndDate ? (
+                                // 已完成任务显示实际完成时间
+                                <span className="text-green-600">
+                                  完成: {showHour ? formatDateTime(task.actualEndDate) : task.actualEndDate.toLocaleDateString()}
+                                </span>
+                              ) : (
+                                // 未完成任务显示排期开始时间
+                                showHour ? formatDateTime(task.startDate || startDayTime) : (task.startDate || startDayTime).toLocaleDateString()
+                              )}
                             </div>
                             {isCompleted && (
                               <Badge className="text-xs ml-4 mt-1 bg-green-600 hover:bg-green-700">
@@ -601,7 +612,10 @@ export default function GanttChart({
                                 width: `${Math.max(position.width, 0.3)}%`,
                                 backgroundColor: isCompleted ? '#dcfce7' : (isOverdue ? '#fee2e2' : taskColor)
                               }}
-                              title={`${task.name}: ${formatDateTime(task.startDate || startDayTime)} - ${formatDateTime(task.endDate || endDayTime)}${isCompleted ? ' (已完成)' : ''}${isOverdue ? ' (已超期)' : ''}`}
+                              title={isCompleted && task.actualEndDate 
+                                ? `${task.name}: ${formatDateTime(task.startDate || startDayTime)} - ${formatDateTime(task.actualEndDate)} (实际完成)`
+                                : `${task.name}: ${formatDateTime(task.startDate || startDayTime)} - ${formatDateTime(task.endDate || endDayTime)}${isCompleted ? ' (已完成)' : ''}${isOverdue ? ' (已超期)' : ''}`
+                              }
                               onClick={() => (isOverdue || isCompleted) && onTaskClick && onTaskClick(task)}
                             />
 
@@ -615,12 +629,15 @@ export default function GanttChart({
                               </div>
                             )}
 
-                            {/* 工时标记 */}
+                            {/* 工时标记 - 已完成任务显示实际用时 */}
                             <div
-                              className="absolute top-1/2 -translate-y-1/2 -right-1 text-xs font-medium text-slate-500 bg-white dark:bg-slate-900 px-1 rounded"
+                              className="absolute top-1/2 -translate-y-1/2 -right-1 text-xs font-medium bg-white dark:bg-slate-900 px-1 rounded ${isCompleted ? 'text-green-600' : 'text-slate-500'}"
                               style={{ left: `${Math.min(position.left + position.width + 0.5, 95)}%` }}
                             >
-                              {task.estimatedHours}h
+                              {isCompleted && task.actualEndDate && task.startDate
+                                ? `${Math.round((task.actualEndDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60))}h`
+                                : `${task.estimatedHours}h`
+                              }
                             </div>
                           </div>
                         </div>
