@@ -4,7 +4,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppAccessToken } from '@/lib/feishu-api';
-import { projectToFeishuRecord, taskToFeishuRecord, FEISHU_FIELD_IDS } from '@/lib/feishu-data-mapper';
+import { 
+  projectToFeishuRecord, 
+  taskToFeishuRecord, 
+  taskToWorkorderRecord,
+  FEISHU_FIELD_IDS 
+} from '@/lib/feishu-data-mapper';
 import type { Project, Task } from '@/types/schedule';
 
 // 日志函数
@@ -28,11 +33,16 @@ const log = (message: string) => {
  * - tasks: 任务数组
  * - projectsMap: 项目ID到项目名称的映射（用于任务同步时转换项目ID为名称）
  * - config: 飞书配置
+ * - tableType: 表格类型（'tasks' 标准任务表 或 'workorders' 工单表）
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { projects, tasks, projectsMap, config } = body;
+    const { projects, tasks, projectsMap, config, tableType = 'tasks' } = body;
+    
+    // 判断是否为工单表模式
+    const isWorkorderMode = tableType === 'workorders';
+    log(`同步模式: ${isWorkorderMode ? '工单表' : '标准任务表'}`);
 
     if (!config) {
       return NextResponse.json(
@@ -359,15 +369,28 @@ export async function POST(request: NextRequest) {
           // 调试：输出任务的原始资源信息和日期信息
           log(`[任务同步-第一步] 任务名称: ${taskForSync.name}, assignedResources: ${JSON.stringify(taskForSync.assignedResources)}, fixedResourceId: ${taskForSync.fixedResourceId}, deadline: ${taskForSync.deadline}, dependencies: ${JSON.stringify(taskForSync.dependencies)}`);
           
-          const taskRecord = taskToFeishuRecord(taskWithoutDependencies, resourceIdToFeishuPersonIdMap);
+          // 根据模式选择转换函数
+          let taskRecord: Record<string, any>;
+          if (isWorkorderMode) {
+            taskRecord = taskToWorkorderRecord(taskForSync, resourceIdToFeishuPersonIdMap);
+            log(`[任务同步-第一步] 使用工单表转换`);
+          } else {
+            taskRecord = taskToFeishuRecord(taskWithoutDependencies, resourceIdToFeishuPersonIdMap);
+            log(`[任务同步-第一步] 使用标准任务表转换`);
+          }
           
           // 调试：输出转换后的飞书记录
           log(`[任务同步-第一步] 转换后的飞书记录字段: ${JSON.stringify(Object.keys(taskRecord))}`);
-          if (taskRecord[FEISHU_FIELD_IDS.tasks.assignee]) {
-            log(`[任务同步-第一步] 负责人字段: ${JSON.stringify(taskRecord[FEISHU_FIELD_IDS.tasks.assignee])}`);
+          
+          // 根据模式获取字段ID
+          const assigneeFieldId = isWorkorderMode ? FEISHU_FIELD_IDS.workorders.assignee : FEISHU_FIELD_IDS.tasks.assignee;
+          const deadlineFieldId = isWorkorderMode ? FEISHU_FIELD_IDS.workorders.deadline : FEISHU_FIELD_IDS.tasks.deadline;
+          
+          if (taskRecord[assigneeFieldId]) {
+            log(`[任务同步-第一步] 负责人字段: ${JSON.stringify(taskRecord[assigneeFieldId])}`);
           }
-          if (taskRecord[FEISHU_FIELD_IDS.tasks.deadline]) {
-            const deadline = taskRecord[FEISHU_FIELD_IDS.tasks.deadline];
+          if (taskRecord[deadlineFieldId]) {
+            const deadline = taskRecord[deadlineFieldId];
             const date = new Date(typeof deadline === 'number' && deadline < 100000000000 ? deadline * 1000 : deadline);
             log(`[任务同步-第一步] 截止日期字段: ${deadline} (${date.toISOString().split('T')[0]})`);
           }
@@ -441,62 +464,67 @@ export async function POST(request: NextRequest) {
       }
       
       // 第二步：更新依赖关系（需要 taskId -> record_id 的映射）
-      log(`[任务同步-第二步] 开始更新依赖关系，已收集 ${taskIdToRecordIdMap.size} 个任务的 record_id 映射`);
-      log(`[任务同步-第二步] 任务ID到record_id映射: ${JSON.stringify(Object.fromEntries(taskIdToRecordIdMap))}`);
-      
-      for (const task of tasks) {
-        if (task.dependencies && task.dependencies.length > 0) {
-          const taskRecordId = taskIdToRecordIdMap.get(String(task.id));
-          if (!taskRecordId) {
-            log(`⚠️ [任务同步-第二步] 任务 "${task.name}" (ID="${task.id}") 没有找到 record_id，跳过依赖关系更新`);
-            continue;
-          }
-          
-          // 将任务ID转换为 record_id
-          const dependencyRecordIds = task.dependencies
-            .map((depTaskId: string) => {
-              const depRecordId = taskIdToRecordIdMap.get(String(depTaskId));
-              if (!depRecordId) {
-                log(`⚠️ [任务同步-第二步] 依赖任务 ID="${depTaskId}" 没有找到对应的 record_id`);
-              }
-              return depRecordId;
-            })
-            .filter(Boolean) as string[];
-          
-          if (dependencyRecordIds.length === 0) {
-            log(`⚠️ [任务同步-第二步] 任务 "${task.name}" 的所有依赖都没有找到对应的 record_id，跳过`);
-            continue;
-          }
-          
-          log(`[任务同步-第二步] 任务 "${task.name}" (ID="${task.id}"): 依赖任务ID=${JSON.stringify(task.dependencies)}, 转换后record_ids=${JSON.stringify(dependencyRecordIds)}`);
-          
-          try {
-            const updateResponse = await fetch(
-              `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableIds.tasks}/records/${taskRecordId}`,
-              {
-                method: 'PATCH',
-                headers: {
-                  'Authorization': `Bearer ${appAccessToken}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ 
-                  fields: {
-                    [FEISHU_FIELD_IDS.tasks.dependencies]: dependencyRecordIds
-                  } 
-                }),
-              }
-            );
-            
-            if (!updateResponse.ok) {
-              const errorText = await updateResponse.text();
-              log(`❌ [任务同步-第二步] 更新依赖关系失败: ${task.name}, 状态码=${updateResponse.status}, 响应=${errorText}`);
-            } else {
-              log(`✅ [任务同步-第二步] 更新依赖关系成功: ${task.name}, 依赖=${JSON.stringify(dependencyRecordIds)}`);
+      // 工单表模式下跳过依赖关系更新
+      if (!isWorkorderMode) {
+        log(`[任务同步-第二步] 开始更新依赖关系，已收集 ${taskIdToRecordIdMap.size} 个任务的 record_id 映射`);
+        log(`[任务同步-第二步] 任务ID到record_id映射: ${JSON.stringify(Object.fromEntries(taskIdToRecordIdMap))}`);
+        
+        for (const task of tasks) {
+          if (task.dependencies && task.dependencies.length > 0) {
+            const taskRecordId = taskIdToRecordIdMap.get(String(task.id));
+            if (!taskRecordId) {
+              log(`⚠️ [任务同步-第二步] 任务 "${task.name}" (ID="${task.id}") 没有找到 record_id，跳过依赖关系更新`);
+              continue;
             }
-          } catch (error) {
-            log(`❌ [任务同步-第二步] 更新依赖关系失败: ${task.name}, 错误=${error instanceof Error ? error.message : '未知错误'}`);
+            
+            // 将任务ID转换为 record_id
+            const dependencyRecordIds = task.dependencies
+              .map((depTaskId: string) => {
+                const depRecordId = taskIdToRecordIdMap.get(String(depTaskId));
+                if (!depRecordId) {
+                  log(`⚠️ [任务同步-第二步] 依赖任务 ID="${depTaskId}" 没有找到对应的 record_id`);
+                }
+                return depRecordId;
+              })
+              .filter(Boolean) as string[];
+            
+            if (dependencyRecordIds.length === 0) {
+              log(`⚠️ [任务同步-第二步] 任务 "${task.name}" 的所有依赖都没有找到对应的 record_id，跳过`);
+              continue;
+            }
+            
+            log(`[任务同步-第二步] 任务 "${task.name}" (ID="${task.id}"): 依赖任务ID=${JSON.stringify(task.dependencies)}, 转换后record_ids=${JSON.stringify(dependencyRecordIds)}`);
+            
+            try {
+              const updateResponse = await fetch(
+                `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableIds.tasks}/records/${taskRecordId}`,
+                {
+                  method: 'PATCH',
+                  headers: {
+                    'Authorization': `Bearer ${appAccessToken}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ 
+                    fields: {
+                      [FEISHU_FIELD_IDS.tasks.dependencies]: dependencyRecordIds
+                    } 
+                  }),
+                }
+              );
+              
+              if (!updateResponse.ok) {
+                const errorText = await updateResponse.text();
+                log(`❌ [任务同步-第二步] 更新依赖关系失败: ${task.name}, 状态码=${updateResponse.status}, 响应=${errorText}`);
+              } else {
+                log(`✅ [任务同步-第二步] 更新依赖关系成功: ${task.name}, 依赖=${JSON.stringify(dependencyRecordIds)}`);
+              }
+            } catch (error) {
+              log(`❌ [任务同步-第二步] 更新依赖关系失败: ${task.name}, 错误=${error instanceof Error ? error.message : '未知错误'}`);
+            }
           }
         }
+      } else {
+        log(`[任务同步-第二步] 工单表模式，跳过依赖关系更新`);
       }
 
       // 删除飞书中多余的任务记录（使用任务ID匹配）

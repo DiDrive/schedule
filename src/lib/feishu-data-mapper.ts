@@ -18,6 +18,7 @@ export const FEISHU_FIELD_IDS = {
     id: '人员ID',
     name: '姓名',
     type: '工作类型',
+    feishu_user_id: '飞书用户ID',
   },
   // 项目表
   projects: {
@@ -28,7 +29,7 @@ export const FEISHU_FIELD_IDS = {
     end_date: '截止日期',
     status: '项目状态',
   },
-  // 任务表
+  // 任务表（标准任务表）
   tasks: {
     id: '任务ID',
     name: '任务名称',
@@ -39,6 +40,22 @@ export const FEISHU_FIELD_IDS = {
     priority: '优先级',
     assignee: '负责人',
     dependencies: '依赖关系',
+  },
+  // 工单表（视频项目工单视图）
+  workorders: {
+    id: '任务ID',                    // 系统任务ID
+    name: '脚本名称',                // 任务名称
+    project: '需求类目',             // 项目/需求类目
+    sub_type: '细分类',              // 细分类别
+    language: '语言',                // 语言
+    dubbing: '配音',                 // 配音要求
+    deadline: '需求日期',            // 截止日期
+    business_month: '商务月份',      // 商务月份
+    size: '尺寸',                    // 尺寸规格
+    status: '项目进展',              // 项目状态
+    graphic_hours: '平面预估工时',   // 平面工时
+    post_hours: '后期预估工时',      // 后期工时
+    assignee: '对接人',              // 负责人
   },
   // 排期表（排期结果表格）
   schedules: {
@@ -87,6 +104,28 @@ export const FEISHU_OPTION_VALUES = {
     '已完成': 'completed',
     '已暂停': 'paused',
     '已超期': 'overdue',
+  },
+  // 工单表状态映射
+  workorderStatus: {
+    'DONE-打包归档': 'completed',
+    '打包工程': 'in_progress',
+    '未开始': 'not_started',
+    '已暂停': 'paused',
+  },
+  // 工单表细分类到任务类型映射
+  workorderSubType: {
+    '前瞻pv视频': '后期',
+    'pv视频-延展': '后期',
+    '前瞻pv视频-动态kv': '平面',
+    '英改简': '后期',
+    '英语新片': '后期',
+    '简中新片': '后期',
+    '简改繁': '后期',
+    '简改日': '后期',
+    '简改韩': '后期',
+    '简改英': '后期',
+    '简改泰': '后期',
+    '特殊需求-改标题': '平面',
   },
   syncSource: {
     '系统': 'system',
@@ -460,4 +499,194 @@ export function detectVersionConflict(task: Task, feishuRecord: Record<string, a
 export function resolveConflictWithFeishu(task: Task, feishuRecord: Record<string, any>): Task {
   // 直接使用飞书的数据覆盖系统数据
   return feishuRecordToTask(feishuRecord, task.id);
+}
+
+/**
+ * 从细分类推断任务类型
+ * @param subType 细分类值
+ * @returns 任务类型（平面/后期/物料）
+ */
+function inferTaskTypeFromSubType(subType: string): string {
+  if (!subType) return '后期';
+  
+  const typeMap: Record<string, string> = {
+    '前瞻pv视频': '后期',
+    'pv视频-延展': '后期',
+    '前瞻pv视频-动态kv': '平面',
+    '动态kv': '平面',
+    '英改简': '后期',
+    '英语新片': '后期',
+    '简中新片': '后期',
+    '简改繁': '后期',
+    '简改日': '后期',
+    '简改韩': '后期',
+    '简改英': '后期',
+    '简改泰': '后期',
+    '英改日': '后期',
+    '英改韩': '后期',
+    '英改泰': '后期',
+    '英改繁': '后期',
+    '特殊需求-改标题': '平面',
+    '改标题': '平面',
+  };
+  
+  // 尝试直接匹配
+  if (typeMap[subType]) {
+    return typeMap[subType];
+  }
+  
+  // 模糊匹配
+  if (subType.includes('平面') || subType.includes('kv') || subType.includes('改标题')) {
+    return '平面';
+  }
+  if (subType.includes('pv') || subType.includes('视频') || subType.includes('新片') || subType.includes('改')) {
+    return '后期';
+  }
+  
+  return '后期'; // 默认后期
+}
+
+/**
+ * 将工单表记录转换为系统任务
+ * @param record 飞书记录
+ * @param recordId 记录ID
+ * @returns 系统任务
+ */
+export function workorderRecordToTask(record: Record<string, any>, recordId: string): Task {
+  const fields = record.fields || {};
+  const f = FEISHU_FIELD_IDS.workorders;
+  
+  // 解析任务ID
+  const taskId = (fields[f.id] as string) || recordId;
+  
+  // 解析任务名称
+  const taskName = (fields[f.name] as string) || '未命名任务';
+  
+  // 解析项目/需求类目
+  const projectName = parseStringField(fields[f.project], '');
+  
+  // 解析细分类并推断任务类型
+  const subType = parseStringField(fields[f.sub_type], '');
+  const taskType = inferTaskTypeFromSubType(subType);
+  
+  // 解析工时：根据任务类型选择对应的工时字段
+  const graphicHours = Number(fields[f.graphic_hours]) || 0;
+  const postHours = Number(fields[f.post_hours]) || 0;
+  const estimatedHours = taskType === '平面' ? graphicHours : postHours;
+  
+  // 解析截止日期
+  const deadline = feishuDateToDate(fields[f.deadline] as number);
+  
+  // 解析状态
+  const statusValue = parseStringField(fields[f.status], '未开始');
+  const statusMap: Record<string, string> = {
+    'DONE-打包归档': 'completed',
+    '打包工程': 'in_progress',
+    '未开始': 'not_started',
+    '已暂停': 'paused',
+  };
+  const status = statusMap[statusValue] || 'not_started';
+  
+  // 解析负责人（对接人）
+  const assigneeField = fields[f.assignee];
+  let fixedResourceId = '';
+  let assigneeName = '';
+  
+  if (assigneeField) {
+    if (Array.isArray(assigneeField) && assigneeField.length > 0) {
+      // 人员类型字段格式: [{ id: 'ou_xxx', name: '张三', ... }]
+      assigneeName = assigneeField[0].name || assigneeField[0].en_name || '';
+    } else if (typeof assigneeField === 'object') {
+      assigneeName = assigneeField.name || assigneeField.en_name || '';
+    } else if (typeof assigneeField === 'string') {
+      assigneeName = assigneeField;
+    }
+  }
+  
+  return {
+    id: taskId,
+    name: taskName,
+    projectId: projectName, // 使用项目名称作为项目ID
+    taskType: taskType,
+    estimatedHours: estimatedHours || 1, // 默认至少1小时
+    deadline: deadline || undefined,
+    status: status as any,
+    priority: 'normal',
+    assignedResources: [],
+    fixedResourceId: fixedResourceId,
+    dependencies: [],
+    // 保存原始字段用于参考
+    language: parseStringField(fields[f.language], ''),
+    dubbing: parseStringField(fields[f.dubbing], ''),
+    businessMonth: parseStringField(fields[f.business_month], ''),
+    size: parseStringField(fields[f.size], ''),
+    subType: subType,
+  } as Task;
+}
+
+/**
+ * 将系统任务转换为工单表记录格式
+ * @param task 系统任务
+ * @param resourceMap 资源ID到飞书人员ID的映射
+ * @returns 飞书记录格式
+ */
+export function taskToWorkorderRecord(
+  task: Task,
+  resourceMap?: Map<string, string>
+): Record<string, any> {
+  const f = FEISHU_FIELD_IDS.workorders;
+  
+  // 转换负责人
+  let assignee: any = [];
+  const resourceId = task.assignedResources?.[0] || task.fixedResourceId;
+  if (resourceId && resourceMap) {
+    const feishuPersonId = resourceMap.get(resourceId);
+    if (feishuPersonId) {
+      assignee = [{ id: feishuPersonId }];
+    }
+  }
+  
+  // 转换状态
+  const statusMap: Record<string, string> = {
+    'completed': 'DONE-打包归档',
+    'in_progress': '打包工程',
+    'not_started': '未开始',
+    'paused': '已暂停',
+  };
+  
+  const record: Record<string, any> = {
+    [f.id]: task.id,
+    [f.name]: task.name,
+    [f.project]: task.projectId || '心动小镇-品牌需求',
+    [f.sub_type]: task.subType || (task.taskType === '平面' ? '动态kv' : '简中新片'),
+    [f.deadline]: dateToFeishuDate(task.deadline, false),
+    [f.status]: statusMap[task.status] || '未开始',
+  };
+  
+  // 根据任务类型设置对应的工时字段
+  if (task.taskType === '平面') {
+    record[f.graphic_hours] = task.estimatedHours;
+    record[f.post_hours] = 0;
+  } else {
+    record[f.graphic_hours] = 0;
+    record[f.post_hours] = task.estimatedHours;
+  }
+  
+  // 设置负责人
+  if (assignee.length > 0) {
+    record[f.assignee] = assignee;
+  }
+  
+  return record;
+}
+
+// 辅助函数：解析字符串字段（处理文本数组或普通字符串）
+function parseStringField(value: any, defaultValue: string = ''): string {
+  if (!value) return defaultValue;
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value) && value.length > 0) {
+    if (typeof value[0] === 'string') return value[0];
+    if (value[0]?.text) return value[0].text;
+  }
+  return defaultValue;
 }

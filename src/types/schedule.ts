@@ -64,6 +64,13 @@ export interface Task {
     leadTime?: number; // 采购周期（天）
   }[];
 
+  // 工单表扩展字段
+  subType?: string; // 细分类（如：前瞻pv视频、动态kv等）
+  language?: string; // 语言
+  dubbing?: string; // 配音要求
+  businessMonth?: string; // 商务月份
+  size?: string; // 尺寸规格
+
   // 物料任务专用字段
   estimatedMaterialDate?: Date; // 物料预估提供日期
   actualMaterialDate?: Date; // 物料实际提供日期（可能提前）
