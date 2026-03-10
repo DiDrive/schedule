@@ -306,12 +306,19 @@ export default function GanttChart({
       }))
     : [{ project: null, tasks: scheduleResult.tasks }];
 
-  // 按任务类型分组任务（平面/后期/物料）
+  // 按任务类型分组任务（平面/后期/物料），并在组内按开始时间排序
   const groupTasksByType = (tasks: Task[]) => {
     const types = ['平面', '后期', '物料'];
     return types.map(type => ({
       type,
-      tasks: tasks.filter(t => t.taskType === type)
+      tasks: tasks
+        .filter(t => t.taskType === type)
+        .sort((a, b) => {
+          // 按开始时间排序
+          const aStart = a.startDate?.getTime() || 0;
+          const bStart = b.startDate?.getTime() || 0;
+          return aStart - bStart;
+        })
     })).filter(group => group.tasks.length > 0);
   };
 

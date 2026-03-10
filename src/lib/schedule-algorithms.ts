@@ -9,6 +9,76 @@ const DEFAULT_WORKING_HOURS: WorkingHoursConfig = {
   lunchBreakEnd: 13.5 // 13:30 午休结束
 };
 
+/**
+ * 将时间调整到下一个可工作的时间段
+ * - 如果是非工作日，跳到下一个工作日的工作开始时间
+ * - 如果在工作日但非工作时间，跳到下一个工作时间段
+ * - 如果在午休时间内，跳到午休结束
+ */
+export function adjustToWorkingTime(date: Date, config: WorkingHoursConfig = DEFAULT_WORKING_HOURS): Date {
+  const result = new Date(date);
+  
+  const getWorkTimeRange = (d: Date) => {
+    const startOfDay = new Date(d);
+    startOfDay.setHours(Math.floor(config.startHour), (config.startHour % 1) * 60, 0, 0);
+    
+    const endOfDay = new Date(d);
+    endOfDay.setHours(Math.floor(config.endHour), (config.endHour % 1) * 60, 0, 0);
+    
+    const lunchStart = new Date(d);
+    if (config.lunchBreakStart !== undefined) {
+      lunchStart.setHours(Math.floor(config.lunchBreakStart), (config.lunchBreakStart % 1) * 60, 0, 0);
+    }
+    
+    const lunchEnd = new Date(d);
+    if (config.lunchBreakEnd !== undefined) {
+      lunchEnd.setHours(Math.floor(config.lunchBreakEnd), (config.lunchBreakEnd % 1) * 60, 0, 0);
+    }
+    
+    return { startOfDay, endOfDay, lunchStart, lunchEnd };
+  };
+  
+  // 最多循环7天（一周），避免无限循环
+  for (let i = 0; i < 8; i++) {
+    const dayOfWeek = result.getDay();
+    const { startOfDay, endOfDay, lunchStart, lunchEnd } = getWorkTimeRange(result);
+    
+    // 检查是否是工作日
+    if (!config.workDays.includes(dayOfWeek)) {
+      // 非工作日，跳到下一天 0:00
+      result.setDate(result.getDate() + 1);
+      result.setHours(0, 0, 0, 0);
+      continue;
+    }
+    
+    // 如果在当天工作开始时间之前，调整到工作开始时间
+    if (result < startOfDay) {
+      result.setTime(startOfDay.getTime());
+      return result;
+    }
+    
+    // 如果在午休时间内，跳到午休结束
+    if (config.lunchBreakStart !== undefined && config.lunchBreakEnd !== undefined) {
+      if (result >= lunchStart && result < lunchEnd) {
+        result.setTime(lunchEnd.getTime());
+        return result;
+      }
+    }
+    
+    // 如果在当天工作结束时间之后，跳到下一天
+    if (result >= endOfDay) {
+      result.setDate(result.getDate() + 1);
+      result.setHours(0, 0, 0, 0);
+      continue;
+    }
+    
+    // 当前时间在工作时间内，直接返回
+    return result;
+  }
+  
+  return result;
+}
+
 // 资源等级对应的效率系数
 const LEVEL_EFFICIENCY: Record<ResourceLevel, number> = {
   assistant: 0.7,
@@ -1736,6 +1806,9 @@ export function generateIncrementalSchedule(
         }
       }
 
+      // 调整开始时间到工作时间内
+      taskStart = adjustToWorkingTime(taskStart, workingHoursConfig);
+
       // 获取任务分配的资源
       const resourceId = task.assignedResources?.[0];
       if (!resourceId) {
@@ -1791,28 +1864,34 @@ export function generateIncrementalSchedule(
           }
           if (latestDepEnd && taskStart < latestDepEnd) {
             taskStart = new Date(latestDepEnd);
+            // 调整到工作时间内
+            taskStart = adjustToWorkingTime(taskStart, workingHoursConfig);
           }
         }
+
+        // 计算预期的结束时间（考虑工作时间）
+        const proposedEnd = calculateEndDate(taskStart, actualHours, workingHoursConfig);
 
         // 检查与已调度任务的冲突（包括锁定任务）
         for (const scheduled of resourceSchedule) {
           const scheduledStart = scheduled.start.getTime();
           const scheduledEnd = scheduled.end.getTime();
           const proposedStart = taskStart.getTime();
-          const proposedEnd = taskStart.getTime() + actualHours * 60 * 60 * 1000;
 
           // 检查是否有重叠
-          if (proposedStart < scheduledEnd && proposedEnd > scheduledStart) {
+          if (proposedStart < scheduledEnd && proposedEnd.getTime() > scheduledStart) {
             // 有冲突，将开始时间调整到冲突结束后
             taskStart = new Date(scheduledEnd);
+            // 调整到工作时间内
+            taskStart = adjustToWorkingTime(taskStart, workingHoursConfig);
             hasConflict = true;
             break;
           }
         }
       }
 
-      // 计算最终结束时间
-      const taskEnd = new Date(taskStart.getTime() + actualHours * 60 * 60 * 1000);
+      // 计算最终结束时间（考虑工作时间）
+      const taskEnd = calculateEndDate(taskStart, actualHours, workingHoursConfig);
 
       // 创建已调度任务
       const scheduledTask: Task = {
