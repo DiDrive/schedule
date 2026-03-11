@@ -2864,7 +2864,12 @@ export default function ComplexScenario() {
                                 {task.taskType === '物料' ? (
                                   <span className="text-slate-400">-</span>
                                 ) : task.deadline ? (
-                                  formatDate(task.deadline)
+                                  <span className="text-sm">{formatDate(task.deadline)}</span>
+                                ) : task.suggestedDeadline ? (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-sm text-blue-600">{formatDate(task.suggestedDeadline)}</span>
+                                    <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">建议</Badge>
+                                  </div>
                                 ) : (
                                   <span className="text-slate-400">-</span>
                                 )}

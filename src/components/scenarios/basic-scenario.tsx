@@ -682,6 +682,12 @@ export default function BasicScenario() {
     return `${dateObj.getMonth() + 1}/${dateObj.getDate()} ${timeStr}`;
   };
 
+  const formatDate = (date: Date | string) => {
+    const dateObj = date instanceof Date ? date : new Date(date);
+    if (isNaN(dateObj.getTime())) return '无效日期';
+    return `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
+  };
+
   // AI优化排期
   const handleAiOptimize = async () => {
     if (!scheduleResult || tasks.length === 0) {
@@ -1094,14 +1100,49 @@ export default function BasicScenario() {
                           {(task.taskType as string) === '物料' ? (
                             <span className="text-slate-400">-</span>
                           ) : (
-                            <div className="space-y-1">
-                              <Input
-                                type="date"
-                                value={formatDateToInputValue(task.deadline)}
-                                onChange={(e) => handleTaskChange(task.id, 'deadline', new Date(e.target.value))}
-                                className="w-36 h-8"
-                              />
-                              <p className="text-[10px] text-slate-500">默认到当天18:30</p>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-1 cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name={`deadline-type-${task.id}`}
+                                    checked={task.deadline !== undefined}
+                                    onChange={() => {
+                                      // 设置默认截止日期为一周后
+                                      const defaultDeadline = new Date();
+                                      let daysToAdd = 7;
+                                      while (daysToAdd > 0) {
+                                        defaultDeadline.setDate(defaultDeadline.getDate() + 1);
+                                        const dayOfWeek = defaultDeadline.getDay();
+                                        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                                          daysToAdd--;
+                                        }
+                                      }
+                                      handleTaskChange(task.id, 'deadline', defaultDeadline);
+                                    }}
+                                    className="w-3 h-3"
+                                  />
+                                  <span className="text-xs">指定日期</span>
+                                </label>
+                                <label className="flex items-center gap-1 cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name={`deadline-type-${task.id}`}
+                                    checked={task.deadline === undefined}
+                                    onChange={() => handleTaskChange(task.id, 'deadline', undefined)}
+                                    className="w-3 h-3"
+                                  />
+                                  <span className="text-xs">不确定</span>
+                                </label>
+                              </div>
+                              {task.deadline && (
+                                <Input
+                                  type="date"
+                                  value={formatDateToInputValue(task.deadline)}
+                                  onChange={(e) => handleTaskChange(task.id, 'deadline', new Date(e.target.value))}
+                                  className="w-36 h-8"
+                                />
+                              )}
                             </div>
                           )}
                         </TableCell>
@@ -1425,6 +1466,7 @@ export default function BasicScenario() {
                                     <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">负责人</th>
                                     <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">开始时间</th>
                                     <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">结束时间</th>
+                                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">截止日期</th>
                                     <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">工时</th>
                                     <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">状态</th>
                                   </tr>
@@ -1509,6 +1551,18 @@ export default function BasicScenario() {
                                 </td>
                                 <td className="p-2 align-middle whitespace-nowrap text-sm">
                                   {task.status !== 'completed' && task.endDate && formatDateTime(task.endDate)}
+                                </td>
+                                <td className="p-2 align-middle whitespace-nowrap">
+                                  {task.deadline ? (
+                                    <span className="text-sm">{formatDate(task.deadline)}</span>
+                                  ) : task.suggestedDeadline ? (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-sm text-blue-600">{formatDate(task.suggestedDeadline)}</span>
+                                      <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">建议</Badge>
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm text-slate-400">-</span>
+                                  )}
                                 </td>
                                 <td className="p-2 align-middle whitespace-nowrap">
                                   <span className="text-sm font-medium">{task.estimatedHours}h</span>

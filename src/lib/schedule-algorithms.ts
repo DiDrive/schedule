@@ -1980,6 +1980,23 @@ export function generateIncrementalSchedule(
   console.log(`总工期: ${totalDuration}天, 总工时: ${totalHours}小时`);
   console.log(`锁定任务: ${lockedTasks.length}个, 新排任务: ${scheduledTasks.length - lockedTasks.length}个`);
 
+  // 13. 为没有deadline的任务计算建议截止日期
+  scheduledTasks.forEach(task => {
+    if (!task.deadline && task.endDate) {
+      // 在结束日期基础上预留1个工作日作为缓冲
+      const suggestedDeadline = new Date(task.endDate);
+      let bufferDays = 1;
+      while (bufferDays > 0) {
+        suggestedDeadline.setDate(suggestedDeadline.getDate() + 1);
+        const dayOfWeek = suggestedDeadline.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // 跳过周末
+          bufferDays--;
+        }
+      }
+      task.suggestedDeadline = suggestedDeadline;
+    }
+  });
+
   return {
     tasks: scheduledTasks,
     projects: [],
