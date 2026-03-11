@@ -94,19 +94,22 @@ export default function GanttChart({
   });
 
   // 格式化时间显示
-  const formatDateTime = (date: Date) => {
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
+  const formatDateTime = (date: Date | string | number) => {
+    const dateObj = date instanceof Date ? date : new Date(date);
+    const hours = dateObj.getHours();
+    const minutes = dateObj.getMinutes();
     const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-    return `${date.getMonth() + 1}/${date.getDate()} ${timeStr}`;
+    return `${dateObj.getMonth() + 1}/${dateObj.getDate()} ${timeStr}`;
   };
 
-  const formatDateShort = (date: Date) => {
-    return `${date.getMonth() + 1}/${date.getDate()}`;
+  const formatDateShort = (date: Date | string | number) => {
+    const dateObj = date instanceof Date ? date : new Date(date);
+    return `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
   };
 
-  const formatDateLong = (date: Date) => {
-    return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+  const formatDateLong = (date: Date | string | number) => {
+    const dateObj = date instanceof Date ? date : new Date(date);
+    return `${dateObj.getFullYear()}-${(dateObj.getMonth() + 1).toString().padStart(2, '0')}-${dateObj.getDate().toString().padStart(2, '0')}`;
   };
 
   // 获取项目颜色
