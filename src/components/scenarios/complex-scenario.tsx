@@ -2450,15 +2450,52 @@ export default function ComplexScenario() {
                             {(task.taskType as string) === '物料' ? (
                               <span className="text-slate-400">-</span>
                             ) : (
-                              <div className="space-y-1">
-                                <Input
-                                  type="date"
-                                  value={formatDateToInputValue(task.deadline)}
-                                  onChange={(e) => handleTaskChange(task.id, 'deadline', new Date(e.target.value))}
-                                  className="w-36 h-8"
-                                  disabled={task.status === 'completed'}
-                                />
-                                <p className="text-[10px] text-slate-500">默认到当天18:30</p>
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <label className="flex items-center gap-1 cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      name={`deadline-type-${task.id}`}
+                                      checked={task.deadline !== undefined}
+                                      onChange={() => {
+                                        // 设置默认截止日期为一周后
+                                        const defaultDeadline = new Date();
+                                        let daysToAdd = 7;
+                                        while (daysToAdd > 0) {
+                                          defaultDeadline.setDate(defaultDeadline.getDate() + 1);
+                                          const dayOfWeek = defaultDeadline.getDay();
+                                          if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                                            daysToAdd--;
+                                          }
+                                        }
+                                        handleTaskChange(task.id, 'deadline', defaultDeadline);
+                                      }}
+                                      className="w-3 h-3"
+                                      disabled={task.status === 'completed'}
+                                    />
+                                    <span className="text-xs">指定日期</span>
+                                  </label>
+                                  <label className="flex items-center gap-1 cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      name={`deadline-type-${task.id}`}
+                                      checked={task.deadline === undefined}
+                                      onChange={() => handleTaskChange(task.id, 'deadline', undefined)}
+                                      className="w-3 h-3"
+                                      disabled={task.status === 'completed'}
+                                    />
+                                    <span className="text-xs">不确定</span>
+                                  </label>
+                                </div>
+                                {task.deadline && (
+                                  <Input
+                                    type="date"
+                                    value={formatDateToInputValue(task.deadline)}
+                                    onChange={(e) => handleTaskChange(task.id, 'deadline', new Date(e.target.value))}
+                                    className="w-36 h-8"
+                                    disabled={task.status === 'completed'}
+                                  />
+                                )}
                                 {/* 已完成任务显示实际完成时间 */}
                                 {task.status === 'completed' && task.actualEndDate && (
                                   <div className="text-[10px] text-green-600 font-medium">
