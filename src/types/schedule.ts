@@ -76,6 +76,15 @@ export interface Task {
   estimatedMaterialDate?: Date; // 物料预估提供日期
   actualMaterialDate?: Date; // 物料实际提供日期（可能提前）
 
+  // 父子任务关系（复合任务）
+  parentTaskId?: string; // 父任务ID（如果是子任务）
+  isSubTask?: boolean; // 是否是子任务
+  subTaskType?: '平面' | '后期'; // 子任务类型
+
+  // 平面/后期工时拆分
+  estimatedHoursGraphic?: number; // 平面预估工时
+  estimatedHoursPost?: number; // 后期预估工时
+
   // 排期结果（精确到小时）
   startDate?: Date;
   endDate?: Date;
@@ -84,6 +93,16 @@ export interface Task {
   startHour?: number; // 开始小时，如 9.5 表示 9:30
   endHour?: number; // 结束小时
   isCritical?: boolean; // 是否在关键路径上
+
+  // 扩展字段（工单管理用）
+  sequence?: number; // 编号
+  qualityLevel?: 'excellent' | 'good' | 'medium' | 'poor'; // 质量等级
+  cooperationStatus?: string; // 配合状态
+  requestDate?: Date; // 需求日期
+  contactPerson?: string; // 对接人
+  supplier?: string; // 供应商
+  projectSize?: string; // 项目大小
+  workOrderSubmitted?: boolean; // 已提交工单条
 }
 
 export interface Project {
