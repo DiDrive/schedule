@@ -622,9 +622,72 @@ export default function ComplexScenario() {
     const tasksToUse = tasksOverride || tasks;
     console.log('[ComplexScenario] handleGenerateSchedule called, force:', force, 'tasks count:', tasksToUse.length);
     console.log('[ComplexScenario] 强制完全重新排期:', forceFullReschedule);
+    
+    // 拆分复合任务：将同时填写了平面和后期工时的任务拆分为父任务+子任务
+    const expandedTasks: Task[] = [];
+    tasksToUse.forEach(task => {
+      // 检查是否是复合任务（同时填写了平面和后期工时，且不是子任务）
+      if (task.estimatedHoursGraphic && task.estimatedHoursPost && 
+          task.estimatedHoursGraphic > 0 && task.estimatedHoursPost > 0 &&
+          !task.isSubTask && !task.parentTaskId) {
+        console.log(`[ComplexScenario] 拆分复合任务: ${task.name}`);
+        
+        // 创建父任务（保持原任务信息）
+        const parentTask: Task = {
+          ...task,
+          estimatedHours: task.estimatedHoursGraphic + task.estimatedHoursPost
+        };
+        
+        // 创建平面子任务
+        const graphicTask: Task = {
+          id: `${task.id}-graphic`,
+          name: `${task.name}（平面）`,
+          parentTaskId: task.id,
+          isSubTask: true,
+          subTaskType: '平面',
+          taskType: '平面',
+          projectId: task.projectId,
+          estimatedHours: task.estimatedHoursGraphic,
+          estimatedHoursGraphic: task.estimatedHoursGraphic,
+          deadline: task.deadline,
+          priority: task.priority,
+          status: task.status,
+          assignedResources: [],
+          dependencies: []
+        };
+        
+        // 创建后期子任务
+        const postTask: Task = {
+          id: `${task.id}-post`,
+          name: `${task.name}（后期）`,
+          parentTaskId: task.id,
+          isSubTask: true,
+          subTaskType: '后期',
+          taskType: '后期',
+          projectId: task.projectId,
+          estimatedHours: task.estimatedHoursPost,
+          estimatedHoursPost: task.estimatedHoursPost,
+          deadline: task.deadline,
+          priority: task.priority,
+          status: task.status,
+          assignedResources: [],
+          dependencies: []
+        };
+        
+        expandedTasks.push(parentTask, graphicTask, postTask);
+      } else if (task.isSubTask || task.parentTaskId) {
+        // 已经是子任务，直接添加（避免重复拆分）
+        expandedTasks.push(task);
+      } else {
+        // 普通任务，直接添加
+        expandedTasks.push(task);
+      }
+    });
+    
+    console.log('[ComplexScenario] 拆分后任务数:', expandedTasks.length);
 
     // 检查是否有物料任务未填写提供时间
-    const materialTasksWithoutDate = tasksToUse.filter(t => t.taskType === '物料' && !t.estimatedMaterialDate);
+    const materialTasksWithoutDate = expandedTasks.filter(t => t.taskType === '物料' && !t.estimatedMaterialDate);
     if (materialTasksWithoutDate.length > 0) {
       setIsComputing(false);
       const taskNames = materialTasksWithoutDate.map(t => t.name).join('、');
@@ -640,7 +703,7 @@ export default function ComplexScenario() {
         console.log('[ComplexScenario] 生成排期（使用保存的解决方案）');
         // 使用增量排期
         const result = generateIncrementalSchedule(
-          tasksToUse, 
+          expandedTasks, 
           sharedResources, 
           new Date(), 
           defaultWorkingHours, 
@@ -659,7 +722,7 @@ export default function ComplexScenario() {
         setIsComputing(false);
         
         // 显示增量排期提示
-        showIncrementalScheduleNotification(result, tasksToUse);
+        showIncrementalScheduleNotification(result, expandedTasks);
       }, 500);
       return;
     }
@@ -670,7 +733,7 @@ export default function ComplexScenario() {
         console.log('[ComplexScenario] 强制生成排期（跳过冲突检测）');
         // 使用增量排期
         const result = generateIncrementalSchedule(
-          tasksToUse, 
+          expandedTasks, 
           sharedResources, 
           new Date(), 
           defaultWorkingHours, 
@@ -689,13 +752,13 @@ export default function ComplexScenario() {
         setIsComputing(false);
         
         // 显示增量排期提示
-        showIncrementalScheduleNotification(result, tasksToUse);
+        showIncrementalScheduleNotification(result, expandedTasks);
       }, 500);
       return;
     }
 
     // 否则，检测资源冲突（始终使用当前正在编辑的任务列表）
-    const conflicts = detectResourceConflicts(tasksToUse, sharedResources, undefined);
+    const conflicts = detectResourceConflicts(expandedTasks, sharedResources, undefined);
 
     console.log('[ComplexScenario] 检测到冲突数量:', conflicts.size);
 
@@ -710,7 +773,7 @@ export default function ComplexScenario() {
         console.log('[ComplexScenario] 生成排期（无冲突）');
         // 使用增量排期
         const result = generateIncrementalSchedule(
-          tasksToUse, 
+          expandedTasks, 
           sharedResources, 
           new Date(), 
           defaultWorkingHours, 
@@ -729,7 +792,7 @@ export default function ComplexScenario() {
         setIsComputing(false);
         
         // 显示增量排期提示
-        showIncrementalScheduleNotification(result, tasksToUse);
+        showIncrementalScheduleNotification(result, expandedTasks);
       }, 500);
     }
   };
@@ -862,6 +925,19 @@ export default function ComplexScenario() {
       // 如果状态从已完成变为其他状态，清除实际完成时间
       if (field === 'status' && t.status === 'completed' && value !== 'completed') {
         return { ...t, [field]: value, actualEndDate: undefined };
+      }
+
+      // 如果修改的是平面工时或后期工时，自动计算总工时
+      if (field === 'estimatedHoursGraphic' || field === 'estimatedHoursPost') {
+        const graphicHours = field === 'estimatedHoursGraphic' ? (value || 0) : (t.estimatedHoursGraphic || 0);
+        const postHours = field === 'estimatedHoursPost' ? (value || 0) : (t.estimatedHoursPost || 0);
+        const totalHours = graphicHours + postHours;
+        
+        return { 
+          ...t, 
+          [field]: value,
+          estimatedHours: totalHours || t.estimatedHours // 如果总工时为0，保持原值
+        };
       }
 
       return { ...t, [field]: value };
@@ -2199,6 +2275,8 @@ export default function ComplexScenario() {
                       (activeTaskType === 'all' || t.taskType === activeTaskType)
                     ).some(t => t.taskType === '物料') ? '工时/提供时间' : '预估工时'}
                   </TableHead>
+                  <TableHead>平面工时</TableHead>
+                  <TableHead>后期工时</TableHead>
                   <TableHead>优先级</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead>截止日期</TableHead>
@@ -2368,6 +2446,9 @@ export default function ComplexScenario() {
                           <TableCell>
                             <span className="text-slate-400">-</span>
                           </TableCell>
+                          <TableCell>
+                            <span className="text-slate-400">-</span>
+                          </TableCell>
                         </>
                       ) : (
                         <>
@@ -2377,6 +2458,24 @@ export default function ComplexScenario() {
                               value={task.estimatedHours}
                               onChange={(e) => handleTaskChange(task.id, 'estimatedHours', parseInt(e.target.value))}
                               className="w-24 h-8"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              value={task.estimatedHoursGraphic || ''}
+                              onChange={(e) => handleTaskChange(task.id, 'estimatedHoursGraphic', e.target.value ? parseInt(e.target.value) : undefined)}
+                              className="w-20 h-8"
+                              placeholder="0"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              value={task.estimatedHoursPost || ''}
+                              onChange={(e) => handleTaskChange(task.id, 'estimatedHoursPost', e.target.value ? parseInt(e.target.value) : undefined)}
+                              className="w-20 h-8"
+                              placeholder="0"
                             />
                           </TableCell>
                           <TableCell>

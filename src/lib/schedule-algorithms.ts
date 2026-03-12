@@ -965,8 +965,14 @@ export function generateSchedule(
   conflictStrategy: ResourceConflictStrategy = 'auto-switch',
   taskConflictResolutions?: Map<string, 'switch' | 'delay'> // 任务ID -> 处理方式
 ): ScheduleResult {
+  // 0. 过滤父任务：父任务不参与排期，只作为统计汇总
+  const parentTasks = tasks.filter(t => t.estimatedHoursGraphic && t.estimatedHoursPost && !t.isSubTask && !t.parentTaskId);
+  const tasksToSchedule = tasks.filter(t => !(t.estimatedHoursGraphic && t.estimatedHoursPost && !t.isSubTask && !t.parentTaskId));
+  
+  console.log(`[排期算法] 总任务数: ${tasks.length}, 父任务数: ${parentTasks.length}, 待排期任务数: ${tasksToSchedule.length}`);
+  
   // 1. 自动分配资源（如果任务没有分配资源）
-  const tasksWithResources = autoAssignResources(tasks, resources);
+  const tasksWithResources = autoAssignResources(tasksToSchedule, resources);
 
   // 2. 并行调度算法：同时安排可并行的任务
   const taskMap = new Map<string, Task>();
@@ -1356,8 +1362,45 @@ export function generateSchedule(
     }
   });
 
+  // 更新父任务统计信息
+  const finalTasks = [...scheduledTasks];
+  parentTasks.forEach(parentTask => {
+    // 找到该父任务的所有子任务
+    const childTasks = scheduledTasks.filter(t => t.parentTaskId === parentTask.id);
+    
+    if (childTasks.length > 0) {
+      // 计算父任务的开始时间（所有子任务中最早的开始时间）
+      const startDate = childTasks.reduce((earliest, child) => {
+        if (!child.startDate) return earliest;
+        if (!earliest) return child.startDate;
+        return child.startDate < earliest ? child.startDate : earliest;
+      }, null as Date | null);
+      
+      // 计算父任务的结束时间（所有子任务中最晚的结束时间）
+      const endDate = childTasks.reduce((latest, child) => {
+        if (!child.endDate) return latest;
+        if (!latest) return child.endDate;
+        return child.endDate > latest ? child.endDate : latest;
+      }, null as Date | null);
+      
+      // 更新父任务
+      finalTasks.push({
+        ...parentTask,
+        startDate: startDate || parentTask.startDate,
+        endDate: endDate || parentTask.endDate,
+        status: childTasks.every(t => t.status === 'completed') ? 'completed' : 
+                childTasks.some(t => t.status === 'in-progress') ? 'in-progress' : 'pending'
+      });
+      
+      console.log(`[排期算法] 更新父任务 ${parentTask.name}: 开始时间=${startDate?.toLocaleString()}, 结束时间=${endDate?.toLocaleString()}`);
+    } else {
+      // 如果没有子任务，直接添加父任务
+      finalTasks.push(parentTask);
+    }
+  });
+
   return {
-    tasks: scheduledTasks,
+    tasks: finalTasks,
     projects: [],
     criticalPath,
     criticalChain: criticalPath,
