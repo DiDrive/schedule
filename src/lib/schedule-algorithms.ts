@@ -1726,18 +1726,30 @@ export function generateIncrementalSchedule(
   console.log(`总任务数: ${tasks.length}, 资源数: ${resources.length}`);
   console.log(`强制完全重新排期: ${forceFullReschedule}`);
 
+  // 0. 过滤父任务：父任务不参与排期，只作为统计汇总
+  // 父任务定义：有子任务指向它的任务（即有其他任务的parentTaskId等于它的id）
+  const taskIdsWithChildren = new Set(
+    tasks.filter(t => t.parentTaskId).map(t => t.parentTaskId)
+  );
+  
+  const parentTasks = tasks.filter(t => taskIdsWithChildren.has(t.id));
+  const tasksToSchedule = tasks.filter(t => !taskIdsWithChildren.has(t.id));
+  
+  console.log(`[增量排期] 父任务数: ${parentTasks.length}, 待排期任务数: ${tasksToSchedule.length}`);
+  console.log(`[增量排期] 父任务ID列表:`, parentTasks.map(t => `${t.name}(${t.id})`));
+
   // 1. 分离锁定任务和待排任务
   let lockedTasks: Task[] = [];
   let pendingTasks: Task[] = [];
 
   if (forceFullReschedule) {
     // 强制完全重新排期：所有任务都作为待排任务
-    pendingTasks = [...tasks];
+    pendingTasks = [...tasksToSchedule];
     console.log('强制完全重新排期模式：所有任务都将重新排期');
   } else {
     // 增量排期模式：分离锁定任务
-    lockedTasks = tasks.filter(isTaskLocked);
-    pendingTasks = tasks.filter(t => !isTaskLocked(t));
+    lockedTasks = tasksToSchedule.filter(isTaskLocked);
+    pendingTasks = tasksToSchedule.filter(t => !isTaskLocked(t));
     console.log(`锁定任务: ${lockedTasks.length}个`);
     console.log(`待排任务: ${pendingTasks.length}个`);
     
@@ -2046,8 +2058,45 @@ export function generateIncrementalSchedule(
     }
   });
 
+  // 14. 更新父任务统计信息
+  const finalTasks = [...scheduledTasks];
+  parentTasks.forEach(parentTask => {
+    // 找到该父任务的所有子任务
+    const childTasks = scheduledTasks.filter(t => t.parentTaskId === parentTask.id);
+    
+    if (childTasks.length > 0) {
+      // 计算父任务的开始时间（所有子任务中最早的开始时间）
+      const startDate = childTasks.reduce((earliest, child) => {
+        if (!child.startDate) return earliest;
+        if (!earliest) return child.startDate;
+        return child.startDate < earliest ? child.startDate : earliest;
+      }, null as Date | null);
+      
+      // 计算父任务的结束时间（所有子任务中最晚的结束时间）
+      const endDate = childTasks.reduce((latest, child) => {
+        if (!child.endDate) return latest;
+        if (!latest) return child.endDate;
+        return child.endDate > latest ? child.endDate : latest;
+      }, null as Date | null);
+      
+      // 更新父任务
+      finalTasks.push({
+        ...parentTask,
+        startDate: startDate || parentTask.startDate,
+        endDate: endDate || parentTask.endDate,
+        status: childTasks.every(t => t.status === 'completed') ? 'completed' : 
+                childTasks.some(t => t.status === 'in-progress') ? 'in-progress' : 'pending'
+      });
+      
+      console.log(`[增量排期] 更新父任务 ${parentTask.name}: 开始时间=${startDate?.toLocaleString()}, 结束时间=${endDate?.toLocaleString()}`);
+    } else {
+      // 如果没有子任务，直接添加父任务
+      finalTasks.push(parentTask);
+    }
+  });
+
   return {
-    tasks: scheduledTasks,
+    tasks: finalTasks,
     projects: [],
     criticalPath,
     criticalChain: criticalPath,
