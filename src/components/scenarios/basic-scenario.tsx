@@ -381,8 +381,13 @@ export default function BasicScenario() {
           priority: task.priority,
           status: task.status,
           assignedResources: [],
-          dependencies: []
+          dependencies: task.dependencies || [] // 继承父任务的依赖
         };
+        
+        // 后期子任务的依赖：根据配置决定是否依赖平面子任务
+        const postTaskDependencies = task.subTaskDependencyMode === 'serial' 
+          ? [`${task.id}-graphic`] // 串行：后期依赖平面
+          : (task.dependencies || []); // 并行：继承父任务的依赖
         
         // 创建后期子任务
         const postTask: Task = {
@@ -399,7 +404,7 @@ export default function BasicScenario() {
           priority: task.priority,
           status: task.status,
           assignedResources: [],
-          dependencies: []
+          dependencies: postTaskDependencies
         };
         
         expandedTasks.push(parentTask, graphicTask, postTask);
@@ -1069,6 +1074,7 @@ export default function BasicScenario() {
                   <TableHead>后期工时</TableHead>
                   <TableHead>优先级</TableHead>
                   <TableHead>截止日期</TableHead>
+                  <TableHead className="w-[120px]">子任务依赖</TableHead>
                   <TableHead className="w-[180px]">依赖任务</TableHead>
                   <TableHead className="w-[100px]">操作</TableHead>
                 </TableRow>
@@ -1246,6 +1252,34 @@ export default function BasicScenario() {
                                 />
                               )}
                             </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {/* 子任务依赖配置：只对复合任务（同时填写了平面和后期工时）显示 */}
+                          {task.estimatedHoursGraphic && task.estimatedHoursPost && 
+                           task.estimatedHoursGraphic > 0 && task.estimatedHoursPost > 0 ? (
+                            <Select
+                              value={task.subTaskDependencyMode || 'parallel'}
+                              onValueChange={(value) => handleTaskChange(task.id, 'subTaskDependencyMode', value as 'parallel' | 'serial')}
+                            >
+                              <SelectTrigger className="h-8 w-28">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="parallel">
+                                  <span className="flex items-center gap-1">
+                                    <span className="text-green-600">∥</span> 并行
+                                  </span>
+                                </SelectItem>
+                                <SelectItem value="serial">
+                                  <span className="flex items-center gap-1">
+                                    <span className="text-blue-600">→</span> 串行
+                                  </span>
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="text-slate-400 text-xs">-</span>
                           )}
                         </TableCell>
                         <TableCell>

@@ -966,10 +966,16 @@ export function generateSchedule(
   taskConflictResolutions?: Map<string, 'switch' | 'delay'> // 任务ID -> 处理方式
 ): ScheduleResult {
   // 0. 过滤父任务：父任务不参与排期，只作为统计汇总
-  const parentTasks = tasks.filter(t => t.estimatedHoursGraphic && t.estimatedHoursPost && !t.isSubTask && !t.parentTaskId);
-  const tasksToSchedule = tasks.filter(t => !(t.estimatedHoursGraphic && t.estimatedHoursPost && !t.isSubTask && !t.parentTaskId));
+  // 父任务定义：有子任务指向它的任务（即有其他任务的parentTaskId等于它的id）
+  const taskIdsWithChildren = new Set(
+    tasks.filter(t => t.parentTaskId).map(t => t.parentTaskId)
+  );
+  
+  const parentTasks = tasks.filter(t => taskIdsWithChildren.has(t.id));
+  const tasksToSchedule = tasks.filter(t => !taskIdsWithChildren.has(t.id));
   
   console.log(`[排期算法] 总任务数: ${tasks.length}, 父任务数: ${parentTasks.length}, 待排期任务数: ${tasksToSchedule.length}`);
+  console.log(`[排期算法] 父任务ID列表:`, parentTasks.map(t => `${t.name}(${t.id})`));
   
   // 1. 自动分配资源（如果任务没有分配资源）
   const tasksWithResources = autoAssignResources(tasksToSchedule, resources);

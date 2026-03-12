@@ -84,6 +84,7 @@ export interface Task {
   // 平面/后期工时拆分
   estimatedHoursGraphic?: number; // 平面预估工时
   estimatedHoursPost?: number; // 后期预估工时
+  subTaskDependencyMode?: 'parallel' | 'serial'; // 子任务依赖模式：并行/串行（平面完成后才开始后期）
 
   // 排期结果（精确到小时）
   startDate?: Date;
