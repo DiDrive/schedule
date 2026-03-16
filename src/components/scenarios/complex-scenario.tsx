@@ -1453,11 +1453,12 @@ export default function ComplexScenario() {
     }
 
     // 同步排期
-    if (scheduleResult && config.tableIds?.schedules) {
+    if (scheduleResult && (config.tableIds?.schedules || config.tableIds?.requirementTable1)) {
       try {
         const syncTasks = scheduleResult.tasks.map(task => {
           const resource = sharedResources.find(r => r.id === task.assignedResources[0]);
           const project = getProjectById(task.projectId || '');
+          const originalTask = tasks.find(t => t.id === task.id);
           return {
             id: task.id,
             name: task.name,
@@ -1467,17 +1468,30 @@ export default function ComplexScenario() {
             startDate: task.startDate ? task.startDate.toISOString() : '',
             endDate: task.endDate ? task.endDate.toISOString() : '',
             estimatedHours: task.estimatedHours,
+            estimatedHoursGraphic: originalTask?.estimatedHoursGraphic,
+            estimatedHoursPost: originalTask?.estimatedHoursPost,
+            subTaskDependencyMode: originalTask?.subTaskDependencyMode,
+            suggestedDeadline: task.suggestedDeadline ? task.suggestedDeadline.toISOString() : undefined,
             status: task.status,
             priority: task.priority,
             taskType: task.taskType || '',
+            feishuRecordId: originalTask?.feishuRecordId,
           };
         });
 
-        const url = `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
+        // 根据数据源模式构建 URL
+        const dataSourceMode = config.dataSourceMode || 'traditional';
+        let url = `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
           `&app_secret=${encodeURIComponent(config.appSecret)}` +
           `&app_token=${encodeURIComponent(config.appToken)}` +
-          `&schedules_table_id=${encodeURIComponent(config.tableIds.schedules)}` +
+          `&data_source_mode=${encodeURIComponent(dataSourceMode)}` +
           `&resources_table_id=${encodeURIComponent(config.tableIds.resources || '')}`;
+        
+        if (dataSourceMode === 'requirement') {
+          url += `&requirement_table_id=${encodeURIComponent(config.tableIds.requirementTable1 || '')}`;
+        } else {
+          url += `&schedules_table_id=${encodeURIComponent(config.tableIds.schedules || '')}`;
+        }
         
         const response = await fetch(url, {
           method: 'POST',

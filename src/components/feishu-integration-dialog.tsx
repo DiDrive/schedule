@@ -27,9 +27,14 @@ interface FeishuConfig {
     projects: string;
     tasks: string;
     schedules: string;
+    // 新增：两个需求表ID（用于新的多维表结构）
+    requirements1: string; // 需求表1
+    requirements2: string; // 需求表2
   };
   enableAutoSync: boolean;
   autoSyncInterval: number; // 分钟
+  // 数据源模式：'legacy'（旧的三表结构）或 'new'（新的需求表结构）
+  dataSourceMode: 'legacy' | 'new';
 }
 
 interface SyncStatus {
@@ -60,9 +65,12 @@ export default function FeishuIntegrationDialog({
       projects: '',
       tasks: '',
       schedules: '',
+      requirements1: '',
+      requirements2: '',
     },
     enableAutoSync: true,
     autoSyncInterval: 5,
+    dataSourceMode: 'new', // 默认使用新的需求表结构
   });
 
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
@@ -284,80 +292,184 @@ export default function FeishuIntegrationDialog({
             </TabsContent>
 
             <TabsContent value="tables" className="space-y-4 mt-0">
+              {/* 数据源模式选择 */}
               <Card>
                 <CardHeader>
-                  <CardTitle>表格 ID 配置</CardTitle>
+                  <CardTitle>数据源模式</CardTitle>
                   <CardDescription>
-                    请在飞书多维表中创建以下表格，并获取对应的 Table ID。
-                    <a
-                      href="https://www.feishu.cn/hc/zh-CN/articles/360024984973"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline ml-1"
-                    >
-                      如何获取 Table ID →
-                    </a>
+                    选择使用的数据表结构
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="table-resources">人员表 Table ID</Label>
-                    <Input
-                      id="table-resources"
-                      placeholder="tblxxxxxxxx"
-                      value={config.tableIds.resources}
-                      onChange={(e) => setConfig({
-                        ...config,
-                        tableIds: { ...config.tableIds, resources: e.target.value }
-                      })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="table-projects">项目表 Table ID</Label>
-                    <Input
-                      id="table-projects"
-                      placeholder="tblxxxxxxxx"
-                      value={config.tableIds.projects}
-                      onChange={(e) => setConfig({
-                        ...config,
-                        tableIds: { ...config.tableIds, projects: e.target.value }
-                      })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="table-tasks">任务表 Table ID</Label>
-                    <Input
-                      id="table-tasks"
-                      placeholder="tblxxxxxxxx"
-                      value={config.tableIds.tasks}
-                      onChange={(e) => setConfig({
-                        ...config,
-                        tableIds: { ...config.tableIds, tasks: e.target.value }
-                      })}
-                    />
-                    {!config.tableIds.resources && config.tableIds.tasks && (
-                      <div className="flex items-start gap-2 p-2 rounded bg-amber-50 dark:bg-amber-900/20 text-sm">
-                        <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                        <span className="text-amber-700 dark:text-amber-400">
-                          要同步任务表中的"负责人"字段，必须同时填写人员表Table ID
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="table-schedules">排期表 Table ID</Label>
-                    <Input
-                      id="table-schedules"
-                      placeholder="tblxxxxxxxx"
-                      value={config.tableIds.schedules}
-                      onChange={(e) => setConfig({
-                        ...config,
-                        tableIds: { ...config.tableIds, schedules: e.target.value }
-                      })}
-                    />
+                <CardContent>
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="dataSourceMode"
+                        checked={config.dataSourceMode === 'new'}
+                        onChange={() => setConfig({ ...config, dataSourceMode: 'new' })}
+                        className="w-4 h-4"
+                      />
+                      <span className="font-medium">需求表模式</span>
+                      <span className="text-sm text-slate-500">（两个需求表，包含项目和任务信息）</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="dataSourceMode"
+                        checked={config.dataSourceMode === 'legacy'}
+                        onChange={() => setConfig({ ...config, dataSourceMode: 'legacy' })}
+                        className="w-4 h-4"
+                      />
+                      <span className="font-medium">传统模式</span>
+                      <span className="text-sm text-slate-500">（人员表+项目表+任务表）</span>
+                    </label>
                   </div>
                 </CardContent>
               </Card>
+
+              {/* 需求表模式配置 */}
+              {config.dataSourceMode === 'new' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>需求表 ID 配置</CardTitle>
+                    <CardDescription>
+                      请填写需求表的 Table ID。两个需求表分别对应不同的项目。
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="table-resources">人员表 Table ID</Label>
+                      <Input
+                        id="table-resources"
+                        placeholder="tblxxxxxxxx"
+                        value={config.tableIds.resources}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          tableIds: { ...config.tableIds, resources: e.target.value }
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-requirements1">需求表1 Table ID</Label>
+                      <Input
+                        id="table-requirements1"
+                        placeholder="tblxxxxxxxx"
+                        value={config.tableIds.requirements1}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          tableIds: { ...config.tableIds, requirements1: e.target.value }
+                        })}
+                      />
+                      <p className="text-xs text-slate-500">第一个项目的需求表</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-requirements2">需求表2 Table ID</Label>
+                      <Input
+                        id="table-requirements2"
+                        placeholder="tblxxxxxxxx"
+                        value={config.tableIds.requirements2}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          tableIds: { ...config.tableIds, requirements2: e.target.value }
+                        })}
+                      />
+                      <p className="text-xs text-slate-500">第二个项目的需求表</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-schedules">排期表 Table ID</Label>
+                      <Input
+                        id="table-schedules"
+                        placeholder="tblxxxxxxxx"
+                        value={config.tableIds.schedules}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          tableIds: { ...config.tableIds, schedules: e.target.value }
+                        })}
+                      />
+                      <p className="text-xs text-slate-500">排期结果同步到此表</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* 传统模式配置 */}
+              {config.dataSourceMode === 'legacy' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>表格 ID 配置</CardTitle>
+                    <CardDescription>
+                      请在飞书多维表中创建以下表格，并获取对应的 Table ID。
+                      <a
+                        href="https://www.feishu.cn/hc/zh-CN/articles/360024984973"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline ml-1"
+                      >
+                        如何获取 Table ID →
+                      </a>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="table-resources">人员表 Table ID</Label>
+                      <Input
+                        id="table-resources"
+                        placeholder="tblxxxxxxxx"
+                        value={config.tableIds.resources}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          tableIds: { ...config.tableIds, resources: e.target.value }
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-projects">项目表 Table ID</Label>
+                      <Input
+                        id="table-projects"
+                        placeholder="tblxxxxxxxx"
+                        value={config.tableIds.projects}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          tableIds: { ...config.tableIds, projects: e.target.value }
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-tasks">任务表 Table ID</Label>
+                      <Input
+                        id="table-tasks"
+                        placeholder="tblxxxxxxxx"
+                        value={config.tableIds.tasks}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          tableIds: { ...config.tableIds, tasks: e.target.value }
+                        })}
+                      />
+                      {!config.tableIds.resources && config.tableIds.tasks && (
+                        <div className="flex items-start gap-2 p-2 rounded bg-amber-50 dark:bg-amber-900/20 text-sm">
+                          <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                          <span className="text-amber-700 dark:text-amber-400">
+                            要同步任务表中的"负责人"字段，必须同时填写人员表Table ID
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-schedules">排期表 Table ID</Label>
+                      <Input
+                        id="table-schedules"
+                        placeholder="tblxxxxxxxx"
+                        value={config.tableIds.schedules}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          tableIds: { ...config.tableIds, schedules: e.target.value }
+                        })}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               <Card>
                 <CardHeader>
@@ -367,22 +479,41 @@ export default function FeishuIntegrationDialog({
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">人员表</Badge>
-                    <span className="text-slate-600">8 个字段（ID、姓名、类型、效率等）</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">项目表</Badge>
-                    <span className="text-slate-600">8 个字段（ID、名称、状态、日期等）</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">任务表</Badge>
-                    <span className="text-slate-600">18 个字段（ID、项目、负责人、依赖等）</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">排期表</Badge>
-                    <span className="text-slate-600">12 个字段（ID、项目、工时、利用率等）</span>
-                  </div>
+                  {config.dataSourceMode === 'new' ? (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">人员表</Badge>
+                        <span className="text-slate-600">人员ID、姓名、工作类型、效率等</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">需求表</Badge>
+                        <span className="text-slate-600">脚本名称、需求项目、平面/后期预估工时、对接人、需求日期等</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">排期表</Badge>
+                        <span className="text-slate-600">任务名称、任务类型、负责人、开始/结束时间、工时、状态等</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">人员表</Badge>
+                        <span className="text-slate-600">8 个字段（ID、姓名、类型、效率等）</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">项目表</Badge>
+                        <span className="text-slate-600">8 个字段（ID、名称、状态、日期等）</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">任务表</Badge>
+                        <span className="text-slate-600">18 个字段（ID、项目、负责人、依赖等）</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">排期表</Badge>
+                        <span className="text-slate-600">12 个字段（ID、项目、工时、利用率等）</span>
+                      </div>
+                    </>
+                  )}
                   <a
                     href="/docs/feishu-table-setup-guide.md"
                     target="_blank"

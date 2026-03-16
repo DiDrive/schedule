@@ -85,6 +85,7 @@ export interface Task {
   estimatedHoursGraphic?: number; // 平面预估工时
   estimatedHoursPost?: number; // 后期预估工时
   subTaskDependencyMode?: 'parallel' | 'serial'; // 子任务依赖模式：并行/串行（平面完成后才开始后期）
+  feishuRecordId?: string; // 飞书记录ID（用于同步时更新记录）
 
   // 排期结果（精确到小时）
   startDate?: Date;

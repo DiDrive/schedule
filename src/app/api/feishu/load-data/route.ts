@@ -33,9 +33,12 @@ const log = (message: string) => {
  * - app_secret: 飞书应用密钥
  * - app_token: 多维表格 App Token
  * - resources_table_id: 人员表 Table ID
- * - projects_table_id: 项目表 Table ID
- * - tasks_table_id: 任务表 Table ID
+ * - projects_table_id: 项目表 Table ID（传统模式）
+ * - tasks_table_id: 任务表 Table ID（传统模式）
+ * - requirements1_table_id: 需求表1 Table ID（新模式）
+ * - requirements2_table_id: 需求表2 Table ID（新模式）
  * - table_type: 表格类型（'tasks' 标准任务表 或 'workorders' 工单表）
+ * - data_source_mode: 数据源模式（'legacy' 传统模式 或 'new' 需求表模式）
  */
 export async function GET(request: NextRequest) {
   try {
@@ -46,11 +49,16 @@ export async function GET(request: NextRequest) {
     const resourcesTableId = searchParams.get('resources_table_id');
     const projectsTableId = searchParams.get('projects_table_id');
     const tasksTableId = searchParams.get('tasks_table_id');
+    const requirements1TableId = searchParams.get('requirements1_table_id');
+    const requirements2TableId = searchParams.get('requirements2_table_id');
     const tableType = searchParams.get('table_type') || 'tasks';
+    const dataSourceMode = searchParams.get('data_source_mode') || 'legacy';
     
+    // 判断是否为需求表模式
+    const isRequirementsMode = dataSourceMode === 'new';
     // 判断是否为工单表模式
     const isWorkorderMode = tableType === 'workorders';
-    log(`[飞书加载] 加载模式: ${isWorkorderMode ? '工单表' : '标准任务表'}`);
+    log(`[飞书加载] 加载模式: ${isRequirementsMode ? '需求表模式' : '传统模式'}, ${isWorkorderMode ? '工单表' : '标准任务表'}`);
 
     if (!appId || !appSecret) {
       log('[飞书加载] ❌ 缺少 app_id 或 app_secret');
@@ -293,7 +301,102 @@ export async function GET(request: NextRequest) {
         log(`[飞书加载] 🔍 任务原始数据示例: ${JSON.stringify(sample).substring(0, 300)}...`);
 
         // 根据模式选择转换方式
-        if (isWorkorderMode) {
+        if (isRequirementsMode && !isWorkorderMode) {
+          // 需求表模式：同时提取项目和任务信息
+          const projectNameToIdMap = new Map<string, string>();
+          const projectMap = new Map<string, any>();
+          
+          tasksData.data.items.forEach((item: any) => {
+            const fields = item.fields;
+            const projectName = parseStringField(fields['项目'] || fields['projectName'] || fields['项目名称']);
+            
+            if (projectName && !projectMap.has(projectName)) {
+              const projectId = `project-${projectName}`;
+              projectMap.set(projectName, {
+                id: projectId,
+                name: projectName,
+                description: parseStringField(fields['项目描述'] || fields['projectDescription'], ''),
+                priority: 'normal',
+                status: 'pending',
+                resourcePool: [],
+                color: '#3b82f6',
+                tasks: [],
+              });
+              projectNameToIdMap.set(projectName, projectId);
+            }
+          });
+          
+          result.projects = Array.from(projectMap.values());
+          log(`[飞书加载] ✅ 从需求表提取了 ${result.projects.length} 个项目`);
+          
+          // 从需求表提取任务
+          result.tasks = tasksData.data.items.map((item: any) => {
+            const fields = item.fields;
+            const taskId = parseStringField(fields['需求ID'] || fields['任务ID'] || fields['id'] || fields['ID']);
+            const name = parseStringField(fields['需求名称'] || fields['任务名称'] || fields['name'] || fields['名称'], taskId || `需求_${item.record_id.substring(0, 8)}`);
+            const projectName = parseStringField(fields['项目'] || fields['projectName'] || fields['项目名称']);
+            const projectId = projectName ? (projectNameToIdMap.get(projectName) || projectName) : '';
+            
+            const assigneeField = fields['负责人'] || fields['指定人员'] || fields['assignedResourceId'];
+            const feishuPersonId = parsePersonId(assigneeField);
+            
+            let assigneeId = '';
+            let assigneeName = '';
+            if (feishuPersonId) {
+              const resource = result.resources.find((r: any) => r.feishuPersonId === feishuPersonId);
+              if (resource) {
+                assigneeId = resource.id;
+                assigneeName = resource.name;
+              }
+            }
+            
+            // 解析工时字段
+            const estimatedHoursGraphic = parseNumberField(fields['平面预估工时'] || fields['estimatedHoursGraphic'], undefined);
+            const estimatedHoursPost = parseNumberField(fields['后期预估工时'] || fields['estimatedHoursPost'], undefined);
+            const totalHours = parseNumberField(fields['预估工时'] || fields['estimatedHours'], 
+              (estimatedHoursGraphic || 0) + (estimatedHoursPost || 0));
+            
+            // 解析子任务依赖模式
+            const subTaskDependencyMode = parseStringField(fields['子任务依赖模式'] || fields['subTaskDependencyMode'], '');
+            const dependencyMode: 'parallel' | 'serial' = subTaskDependencyMode === '串行' ? 'serial' : 'parallel';
+            
+            // 解析其他字段
+            const priorityStr = parseStringField(fields['优先级'] || fields['priority'], '普通');
+            let priority: 'urgent' | 'normal' | 'low' = 'normal';
+            if (priorityStr === '紧急' || priorityStr === '高') priority = 'urgent';
+            else if (priorityStr === '低') priority = 'low';
+            
+            const statusStr = parseStringField(fields['状态'] || fields['status'], 'pending');
+            let status: 'pending' | 'in-progress' | 'completed' | 'blocked' = 'pending';
+            if (statusStr === '进行中' || statusStr === 'in-progress') status = 'in-progress';
+            else if (statusStr === '已完成' || statusStr === 'completed') status = 'completed';
+            else if (statusStr === '阻塞' || statusStr === 'blocked') status = 'blocked';
+            
+            const deadlineType = parseStringField(fields['截止日期类型'] || fields['deadlineType'], '指定日期');
+            let deadline = parseDateField(fields['截止日期'] || fields['deadline']);
+            if (deadlineType === '不确定' || deadlineType === 'uncertain') {
+              deadline = null;
+            }
+            
+            return {
+              id: taskId || item.record_id,
+              name,
+              projectId,
+              estimatedHours: totalHours,
+              estimatedHoursGraphic,
+              estimatedHoursPost,
+              subTaskDependencyMode: (estimatedHoursGraphic && estimatedHoursPost) ? dependencyMode : undefined,
+              priority,
+              assigneeId,
+              assigneeName,
+              deadline,
+              status,
+              deadlineType: deadlineType === '不确定' ? 'uncertain' : 'specified',
+              feishuRecordId: item.record_id, // 用于同步时更新记录
+            };
+          });
+          log(`[飞书加载] ✅ 使用需求表模式加载了 ${result.tasks.length} 个任务`);
+        } else if (isWorkorderMode) {
           // 工单表模式：使用 workorderRecordToTask 转换
           result.tasks = tasksData.data.items.map((item: any) => {
             return workorderRecordToTask(item, item.record_id);

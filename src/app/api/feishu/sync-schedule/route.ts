@@ -33,6 +33,8 @@ function mapStatusToFeishu(status: string): string {
  * - app_secret: 飞书应用密钥
  * - app_token: 多维表格 App Token
  * - schedules_table_id: 排期表 Table ID
+ * - data_source_mode: 数据源模式 (traditional | requirement)
+ * - requirement_table_id: 需求表 ID（需求表模式下使用）
  *
  * 请求体:
  * - tasks: 任务列表（包含排期信息）
@@ -44,6 +46,8 @@ export async function POST(request: NextRequest) {
     const appSecret = searchParams.get('app_secret');
     const appToken = searchParams.get('app_token');
     const schedulesTableId = searchParams.get('schedules_table_id');
+    const dataSourceMode = searchParams.get('data_source_mode') || 'traditional';
+    const requirementTableId = searchParams.get('requirement_table_id');
 
     if (!appId || !appSecret) {
       log('[飞书同步] ❌ 缺少 app_id 或 app_secret');
@@ -53,10 +57,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!appToken || !schedulesTableId) {
-      log('[飞书同步] ❌ 缺少 app_token 或 schedules_table_id');
+    if (!appToken) {
+      log('[飞书同步] ❌ 缺少 app_token');
       return NextResponse.json(
-        { error: '缺少 app_token 或 schedules_table_id' },
+        { error: '缺少 app_token' },
+        { status: 400 }
+      );
+    }
+
+    // 根据数据源模式判断需要的 table_id
+    const isRequirementMode = dataSourceMode === 'requirement';
+    const targetTableId = isRequirementMode ? requirementTableId : schedulesTableId;
+
+    if (!targetTableId) {
+      log('[飞书同步] ❌ 缺少目标表格 ID');
+      return NextResponse.json(
+        { error: '缺少目标表格 ID' },
         { status: 400 }
       );
     }
@@ -73,7 +89,7 @@ export async function POST(request: NextRequest) {
     }
 
     const appAccessToken = await getAppAccessToken(appId, appSecret);
-    log(`[飞书同步] 开始同步排期结果: app_token=${appToken.substring(0, 10)}..., table_id=${schedulesTableId.substring(0, 10)}...`);
+    log(`[飞书同步] 开始同步排期结果: mode=${dataSourceMode}, app_token=${appToken.substring(0, 10)}..., table_id=${targetTableId.substring(0, 10)}...`);
     log(`[飞书同步] 待同步任务数: ${tasks.length}`);
 
     // 创建资源ID到飞书人员ID的映射表
@@ -122,42 +138,44 @@ export async function POST(request: NextRequest) {
     let errorCount = 0;
     const errors: string[] = [];
 
-    // 先清空现有的排期记录
-    try {
-      const listResponse = await fetch(
-        `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/search`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${appAccessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ page_size: 500 }),
-        }
-      );
+    // 清空现有的排期记录（仅在传统模式下）
+    if (!isRequirementMode) {
+      try {
+        const listResponse = await fetch(
+          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${targetTableId}/records/search`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${appAccessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ page_size: 500 }),
+          }
+        );
 
-      const listData = await listResponse.json();
-      if (listData.code === 0 && listData.data && listData.data.items.length > 0) {
-        log(`[飞书同步] 清空 ${listData.data.items.length} 条旧排期记录`);
+        const listData = await listResponse.json();
+        if (listData.code === 0 && listData.data && listData.data.items.length > 0) {
+          log(`[飞书同步] 清空 ${listData.data.items.length} 条旧排期记录`);
 
-        // 删除所有旧记录
-        for (const item of listData.data.items) {
-          await fetch(
-            `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/${item.record_id}`,
-            {
-              method: 'DELETE',
-              headers: {
-                'Authorization': `Bearer ${appAccessToken}`,
-                'Content-Type': 'application/json',
-              },
-            }
-          );
+          // 删除所有旧记录
+          for (const item of listData.data.items) {
+            await fetch(
+              `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${targetTableId}/records/${item.record_id}`,
+              {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${appAccessToken}`,
+                  'Content-Type': 'application/json',
+                },
+              }
+            );
+          }
+          log(`[飞书同步] ✅ 清空完成`);
         }
-        log(`[飞书同步] ✅ 清空完成`);
+      } catch (error) {
+        log(`[飞书同步] ⚠️ 清空旧记录失败: ${error instanceof Error ? error.message : '未知错误'}`);
       }
-    } catch (error) {
-      log(`[飞书同步] ⚠️ 清空旧记录失败: ${error instanceof Error ? error.message : '未知错误'}`);
-    }
+    } // end if (!isRequirementMode)
 
     // 同步每个任务的排期信息
     for (const task of tasks) {
@@ -204,6 +222,11 @@ export async function POST(request: NextRequest) {
           scheduleRecord.fields['截止日期'] = Math.floor(new Date(task.deadline).getTime() / 1000) * 1000;
         }
 
+        // 如果有建议截止日期（从排期算法计算得出），添加该字段
+        if (task.suggestedDeadline) {
+          scheduleRecord.fields['建议截止日期'] = Math.floor(new Date(task.suggestedDeadline).getTime() / 1000) * 1000;
+        }
+
         // 如果有项目名称，添加该字段
         if (task.projectName) {
           scheduleRecord.fields['所属项目'] = task.projectName;
@@ -219,19 +242,38 @@ export async function POST(request: NextRequest) {
         log(`[飞书同步]   - 开始时间: ${task.startDate || '(无)'}`);
         log(`[飞书同步]   - 结束时间: ${task.endDate || '(无)'}`);
         log(`[飞书同步]   - 预估工时: ${task.estimatedHours || 0}`);
+        log(`[飞书同步]   - 建议截止日期: ${task.suggestedDeadline || '(无)'}`);
         log(`[飞书同步]   - 记录数据: ${JSON.stringify(scheduleRecord)}`);
 
-        const response = await fetch(
-          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${appAccessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(scheduleRecord),
-          }
-        );
+        // 根据模式选择同步方式
+        let response;
+        if (isRequirementMode && task.feishuRecordId) {
+          // 需求表模式：更新现有记录
+          response = await fetch(
+            `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${targetTableId}/records/${task.feishuRecordId}`,
+            {
+              method: 'PUT',
+              headers: {
+                'Authorization': `Bearer ${appAccessToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(scheduleRecord),
+            }
+          );
+        } else {
+          // 传统模式：创建新记录
+          response = await fetch(
+            `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${targetTableId}/records`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${appAccessToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(scheduleRecord),
+            }
+          );
+        }
 
         const data = await response.json();
 
