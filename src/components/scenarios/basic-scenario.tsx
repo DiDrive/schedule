@@ -1090,20 +1090,28 @@ export default function BasicScenario() {
                       />
                     </TableCell>
                     <TableCell>
-                      <Select
-                        value={task.taskType || 'none'}
-                        onValueChange={(value) => handleTaskChange(task.id, 'taskType', value !== 'none' ? value : '')}
-                      >
-                        <SelectTrigger className="h-8">
-                          <SelectValue placeholder="未指定" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">未指定</SelectItem>
-                          <SelectItem value="平面">平面</SelectItem>
-                          <SelectItem value="后期">后期</SelectItem>
-                          <SelectItem value="物料">物料</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      {/* 当平面和后期工时都存在时，显示"复合"标签，否则显示下拉选择 */}
+                      {task.estimatedHoursGraphic && task.estimatedHoursPost && 
+                       task.estimatedHoursGraphic > 0 && task.estimatedHoursPost > 0 ? (
+                        <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-700">
+                          复合
+                        </Badge>
+                      ) : (
+                        <Select
+                          value={task.taskType || 'none'}
+                          onValueChange={(value) => handleTaskChange(task.id, 'taskType', value !== 'none' ? value : '')}
+                        >
+                          <SelectTrigger className="h-8">
+                            <SelectValue placeholder="未指定" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">未指定</SelectItem>
+                            <SelectItem value="平面">平面</SelectItem>
+                            <SelectItem value="后期">后期</SelectItem>
+                            <SelectItem value="物料">物料</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
                     </TableCell>
                     <TableCell>
                       {task.taskType === '物料' ? (

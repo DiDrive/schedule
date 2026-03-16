@@ -361,6 +361,28 @@ export async function GET(request: NextRequest) {
 
             // 解析预估工时：可能是数字或文本数组格式
             const estimatedHours = parseNumberField(fields['预估工时'] || fields['estimatedHours'], 8);
+            
+            // 解析平面工时和后期工时
+            const estimatedHoursGraphic = parseNumberField(fields['平面工时'] || fields['estimatedHoursGraphic'], 0);
+            const estimatedHoursPost = parseNumberField(fields['后期工时'] || fields['estimatedHoursPost'], 0);
+            
+            // 解析子任务依赖模式：并行或串行
+            const subTaskDependencyModeRaw = parseStringField(fields['子任务依赖'] || fields['subTaskDependencyMode'], 'parallel');
+            const subTaskDependencyMode: 'parallel' | 'serial' = subTaskDependencyModeRaw === '串行' ? 'serial' : 'parallel';
+            
+            // 解析扩展字段
+            const sequence = parseNumberField(fields['编号'] || fields['sequence'], 0);
+            const qualityLevelRaw = parseStringField(fields['质量等级'] || fields['qualityLevel'], '');
+            let qualityLevel: 'excellent' | 'good' | 'medium' | 'poor' | undefined = undefined;
+            if (qualityLevelRaw) {
+              if (qualityLevelRaw === '优秀' || qualityLevelRaw === 'excellent') qualityLevel = 'excellent';
+              else if (qualityLevelRaw === '良好' || qualityLevelRaw === 'good') qualityLevel = 'good';
+              else if (qualityLevelRaw === '中等' || qualityLevelRaw === 'medium') qualityLevel = 'medium';
+              else if (qualityLevelRaw === '差' || qualityLevelRaw === 'poor') qualityLevel = 'poor';
+            }
+            const cooperationStatus = parseStringField(fields['配合状态'] || fields['cooperationStatus'], '');
+            const contactPerson = parseStringField(fields['对接人'] || fields['contactPerson'], '');
+            const projectSize = parseStringField(fields['项目大小'] || fields['projectSize'], '');
 
             // 解析优先级：下拉选项，飞书返回的是字符串（如"紧急"、"普通"、"低"）
             const priorityStr = parseStringField(fields['优先级'] || fields['priority'], '普通');
@@ -400,10 +422,19 @@ export async function GET(request: NextRequest) {
               fixedResourceId: fixedResourceId, // 设置 fixedResourceId 以便任务管理中显示
               taskType: taskType,
               estimatedHours: estimatedHours,
+              estimatedHoursGraphic: estimatedHoursGraphic || undefined,
+              estimatedHoursPost: estimatedHoursPost || undefined,
+              subTaskDependencyMode: subTaskDependencyMode,
               priority: priority,
               dependencies: dependencyNames, // 暂时保留任务名称
               status: status,
               deadline: deadline,
+              // 扩展字段
+              sequence: sequence || undefined,
+              qualityLevel: qualityLevel,
+              cooperationStatus: cooperationStatus || undefined,
+              contactPerson: contactPerson || undefined,
+              projectSize: projectSize || undefined,
             };
           });
           log(`[飞书加载] ✅ 使用标准任务表模式加载了 ${result.tasks.length} 个任务`);

@@ -187,6 +187,13 @@ export async function POST(request: NextRequest) {
             // 预估工时（数值型）：传数字
             '预估工时': task.estimatedHours || 0,
 
+            // 平面工时和后期工时
+            '平面工时': task.estimatedHoursGraphic || 0,
+            '后期工时': task.estimatedHoursPost || 0,
+
+            // 子任务依赖模式
+            '子任务依赖': task.subTaskDependencyMode === 'serial' ? '串行' : '并行',
+
             // 状态（单选型）：映射为中文
             '状态': mapStatusToFeishu(task.status || 'pending'),
           },
