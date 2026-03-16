@@ -1529,22 +1529,47 @@ export default function ComplexScenario() {
     }
 
     const config = JSON.parse(configStr);
-    if (!config.appId || !config.appSecret || !config.appToken ||
-        !config.tableIds?.resources || !config.tableIds?.projects || !config.tableIds?.tasks) {
-      alert('飞书配置不完整，请填写 App ID、App Secret、App Token 和所有 Table ID');
-      return;
+    const dataSourceMode = config.dataSourceMode || 'legacy';
+    
+    // 根据数据源模式验证配置
+    if (dataSourceMode === 'new') {
+      // 需求表模式：需要人员表和需求表
+      if (!config.appId || !config.appSecret || !config.appToken ||
+          !config.tableIds?.resources || !config.tableIds?.requirements1) {
+        alert('飞书配置不完整，请填写 App ID、App Secret、App Token、人员表 ID 和需求表1 ID');
+        return;
+      }
+    } else {
+      // 传统模式：需要人员表、项目表和任务表
+      if (!config.appId || !config.appSecret || !config.appToken ||
+          !config.tableIds?.resources || !config.tableIds?.projects || !config.tableIds?.tasks) {
+        alert('飞书配置不完整，请填写 App ID、App Secret、App Token 和所有 Table ID');
+        return;
+      }
     }
 
     setIsLoadingFromFeishu(true);
     try {
-      const response = await fetch(
-        `/api/feishu/load-data?app_id=${encodeURIComponent(config.appId)}` +
+      // 构建请求 URL
+      let url = `/api/feishu/load-data?app_id=${encodeURIComponent(config.appId)}` +
         `&app_secret=${encodeURIComponent(config.appSecret)}` +
         `&app_token=${encodeURIComponent(config.appToken)}` +
         `&resources_table_id=${encodeURIComponent(config.tableIds.resources)}` +
-        `&projects_table_id=${encodeURIComponent(config.tableIds.projects)}` +
-        `&tasks_table_id=${encodeURIComponent(config.tableIds.tasks)}`
-      );
+        `&data_source_mode=${encodeURIComponent(dataSourceMode)}`;
+      
+      if (dataSourceMode === 'new') {
+        // 需求表模式
+        url += `&requirements1_table_id=${encodeURIComponent(config.tableIds.requirements1 || '')}`;
+        if (config.tableIds.requirements2) {
+          url += `&requirements2_table_id=${encodeURIComponent(config.tableIds.requirements2)}`;
+        }
+      } else {
+        // 传统模式
+        url += `&projects_table_id=${encodeURIComponent(config.tableIds.projects)}` +
+          `&tasks_table_id=${encodeURIComponent(config.tableIds.tasks)}`;
+      }
+
+      const response = await fetch(url);
 
       const result = await response.json();
       console.log('[Feishu Load] 加载结果:', result);

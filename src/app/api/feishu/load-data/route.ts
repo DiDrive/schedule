@@ -281,10 +281,13 @@ export async function GET(request: NextRequest) {
     }
 
     // ===== 第三步：加载任务数据，使用映射表转换字段 =====
-    if (tasksTableId) {
-      log(`[飞书加载] 步骤3：加载任务数据: table_id=${tasksTableId}`);
+    // 需求表模式使用 requirements1TableId，传统模式使用 tasksTableId
+    const actualTasksTableId = isRequirementsMode ? requirements1TableId : tasksTableId;
+    
+    if (actualTasksTableId) {
+      log(`[飞书加载] 步骤3：加载任务数据: table_id=${actualTasksTableId}, 模式=${isRequirementsMode ? '需求表' : '传统'}`);
       const tasksResponse = await fetch(
-        `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tasksTableId}/records/search`,
+        `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${actualTasksTableId}/records/search`,
         {
           method: 'POST',
           headers: {
