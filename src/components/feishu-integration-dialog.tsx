@@ -87,7 +87,24 @@ export default function FeishuIntegrationDialog({
     const savedConfig = localStorage.getItem('feishu-config');
     if (savedConfig) {
       try {
-        setConfig(JSON.parse(savedConfig));
+        const parsed = JSON.parse(savedConfig);
+        // 确保所有字段都有默认值，避免 undefined 导致的 controlled/uncontrolled 警告
+        setConfig({
+          appId: parsed.appId || '',
+          appSecret: parsed.appSecret || '',
+          appToken: parsed.appToken || '',
+          tableIds: {
+            resources: parsed.tableIds?.resources || '',
+            projects: parsed.tableIds?.projects || '',
+            tasks: parsed.tableIds?.tasks || '',
+            schedules: parsed.tableIds?.schedules || '',
+            requirements1: parsed.tableIds?.requirements1 || '',
+            requirements2: parsed.tableIds?.requirements2 || '',
+          },
+          enableAutoSync: parsed.enableAutoSync ?? true,
+          autoSyncInterval: parsed.autoSyncInterval ?? 5,
+          dataSourceMode: parsed.dataSourceMode || 'new',
+        });
       } catch (error) {
         console.error('Failed to load Feishu config:', error);
       }
