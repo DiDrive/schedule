@@ -312,6 +312,147 @@ export default function FeishuIntegrationDialog({
                   )}
                 </CardContent>
               </Card>
+
+              {/* 数据源模式选择 - 放在应用配置页 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>数据源模式</CardTitle>
+                  <CardDescription>
+                    选择使用的数据表结构
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer p-2 rounded border hover:bg-slate-50">
+                      <input
+                        type="radio"
+                        name="dataSourceMode"
+                        checked={config.dataSourceMode === 'new'}
+                        onChange={() => setConfig({ ...config, dataSourceMode: 'new' })}
+                        className="w-4 h-4"
+                      />
+                      <div>
+                        <span className="font-medium">需求表模式</span>
+                        <span className="text-sm text-slate-500 ml-2">（两个需求表，包含项目和任务信息）</span>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer p-2 rounded border hover:bg-slate-50">
+                      <input
+                        type="radio"
+                        name="dataSourceMode"
+                        checked={config.dataSourceMode === 'legacy'}
+                        onChange={() => setConfig({ ...config, dataSourceMode: 'legacy' })}
+                        className="w-4 h-4"
+                      />
+                      <div>
+                        <span className="font-medium">传统模式</span>
+                        <span className="text-sm text-slate-500 ml-2">（人员表+项目表+任务表）</span>
+                      </div>
+                    </label>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 表格 ID 配置 - 根据模式动态显示 */}
+              {config.dataSourceMode === 'new' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>需求表 ID 配置</CardTitle>
+                    <CardDescription>
+                      请填写需求表的 Table ID
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="table-resources-app">人员表 Table ID <span className="text-red-500">*</span></Label>
+                      <Input
+                        id="table-resources-app"
+                        placeholder="tblxxxxxxxx"
+                        value={config.tableIds.resources}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          tableIds: { ...config.tableIds, resources: e.target.value }
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-requirements1-app">需求表1 Table ID <span className="text-red-500">*</span></Label>
+                      <Input
+                        id="table-requirements1-app"
+                        placeholder="tblxxxxxxxx"
+                        value={config.tableIds.requirements1}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          tableIds: { ...config.tableIds, requirements1: e.target.value }
+                        })}
+                      />
+                      <p className="text-xs text-slate-500">第一个项目的需求表</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-requirements2-app">需求表2 Table ID</Label>
+                      <Input
+                        id="table-requirements2-app"
+                        placeholder="tblxxxxxxxx（可选）"
+                        value={config.tableIds.requirements2}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          tableIds: { ...config.tableIds, requirements2: e.target.value }
+                        })}
+                      />
+                      <p className="text-xs text-slate-500">第二个项目的需求表（可选）</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {config.dataSourceMode === 'legacy' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>表格 ID 配置</CardTitle>
+                    <CardDescription>
+                      请填写传统模式所需的表格 ID
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="table-resources-legacy">人员表 Table ID <span className="text-red-500">*</span></Label>
+                      <Input
+                        id="table-resources-legacy"
+                        placeholder="tblxxxxxxxx"
+                        value={config.tableIds.resources}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          tableIds: { ...config.tableIds, resources: e.target.value }
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-projects-legacy">项目表 Table ID <span className="text-red-500">*</span></Label>
+                      <Input
+                        id="table-projects-legacy"
+                        placeholder="tblxxxxxxxx"
+                        value={config.tableIds.projects}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          tableIds: { ...config.tableIds, projects: e.target.value }
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-tasks-legacy">任务表 Table ID <span className="text-red-500">*</span></Label>
+                      <Input
+                        id="table-tasks-legacy"
+                        placeholder="tblxxxxxxxx"
+                        value={config.tableIds.tasks}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          tableIds: { ...config.tableIds, tasks: e.target.value }
+                        })}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             <TabsContent value="tables" className="space-y-4 mt-0">
