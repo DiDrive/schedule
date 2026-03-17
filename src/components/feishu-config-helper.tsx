@@ -20,12 +20,24 @@ import { downloadTableTemplateMarkdown } from '@/lib/feishu-table-templates';
 interface FeishuConfig {
   appId: string;
   appSecret: string;
-  appToken: string;
-  tableIds: {
-    resources: string;
-    projects: string;
-    tasks: string;
-    schedules: string;
+  dataSourceMode: 'legacy' | 'new';
+  newMode: {
+    appToken: string;
+    tableIds: {
+      resources: string;
+      requirements1: string;
+      requirements2: string;
+      schedules: string;
+    };
+  };
+  legacyMode: {
+    appToken: string;
+    tableIds: {
+      resources: string;
+      projects: string;
+      tasks: string;
+      schedules: string;
+    };
   };
 }
 
@@ -40,10 +52,20 @@ interface FeishuConfigHelperProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigHelperProps) {
-  const [config, setConfig] = useState<FeishuConfig>({
-    appId: '',
-    appSecret: '',
+const defaultConfig: FeishuConfig = {
+  appId: '',
+  appSecret: '',
+  dataSourceMode: 'new',
+  newMode: {
+    appToken: '',
+    tableIds: {
+      resources: '',
+      requirements1: '',
+      requirements2: '',
+      schedules: '',
+    },
+  },
+  legacyMode: {
     appToken: '',
     tableIds: {
       resources: '',
@@ -51,7 +73,11 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
       tasks: '',
       schedules: '',
     },
-  });
+  },
+};
+
+export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigHelperProps) {
+  const [config, setConfig] = useState<FeishuConfig>(defaultConfig);
 
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [copied, setCopied] = useState(false);
@@ -62,12 +88,40 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
     const savedConfig = localStorage.getItem('feishu-config');
     if (savedConfig) {
       try {
-        setConfig(JSON.parse(savedConfig));
+        const parsed = JSON.parse(savedConfig);
+        setConfig({
+          appId: parsed.appId || '',
+          appSecret: parsed.appSecret || '',
+          dataSourceMode: parsed.dataSourceMode || 'new',
+          newMode: {
+            appToken: parsed.newMode?.appToken || '',
+            tableIds: {
+              resources: parsed.newMode?.tableIds?.resources || '',
+              requirements1: parsed.newMode?.tableIds?.requirements1 || '',
+              requirements2: parsed.newMode?.tableIds?.requirements2 || '',
+              schedules: parsed.newMode?.tableIds?.schedules || '',
+            },
+          },
+          legacyMode: {
+            appToken: parsed.legacyMode?.appToken || '',
+            tableIds: {
+              resources: parsed.legacyMode?.tableIds?.resources || '',
+              projects: parsed.legacyMode?.tableIds?.projects || '',
+              tasks: parsed.legacyMode?.tableIds?.tasks || '',
+              schedules: parsed.legacyMode?.tableIds?.schedules || '',
+            },
+          },
+        });
       } catch (error) {
         console.error('Failed to load config:', error);
       }
     }
   }, [open]);
+
+  // 获取当前模式的配置
+  const getCurrentModeConfig = () => {
+    return config.dataSourceMode === 'new' ? config.newMode : config.legacyMode;
+  };
 
   // 验证配置
   const validateConfig = (): ValidationResult => {
@@ -88,31 +142,39 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
       errors.push('App Secret 格式不正确，长度应不少于10位');
     }
 
+    // 验证当前模式的配置
+    const modeConfig = getCurrentModeConfig();
+    const modeText = config.dataSourceMode === 'new' ? '需求表模式' : '传统模式';
+
     // 验证 App Token
-    if (!config.appToken) {
-      errors.push('App Token 未填写');
-    } else if (config.appToken.length < 10) {
-      errors.push('App Token 格式不正确，长度应不少于10位');
-    } else if (!/^[a-zA-Z0-9]+$/.test(config.appToken)) {
-      errors.push('App Token 格式不正确，只能包含字母和数字');
+    if (!modeConfig.appToken) {
+      errors.push(`[${modeText}] App Token 未填写`);
+    } else if (modeConfig.appToken.length < 10) {
+      errors.push(`[${modeText}] App Token 格式不正确，长度应不少于10位`);
     }
 
     // 验证 Table IDs
-    const tableNames = {
-      resources: '人员表',
-      projects: '项目表',
-      tasks: '任务表',
-      schedules: '排期表',
-    };
-
-    Object.entries(tableNames).forEach(([key, name]) => {
-      const tableId = config.tableIds[key as keyof typeof tableNames];
-      if (!tableId) {
-        warnings.push(`${name} Table ID 未填写`);
-      } else if (!tableId.startsWith('tbl')) {
-        errors.push(`${name} Table ID 格式不正确，应以 "tbl" 开头`);
-      }
-    });
+    if (config.dataSourceMode === 'new') {
+      const tableNames: Record<string, string> = { resources: '人员表', requirements1: '需求表1', requirements2: '需求表2', schedules: '排期表' };
+      Object.entries(tableNames).forEach(([key, name]) => {
+        const tableId = config.newMode.tableIds[key as keyof typeof config.newMode.tableIds];
+        if (!tableId) {
+          warnings.push(`[${modeText}] ${name} Table ID 未填写`);
+        } else if (!tableId.startsWith('tbl')) {
+          errors.push(`[${modeText}] ${name} Table ID 格式不正确，应以 "tbl" 开头`);
+        }
+      });
+    } else {
+      const tableNames: Record<string, string> = { resources: '人员表', projects: '项目表', tasks: '任务表', schedules: '排期表' };
+      Object.entries(tableNames).forEach(([key, name]) => {
+        const tableId = config.legacyMode.tableIds[key as keyof typeof config.legacyMode.tableIds];
+        if (!tableId) {
+          warnings.push(`[${modeText}] ${name} Table ID 未填写`);
+        } else if (!tableId.startsWith('tbl')) {
+          errors.push(`[${modeText}] ${name} Table ID 格式不正确，应以 "tbl" 开头`);
+        }
+      });
+    }
 
     return {
       isValid: errors.length === 0 && warnings.length === 0,
@@ -159,7 +221,7 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
 
   // 复制 App Token 到剪贴板
   const copyAppToken = () => {
-    navigator.clipboard.writeText(config.appToken);
+    navigator.clipboard.writeText(getCurrentModeConfig().appToken);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -169,9 +231,15 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
     const url = prompt('请粘贴您的飞书多维表 URL：\n\n例如：https://xxx.feishu.cn/base/bascnxxxxxxxxxxxx/appxxxxxxx');
     if (!url) return;
 
-    const match = url.match(/\/base\/(bascn[a-zA-Z0-9]+)/);
+    const match = url.match(/\/base\/([a-zA-Z0-9]+)/);
     if (match) {
-      setConfig({ ...config, appToken: match[1] });
+      // 更新当前模式的 App Token
+      const mode = config.dataSourceMode;
+      if (mode === 'new') {
+        setConfig({ ...config, newMode: { ...config.newMode, appToken: match[1] } });
+      } else {
+        setConfig({ ...config, legacyMode: { ...config.legacyMode, appToken: match[1] } });
+      }
       alert(`App Token 已提取：${match[1]}`);
     } else {
       alert('无法从 URL 中提取 App Token，请检查 URL 格式是否正确');
@@ -187,8 +255,6 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
     }
 
     // 检查是否是有效的飞书多维表 URL（支持旧版和新版格式）
-    // 旧版：/base/FovUbfThaa62nesBf0ZcPeO8nnb
-    // 新版：/base/bascn5e1j2k3l4m5n6o7p8q
     const baseMatch = url.match(/\/base\/([a-zA-Z0-9]+)/);
     if (!baseMatch) {
       alert('URL 格式不正确，请确保是飞书多维表 URL（应包含 /base/）');
@@ -201,25 +267,43 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
     const tableMatch = url.match(/table=(tbl[a-zA-Z0-9]+)/);
     const tableId = tableMatch ? tableMatch[1] : '';
 
-    // 更新配置
-    const updatedConfig = {
-      ...config,
-      appToken,
-      tableIds: {
-        ...config.tableIds,
-        resources: tableId,
-        projects: '',
-        tasks: '',
-        schedules: '',
-      },
-    };
+    // 更新当前模式的配置
+    const mode = config.dataSourceMode;
+    let updatedConfig: FeishuConfig;
+    
+    if (mode === 'new') {
+      updatedConfig = {
+        ...config,
+        newMode: {
+          ...config.newMode,
+          appToken,
+          tableIds: {
+            ...config.newMode.tableIds,
+            resources: tableId || config.newMode.tableIds.resources,
+          },
+        },
+      };
+    } else {
+      updatedConfig = {
+        ...config,
+        legacyMode: {
+          ...config.legacyMode,
+          appToken,
+          tableIds: {
+            ...config.legacyMode.tableIds,
+            resources: tableId || config.legacyMode.tableIds.resources,
+          },
+        },
+      };
+    }
 
     setConfig(updatedConfig);
     localStorage.setItem('feishu-config', JSON.stringify(updatedConfig));
 
+    const modeText = mode === 'new' ? '需求表模式' : '传统模式';
     const message = tableId
-      ? `成功提取信息！\n\nApp Token: ${appToken}\nTable ID: ${tableId}\n\n注意：这是当前打开的表格 ID，请根据需要在下方填写其他表格的 ID`
-      : `成功提取 App Token！\n\nApp Token: ${appToken}\n\n未检测到 Table ID，请手动在下方填写`;
+      ? `成功提取信息！\n\n模式: ${modeText}\nApp Token: ${appToken}\nTable ID: ${tableId}\n\n注意：这是当前打开的表格 ID，请根据需要在下方填写其他表格的 ID`
+      : `成功提取 App Token！\n\n模式: ${modeText}\nApp Token: ${appToken}\n\n未检测到 Table ID，请手动在下方填写`;
 
     alert(message);
   };
@@ -300,20 +384,20 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
                 </Button>
               </div>
 
-              {config.appToken && config.tableIds.resources && (
+              {getCurrentModeConfig().appToken && getCurrentModeConfig().tableIds.resources && (
                 <div className="space-y-2 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
                   <p className="text-sm font-medium text-green-700 dark:text-green-400 flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4" />
-                    已提取的信息
+                    已提取的信息（{config.dataSourceMode === 'new' ? '需求表模式' : '传统模式'}）
                   </p>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
                       <span className="text-slate-600 dark:text-slate-400">App Token:</span>
-                      <span className="font-mono text-green-600 dark:text-green-400">{config.appToken}</span>
+                      <span className="font-mono text-green-600 dark:text-green-400">{getCurrentModeConfig().appToken}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-600 dark:text-slate-400">Table ID:</span>
-                      <span className="font-mono text-green-600 dark:text-green-400">{config.tableIds.resources}</span>
+                      <span className="font-mono text-green-600 dark:text-green-400">{getCurrentModeConfig().tableIds.resources}</span>
                     </div>
                   </div>
                   <p className="text-xs text-green-600 dark:text-green-400 mt-2">
@@ -343,20 +427,30 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
                   onClick={parseAppTokenFromUrl}
                   className="w-full"
                 >
-                  从 URL 提取 App Token
+                  从 URL 提取 App Token（当前模式）
                 </Button>
+                <p className="text-xs text-slate-500">
+                  当前模式: {config.dataSourceMode === 'new' ? '需求表模式' : '传统模式'}
+                </p>
               </div>
 
               <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800 space-y-2">
-                <p className="text-sm font-medium">方法二：手动输入</p>
+                <p className="text-sm font-medium">方法二：手动输入（当前模式）</p>
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   App Token 位于多维表 URL 的 <code className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded">/base/</code> 和 <code className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded">/app</code> 之间，通常由字母和数字组成
                 </p>
                 <div className="flex gap-2">
                   <Input
                     placeholder="bascnxxxxxxxxxxxx"
-                    value={config.appToken}
-                    onChange={(e) => setConfig({ ...config, appToken: e.target.value })}
+                    value={getCurrentModeConfig().appToken}
+                    onChange={(e) => {
+                      const mode = config.dataSourceMode;
+                      if (mode === 'new') {
+                        setConfig({ ...config, newMode: { ...config.newMode, appToken: e.target.value } });
+                      } else {
+                        setConfig({ ...config, legacyMode: { ...config.legacyMode, appToken: e.target.value } });
+                      }
+                    }}
                   />
                   <Button
                     variant="outline"
@@ -387,10 +481,10 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
             </CardContent>
           </Card>
 
-          {/* Table ID 获取帮助 */}
+          {/* Table ID 获取帮助 - 根据当前模式显示 */}
           <Card>
             <CardHeader>
-              <CardTitle>2. 获取 Table ID</CardTitle>
+              <CardTitle>2. 获取 Table ID（{config.dataSourceMode === 'new' ? '需求表模式' : '传统模式'}）</CardTitle>
               <CardDescription>
                 每个表格都有唯一的 Table ID，用于区分不同的数据表
               </CardDescription>
@@ -409,54 +503,135 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="table-resources">人员表 Table ID</Label>
-                  <Input
-                    id="table-resources"
-                    placeholder="tblxxxxxxxx"
-                    value={config.tableIds.resources}
-                    onChange={(e) => setConfig({
-                      ...config,
-                      tableIds: { ...config.tableIds, resources: e.target.value }
-                    })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="table-projects">项目表 Table ID</Label>
-                  <Input
-                    id="table-projects"
-                    placeholder="tblxxxxxxxx"
-                    value={config.tableIds.projects}
-                    onChange={(e) => setConfig({
-                      ...config,
-                      tableIds: { ...config.tableIds, projects: e.target.value }
-                    })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="table-tasks">任务表 Table ID</Label>
-                  <Input
-                    id="table-tasks"
-                    placeholder="tblxxxxxxxx"
-                    value={config.tableIds.tasks}
-                    onChange={(e) => setConfig({
-                      ...config,
-                      tableIds: { ...config.tableIds, tasks: e.target.value }
-                    })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="table-schedules">排期表 Table ID</Label>
-                  <Input
-                    id="table-schedules"
-                    placeholder="tblxxxxxxxx"
-                    value={config.tableIds.schedules}
-                    onChange={(e) => setConfig({
-                      ...config,
-                      tableIds: { ...config.tableIds, schedules: e.target.value }
-                    })}
-                  />
-                </div>
+                {config.dataSourceMode === 'new' ? (
+                  // 需求表模式
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-resources">人员表 Table ID</Label>
+                      <Input
+                        id="table-resources"
+                        placeholder="tblxxxxxxxx"
+                        value={config.newMode.tableIds.resources}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          newMode: {
+                            ...config.newMode,
+                            tableIds: { ...config.newMode.tableIds, resources: e.target.value }
+                          }
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-requirements1">需求表1 Table ID</Label>
+                      <Input
+                        id="table-requirements1"
+                        placeholder="tblxxxxxxxx"
+                        value={config.newMode.tableIds.requirements1}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          newMode: {
+                            ...config.newMode,
+                            tableIds: { ...config.newMode.tableIds, requirements1: e.target.value }
+                          }
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-requirements2">需求表2 Table ID</Label>
+                      <Input
+                        id="table-requirements2"
+                        placeholder="tblxxxxxxxx"
+                        value={config.newMode.tableIds.requirements2}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          newMode: {
+                            ...config.newMode,
+                            tableIds: { ...config.newMode.tableIds, requirements2: e.target.value }
+                          }
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-schedules">排期表 Table ID</Label>
+                      <Input
+                        id="table-schedules"
+                        placeholder="tblxxxxxxxx"
+                        value={config.newMode.tableIds.schedules}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          newMode: {
+                            ...config.newMode,
+                            tableIds: { ...config.newMode.tableIds, schedules: e.target.value }
+                          }
+                        })}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  // 传统模式
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-resources">人员表 Table ID</Label>
+                      <Input
+                        id="table-resources"
+                        placeholder="tblxxxxxxxx"
+                        value={config.legacyMode.tableIds.resources}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          legacyMode: {
+                            ...config.legacyMode,
+                            tableIds: { ...config.legacyMode.tableIds, resources: e.target.value }
+                          }
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-projects">项目表 Table ID</Label>
+                      <Input
+                        id="table-projects"
+                        placeholder="tblxxxxxxxx"
+                        value={config.legacyMode.tableIds.projects}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          legacyMode: {
+                            ...config.legacyMode,
+                            tableIds: { ...config.legacyMode.tableIds, projects: e.target.value }
+                          }
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-tasks">任务表 Table ID</Label>
+                      <Input
+                        id="table-tasks"
+                        placeholder="tblxxxxxxxx"
+                        value={config.legacyMode.tableIds.tasks}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          legacyMode: {
+                            ...config.legacyMode,
+                            tableIds: { ...config.legacyMode.tableIds, tasks: e.target.value }
+                          }
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="table-schedules">排期表 Table ID</Label>
+                      <Input
+                        id="table-schedules"
+                        placeholder="tblxxxxxxxx"
+                        value={config.legacyMode.tableIds.schedules}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          legacyMode: {
+                            ...config.legacyMode,
+                            tableIds: { ...config.legacyMode.tableIds, schedules: e.target.value }
+                          }
+                        })}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
