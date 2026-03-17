@@ -320,19 +320,19 @@ export async function GET(request: NextRequest) {
             }
             
             // 字段映射（根据实际需求表结构）
-            // 任务名称: 需求项目 / 需求名称
-            // 项目名称: 客户名称（每个客户作为一个项目）
-            // 负责人: 所属
+            // 任务名称: 脚本名称
+            // 项目名称: 需求类目（每个需求类目作为一个项目）
+            // 负责人: 对接人
             // 状态: 项目进展
-            // 平面工时: 平面报工耗时 / 平面深加工 / 平面预估工时
-            // 后期工时: 后期报工耗时 / 后期深加工 / 后期预估工时
-            // 截止日期: 验收时间 / 需求日期
+            // 平面工时: 内部平面
+            // 后期工时: 内部后期
+            // 截止日期: 需求日期 / 验收时间
             
-            const customerName = parseStringField(fields['客户名称'] || fields['customerName'], '');
-            const taskName = parseStringField(fields['需求项目'] || fields['需求名称'] || fields['任务名称'] || fields['name'], `需求_${index + 1}`);
+            const categoryName = parseStringField(fields['需求类目'] || fields['客户名称'] || fields['customerName'], '');
+            const taskName = parseStringField(fields['脚本名称'] || fields['需求项目'] || fields['需求名称'] || fields['任务名称'] || fields['name'], `需求_${index + 1}`);
             
-            // 使用客户名称作为项目名
-            const projectName = customerName || '默认项目';
+            // 使用需求类目作为项目名
+            const projectName = categoryName || '默认项目';
             if (projectName && !projectMap.has(projectName)) {
               const projectId = `project-${projectName}`;
               projectMap.set(projectName, {
@@ -355,15 +355,15 @@ export async function GET(request: NextRequest) {
           // 从需求表提取任务
           result.tasks = tasksData.data.items.map((item: any, index: number) => {
             const fields = item.fields;
-            const taskId = parseStringField(fields['需求ID'] || fields['任务ID'] || fields['id'] || fields['ID']) || `req_${item.record_id.substring(0, 8)}`;
+            const taskId = parseStringField(fields['员工填报用索引编号'] || fields['需求ID'] || fields['任务ID'] || fields['id'] || fields['ID']) || `req_${item.record_id.substring(0, 8)}`;
             
-            const customerName = parseStringField(fields['客户名称'] || fields['customerName'], '');
-            const taskName = parseStringField(fields['需求项目'] || fields['需求名称'] || fields['任务名称'] || fields['name'], `需求_${index + 1}`);
-            const projectName = customerName || '默认项目';
+            const categoryName = parseStringField(fields['需求类目'] || fields['客户名称'] || fields['customerName'], '');
+            const taskName = parseStringField(fields['脚本名称'] || fields['需求项目'] || fields['需求名称'] || fields['任务名称'] || fields['name'], `需求_${index + 1}`);
+            const projectName = categoryName || '默认项目';
             const projectId = projectNameToIdMap.get(projectName) || '';
             
-            // 负责人：所属字段
-            const assigneeField = fields['所属'] || fields['负责人'] || fields['指定人员'] || fields['assignedResourceId'];
+            // 负责人：对接人字段
+            const assigneeField = fields['对接人'] || fields['所属'] || fields['负责人'] || fields['指定人员'];
             const feishuPersonId = parsePersonId(assigneeField);
             
             let assigneeId = '';
@@ -376,13 +376,13 @@ export async function GET(request: NextRequest) {
               }
             }
             
-            // 解析工时字段：兼容多种字段名
+            // 解析工时字段：使用实际字段名
             const estimatedHoursGraphic = parseNumberField(
-              fields['平面报工耗时'] || fields['平面深加工'] || fields['平面预估工时'] || fields['estimatedHoursGraphic'], 
+              fields['内部平面'] || fields['平面预估工时'] || fields['平面报工耗时'] || fields['平面深加工'] || fields['estimatedHoursGraphic'], 
               undefined
             );
             const estimatedHoursPost = parseNumberField(
-              fields['后期报工耗时'] || fields['后期深加工'] || fields['后期预估工时'] || fields['estimatedHoursPost'], 
+              fields['内部后期'] || fields['后期预估工时'] || fields['后期报工耗时'] || fields['后期深加工'] || fields['estimatedHoursPost'], 
               undefined
             );
             const totalHours = parseNumberField(
@@ -407,16 +407,19 @@ export async function GET(request: NextRequest) {
             if (priorityStr === '紧急' || priorityStr === '高') priority = 'urgent';
             else if (priorityStr === '低') priority = 'low';
             
-            // 解析截止日期：验收时间 或 需求日期
-            let deadline = parseDateField(fields['验收时间'] || fields['截止日期'] || fields['deadline']) ||
-                          parseDateField(fields['需求日期'] || fields['requirementDate']);
+            // 解析截止日期：需求日期 或 验收时间
+            let deadline = parseDateField(fields['需求日期'] || fields['截止日期'] || fields['deadline']) ||
+                          parseDateField(fields['验收时间']);
             
             // 扩展字段
-            const category = parseStringField(fields['分类'] || fields['category'], '');
+            const category = parseStringField(fields['分类'] || fields['category'] || fields['需求类目'], '');
             const requirementDate = parseDateField(fields['需求日期']);
             const businessMonth = parseStringField(fields['商务月份'], '');
-            const size = parseStringField(fields['尺寸'] || fields['size'], '');
+            const size = parseStringField(fields['尺寸（可多选，有几个全屏尺寸就选几个）'] || fields['尺寸'] || fields['size'], '');
             const contactPerson = parseStringField(fields['对接人'] || fields['contactPerson'], '');
+            const subType = parseStringField(fields['细分类'] || fields['subType'], '');
+            const language = parseStringField(fields['语言'] || fields['language'], '');
+            const dubbing = parseStringField(fields['配音'] || fields['dubbing'], '');
             
             log(`[飞书加载] 📝 任务: ${taskName}, 项目: ${projectName}, 负责人: ${assigneeName || '未分配'}, 状态: ${status}, 平面: ${estimatedHoursGraphic || 0}h, 后期: ${estimatedHoursPost || 0}h`);
             
@@ -441,6 +444,9 @@ export async function GET(request: NextRequest) {
               businessMonth,
               size,
               contactPerson,
+              subType,
+              language,
+              dubbing,
             };
           });
           log(`[飞书加载] ✅ 使用需求表模式从需求表1加载了 ${result.tasks.length} 个任务`);
@@ -466,14 +472,14 @@ export async function GET(request: NextRequest) {
               
               const req2Tasks = req2Data.data.items.map((item: any, index: number) => {
                 const fields = item.fields;
-                const taskId = parseStringField(fields['需求ID'] || fields['任务ID'] || fields['id'] || fields['ID']) || `req2_${item.record_id.substring(0, 8)}`;
+                const taskId = parseStringField(fields['员工填报用索引编号'] || fields['需求ID'] || fields['任务ID'] || fields['id'] || fields['ID']) || `req2_${item.record_id.substring(0, 8)}`;
                 
-                const customerName = parseStringField(fields['客户名称'] || fields['customerName'], '');
-                const taskName = parseStringField(fields['需求项目'] || fields['需求名称'] || fields['任务名称'] || fields['name'], `需求2_${index + 1}`);
-                const projectName = customerName || '默认项目';
+                const categoryName = parseStringField(fields['需求类目'] || fields['客户名称'] || fields['customerName'], '');
+                const taskName = parseStringField(fields['脚本名称'] || fields['需求项目'] || fields['需求名称'] || fields['任务名称'] || fields['name'], `需求2_${index + 1}`);
+                const projectName = categoryName || '默认项目';
                 const projectId = projectNameToIdMap.get(projectName) || '';
                 
-                const assigneeField = fields['所属'] || fields['负责人'] || fields['指定人员'];
+                const assigneeField = fields['对接人'] || fields['所属'] || fields['负责人'] || fields['指定人员'];
                 const feishuPersonId = parsePersonId(assigneeField);
                 
                 let assigneeId = '';
@@ -487,11 +493,11 @@ export async function GET(request: NextRequest) {
                 }
                 
                 const estimatedHoursGraphic = parseNumberField(
-                  fields['平面报工耗时'] || fields['平面深加工'] || fields['平面预估工时'], 
+                  fields['内部平面'] || fields['平面预估工时'] || fields['平面报工耗时'] || fields['平面深加工'], 
                   undefined
                 );
                 const estimatedHoursPost = parseNumberField(
-                  fields['后期报工耗时'] || fields['后期深加工'] || fields['后期预估工时'], 
+                  fields['内部后期'] || fields['后期预估工时'] || fields['后期报工耗时'] || fields['后期深加工'], 
                   undefined
                 );
                 const totalHours = parseNumberField(
@@ -505,8 +511,8 @@ export async function GET(request: NextRequest) {
                 else if (statusStr === '已完成' || statusStr === 'completed' || statusStr.includes('完成') || statusStr.includes('验收')) status = 'completed';
                 else if (statusStr === '阻塞' || statusStr === 'blocked') status = 'blocked';
                 
-                let deadline = parseDateField(fields['验收时间'] || fields['截止日期']) ||
-                              parseDateField(fields['需求日期']);
+                let deadline = parseDateField(fields['需求日期'] || fields['截止日期']) ||
+                              parseDateField(fields['验收时间']);
                 
                 return {
                   id: taskId,
@@ -522,8 +528,12 @@ export async function GET(request: NextRequest) {
                   status,
                   deadlineType: deadline ? 'specified' as const : 'uncertain' as const,
                   feishuRecordId: item.record_id,
-                  category: parseStringField(fields['分类'], ''),
+                  category: parseStringField(fields['需求类目'] || fields['分类'], ''),
                   businessMonth: parseStringField(fields['商务月份'], ''),
+                  subType: parseStringField(fields['细分类'], ''),
+                  language: parseStringField(fields['语言'], ''),
+                  dubbing: parseStringField(fields['配音'], ''),
+                  contactPerson: parseStringField(fields['对接人'], ''),
                 };
               });
               
