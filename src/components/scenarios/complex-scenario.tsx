@@ -1523,13 +1523,21 @@ export default function ComplexScenario() {
     console.log('[Feishu Load] 开始从飞书加载数据');
 
     const configStr = localStorage.getItem('feishu-config');
+    console.log('[Feishu Load] 配置字符串:', configStr);
+    
     if (!configStr) {
       alert('请先配置飞书集成信息');
       return;
     }
 
     const config = JSON.parse(configStr);
+    console.log('[Feishu Load] 解析后的配置:', {
+      dataSourceMode: config.dataSourceMode,
+      tableIds: config.tableIds,
+    });
+    
     const dataSourceMode = config.dataSourceMode || 'legacy';
+    console.log('[Feishu Load] 使用的数据源模式:', dataSourceMode);
     
     // 根据数据源模式验证配置
     if (dataSourceMode === 'new') {

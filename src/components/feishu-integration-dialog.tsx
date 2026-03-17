@@ -126,7 +126,9 @@ export default function FeishuIntegrationDialog({
 
   const handleSave = () => {
     localStorage.setItem('feishu-config', JSON.stringify(config));
+    console.log('[Feishu Config] 保存配置:', config);
     onSave?.(config);
+    alert(`配置已保存！\n\n数据源模式: ${config.dataSourceMode === 'new' ? '需求表模式' : '传统模式'}\n人员表: ${config.tableIds.resources || '未填写'}\n${config.dataSourceMode === 'new' ? `需求表1: ${config.tableIds.requirements1 || '未填写'}\n需求表2: ${config.tableIds.requirements2 || '未填写'}` : `项目表: ${config.tableIds.projects || '未填写'}\n任务表: ${config.tableIds.tasks || '未填写'}`}`);
     onOpenChange(false);
   };
 
