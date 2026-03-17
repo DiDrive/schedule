@@ -1523,7 +1523,7 @@ export default function ComplexScenario() {
     console.log('[Feishu Load] 开始从飞书加载数据');
 
     const configStr = localStorage.getItem('feishu-config');
-    console.log('[Feishu Load] 配置字符串:', configStr);
+    console.log('[Feishu Load] 原始配置字符串:', configStr);
     
     if (!configStr) {
       alert('请先配置飞书集成信息');
@@ -1531,29 +1531,32 @@ export default function ComplexScenario() {
     }
 
     const config = JSON.parse(configStr);
-    console.log('[Feishu Load] 解析后的配置:', {
-      dataSourceMode: config.dataSourceMode,
-      tableIds: config.tableIds,
-    });
+    console.log('[Feishu Load] 解析后的完整配置:', JSON.stringify(config, null, 2));
+    
+    // 检查配置完整性
+    if (!config.appId || !config.appSecret || !config.appToken) {
+      alert('飞书配置不完整，请填写 App ID、App Secret 和 App Token');
+      return;
+    }
+    
+    if (!config.tableIds?.resources) {
+      alert('飞书配置不完整，请填写人员表 ID');
+      return;
+    }
     
     const dataSourceMode = config.dataSourceMode || 'legacy';
     console.log('[Feishu Load] 使用的数据源模式:', dataSourceMode);
     
-    // 根据数据源模式验证配置
-    if (dataSourceMode === 'new') {
-      // 需求表模式：需要人员表和需求表
-      if (!config.appId || !config.appSecret || !config.appToken ||
-          !config.tableIds?.resources || !config.tableIds?.requirements1) {
-        alert('飞书配置不完整，请填写 App ID、App Secret、App Token、人员表 ID 和需求表1 ID');
-        return;
-      }
-    } else {
-      // 传统模式：需要人员表、项目表和任务表
-      if (!config.appId || !config.appSecret || !config.appToken ||
-          !config.tableIds?.resources || !config.tableIds?.projects || !config.tableIds?.tasks) {
-        alert('飞书配置不完整，请填写 App ID、App Secret、App Token 和所有 Table ID');
-        return;
-      }
+    // 需求表模式检查
+    if (dataSourceMode === 'new' && !config.tableIds?.requirements1) {
+      alert('需求表模式需要填写需求表1 ID！\n\n请在配置中选择"需求表模式"并填写需求表1的 Table ID');
+      return;
+    }
+    
+    // 传统模式检查
+    if (dataSourceMode === 'legacy' && (!config.tableIds?.projects || !config.tableIds?.tasks)) {
+      alert('传统模式需要填写项目表和任务表 ID！\n\n请切换到"需求表模式"或填写完整的项目表和任务表 ID');
+      return;
     }
 
     setIsLoadingFromFeishu(true);

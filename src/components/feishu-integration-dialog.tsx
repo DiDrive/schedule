@@ -82,12 +82,15 @@ export default function FeishuIntegrationDialog({
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'success' | 'failed'>('unknown');
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // 从 localStorage 加载配置
+  // 从 localStorage 加载配置（只在组件初始化时加载一次）
   useEffect(() => {
     const savedConfig = localStorage.getItem('feishu-config');
+    console.log('[Feishu Dialog] 初始化，加载配置:', savedConfig);
+    
     if (savedConfig) {
       try {
         const parsed = JSON.parse(savedConfig);
+        console.log('[Feishu Dialog] 解析后的配置:', parsed);
         // 确保所有字段都有默认值，避免 undefined 导致的 controlled/uncontrolled 警告
         setConfig({
           appId: parsed.appId || '',
@@ -122,6 +125,7 @@ export default function FeishuIntegrationDialog({
         console.error('Failed to load sync status:', error);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSave = () => {
@@ -654,6 +658,31 @@ export default function FeishuIntegrationDialog({
         </Tabs>
 
         <DialogFooter className="flex gap-2">
+          <Button 
+            variant="destructive" 
+            onClick={() => {
+              localStorage.removeItem('feishu-config');
+              setConfig({
+                appId: '',
+                appSecret: '',
+                appToken: '',
+                tableIds: {
+                  resources: '',
+                  projects: '',
+                  tasks: '',
+                  schedules: '',
+                  requirements1: '',
+                  requirements2: '',
+                },
+                enableAutoSync: true,
+                autoSyncInterval: 5,
+                dataSourceMode: 'new',
+              });
+              alert('配置已重置！请重新填写配置信息。');
+            }}
+          >
+            重置配置
+          </Button>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             取消
           </Button>
