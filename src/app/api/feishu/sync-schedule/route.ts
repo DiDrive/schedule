@@ -66,8 +66,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 根据数据源模式判断需要的 table_id
-    const isRequirementMode = dataSourceMode === 'requirement';
-    const targetTableId = isRequirementMode ? requirementTableId : schedulesTableId;
+    // 前端传入的模式：'new' = 需求表模式，'legacy' = 传统模式
+    const isRequirementMode = dataSourceMode === 'new' || dataSourceMode === 'requirement';
+    const targetTableId = isRequirementMode ? (requirementTableId || schedulesTableId) : schedulesTableId;
+    
+    log(`[飞书同步] 模式判断: dataSourceMode=${dataSourceMode}, isRequirementMode=${isRequirementMode}`);
+    log(`[飞书同步] 目标表格ID: ${targetTableId}`);
 
     if (!targetTableId) {
       log('[飞书同步] ❌ 缺少目标表格 ID');
@@ -184,55 +188,99 @@ export async function POST(request: NextRequest) {
         const feishuPersonId = task.assignedResourceId ? resourceIdToFeishuPersonIdMap.get(task.assignedResourceId) || task.assignedResourceId : '';
 
         // 准备排期记录数据
-        // 字段名需要与飞书多维表的字段名一致
-        const scheduleRecord: any = {
-          fields: {
-            // 任务名称（文本型）：可以写入
-            '任务名称': task.name || '',
+        // 根据数据源模式选择正确的字段名
+        let scheduleRecord: any;
+        
+        if (isRequirementMode) {
+          // 需求表模式：使用需求表的字段名（与加载时读取的字段名一致）
+          scheduleRecord = {
+            fields: {
+              // 任务名称：需求项目 或 需求名称
+              '需求项目': task.name || '',
+              '需求名称': task.name || '',
+              
+              // 负责人：所属 字段（成员型）
+              '所属': feishuPersonId ? [{ id: feishuPersonId }] : [],
+              
+              // 项目进展（状态）
+              '项目进展': mapStatusToFeishu(task.status || 'pending'),
+              
+              // 工时字段
+              '平面预估工时': task.estimatedHoursGraphic || 0,
+              '后期预估工时': task.estimatedHoursPost || 0,
+              
+              // 子任务依赖模式
+              '子任务依赖模式': task.subTaskDependencyMode === 'serial' ? '串行' : '并行',
+            },
+          };
+          
+          // 如果有开始时间和结束时间，添加排期相关字段
+          if (task.startDate) {
+            scheduleRecord.fields['开始时间'] = Math.floor(new Date(task.startDate).getTime() / 1000) * 1000;
+          }
+          if (task.endDate) {
+            scheduleRecord.fields['结束时间'] = Math.floor(new Date(task.endDate).getTime() / 1000) * 1000;
+          }
+          
+          // 建议截止日期
+          if (task.suggestedDeadline) {
+            scheduleRecord.fields['建议截止日期'] = Math.floor(new Date(task.suggestedDeadline).getTime() / 1000) * 1000;
+          }
+          
+          log(`[飞书同步] 需求表模式 - 同步任务: ${task.name}`);
+          log(`[飞书同步] 需求表模式 - 字段: 需求项目, 所属, 项目进展, 平面预估工时, 后期预估工时`);
+        } else {
+          // 传统模式：使用排期表的字段名
+          scheduleRecord = {
+            fields: {
+              // 任务名称（文本型）
+              '任务名称': task.name || '',
 
-            // 任务类型（单选/关联型）
-            '任务类型': task.taskType || '',
+              // 任务类型（单选/关联型）
+              '任务类型': task.taskType || '',
 
-            // 负责人（成员型）：传人员的 open_id
-            '负责人': feishuPersonId ? [{ id: feishuPersonId }] : [],
+              // 负责人（成员型）
+              '负责人': feishuPersonId ? [{ id: feishuPersonId }] : [],
 
-            // 开始时间（日期时间型）：传时间戳（毫秒）
-            '开始时间': task.startDate ? Math.floor(new Date(task.startDate).getTime() / 1000) * 1000 : 0,
+              // 开始时间（日期时间型）：传时间戳（毫秒）
+              '开始时间': task.startDate ? Math.floor(new Date(task.startDate).getTime() / 1000) * 1000 : 0,
 
-            // 结束时间（日期时间型）：传时间戳（毫秒）
-            '结束时间': task.endDate ? Math.floor(new Date(task.endDate).getTime() / 1000) * 1000 : 0,
+              // 结束时间（日期时间型）
+              '结束时间': task.endDate ? Math.floor(new Date(task.endDate).getTime() / 1000) * 1000 : 0,
 
-            // 预估工时（数值型）：传数字
-            '预估工时': task.estimatedHours || 0,
+              // 预估工时（数值型）
+              '预估工时': task.estimatedHours || 0,
 
-            // 平面工时和后期工时
-            '平面工时': task.estimatedHoursGraphic || 0,
-            '后期工时': task.estimatedHoursPost || 0,
+              // 平面工时和后期工时
+              '平面工时': task.estimatedHoursGraphic || 0,
+              '后期工时': task.estimatedHoursPost || 0,
 
-            // 子任务依赖模式
-            '子任务依赖': task.subTaskDependencyMode === 'serial' ? '串行' : '并行',
+              // 子任务依赖模式
+              '子任务依赖': task.subTaskDependencyMode === 'serial' ? '串行' : '并行',
 
-            // 状态（单选型）：映射为中文
-            '状态': mapStatusToFeishu(task.status || 'pending'),
-          },
-        };
+              // 状态（单选型）
+              '状态': mapStatusToFeishu(task.status || 'pending'),
+            },
+          };
 
-        // 如果有截止日期，添加该字段
-        if (task.deadline) {
-          scheduleRecord.fields['截止日期'] = Math.floor(new Date(task.deadline).getTime() / 1000) * 1000;
+          // 如果有截止日期，添加该字段
+          if (task.deadline) {
+            scheduleRecord.fields['截止日期'] = Math.floor(new Date(task.deadline).getTime() / 1000) * 1000;
+          }
+
+          // 如果有建议截止日期
+          if (task.suggestedDeadline) {
+            scheduleRecord.fields['建议截止日期'] = Math.floor(new Date(task.suggestedDeadline).getTime() / 1000) * 1000;
+          }
+
+          // 如果有项目名称
+          if (task.projectName) {
+            scheduleRecord.fields['所属项目'] = task.projectName;
+          }
+          
+          log(`[飞书同步] 传统模式 - 同步任务: ${task.name}`);
         }
 
-        // 如果有建议截止日期（从排期算法计算得出），添加该字段
-        if (task.suggestedDeadline) {
-          scheduleRecord.fields['建议截止日期'] = Math.floor(new Date(task.suggestedDeadline).getTime() / 1000) * 1000;
-        }
-
-        // 如果有项目名称，添加该字段
-        if (task.projectName) {
-          scheduleRecord.fields['所属项目'] = task.projectName;
-        }
-
-        log(`[飞书同步] 同步任务: ${task.name}`);
         log(`[飞书同步]   - 任务名称: ${task.name || '(无)'}`);
         log(`[飞书同步]   - 系统资源ID: ${task.assignedResourceId || '(无)'}`);
         log(`[飞书同步]   - 飞书人员ID: ${feishuPersonId || '(无)'}`);
@@ -247,21 +295,29 @@ export async function POST(request: NextRequest) {
 
         // 根据模式选择同步方式
         let response;
-        if (isRequirementMode && task.feishuRecordId) {
+        if (isRequirementMode) {
           // 需求表模式：更新现有记录
-          response = await fetch(
-            `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${targetTableId}/records/${task.feishuRecordId}`,
-            {
-              method: 'PUT',
-              headers: {
-                'Authorization': `Bearer ${appAccessToken}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(scheduleRecord),
-            }
-          );
+          if (task.feishuRecordId) {
+            log(`[飞书同步] 需求表模式 - 更新记录: record_id=${task.feishuRecordId}`);
+            response = await fetch(
+              `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${targetTableId}/records/${task.feishuRecordId}`,
+              {
+                method: 'PUT',
+                headers: {
+                  'Authorization': `Bearer ${appAccessToken}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(scheduleRecord),
+              }
+            );
+          } else {
+            // 没有 record_id，跳过（需求表模式不应创建新记录）
+            log(`[飞书同步] ⚠️ 需求表模式 - 任务 ${task.name} 没有 feishuRecordId，跳过同步`);
+            continue;
+          }
         } else {
           // 传统模式：创建新记录
+          log(`[飞书同步] 传统模式 - 创建新记录`);
           response = await fetch(
             `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${targetTableId}/records`,
             {

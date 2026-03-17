@@ -1529,6 +1529,11 @@ export default function ComplexScenario() {
           `&data_source_mode=${encodeURIComponent(dataSourceMode)}` +
           `&resources_table_id=${encodeURIComponent(modeConfig.tableIds.resources || '')}`;
         
+        // 根据数据源模式添加对应的表格ID
+        if (dataSourceMode === 'new' && modeConfig.tableIds.requirements1) {
+          // 需求表模式：使用需求表1作为同步目标
+          url += `&requirement_table_id=${encodeURIComponent(modeConfig.tableIds.requirements1 || '')}`;
+        }
         url += `&schedules_table_id=${encodeURIComponent(modeConfig.tableIds.schedules || '')}`;
         
         const response = await fetch(url, {
