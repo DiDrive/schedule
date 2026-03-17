@@ -443,7 +443,96 @@ export async function GET(request: NextRequest) {
               contactPerson,
             };
           });
-          log(`[飞书加载] ✅ 使用需求表模式加载了 ${result.tasks.length} 个任务`);
+          log(`[飞书加载] ✅ 使用需求表模式从需求表1加载了 ${result.tasks.length} 个任务`);
+          
+          // 如果有需求表2，也加载数据
+          if (requirements2TableId) {
+            log(`[飞书加载] 步骤3.2：加载需求表2数据: table_id=${requirements2TableId}`);
+            const req2Response = await fetch(
+              `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${requirements2TableId}/records/search`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${appAccessToken}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ page_size: 500 }),
+              }
+            );
+
+            const req2Data = await req2Response.json();
+            if (req2Data.code === 0 && req2Data.data) {
+              log(`[飞书加载] 🔍 需求表2记录数: ${req2Data.data.items.length}`);
+              
+              const req2Tasks = req2Data.data.items.map((item: any, index: number) => {
+                const fields = item.fields;
+                const taskId = parseStringField(fields['需求ID'] || fields['任务ID'] || fields['id'] || fields['ID']) || `req2_${item.record_id.substring(0, 8)}`;
+                
+                const customerName = parseStringField(fields['客户名称'] || fields['customerName'], '');
+                const taskName = parseStringField(fields['需求项目'] || fields['需求名称'] || fields['任务名称'] || fields['name'], `需求2_${index + 1}`);
+                const projectName = customerName || '默认项目';
+                const projectId = projectNameToIdMap.get(projectName) || '';
+                
+                const assigneeField = fields['所属'] || fields['负责人'] || fields['指定人员'];
+                const feishuPersonId = parsePersonId(assigneeField);
+                
+                let assigneeId = '';
+                let assigneeName = '';
+                if (feishuPersonId) {
+                  const resource = result.resources.find((r: any) => r.feishuPersonId === feishuPersonId);
+                  if (resource) {
+                    assigneeId = resource.id;
+                    assigneeName = resource.name;
+                  }
+                }
+                
+                const estimatedHoursGraphic = parseNumberField(
+                  fields['平面报工耗时'] || fields['平面深加工'] || fields['平面预估工时'], 
+                  undefined
+                );
+                const estimatedHoursPost = parseNumberField(
+                  fields['后期报工耗时'] || fields['后期深加工'] || fields['后期预估工时'], 
+                  undefined
+                );
+                const totalHours = parseNumberField(
+                  fields['预估工时'], 
+                  (estimatedHoursGraphic || 0) + (estimatedHoursPost || 0)
+                );
+                
+                const statusStr = parseStringField(fields['项目进展'] || fields['状态'] || fields['status'], 'pending');
+                let status: 'pending' | 'in-progress' | 'completed' | 'blocked' = 'pending';
+                if (statusStr === '进行中' || statusStr === 'in-progress' || statusStr.includes('进行')) status = 'in-progress';
+                else if (statusStr === '已完成' || statusStr === 'completed' || statusStr.includes('完成') || statusStr.includes('验收')) status = 'completed';
+                else if (statusStr === '阻塞' || statusStr === 'blocked') status = 'blocked';
+                
+                let deadline = parseDateField(fields['验收时间'] || fields['截止日期']) ||
+                              parseDateField(fields['需求日期']);
+                
+                return {
+                  id: taskId,
+                  name: taskName,
+                  projectId,
+                  estimatedHours: totalHours,
+                  estimatedHoursGraphic,
+                  estimatedHoursPost,
+                  priority: 'normal' as const,
+                  assigneeId,
+                  assigneeName,
+                  deadline,
+                  status,
+                  deadlineType: deadline ? 'specified' as const : 'uncertain' as const,
+                  feishuRecordId: item.record_id,
+                  category: parseStringField(fields['分类'], ''),
+                  businessMonth: parseStringField(fields['商务月份'], ''),
+                };
+              });
+              
+              result.tasks.push(...req2Tasks);
+              log(`[飞书加载] ✅ 从需求表2加载了 ${req2Tasks.length} 个任务，总计 ${result.tasks.length} 个任务`);
+            } else {
+              log(`[飞书加载] ⚠️ 加载需求表2失败: ${JSON.stringify(req2Data)}`);
+            }
+          }
         } else if (isWorkorderMode) {
           // 工单表模式：使用 workorderRecordToTask 转换
           result.tasks = tasksData.data.items.map((item: any) => {

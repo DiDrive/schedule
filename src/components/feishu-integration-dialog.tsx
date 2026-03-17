@@ -64,6 +64,7 @@ export default function FeishuIntegrationDialog({
 
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'success' | 'failed'>('unknown');
+  const [connectionError, setConnectionError] = useState<string>('');
 
   // 从 localStorage 加载配置
   useEffect(() => {
@@ -95,38 +96,99 @@ export default function FeishuIntegrationDialog({
         console.error('Failed to load Feishu config:', error);
       }
     }
+    setConnectionStatus('unknown');
+    setConnectionError('');
   }, [open]);
 
+  // 更新字段并自动去除空格
+  const updateField = (field: keyof FeishuConfig, value: string) => {
+    setConfig(prev => ({ ...prev, [field]: value.trim() }));
+  };
+
+  const updateTableId = (field: keyof FeishuConfig['tableIds'], value: string) => {
+    setConfig(prev => ({
+      ...prev,
+      tableIds: { ...prev.tableIds, [field]: value.trim() }
+    }));
+  };
+
   const handleSave = () => {
+    // 验证必填字段
+    if (!config.appId || !config.appSecret || !config.appToken) {
+      alert('请填写 App ID、App Secret 和 App Token');
+      return;
+    }
+    
+    if (!config.tableIds.resources) {
+      alert('请填写人员表 Table ID');
+      return;
+    }
+    
+    if (config.dataSourceMode === 'new') {
+      if (!config.tableIds.requirements1) {
+        alert('请填写需求表1 Table ID');
+        return;
+      }
+    } else {
+      if (!config.tableIds.projects || !config.tableIds.tasks) {
+        alert('请填写项目表和任务表 Table ID');
+        return;
+      }
+    }
+    
     localStorage.setItem('feishu-config', JSON.stringify(config));
     console.log('[Feishu Config] 保存配置:', config);
     onSave?.(config);
     
     const modeText = config.dataSourceMode === 'new' ? '需求表模式' : '传统模式';
-    const tableInfo = config.dataSourceMode === 'new' 
-      ? `人员表: ${config.tableIds.resources || '未填写'}\n需求表1: ${config.tableIds.requirements1 || '未填写'}`
-      : `人员表: ${config.tableIds.resources || '未填写'}\n项目表: ${config.tableIds.projects || '未填写'}\n任务表: ${config.tableIds.tasks || '未填写'}`;
+    let tableInfo = `人员表: ${config.tableIds.resources}\n`;
+    
+    if (config.dataSourceMode === 'new') {
+      tableInfo += `需求表1: ${config.tableIds.requirements1}\n`;
+      tableInfo += `需求表2: ${config.tableIds.requirements2 || '未填写'}\n`;
+      tableInfo += `排期表: ${config.tableIds.schedules || '未填写'}`;
+    } else {
+      tableInfo += `项目表: ${config.tableIds.projects}\n`;
+      tableInfo += `任务表: ${config.tableIds.tasks}\n`;
+      tableInfo += `排期表: ${config.tableIds.schedules || '未填写'}`;
+    }
     
     alert(`配置已保存！\n\n数据源模式: ${modeText}\n${tableInfo}`);
     onOpenChange(false);
   };
 
   const handleTestConnection = async () => {
+    if (!config.appId || !config.appSecret || !config.appToken) {
+      setConnectionStatus('failed');
+      setConnectionError('请先填写 App ID、App Secret 和 App Token');
+      return;
+    }
+    
     setIsTestingConnection(true);
+    setConnectionError('');
+    
     try {
       const response = await fetch('/api/feishu/test-connection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          appId: config.appId,
-          appSecret: config.appSecret,
-          appToken: config.appToken,
+          appId: config.appId.trim(),
+          appSecret: config.appSecret.trim(),
+          appToken: config.appToken.trim(),
         }),
       });
       const result = await response.json();
-      setConnectionStatus(result.success ? 'success' : 'failed');
+      
+      if (result.success) {
+        setConnectionStatus('success');
+        setConnectionError('');
+      } else {
+        setConnectionStatus('failed');
+        setConnectionError(result.error || '连接失败');
+      }
     } catch (error) {
       setConnectionStatus('failed');
+      setConnectionError(error instanceof Error ? error.message : '网络错误');
     } finally {
       setIsTestingConnection(false);
     }
@@ -151,6 +213,7 @@ export default function FeishuIntegrationDialog({
       dataSourceMode: 'new',
     });
     setConnectionStatus('unknown');
+    setConnectionError('');
     alert('配置已重置！');
   };
 
@@ -183,31 +246,31 @@ export default function FeishuIntegrationDialog({
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="appId">App ID</Label>
+                <Label htmlFor="appId">App ID <span className="text-red-500">*</span></Label>
                 <Input
                   id="appId"
                   placeholder="cli_xxxxxxxxx"
                   value={config.appId}
-                  onChange={(e) => setConfig({ ...config, appId: e.target.value })}
+                  onChange={(e) => updateField('appId', e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="appSecret">App Secret</Label>
+                <Label htmlFor="appSecret">App Secret <span className="text-red-500">*</span></Label>
                 <Input
                   id="appSecret"
                   type="password"
                   placeholder="••••••••••••••••"
                   value={config.appSecret}
-                  onChange={(e) => setConfig({ ...config, appSecret: e.target.value })}
+                  onChange={(e) => updateField('appSecret', e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="appToken">App Token (多维表应用 Token)</Label>
+                <Label htmlFor="appToken">App Token (多维表应用 Token) <span className="text-red-500">*</span></Label>
                 <Input
                   id="appToken"
                   placeholder="bascxxxxxxxxxxxx"
                   value={config.appToken}
-                  onChange={(e) => setConfig({ ...config, appToken: e.target.value })}
+                  onChange={(e) => updateField('appToken', e.target.value)}
                 />
               </div>
               <Button
@@ -229,15 +292,15 @@ export default function FeishuIntegrationDialog({
                 )}
               </Button>
               {connectionStatus === 'success' && (
-                <div className="flex items-center gap-2 text-sm text-green-600">
+                <div className="flex items-center gap-2 text-sm text-green-600 p-2 bg-green-50 rounded">
                   <CheckCircle2 className="h-4 w-4" />
-                  连接成功
+                  连接成功！
                 </div>
               )}
               {connectionStatus === 'failed' && (
-                <div className="flex items-center gap-2 text-sm text-red-600">
+                <div className="flex items-center gap-2 text-sm text-red-600 p-2 bg-red-50 rounded">
                   <AlertCircle className="h-4 w-4" />
-                  连接失败，请检查配置信息
+                  连接失败：{connectionError}
                 </div>
               )}
             </CardContent>
@@ -266,7 +329,7 @@ export default function FeishuIntegrationDialog({
                   />
                   <div>
                     <div className="font-medium">需求表模式</div>
-                    <div className="text-sm text-slate-500">使用需求表，包含项目和任务信息（推荐）</div>
+                    <div className="text-sm text-slate-500">人员表 + 需求表 + 排期表（推荐）</div>
                   </div>
                 </label>
                 <label 
@@ -284,7 +347,7 @@ export default function FeishuIntegrationDialog({
                   />
                   <div>
                     <div className="font-medium">传统模式</div>
-                    <div className="text-sm text-slate-500">使用人员表+项目表+任务表三张表</div>
+                    <div className="text-sm text-slate-500">人员表 + 项目表 + 任务表 + 排期表</div>
                   </div>
                 </label>
               </div>
@@ -296,7 +359,7 @@ export default function FeishuIntegrationDialog({
             <CardHeader>
               <CardTitle>表格 ID 配置</CardTitle>
               <CardDescription>
-                请填写多维表中各表格的 Table ID
+                请填写多维表中各表格的 Table ID（注意不要有多余空格）
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -309,30 +372,39 @@ export default function FeishuIntegrationDialog({
                   id="table-resources"
                   placeholder="tblxxxxxxxx"
                   value={config.tableIds.resources}
-                  onChange={(e) => setConfig({
-                    ...config,
-                    tableIds: { ...config.tableIds, resources: e.target.value }
-                  })}
+                  onChange={(e) => updateTableId('resources', e.target.value)}
                 />
               </div>
 
               {/* 需求表模式 */}
               {config.dataSourceMode === 'new' && (
                 <>
+                  <div className="border-t pt-4 mt-4">
+                    <p className="text-sm text-slate-500 mb-3">需求表配置：</p>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="table-requirements1">
-                      需求表 Table ID <span className="text-red-500">*</span>
+                      需求表1 Table ID <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="table-requirements1"
                       placeholder="tblxxxxxxxx"
                       value={config.tableIds.requirements1}
-                      onChange={(e) => setConfig({
-                        ...config,
-                        tableIds: { ...config.tableIds, requirements1: e.target.value }
-                      })}
+                      onChange={(e) => updateTableId('requirements1', e.target.value)}
                     />
-                    <p className="text-xs text-slate-500">包含客户名称、需求项目、平面/后期工时等信息的需求表</p>
+                    <p className="text-xs text-slate-500">第一个需求表，包含客户名称、需求项目、工时等信息</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="table-requirements2">
+                      需求表2 Table ID
+                    </Label>
+                    <Input
+                      id="table-requirements2"
+                      placeholder="tblxxxxxxxx（可选）"
+                      value={config.tableIds.requirements2}
+                      onChange={(e) => updateTableId('requirements2', e.target.value)}
+                    />
+                    <p className="text-xs text-slate-500">第二个需求表（可选，后续可能有更多）</p>
                   </div>
                 </>
               )}
@@ -340,6 +412,9 @@ export default function FeishuIntegrationDialog({
               {/* 传统模式 */}
               {config.dataSourceMode === 'legacy' && (
                 <>
+                  <div className="border-t pt-4 mt-4">
+                    <p className="text-sm text-slate-500 mb-3">项目与任务表配置：</p>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="table-projects">
                       项目表 Table ID <span className="text-red-500">*</span>
@@ -348,10 +423,7 @@ export default function FeishuIntegrationDialog({
                       id="table-projects"
                       placeholder="tblxxxxxxxx"
                       value={config.tableIds.projects}
-                      onChange={(e) => setConfig({
-                        ...config,
-                        tableIds: { ...config.tableIds, projects: e.target.value }
-                      })}
+                      onChange={(e) => updateTableId('projects', e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
@@ -362,14 +434,28 @@ export default function FeishuIntegrationDialog({
                       id="table-tasks"
                       placeholder="tblxxxxxxxx"
                       value={config.tableIds.tasks}
-                      onChange={(e) => setConfig({
-                        ...config,
-                        tableIds: { ...config.tableIds, tasks: e.target.value }
-                      })}
+                      onChange={(e) => updateTableId('tasks', e.target.value)}
                     />
                   </div>
                 </>
               )}
+
+              {/* 排期表 - 两种模式都需要 */}
+              <div className="border-t pt-4 mt-4">
+                <p className="text-sm text-slate-500 mb-3">排期结果表配置：</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="table-schedules">
+                  排期表 Table ID
+                </Label>
+                <Input
+                  id="table-schedules"
+                  placeholder="tblxxxxxxxx（可选，用于同步排期结果）"
+                  value={config.tableIds.schedules}
+                  onChange={(e) => updateTableId('schedules', e.target.value)}
+                />
+                <p className="text-xs text-slate-500">排期结果将同步到此表（可选）</p>
+              </div>
             </CardContent>
           </Card>
         </div>
