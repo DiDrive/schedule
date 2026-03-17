@@ -24,23 +24,78 @@ export default function ProjectScheduleSystem() {
       return;
     }
 
-    const config = JSON.parse(configStr);
-    if (!config.appId || !config.appSecret || !config.appToken ||
-        !config.tableIds?.resources || !config.tableIds?.projects || !config.tableIds?.tasks) {
-      alert('飞书配置不完整，请填写 App ID、App Secret、App Token 和所有 Table ID');
+    let config = JSON.parse(configStr);
+    
+    // 兼容性处理：检测旧配置格式并转换
+    if (config.appToken && !config.newMode && !config.legacyMode) {
+      console.log('[Page] 检测到旧配置格式，自动转换...');
+      const oldTableIds = config.tableIds || {};
+      const dataSourceMode = config.dataSourceMode || 'new';
+      
+      config = {
+        appId: config.appId,
+        appSecret: config.appSecret,
+        dataSourceMode: dataSourceMode,
+        newMode: {
+          appToken: config.appToken,
+          tableIds: {
+            resources: oldTableIds.resources || '',
+            requirements1: oldTableIds.requirements1 || '',
+            requirements2: oldTableIds.requirements2 || '',
+            schedules: oldTableIds.schedules || '',
+          },
+        },
+        legacyMode: {
+          appToken: config.appToken,
+          tableIds: {
+            resources: oldTableIds.resources || '',
+            projects: oldTableIds.projects || '',
+            tasks: oldTableIds.tasks || '',
+            schedules: oldTableIds.schedules || '',
+          },
+        },
+      };
+    }
+    
+    const dataSourceMode = config.dataSourceMode || 'new';
+    const modeConfig = dataSourceMode === 'new' ? config.newMode : config.legacyMode;
+    
+    // 验证配置
+    if (!config.appId || !config.appSecret || !modeConfig?.appToken) {
+      alert('飞书配置不完整，请填写 App ID、App Secret 和当前模式的 App Token');
       return;
+    }
+    
+    // 根据模式验证必填的 Table ID
+    if (dataSourceMode === 'new') {
+      if (!modeConfig?.tableIds?.resources || !modeConfig?.tableIds?.requirements1) {
+        alert('需求表模式配置不完整，请填写人员表和需求表1的 Table ID');
+        return;
+      }
+    } else {
+      if (!modeConfig?.tableIds?.resources || !modeConfig?.tableIds?.projects || !modeConfig?.tableIds?.tasks) {
+        alert('传统模式配置不完整，请填写人员表、项目表和任务表的 Table ID');
+        return;
+      }
     }
 
     setIsLoadingFromFeishu(true);
     try {
-      const response = await fetch(
-        `/api/feishu/load-data?app_id=${encodeURIComponent(config.appId)}` +
+      // 构建请求 URL
+      let url = `/api/feishu/load-data?app_id=${encodeURIComponent(config.appId)}` +
         `&app_secret=${encodeURIComponent(config.appSecret)}` +
-        `&app_token=${encodeURIComponent(config.appToken)}` +
-        `&resources_table_id=${encodeURIComponent(config.tableIds.resources)}` +
-        `&projects_table_id=${encodeURIComponent(config.tableIds.projects)}` +
-        `&tasks_table_id=${encodeURIComponent(config.tableIds.tasks)}`
-      );
+        `&app_token=${encodeURIComponent(modeConfig.appToken)}` +
+        `&resources_table_id=${encodeURIComponent(modeConfig.tableIds.resources)}` +
+        `&data_source_mode=${encodeURIComponent(dataSourceMode)}`;
+      
+      if (dataSourceMode === 'new') {
+        url += `&requirements1_table_id=${encodeURIComponent(modeConfig.tableIds.requirements1 || '')}`;
+      } else {
+        url += `&projects_table_id=${encodeURIComponent(modeConfig.tableIds.projects)}` +
+          `&tasks_table_id=${encodeURIComponent(modeConfig.tableIds.tasks)}`;
+      }
+
+      const response = await fetch(url);
 
       const result = await response.json();
 
@@ -55,7 +110,10 @@ export default function ProjectScheduleSystem() {
       localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
 
       const stats = result.stats || {};
+      const modeText = dataSourceMode === 'new' ? '需求表模式' : '传统模式';
       const message = `成功从飞书多维表加载数据！
+
+📊 数据源模式: ${modeText}
 
 📊 数据统计：
   • 人员：${resources.length} 个
@@ -88,7 +146,42 @@ export default function ProjectScheduleSystem() {
       return;
     }
 
-    const config = JSON.parse(configStr);
+    let config = JSON.parse(configStr);
+    
+    // 兼容性处理：检测旧配置格式并转换
+    if (config.appToken && !config.newMode && !config.legacyMode) {
+      console.log('[Page Sync] 检测到旧配置格式，自动转换...');
+      const oldTableIds = config.tableIds || {};
+      const dataSourceMode = config.dataSourceMode || 'new';
+      
+      config = {
+        appId: config.appId,
+        appSecret: config.appSecret,
+        dataSourceMode: dataSourceMode,
+        newMode: {
+          appToken: config.appToken,
+          tableIds: {
+            resources: oldTableIds.resources || '',
+            requirements1: oldTableIds.requirements1 || '',
+            requirements2: oldTableIds.requirements2 || '',
+            schedules: oldTableIds.schedules || '',
+          },
+        },
+        legacyMode: {
+          appToken: config.appToken,
+          tableIds: {
+            resources: oldTableIds.resources || '',
+            projects: oldTableIds.projects || '',
+            tasks: oldTableIds.tasks || '',
+            schedules: oldTableIds.schedules || '',
+          },
+        },
+      };
+    }
+    
+    const dataSourceMode = config.dataSourceMode || 'new';
+    const modeConfig = dataSourceMode === 'new' ? config.newMode : config.legacyMode;
+    
     const results: string[] = [];
 
     // 从 localStorage 读取数据
@@ -107,17 +200,16 @@ export default function ProjectScheduleSystem() {
       tasksCount: tasks.length,
       hasSchedule: !!scheduleResult,
       hasResources: sharedResources.length > 0,
-      configTableIds: config.tableIds,
-      projectsStr: projectsStr ? projectsStr.substring(0, 100) : 'null',
-      tasksStr: tasksStr ? tasksStr.substring(0, 100) : 'null',
+      dataSourceMode,
+      modeConfig,
     });
 
     const getProjectById = (id: string) => projects.find((p: any) => p.id === id);
 
     setIsSyncingToFeishu(true);
 
-    // 同步项目
-    if (projects.length > 0 && config.tableIds?.projects) {
+    // 同步项目（仅传统模式支持）
+    if (dataSourceMode === 'legacy' && projects.length > 0 && modeConfig?.tableIds?.projects) {
       console.log('[Feishu Sync] 准备同步项目:', projects.length, '个');
       try {
         const response = await fetch('/api/feishu/sync-projects-tasks', {
@@ -129,11 +221,11 @@ export default function ProjectScheduleSystem() {
             config: {
               appId: config.appId,
               appSecret: config.appSecret,
-              appToken: config.appToken,
+              appToken: modeConfig.appToken,
               tableIds: { 
-                projects: config.tableIds.projects || '', 
-                tasks: config.tableIds.tasks || '',
-                resources: config.tableIds.resources || '',
+                projects: modeConfig.tableIds.projects || '', 
+                tasks: modeConfig.tableIds.tasks || '',
+                resources: modeConfig.tableIds.resources || '',
               },
             },
           }),
@@ -155,13 +247,14 @@ export default function ProjectScheduleSystem() {
       }
     } else {
       console.log('[Feishu Sync] 跳过项目同步，原因:', {
+        isLegacyMode: dataSourceMode === 'legacy',
         hasProjects: projects.length > 0,
-        hasProjectTableId: !!config.tableIds?.projects
+        hasProjectTableId: !!modeConfig?.tableIds?.projects
       });
     }
 
-    // 同步任务
-    if (tasks.length > 0 && config.tableIds?.tasks) {
+    // 同步任务（仅传统模式支持）
+    if (dataSourceMode === 'legacy' && tasks.length > 0 && modeConfig?.tableIds?.tasks) {
       console.log('[Feishu Sync] 准备同步任务:', tasks.length, '个');
       
       // 创建项目ID到项目名称的映射
@@ -187,11 +280,11 @@ export default function ProjectScheduleSystem() {
             config: {
               appId: config.appId,
               appSecret: config.appSecret,
-              appToken: config.appToken,
+              appToken: modeConfig.appToken,
               tableIds: { 
-                projects: config.tableIds.projects || '', 
-                tasks: config.tableIds.tasks || '',
-                resources: config.tableIds.resources || '',
+                projects: modeConfig.tableIds.projects || '', 
+                tasks: modeConfig.tableIds.tasks || '',
+                resources: modeConfig.tableIds.resources || '',
               },
             },
           }),
@@ -213,13 +306,14 @@ export default function ProjectScheduleSystem() {
       }
     } else {
       console.log('[Feishu Sync] 跳过任务同步，原因:', {
+        isLegacyMode: dataSourceMode === 'legacy',
         hasTasks: tasks.length > 0,
-        hasTaskTableId: !!config.tableIds?.tasks
+        hasTaskTableId: !!modeConfig?.tableIds?.tasks
       });
     }
 
     // 同步排期
-    if (scheduleResult && scheduleResult.tasks && scheduleResult.tasks.length > 0 && config.tableIds?.schedules) {
+    if (scheduleResult && scheduleResult.tasks && scheduleResult.tasks.length > 0 && modeConfig?.tableIds?.schedules) {
       try {
         const syncTasks = scheduleResult.tasks.map((task: any) => {
           const resource = sharedResources.find((r: any) => r.id === task.assignedResources[0]);
@@ -241,9 +335,9 @@ export default function ProjectScheduleSystem() {
 
         const url = `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
           `&app_secret=${encodeURIComponent(config.appSecret)}` +
-          `&app_token=${encodeURIComponent(config.appToken)}` +
-          `&schedules_table_id=${encodeURIComponent(config.tableIds.schedules)}` +
-          `&resources_table_id=${encodeURIComponent(config.tableIds.resources || '')}`;
+          `&app_token=${encodeURIComponent(modeConfig.appToken)}` +
+          `&schedules_table_id=${encodeURIComponent(modeConfig.tableIds.schedules)}` +
+          `&resources_table_id=${encodeURIComponent(modeConfig.tableIds.resources || '')}`;
         
         const response = await fetch(url, {
           method: 'POST',
