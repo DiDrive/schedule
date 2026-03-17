@@ -1541,47 +1541,50 @@ export default function ComplexScenario() {
     
     console.log('[Feishu Load] 解析后的完整配置:', JSON.stringify(config, null, 2));
     
+    const dataSourceMode = config.dataSourceMode || 'new';
+    const modeConfig = dataSourceMode === 'new' ? config.newMode : config.legacyMode;
+    
     // 详细检查每个字段
     const missingFields = [];
     if (!config.appId) missingFields.push('App ID');
     if (!config.appSecret) missingFields.push('App Secret');
-    if (!config.appToken) missingFields.push('App Token');
-    if (!config.tableIds?.resources) missingFields.push('人员表 Table ID');
-    
-    const dataSourceMode = config.dataSourceMode || 'legacy';
     
     if (dataSourceMode === 'new') {
-      if (!config.tableIds?.requirements1) missingFields.push('需求表1 Table ID');
+      if (!config.newMode?.appToken) missingFields.push('需求表模式 App Token');
+      if (!config.newMode?.tableIds?.resources) missingFields.push('需求表模式 人员表 ID');
+      if (!config.newMode?.tableIds?.requirements1) missingFields.push('需求表模式 需求表1 ID');
     } else {
-      if (!config.tableIds?.projects) missingFields.push('项目表 Table ID');
-      if (!config.tableIds?.tasks) missingFields.push('任务表 Table ID');
+      if (!config.legacyMode?.appToken) missingFields.push('传统模式 App Token');
+      if (!config.legacyMode?.tableIds?.resources) missingFields.push('传统模式 人员表 ID');
+      if (!config.legacyMode?.tableIds?.projects) missingFields.push('传统模式 项目表 ID');
+      if (!config.legacyMode?.tableIds?.tasks) missingFields.push('传统模式 任务表 ID');
     }
     
     if (missingFields.length > 0) {
       const modeText = dataSourceMode === 'new' ? '需求表模式' : '传统模式';
-      alert(`配置不完整！\n\n当前模式: ${modeText}\n缺少的字段:\n${missingFields.map(f => `• ${f}`).join('\n')}\n\n请打开配置对话框，向下滚动填写所有必填项（带红色 * 号）`);
+      alert(`配置不完整！\n\n当前模式: ${modeText}\n缺少的字段:\n${missingFields.map(f => `• ${f}`).join('\n')}\n\n请打开配置对话框填写所有必填项（带红色 * 号）`);
       return;
     }
 
     setIsLoadingFromFeishu(true);
     try {
-      // 构建请求 URL
+      // 构建请求 URL - 使用新的配置结构
       let url = `/api/feishu/load-data?app_id=${encodeURIComponent(config.appId)}` +
         `&app_secret=${encodeURIComponent(config.appSecret)}` +
-        `&app_token=${encodeURIComponent(config.appToken)}` +
-        `&resources_table_id=${encodeURIComponent(config.tableIds.resources)}` +
+        `&app_token=${encodeURIComponent(modeConfig.appToken)}` +
+        `&resources_table_id=${encodeURIComponent(modeConfig.tableIds.resources)}` +
         `&data_source_mode=${encodeURIComponent(dataSourceMode)}`;
       
       if (dataSourceMode === 'new') {
         // 需求表模式
-        url += `&requirements1_table_id=${encodeURIComponent(config.tableIds.requirements1 || '')}`;
-        if (config.tableIds.requirements2) {
-          url += `&requirements2_table_id=${encodeURIComponent(config.tableIds.requirements2)}`;
+        url += `&requirements1_table_id=${encodeURIComponent(modeConfig.tableIds.requirements1 || '')}`;
+        if (modeConfig.tableIds.requirements2) {
+          url += `&requirements2_table_id=${encodeURIComponent(modeConfig.tableIds.requirements2)}`;
         }
       } else {
         // 传统模式
-        url += `&projects_table_id=${encodeURIComponent(config.tableIds.projects)}` +
-          `&tasks_table_id=${encodeURIComponent(config.tableIds.tasks)}`;
+        url += `&projects_table_id=${encodeURIComponent(modeConfig.tableIds.projects)}` +
+          `&tasks_table_id=${encodeURIComponent(modeConfig.tableIds.tasks)}`;
       }
 
       const response = await fetch(url);
@@ -1643,23 +1646,26 @@ export default function ComplexScenario() {
     }
 
     const config = JSON.parse(configStr);
+    const dataSourceMode = config.dataSourceMode || 'new';
+    const modeConfig = dataSourceMode === 'new' ? config.newMode : config.legacyMode;
+    
     console.log('[Feishu Sync] 配置内容:', {
       appId: config.appId,
       appSecret: config.appSecret ? '已填写' : '未填写',
-      appToken: config.appToken ? '已填写' : '未填写',
-      tableIds: config.tableIds,
-      hasResources: !!config.tableIds?.resources,
+      appToken: modeConfig?.appToken ? '已填写' : '未填写',
+      dataSourceMode,
+      tableIds: modeConfig?.tableIds,
     });
 
-    // 如果配置中没有资源表ID，尝试从其他地方获取
-    if (!config.tableIds?.resources && config.tableIds?.schedules) {
-      console.log('[Feishu Sync] 配置中没有资源表ID，但排期表ID存在，可能是配置不完整');
-    }
-
-    // 同步项目
+    // 同步项目（传统模式才有项目表）
     if (syncType === 'projects' || syncType === undefined) {
-      if (!config.tableIds?.projects) {
-        alert('请先配置项目表的 Table ID');
+      if (dataSourceMode === 'new') {
+        alert('需求表模式不支持同步项目，请使用传统模式');
+        return;
+      }
+      
+      if (!config.legacyMode?.tableIds?.projects) {
+        alert('请先在传统模式中配置项目表的 Table ID');
         return;
       }
 
@@ -1681,11 +1687,11 @@ export default function ComplexScenario() {
             config: {
               appId: config.appId,
               appSecret: config.appSecret,
-              appToken: config.appToken,
+              appToken: modeConfig.appToken,
               tableIds: {
-                projects: config.tableIds.projects,
-                tasks: config.tableIds.tasks || '',
-                resources: config.tableIds.resources || '',
+                projects: modeConfig.tableIds.projects,
+                tasks: modeConfig.tableIds.tasks || '',
+                resources: modeConfig.tableIds.resources || '',
               },
             },
           }),
@@ -1711,10 +1717,15 @@ export default function ComplexScenario() {
       return;
     }
 
-    // 同步任务
+    // 同步任务（传统模式才有任务表）
     if (syncType === 'tasks') {
-      if (!config.tableIds?.tasks) {
-        alert('请先配置任务表的 Table ID');
+      if (dataSourceMode === 'new') {
+        alert('需求表模式不支持同步任务，请使用传统模式');
+        return;
+      }
+      
+      if (!config.legacyMode?.tableIds?.tasks) {
+        alert('请先在传统模式中配置任务表的 Table ID');
         return;
       }
 
@@ -1751,11 +1762,11 @@ export default function ComplexScenario() {
             config: {
               appId: config.appId,
               appSecret: config.appSecret,
-              appToken: config.appToken,
+              appToken: modeConfig.appToken,
               tableIds: {
-                projects: config.tableIds.projects || '',
-                tasks: config.tableIds.tasks,
-                resources: config.tableIds.resources || '',
+                projects: modeConfig.tableIds.projects || '',
+                tasks: modeConfig.tableIds.tasks,
+                resources: modeConfig.tableIds.resources || '',
               },
             },
           }),
@@ -1788,8 +1799,8 @@ export default function ComplexScenario() {
       return;
     }
 
-    if (!config.tableIds?.schedules) {
-      alert('请先配置排期表的 Table ID');
+    if (!modeConfig?.tableIds?.schedules) {
+      alert('请先在当前模式中配置排期表的 Table ID');
       return;
     }
 
@@ -1823,12 +1834,12 @@ export default function ComplexScenario() {
 
       console.log('[Feishu Sync] 准备同步', syncTasks.length, '个任务');
 
-      // 调用同步接口
+      // 调用同步接口 - 使用新的配置结构
       const url = `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
         `&app_secret=${encodeURIComponent(config.appSecret)}` +
-        `&app_token=${encodeURIComponent(config.appToken)}` +
-        `&schedules_table_id=${encodeURIComponent(config.tableIds.schedules)}` +
-        `&resources_table_id=${encodeURIComponent(config.tableIds.resources || '')}`;
+        `&app_token=${encodeURIComponent(modeConfig.appToken)}` +
+        `&schedules_table_id=${encodeURIComponent(modeConfig.tableIds.schedules)}` +
+        `&resources_table_id=${encodeURIComponent(modeConfig.tableIds.resources || '')}`;
       
       console.log('[Feishu Sync] 同步URL:', url);
 
