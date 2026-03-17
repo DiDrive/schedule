@@ -1587,7 +1587,25 @@ export default function ComplexScenario() {
       localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
       localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
 
-      alert(`成功从飞书多维表加载数据！\n\n人员：${resources.length}\n项目：${projects.length}\n任务：${tasks.length}`);
+      // 更详细的加载结果提示
+      let message = `成功从飞书多维表加载数据！\n\n`;
+      message += `数据源模式: ${dataSourceMode === 'new' ? '需求表模式' : '传统模式'}\n`;
+      message += `人员：${resources.length}\n`;
+      message += `项目：${projects.length}\n`;
+      message += `任务：${tasks.length}\n`;
+      
+      if (projects.length === 0 && tasks.length === 0) {
+        if (dataSourceMode === 'legacy') {
+          message += `\n⚠️ 提示: 当前使用传统模式，请确保：`;
+          message += `\n1. 项目表ID和任务表ID填写正确`;
+          message += `\n2. 飞书应用有权限访问这些表格`;
+          message += `\n\n如使用需求表，请切换到"需求表模式"`;
+        } else {
+          message += `\n⚠️ 提示: 请确保需求表ID填写正确且有访问权限`;
+        }
+      }
+      
+      alert(message);
     } catch (error) {
       console.error('[Feishu Load] 加载异常:', error);
       alert(`加载数据失败：${error instanceof Error ? error.message : '请检查网络连接和配置信息'}`);
