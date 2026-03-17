@@ -113,47 +113,60 @@ export default function FeishuIntegrationDialog({
   };
 
   const handleSave = () => {
+    // 去除所有字段的空格
+    const cleanedConfig = {
+      ...config,
+      appId: config.appId.trim(),
+      appSecret: config.appSecret.trim(),
+      appToken: config.appToken.trim(),
+      tableIds: {
+        resources: config.tableIds.resources.trim(),
+        projects: config.tableIds.projects.trim(),
+        tasks: config.tableIds.tasks.trim(),
+        schedules: config.tableIds.schedules.trim(),
+        requirements1: config.tableIds.requirements1.trim(),
+        requirements2: config.tableIds.requirements2.trim(),
+      },
+    };
+    
     // 验证必填字段
-    if (!config.appId || !config.appSecret || !config.appToken) {
-      alert('请填写 App ID、App Secret 和 App Token');
+    const missingFields = [];
+    if (!cleanedConfig.appId) missingFields.push('App ID');
+    if (!cleanedConfig.appSecret) missingFields.push('App Secret');
+    if (!cleanedConfig.appToken) missingFields.push('App Token');
+    if (!cleanedConfig.tableIds.resources) missingFields.push('人员表 Table ID');
+    
+    if (cleanedConfig.dataSourceMode === 'new') {
+      if (!cleanedConfig.tableIds.requirements1) missingFields.push('需求表1 Table ID');
+    } else {
+      if (!cleanedConfig.tableIds.projects) missingFields.push('项目表 Table ID');
+      if (!cleanedConfig.tableIds.tasks) missingFields.push('任务表 Table ID');
+    }
+    
+    if (missingFields.length > 0) {
+      alert(`请填写以下必填项：\n\n${missingFields.map(f => `• ${f}`).join('\n')}\n\n（带红色 * 号的字段）`);
       return;
     }
     
-    if (!config.tableIds.resources) {
-      alert('请填写人员表 Table ID');
-      return;
-    }
+    localStorage.setItem('feishu-config', JSON.stringify(cleanedConfig));
+    console.log('[Feishu Config] 保存配置:', cleanedConfig);
+    setConfig(cleanedConfig);
+    onSave?.(cleanedConfig);
     
-    if (config.dataSourceMode === 'new') {
-      if (!config.tableIds.requirements1) {
-        alert('请填写需求表1 Table ID');
-        return;
-      }
+    const modeText = cleanedConfig.dataSourceMode === 'new' ? '需求表模式' : '传统模式';
+    let tableInfo = `人员表: ${cleanedConfig.tableIds.resources}\n`;
+    
+    if (cleanedConfig.dataSourceMode === 'new') {
+      tableInfo += `需求表1: ${cleanedConfig.tableIds.requirements1}\n`;
+      tableInfo += `需求表2: ${cleanedConfig.tableIds.requirements2 || '未填写'}\n`;
+      tableInfo += `排期表: ${cleanedConfig.tableIds.schedules || '未填写'}`;
     } else {
-      if (!config.tableIds.projects || !config.tableIds.tasks) {
-        alert('请填写项目表和任务表 Table ID');
-        return;
-      }
+      tableInfo += `项目表: ${cleanedConfig.tableIds.projects}\n`;
+      tableInfo += `任务表: ${cleanedConfig.tableIds.tasks}\n`;
+      tableInfo += `排期表: ${cleanedConfig.tableIds.schedules || '未填写'}`;
     }
     
-    localStorage.setItem('feishu-config', JSON.stringify(config));
-    console.log('[Feishu Config] 保存配置:', config);
-    onSave?.(config);
-    
-    const modeText = config.dataSourceMode === 'new' ? '需求表模式' : '传统模式';
-    let tableInfo = `人员表: ${config.tableIds.resources}\n`;
-    
-    if (config.dataSourceMode === 'new') {
-      tableInfo += `需求表1: ${config.tableIds.requirements1}\n`;
-      tableInfo += `需求表2: ${config.tableIds.requirements2 || '未填写'}\n`;
-      tableInfo += `排期表: ${config.tableIds.schedules || '未填写'}`;
-    } else {
-      tableInfo += `项目表: ${config.tableIds.projects}\n`;
-      tableInfo += `任务表: ${config.tableIds.tasks}\n`;
-      tableInfo += `排期表: ${config.tableIds.schedules || '未填写'}`;
-    }
-    
-    alert(`配置已保存！\n\n数据源模式: ${modeText}\n${tableInfo}`);
+    alert(`✅ 配置已保存！\n\n数据源模式: ${modeText}\n${tableInfo}\n\n现在可以点击「从飞书加载」按钮`);
     onOpenChange(false);
   };
 
@@ -294,22 +307,45 @@ export default function FeishuIntegrationDialog({
               {connectionStatus === 'success' && (
                 <div className="flex items-center gap-2 text-sm text-green-600 p-2 bg-green-50 rounded">
                   <CheckCircle2 className="h-4 w-4" />
-                  连接成功！
+                  连接成功！请向下滚动配置数据表
                 </div>
               )}
               {connectionStatus === 'failed' && (
-                <div className="flex items-center gap-2 text-sm text-red-600 p-2 bg-red-50 rounded">
-                  <AlertCircle className="h-4 w-4" />
-                  连接失败：{connectionError}
+                <div className="flex flex-col gap-2 text-sm text-red-600 p-3 bg-red-50 rounded">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <span className="font-medium">连接失败</span>
+                  </div>
+                  <div className="ml-6 text-red-700">{connectionError}</div>
+                  <div className="ml-6 text-xs text-red-600 mt-1">
+                    常见问题：
+                    <br />• App ID 或 App Secret 复制错误（检查前后是否有空格）
+                    <br />• 应用未启用或未授权
+                    <br />• App Token（多维表应用Token）不是 App ID
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
 
+          {/* 数据表配置提示 */}
+          <div className="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-r-lg">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+              <div className="text-sm">
+                <div className="font-medium text-amber-800 mb-1">重要提示</div>
+                <div className="text-amber-700 space-y-1">
+                  <div>• 请向下滚动并填写必填的数据表 ID（带 <span className="text-red-500 font-bold">*</span> 号）</div>
+                  <div>• 完成所有配置后，请点击底部的「保存配置」按钮</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* 数据源模式选择 */}
           <Card>
             <CardHeader>
-              <CardTitle>数据源模式</CardTitle>
+              <CardTitle>数据源模式 <span className="text-red-500">*</span></CardTitle>
               <CardDescription>选择使用的数据表结构</CardDescription>
             </CardHeader>
             <CardContent>

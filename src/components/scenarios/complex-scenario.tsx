@@ -1526,36 +1526,40 @@ export default function ComplexScenario() {
     console.log('[Feishu Load] 原始配置字符串:', configStr);
     
     if (!configStr) {
-      alert('请先配置飞书集成信息');
+      alert('请先配置飞书集成信息\n\n点击「飞书集成」按钮进行配置');
       return;
     }
 
-    const config = JSON.parse(configStr);
+    let config;
+    try {
+      config = JSON.parse(configStr);
+    } catch (e) {
+      alert('配置格式错误，请重新配置');
+      localStorage.removeItem('feishu-config');
+      return;
+    }
+    
     console.log('[Feishu Load] 解析后的完整配置:', JSON.stringify(config, null, 2));
     
-    // 检查配置完整性
-    if (!config.appId || !config.appSecret || !config.appToken) {
-      alert('飞书配置不完整，请填写 App ID、App Secret 和 App Token');
-      return;
-    }
-    
-    if (!config.tableIds?.resources) {
-      alert('飞书配置不完整，请填写人员表 ID');
-      return;
-    }
+    // 详细检查每个字段
+    const missingFields = [];
+    if (!config.appId) missingFields.push('App ID');
+    if (!config.appSecret) missingFields.push('App Secret');
+    if (!config.appToken) missingFields.push('App Token');
+    if (!config.tableIds?.resources) missingFields.push('人员表 Table ID');
     
     const dataSourceMode = config.dataSourceMode || 'legacy';
-    console.log('[Feishu Load] 使用的数据源模式:', dataSourceMode);
     
-    // 需求表模式检查
-    if (dataSourceMode === 'new' && !config.tableIds?.requirements1) {
-      alert('需求表模式需要填写需求表1 ID！\n\n请在配置中选择"需求表模式"并填写需求表1的 Table ID');
-      return;
+    if (dataSourceMode === 'new') {
+      if (!config.tableIds?.requirements1) missingFields.push('需求表1 Table ID');
+    } else {
+      if (!config.tableIds?.projects) missingFields.push('项目表 Table ID');
+      if (!config.tableIds?.tasks) missingFields.push('任务表 Table ID');
     }
     
-    // 传统模式检查
-    if (dataSourceMode === 'legacy' && (!config.tableIds?.projects || !config.tableIds?.tasks)) {
-      alert('传统模式需要填写项目表和任务表 ID！\n\n请切换到"需求表模式"或填写完整的项目表和任务表 ID');
+    if (missingFields.length > 0) {
+      const modeText = dataSourceMode === 'new' ? '需求表模式' : '传统模式';
+      alert(`配置不完整！\n\n当前模式: ${modeText}\n缺少的字段:\n${missingFields.map(f => `• ${f}`).join('\n')}\n\n请打开配置对话框，向下滚动填写所有必填项（带红色 * 号）`);
       return;
     }
 
