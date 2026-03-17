@@ -2563,7 +2563,12 @@ export default function ComplexScenario() {
                       <TableCell>
                         {task.taskType === '物料' ? (
                           <span className="text-slate-400">-</span>
-                        ) : (
+                        ) : (() => {
+                          // 判断是否是复合任务（同时有平面和后期工时）
+                          const isCompoundTask = task.estimatedHoursGraphic && task.estimatedHoursPost && 
+                            task.estimatedHoursGraphic > 0 && task.estimatedHoursPost > 0;
+                          
+                          return (
                           <Select
                             value={task.fixedResourceId || 'none'}
                             onValueChange={(value) => handleTaskChange(task.id, 'fixedResourceId', value !== 'none' ? value : undefined)}
@@ -2580,7 +2585,7 @@ export default function ComplexScenario() {
                                           style={{ backgroundColor: resource.color }}
                                         />
                                         <span>{resource.name}</span>
-                                        {resource.workType !== task.taskType && (
+                                        {resource.workType !== task.taskType && !isCompoundTask && (
                                           <span className="text-xs text-amber-600 dark:text-amber-400 ml-1">
                                             ({resource.workType})
                                           </span>
@@ -2596,53 +2601,63 @@ export default function ComplexScenario() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">自动分配</SelectItem>
-                              {task.taskType && sharedResources.length > 0 ? (() => {
-                                // 获取同类型的资源
-                                const filteredResources = sharedResources.filter(r =>
-                                  r.type === 'human' && r.workType === task.taskType
-                                );
+                              {(() => {
+                                
+                                // 获取可用资源
+                                let filteredResources: Resource[] = [];
+                                if (isCompoundTask) {
+                                  // 复合任务：显示所有平面和后期人员
+                                  filteredResources = sharedResources.filter(r =>
+                                    r.type === 'human' && (r.workType === '平面' || r.workType === '后期')
+                                  );
+                                } else if (task.taskType) {
+                                  // 普通任务：按类型筛选
+                                  filteredResources = sharedResources.filter(r =>
+                                    r.type === 'human' && r.workType === task.taskType
+                                  );
+                                }
 
-                                // 如果当前选中的资源不在过滤列表中（类型不匹配），也显示出来
+                                // 如果当前选中的资源不在过滤列表中，也显示出来
                                 const currentResource = task.fixedResourceId ? sharedResources.find(r => r.id === task.fixedResourceId) : null;
                                 const displayResources = currentResource && !filteredResources.find(r => r.id === task.fixedResourceId)
                                   ? [currentResource, ...filteredResources]
                                   : filteredResources;
 
                                 // 调试日志
-                                console.log(`[任务管理] 任务 ${task.name} (type: ${task.taskType}) 可用资源:`, filteredResources.map(r => `${r.name} (${r.workType})`));
-                                if (currentResource && !filteredResources.find(r => r.id === task.fixedResourceId)) {
-                                  console.warn(`[任务管理] 任务 ${task.name}: 当前负责人 ${currentResource.name} 是 ${currentResource.workType} 类型，但任务是 ${task.taskType} 类型`);
-                                }
+                                console.log(`[任务管理] 任务 ${task.name} (type: ${task.taskType || '复合'}, isCompound: ${isCompoundTask}) 可用资源:`, displayResources.map(r => `${r.name} (${r.workType})`));
 
                                 if (displayResources.length === 0) {
-                                  console.warn(`[任务管理] 任务 ${task.name} (type: ${task.taskType}) 找不到匹配资源`);
+                                  console.warn(`[任务管理] 任务 ${task.name} 找不到匹配资源`);
                                   console.warn(`[任务管理] 所有资源:`, sharedResources.map(r => `${r.name} (type: ${r.type}, workType: ${r.workType})`));
                                 }
 
-                                return displayResources.map(resource => (
-                                  <SelectItem key={resource.id} value={resource.id}>
-                                    <div className="flex items-center gap-2">
-                                      <div
-                                        className="w-3 h-3 rounded-full"
-                                        style={{ backgroundColor: resource.color }}
-                                      />
-                                      <span>{resource.name}</span>
-                                      {resource.workType !== task.taskType && (
-                                        <Badge variant="outline" className="text-xs text-amber-600 dark:text-amber-400 border-amber-600 dark:border-amber-400">
+                                if (displayResources.length > 0) {
+                                  return displayResources.map(resource => (
+                                    <SelectItem key={resource.id} value={resource.id}>
+                                      <div className="flex items-center gap-2">
+                                        <div
+                                          className="w-3 h-3 rounded-full"
+                                          style={{ backgroundColor: resource.color }}
+                                        />
+                                        <span>{resource.name}</span>
+                                        <Badge variant="outline" className="text-xs text-slate-500 border-slate-300">
                                           {resource.workType}
                                         </Badge>
-                                      )}
+                                      </div>
+                                    </SelectItem>
+                                  ));
+                                } else {
+                                  return (
+                                    <div className="p-2 text-xs text-slate-500">
+                                      {!task.taskType && !isCompoundTask ? "请先选择任务类型" : sharedResources.length === 0 ? "暂无可用人员" : "无匹配人员"}
                                     </div>
-                                  </SelectItem>
-                                ));
-                              })() : (
-                                <div className="p-2 text-xs text-slate-500">
-                                  {!task.taskType ? "请先选择任务类型" : sharedResources.length === 0 ? "暂无可用人员" : `无${task.taskType}类型人员`}
-                                </div>
-                              )}
+                                  );
+                                }
+                              })()}
                             </SelectContent>
                           </Select>
-                        )}
+                          );
+                        })()}
                       </TableCell>
                       {task.taskType === '物料' ? (
                         <>

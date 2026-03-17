@@ -407,6 +407,18 @@ export async function GET(request: NextRequest) {
             if (priorityStr === '紧急' || priorityStr === '高') priority = 'urgent';
             else if (priorityStr === '低') priority = 'low';
             
+            // 根据工时自动推断任务类型
+            // 注意：复合任务不设置taskType，通过工时字段判断
+            let taskType: '平面' | '后期' | '' = '';
+            const hasGraphic = estimatedHoursGraphic && estimatedHoursGraphic > 0;
+            const hasPost = estimatedHoursPost && estimatedHoursPost > 0;
+            if (hasGraphic && !hasPost) {
+              taskType = '平面';
+            } else if (hasPost && !hasGraphic) {
+              taskType = '后期';
+            }
+            // 如果两者都有，taskType保持为空（复合任务）
+            
             // 解析截止日期：需求日期 或 验收时间
             let deadline = parseDateField(fields['需求日期'] || fields['截止日期'] || fields['deadline']) ||
                           parseDateField(fields['验收时间']);
@@ -421,12 +433,13 @@ export async function GET(request: NextRequest) {
             const language = parseStringField(fields['语言'] || fields['language'], '');
             const dubbing = parseStringField(fields['配音'] || fields['dubbing'], '');
             
-            log(`[飞书加载] 📝 任务: ${taskName}, 项目: ${projectName}, 负责人: ${assigneeName || '未分配'}, 状态: ${status}, 平面: ${estimatedHoursGraphic || 0}h, 后期: ${estimatedHoursPost || 0}h`);
+            log(`[飞书加载] 📝 任务: ${taskName}, 项目: ${projectName}, 类型: ${taskType || '未指定'}, 负责人: ${assigneeName || '未分配'}, 状态: ${status}, 平面: ${estimatedHoursGraphic || 0}h, 后期: ${estimatedHoursPost || 0}h`);
             
             return {
               id: taskId,
               name: taskName,
               projectId,
+              taskType,
               estimatedHours: totalHours,
               estimatedHoursGraphic,
               estimatedHoursPost,
@@ -511,6 +524,18 @@ export async function GET(request: NextRequest) {
                 else if (statusStr === '已完成' || statusStr === 'completed' || statusStr.includes('完成') || statusStr.includes('验收')) status = 'completed';
                 else if (statusStr === '阻塞' || statusStr === 'blocked') status = 'blocked';
                 
+                // 根据工时自动推断任务类型
+                // 注意：复合任务不设置taskType，通过工时字段判断
+                let taskType: '平面' | '后期' | '' = '';
+                const hasGraphic = estimatedHoursGraphic && estimatedHoursGraphic > 0;
+                const hasPost = estimatedHoursPost && estimatedHoursPost > 0;
+                if (hasGraphic && !hasPost) {
+                  taskType = '平面';
+                } else if (hasPost && !hasGraphic) {
+                  taskType = '后期';
+                }
+                // 如果两者都有，taskType保持为空（复合任务）
+                
                 let deadline = parseDateField(fields['需求日期'] || fields['截止日期']) ||
                               parseDateField(fields['验收时间']);
                 
@@ -518,6 +543,7 @@ export async function GET(request: NextRequest) {
                   id: taskId,
                   name: taskName,
                   projectId,
+                  taskType,
                   estimatedHours: totalHours,
                   estimatedHoursGraphic,
                   estimatedHoursPost,
