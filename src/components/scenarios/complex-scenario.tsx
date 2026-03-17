@@ -653,7 +653,8 @@ export default function ComplexScenario() {
           priority: task.priority,
           status: task.status,
           assignedResources: [],
-          dependencies: task.dependencies || [] // 继承父任务的依赖
+          dependencies: task.dependencies || [], // 继承父任务的依赖
+          fixedResourceId: task.fixedResourceIdGraphic // 使用指定的平面负责人
         };
         
         // 后期子任务的依赖：根据配置决定是否依赖平面子任务
@@ -676,7 +677,8 @@ export default function ComplexScenario() {
           priority: task.priority,
           status: task.status,
           assignedResources: [],
-          dependencies: postTaskDependencies
+          dependencies: postTaskDependencies,
+          fixedResourceId: task.fixedResourceIdPost // 使用指定的后期负责人
         };
         
         expandedTasks.push(parentTask, graphicTask, postTask);
@@ -2568,6 +2570,79 @@ export default function ComplexScenario() {
                           const isCompoundTask = task.estimatedHoursGraphic && task.estimatedHoursPost && 
                             task.estimatedHoursGraphic > 0 && task.estimatedHoursPost > 0;
                           
+                          if (isCompoundTask) {
+                            // 复合任务：显示两个独立的负责人选择器
+                            const graphicResources = sharedResources.filter(r => r.type === 'human' && r.workType === '平面');
+                            const postResources = sharedResources.filter(r => r.type === 'human' && r.workType === '后期');
+                            
+                            return (
+                              <div className="flex flex-col gap-1 min-w-[160px]">
+                                {/* 平面负责人 */}
+                                <Select
+                                  value={task.fixedResourceIdGraphic || 'none'}
+                                  onValueChange={(value) => handleTaskChange(task.id, 'fixedResourceIdGraphic', value !== 'none' ? value : undefined)}
+                                >
+                                  <SelectTrigger className="h-7 text-xs">
+                                    <SelectValue placeholder="平面负责人">
+                                      {task.fixedResourceIdGraphic ? (() => {
+                                        const resource = sharedResources.find(r => r.id === task.fixedResourceIdGraphic);
+                                        return resource ? (
+                                          <span className="flex items-center gap-1">
+                                            <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                            {resource.name}
+                                          </span>
+                                        ) : '平面负责人';
+                                      })() : '平面负责人'}
+                                    </SelectValue>
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">自动分配</SelectItem>
+                                    {graphicResources.map(resource => (
+                                      <SelectItem key={resource.id} value={resource.id}>
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                          <span>{resource.name}</span>
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                
+                                {/* 后期负责人 */}
+                                <Select
+                                  value={task.fixedResourceIdPost || 'none'}
+                                  onValueChange={(value) => handleTaskChange(task.id, 'fixedResourceIdPost', value !== 'none' ? value : undefined)}
+                                >
+                                  <SelectTrigger className="h-7 text-xs">
+                                    <SelectValue placeholder="后期负责人">
+                                      {task.fixedResourceIdPost ? (() => {
+                                        const resource = sharedResources.find(r => r.id === task.fixedResourceIdPost);
+                                        return resource ? (
+                                          <span className="flex items-center gap-1">
+                                            <div className="w-2 h-2 rounded-full bg-green-500" />
+                                            {resource.name}
+                                          </span>
+                                        ) : '后期负责人';
+                                      })() : '后期负责人'}
+                                    </SelectValue>
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">自动分配</SelectItem>
+                                    {postResources.map(resource => (
+                                      <SelectItem key={resource.id} value={resource.id}>
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-2 h-2 rounded-full bg-green-500" />
+                                          <span>{resource.name}</span>
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            );
+                          }
+                          
+                          // 普通任务：单一负责人选择器
                           return (
                           <Select
                             value={task.fixedResourceId || 'none'}
@@ -2585,11 +2660,6 @@ export default function ComplexScenario() {
                                           style={{ backgroundColor: resource.color }}
                                         />
                                         <span>{resource.name}</span>
-                                        {resource.workType !== task.taskType && !isCompoundTask && (
-                                          <span className="text-xs text-amber-600 dark:text-amber-400 ml-1">
-                                            ({resource.workType})
-                                          </span>
-                                        )}
                                       </div>
                                     );
                                   }
@@ -2602,34 +2672,18 @@ export default function ComplexScenario() {
                             <SelectContent>
                               <SelectItem value="none">自动分配</SelectItem>
                               {(() => {
-                                
                                 // 获取可用资源
                                 let filteredResources: Resource[] = [];
-                                if (isCompoundTask) {
-                                  // 复合任务：显示所有平面和后期人员
-                                  filteredResources = sharedResources.filter(r =>
-                                    r.type === 'human' && (r.workType === '平面' || r.workType === '后期')
-                                  );
-                                } else if (task.taskType) {
-                                  // 普通任务：按类型筛选
+                                if (task.taskType) {
                                   filteredResources = sharedResources.filter(r =>
                                     r.type === 'human' && r.workType === task.taskType
                                   );
                                 }
 
-                                // 如果当前选中的资源不在过滤列表中，也显示出来
                                 const currentResource = task.fixedResourceId ? sharedResources.find(r => r.id === task.fixedResourceId) : null;
                                 const displayResources = currentResource && !filteredResources.find(r => r.id === task.fixedResourceId)
                                   ? [currentResource, ...filteredResources]
                                   : filteredResources;
-
-                                // 调试日志
-                                console.log(`[任务管理] 任务 ${task.name} (type: ${task.taskType || '复合'}, isCompound: ${isCompoundTask}) 可用资源:`, displayResources.map(r => `${r.name} (${r.workType})`));
-
-                                if (displayResources.length === 0) {
-                                  console.warn(`[任务管理] 任务 ${task.name} 找不到匹配资源`);
-                                  console.warn(`[任务管理] 所有资源:`, sharedResources.map(r => `${r.name} (type: ${r.type}, workType: ${r.workType})`));
-                                }
 
                                 if (displayResources.length > 0) {
                                   return displayResources.map(resource => (
@@ -2649,7 +2703,7 @@ export default function ComplexScenario() {
                                 } else {
                                   return (
                                     <div className="p-2 text-xs text-slate-500">
-                                      {!task.taskType && !isCompoundTask ? "请先选择任务类型" : sharedResources.length === 0 ? "暂无可用人员" : "无匹配人员"}
+                                      {!task.taskType ? "请先选择任务类型" : sharedResources.length === 0 ? "暂无可用人员" : "无匹配人员"}
                                     </div>
                                   );
                                 }
