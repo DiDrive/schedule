@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertCircle, CheckCircle2, RefreshCw, Globe } from 'lucide-react';
+import { AlertCircle, CheckCircle2, RefreshCw, Globe, Info } from 'lucide-react';
 
 interface FeishuConfig {
   appId: string;
@@ -153,20 +153,18 @@ export default function FeishuIntegrationDialog({
     setConfig(cleanedConfig);
     onSave?.(cleanedConfig);
     
+    // 显示已配置的表格信息
+    const configuredTables: string[] = [];
+    if (cleanedConfig.tableIds.resources) configuredTables.push(`人员表 ✓`);
+    if (cleanedConfig.tableIds.requirements1) configuredTables.push(`需求表1 ✓`);
+    if (cleanedConfig.tableIds.requirements2) configuredTables.push(`需求表2 ✓`);
+    if (cleanedConfig.tableIds.projects) configuredTables.push(`项目表 ✓`);
+    if (cleanedConfig.tableIds.tasks) configuredTables.push(`任务表 ✓`);
+    if (cleanedConfig.tableIds.schedules) configuredTables.push(`排期表 ✓`);
+    
     const modeText = cleanedConfig.dataSourceMode === 'new' ? '需求表模式' : '传统模式';
-    let tableInfo = `人员表: ${cleanedConfig.tableIds.resources}\n`;
     
-    if (cleanedConfig.dataSourceMode === 'new') {
-      tableInfo += `需求表1: ${cleanedConfig.tableIds.requirements1}\n`;
-      tableInfo += `需求表2: ${cleanedConfig.tableIds.requirements2 || '未填写'}\n`;
-      tableInfo += `排期表: ${cleanedConfig.tableIds.schedules || '未填写'}`;
-    } else {
-      tableInfo += `项目表: ${cleanedConfig.tableIds.projects}\n`;
-      tableInfo += `任务表: ${cleanedConfig.tableIds.tasks}\n`;
-      tableInfo += `排期表: ${cleanedConfig.tableIds.schedules || '未填写'}`;
-    }
-    
-    alert(`✅ 配置已保存！\n\n数据源模式: ${modeText}\n${tableInfo}\n\n现在可以点击「从飞书加载」按钮`);
+    alert(`✅ 配置已保存！\n\n当前使用: ${modeText}\n\n已配置的表格:\n${configuredTables.map(t => `• ${t}`).join('\n')}\n\n现在可以点击「从飞书加载」按钮`);
     onOpenChange(false);
   };
 
@@ -329,14 +327,15 @@ export default function FeishuIntegrationDialog({
           </Card>
 
           {/* 数据表配置提示 */}
-          <div className="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-r-lg">
+          <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded-r-lg">
             <div className="flex items-start gap-2">
-              <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+              <Info className="h-5 w-5 text-blue-600 mt-0.5" />
               <div className="text-sm">
-                <div className="font-medium text-amber-800 mb-1">重要提示</div>
-                <div className="text-amber-700 space-y-1">
-                  <div>• 请向下滚动并填写必填的数据表 ID（带 <span className="text-red-500 font-bold">*</span> 号）</div>
-                  <div>• 完成所有配置后，请点击底部的「保存配置」按钮</div>
+                <div className="font-medium text-blue-800 mb-1">配置说明</div>
+                <div className="text-blue-700 space-y-1">
+                  <div>• 两种模式的表格可以同时配置，互不影响</div>
+                  <div>• 使用时通过「数据源模式」选择要使用的模式</div>
+                  <div>• 当前选中模式所需的字段会显示 <span className="text-red-500 font-bold">*</span> 号</div>
                 </div>
               </div>
             </div>
@@ -395,7 +394,7 @@ export default function FeishuIntegrationDialog({
             <CardHeader>
               <CardTitle>表格 ID 配置</CardTitle>
               <CardDescription>
-                请填写多维表中各表格的 Table ID（注意不要有多余空格）
+                请填写多维表中各表格的 Table ID。两种模式的表格可同时配置，使用时通过「数据源模式」选择。
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -410,75 +409,77 @@ export default function FeishuIntegrationDialog({
                   value={config.tableIds.resources}
                   onChange={(e) => updateTableId('resources', e.target.value)}
                 />
+                <p className="text-xs text-slate-500">两种模式都需要</p>
               </div>
 
-              {/* 需求表模式 */}
-              {config.dataSourceMode === 'new' && (
-                <>
-                  <div className="border-t pt-4 mt-4">
-                    <p className="text-sm text-slate-500 mb-3">需求表配置：</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="table-requirements1">
-                      需求表1 Table ID <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="table-requirements1"
-                      placeholder="tblxxxxxxxx"
-                      value={config.tableIds.requirements1}
-                      onChange={(e) => updateTableId('requirements1', e.target.value)}
-                    />
-                    <p className="text-xs text-slate-500">第一个需求表，包含客户名称、需求项目、工时等信息</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="table-requirements2">
-                      需求表2 Table ID
-                    </Label>
-                    <Input
-                      id="table-requirements2"
-                      placeholder="tblxxxxxxxx（可选）"
-                      value={config.tableIds.requirements2}
-                      onChange={(e) => updateTableId('requirements2', e.target.value)}
-                    />
-                    <p className="text-xs text-slate-500">第二个需求表（可选，后续可能有更多）</p>
-                  </div>
-                </>
-              )}
+              {/* 需求表模式配置 */}
+              <div className="border-t pt-4 mt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                  <p className="text-sm font-medium text-slate-700">需求表模式配置</p>
+                </div>
+              </div>
+              <div className="space-y-2 pl-5">
+                <Label htmlFor="table-requirements1">
+                  需求表1 Table ID {config.dataSourceMode === 'new' && <span className="text-red-500">*</span>}
+                </Label>
+                <Input
+                  id="table-requirements1"
+                  placeholder="tblxxxxxxxx"
+                  value={config.tableIds.requirements1}
+                  onChange={(e) => updateTableId('requirements1', e.target.value)}
+                />
+                <p className="text-xs text-slate-500">包含客户名称、需求项目、工时等信息</p>
+              </div>
+              <div className="space-y-2 pl-5">
+                <Label htmlFor="table-requirements2">
+                  需求表2 Table ID
+                </Label>
+                <Input
+                  id="table-requirements2"
+                  placeholder="tblxxxxxxxx（可选）"
+                  value={config.tableIds.requirements2}
+                  onChange={(e) => updateTableId('requirements2', e.target.value)}
+                />
+                <p className="text-xs text-slate-500">第二个需求表（可选）</p>
+              </div>
 
-              {/* 传统模式 */}
-              {config.dataSourceMode === 'legacy' && (
-                <>
-                  <div className="border-t pt-4 mt-4">
-                    <p className="text-sm text-slate-500 mb-3">项目与任务表配置：</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="table-projects">
-                      项目表 Table ID <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="table-projects"
-                      placeholder="tblxxxxxxxx"
-                      value={config.tableIds.projects}
-                      onChange={(e) => updateTableId('projects', e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="table-tasks">
-                      任务表 Table ID <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="table-tasks"
-                      placeholder="tblxxxxxxxx"
-                      value={config.tableIds.tasks}
-                      onChange={(e) => updateTableId('tasks', e.target.value)}
-                    />
-                  </div>
-                </>
-              )}
+              {/* 传统模式配置 */}
+              <div className="border-t pt-4 mt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <p className="text-sm font-medium text-slate-700">传统模式配置</p>
+                </div>
+              </div>
+              <div className="space-y-2 pl-5">
+                <Label htmlFor="table-projects">
+                  项目表 Table ID {config.dataSourceMode === 'legacy' && <span className="text-red-500">*</span>}
+                </Label>
+                <Input
+                  id="table-projects"
+                  placeholder="tblxxxxxxxx"
+                  value={config.tableIds.projects}
+                  onChange={(e) => updateTableId('projects', e.target.value)}
+                />
+              </div>
+              <div className="space-y-2 pl-5">
+                <Label htmlFor="table-tasks">
+                  任务表 Table ID {config.dataSourceMode === 'legacy' && <span className="text-red-500">*</span>}
+                </Label>
+                <Input
+                  id="table-tasks"
+                  placeholder="tblxxxxxxxx"
+                  value={config.tableIds.tasks}
+                  onChange={(e) => updateTableId('tasks', e.target.value)}
+                />
+              </div>
 
               {/* 排期表 - 两种模式都需要 */}
               <div className="border-t pt-4 mt-4">
-                <p className="text-sm text-slate-500 mb-3">排期结果表配置：</p>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                  <p className="text-sm font-medium text-slate-700">排期结果表配置</p>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="table-schedules">
