@@ -1363,11 +1363,54 @@ export default function ComplexScenario() {
       return;
     }
 
-    const config = JSON.parse(configStr);
+    let config = JSON.parse(configStr);
+    
+    // 兼容性处理：检测旧配置格式并转换
+    if (config.appToken && !config.newMode && !config.legacyMode) {
+      console.log('[Feishu Sync Dialog] 检测到旧配置格式，自动转换...');
+      const oldTableIds = config.tableIds || {};
+      const dataSourceMode = config.dataSourceMode || 'new';
+      
+      config = {
+        appId: config.appId,
+        appSecret: config.appSecret,
+        dataSourceMode: dataSourceMode,
+        newMode: {
+          appToken: config.appToken,
+          tableIds: {
+            resources: oldTableIds.resources || '',
+            requirements1: oldTableIds.requirements1 || '',
+            requirements2: oldTableIds.requirements2 || '',
+            schedules: oldTableIds.schedules || '',
+          },
+        },
+        legacyMode: {
+          appToken: config.appToken,
+          tableIds: {
+            resources: oldTableIds.resources || '',
+            projects: oldTableIds.projects || '',
+            tasks: oldTableIds.tasks || '',
+            schedules: oldTableIds.schedules || '',
+          },
+        },
+      };
+    }
+    
+    const dataSourceMode = config.dataSourceMode || 'new';
+    const modeConfig = dataSourceMode === 'new' ? config.newMode : config.legacyMode;
+    
+    console.log('[Feishu Sync Dialog] 当前模式:', dataSourceMode);
+    console.log('[Feishu Sync Dialog] 模式配置:', modeConfig);
+    
+    if (!config.appId || !config.appSecret || !modeConfig?.appToken) {
+      alert('飞书配置不完整，请确保已填写 App ID、App Secret 和当前模式的 App Token');
+      return;
+    }
+    
     const results: string[] = [];
 
-    // 同步项目
-    if (projects.length > 0 && config.tableIds?.projects) {
+    // 同步项目（仅传统模式支持）
+    if (dataSourceMode === 'legacy' && projects.length > 0 && modeConfig?.tableIds?.projects) {
       try {
         const response = await fetch('/api/feishu/sync-projects-tasks', {
           method: 'POST',
@@ -1378,8 +1421,8 @@ export default function ComplexScenario() {
             config: {
               appId: config.appId,
               appSecret: config.appSecret,
-              appToken: config.appToken,
-              tableIds: { projects: config.tableIds.projects, tasks: config.tableIds.tasks || '', resources: config.tableIds.resources || '' },
+              appToken: modeConfig.appToken,
+              tableIds: { projects: modeConfig.tableIds.projects, tasks: modeConfig.tableIds.tasks || '', resources: modeConfig.tableIds.resources || '' },
             },
           }),
         });
@@ -1398,8 +1441,8 @@ export default function ComplexScenario() {
       }
     }
 
-    // 同步任务
-    if (tasks.length > 0 && config.tableIds?.tasks) {
+    // 同步任务（仅传统模式支持）
+    if (dataSourceMode === 'legacy' && tasks.length > 0 && modeConfig?.tableIds?.tasks) {
       // 创建项目ID到项目名称的映射
       const projectIdToName = new Map<string, string>();
       projects.forEach((p: any) => {
@@ -1428,11 +1471,11 @@ export default function ComplexScenario() {
             config: {
               appId: config.appId,
               appSecret: config.appSecret,
-              appToken: config.appToken,
+              appToken: modeConfig.appToken,
               tableIds: {
-                projects: config.tableIds.projects || '',
-                tasks: config.tableIds.tasks,
-                resources: config.tableIds.resources || ''
+                projects: modeConfig.tableIds.projects || '',
+                tasks: modeConfig.tableIds.tasks,
+                resources: modeConfig.tableIds.resources || ''
               },
             },
           }),
@@ -1453,7 +1496,7 @@ export default function ComplexScenario() {
     }
 
     // 同步排期
-    if (scheduleResult && (config.tableIds?.schedules || config.tableIds?.requirementTable1)) {
+    if (scheduleResult && modeConfig?.tableIds?.schedules) {
       try {
         const syncTasks = scheduleResult.tasks.map(task => {
           const resource = sharedResources.find(r => r.id === task.assignedResources[0]);
@@ -1479,19 +1522,14 @@ export default function ComplexScenario() {
           };
         });
 
-        // 根据数据源模式构建 URL
-        const dataSourceMode = config.dataSourceMode || 'traditional';
+        // 使用新的配置结构构建 URL
         let url = `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
           `&app_secret=${encodeURIComponent(config.appSecret)}` +
-          `&app_token=${encodeURIComponent(config.appToken)}` +
+          `&app_token=${encodeURIComponent(modeConfig.appToken)}` +
           `&data_source_mode=${encodeURIComponent(dataSourceMode)}` +
-          `&resources_table_id=${encodeURIComponent(config.tableIds.resources || '')}`;
+          `&resources_table_id=${encodeURIComponent(modeConfig.tableIds.resources || '')}`;
         
-        if (dataSourceMode === 'requirement') {
-          url += `&requirement_table_id=${encodeURIComponent(config.tableIds.requirementTable1 || '')}`;
-        } else {
-          url += `&schedules_table_id=${encodeURIComponent(config.tableIds.schedules || '')}`;
-        }
+        url += `&schedules_table_id=${encodeURIComponent(modeConfig.tableIds.schedules || '')}`;
         
         const response = await fetch(url, {
           method: 'POST',
