@@ -329,31 +329,6 @@ export default function ComplexScenario() {
   // 使用 ref 跟踪是否已经加载过数据，避免重复加载
   const hasLoadedData = useRef(false);
 
-  // 调试：输出资源列表
-  useEffect(() => {
-    console.log('[任务管理] 当前资源列表:');
-    sharedResources.forEach(r => {
-      console.log(`  - ${r.name} (id: ${r.id}, type: ${r.type}, workType: ${r.workType})`);
-    });
-  }, [sharedResources]);
-
-  // 调试：输出任务列表的指定人员信息
-  useEffect(() => {
-    console.log('[任务管理] 当前任务列表的指定人员:');
-    tasks.forEach(task => {
-      console.log(`  - ${task.name} (type: ${task.taskType}): fixedResourceId = ${task.fixedResourceId || '未设置'}, assignedResources = ${JSON.stringify(task.assignedResources)}`);
-      // 检查 fixedResourceId 是否存在
-      if (task.fixedResourceId) {
-        const resource = sharedResources.find(r => r.id === task.fixedResourceId);
-        if (resource) {
-          console.log(`    ✓ 找到匹配资源: ${resource.name}`);
-        } else {
-          console.log(`    ✗ 找不到匹配的资源ID: ${task.fixedResourceId}`);
-        }
-      }
-    });
-  }, [tasks, sharedResources]);
-
   // 数据加载：只在组件首次挂载时执行
   useEffect(() => {
     if (hasLoadedData.current) return;
