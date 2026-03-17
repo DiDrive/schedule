@@ -1539,10 +1539,48 @@ export default function ComplexScenario() {
       return;
     }
     
+    // 兼容性处理：检测旧配置格式并转换
+    if (config.appToken && !config.newMode && !config.legacyMode) {
+      console.log('[Feishu Load] 检测到旧配置格式，自动转换...');
+      const oldTableIds = config.tableIds || {};
+      const dataSourceMode = config.dataSourceMode || 'new';
+      
+      config = {
+        appId: config.appId,
+        appSecret: config.appSecret,
+        dataSourceMode: dataSourceMode,
+        newMode: {
+          appToken: config.appToken,
+          tableIds: {
+            resources: oldTableIds.resources || '',
+            requirements1: oldTableIds.requirements1 || '',
+            requirements2: oldTableIds.requirements2 || '',
+            schedules: oldTableIds.schedules || '',
+          },
+        },
+        legacyMode: {
+          appToken: config.appToken,
+          tableIds: {
+            resources: oldTableIds.resources || '',
+            projects: oldTableIds.projects || '',
+            tasks: oldTableIds.tasks || '',
+            schedules: oldTableIds.schedules || '',
+          },
+        },
+      };
+      
+      // 保存转换后的配置
+      localStorage.setItem('feishu-config', JSON.stringify(config));
+      console.log('[Feishu Load] 配置已转换为新格式');
+    }
+    
     console.log('[Feishu Load] 解析后的完整配置:', JSON.stringify(config, null, 2));
     
     const dataSourceMode = config.dataSourceMode || 'new';
     const modeConfig = dataSourceMode === 'new' ? config.newMode : config.legacyMode;
+    
+    console.log('[Feishu Load] 当前模式:', dataSourceMode);
+    console.log('[Feishu Load] 模式配置:', JSON.stringify(modeConfig, null, 2));
     
     // 详细检查每个字段
     const missingFields = [];
@@ -1550,10 +1588,21 @@ export default function ComplexScenario() {
     if (!config.appSecret) missingFields.push('App Secret');
     
     if (dataSourceMode === 'new') {
+      console.log('[Feishu Load] 检查需求表模式配置:', {
+        appToken: config.newMode?.appToken,
+        resources: config.newMode?.tableIds?.resources,
+        requirements1: config.newMode?.tableIds?.requirements1,
+      });
       if (!config.newMode?.appToken) missingFields.push('需求表模式 App Token');
       if (!config.newMode?.tableIds?.resources) missingFields.push('需求表模式 人员表 ID');
       if (!config.newMode?.tableIds?.requirements1) missingFields.push('需求表模式 需求表1 ID');
     } else {
+      console.log('[Feishu Load] 检查传统模式配置:', {
+        appToken: config.legacyMode?.appToken,
+        resources: config.legacyMode?.tableIds?.resources,
+        projects: config.legacyMode?.tableIds?.projects,
+        tasks: config.legacyMode?.tableIds?.tasks,
+      });
       if (!config.legacyMode?.appToken) missingFields.push('传统模式 App Token');
       if (!config.legacyMode?.tableIds?.resources) missingFields.push('传统模式 人员表 ID');
       if (!config.legacyMode?.tableIds?.projects) missingFields.push('传统模式 项目表 ID');
@@ -1562,7 +1611,8 @@ export default function ComplexScenario() {
     
     if (missingFields.length > 0) {
       const modeText = dataSourceMode === 'new' ? '需求表模式' : '传统模式';
-      alert(`配置不完整！\n\n当前模式: ${modeText}\n缺少的字段:\n${missingFields.map(f => `• ${f}`).join('\n')}\n\n请打开配置对话框填写所有必填项（带红色 * 号）`);
+      console.error('[Feishu Load] 配置不完整，缺少字段:', missingFields);
+      alert(`配置不完整！\n\n当前模式: ${modeText}\n缺少的字段:\n${missingFields.map(f => `• ${f}`).join('\n')}\n\n请打开配置对话框填写所有必填项（带红色 * 号）\n\n提示：如果之前保存过配置，请重新打开配置对话框保存一次`);
       return;
     }
 
@@ -1645,7 +1695,42 @@ export default function ComplexScenario() {
       return;
     }
 
-    const config = JSON.parse(configStr);
+    let config = JSON.parse(configStr);
+    
+    // 兼容性处理：检测旧配置格式并转换
+    if (config.appToken && !config.newMode && !config.legacyMode) {
+      console.log('[Feishu Sync] 检测到旧配置格式，自动转换...');
+      const oldTableIds = config.tableIds || {};
+      const dataSourceMode = config.dataSourceMode || 'new';
+      
+      config = {
+        appId: config.appId,
+        appSecret: config.appSecret,
+        dataSourceMode: dataSourceMode,
+        newMode: {
+          appToken: config.appToken,
+          tableIds: {
+            resources: oldTableIds.resources || '',
+            requirements1: oldTableIds.requirements1 || '',
+            requirements2: oldTableIds.requirements2 || '',
+            schedules: oldTableIds.schedules || '',
+          },
+        },
+        legacyMode: {
+          appToken: config.appToken,
+          tableIds: {
+            resources: oldTableIds.resources || '',
+            projects: oldTableIds.projects || '',
+            tasks: oldTableIds.tasks || '',
+            schedules: oldTableIds.schedules || '',
+          },
+        },
+      };
+      
+      localStorage.setItem('feishu-config', JSON.stringify(config));
+      console.log('[Feishu Sync] 配置已转换为新格式');
+    }
+    
     const dataSourceMode = config.dataSourceMode || 'new';
     const modeConfig = dataSourceMode === 'new' ? config.newMode : config.legacyMode;
     
