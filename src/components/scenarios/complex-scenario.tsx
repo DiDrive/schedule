@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -592,6 +592,45 @@ export default function ComplexScenario() {
     setNearDeadlineCount(nearTasks.length);
     setOverdueCount(overdueTasks.length);
   }, [scheduleResult, deadlineWarningDays]);
+
+  // ==================== 性能优化：缓存资源筛选结果 ====================
+  // 缓存平面资源列表
+  const graphicResources = useMemo(() => 
+    sharedResources.filter(r => r.type === 'human' && r.workType === '平面'),
+    [sharedResources]
+  );
+  
+  // 缓存后期资源列表
+  const postResources = useMemo(() => 
+    sharedResources.filter(r => r.type === 'human' && r.workType === '后期'),
+    [sharedResources]
+  );
+  
+  // 缓存物料资源列表
+  const materialResources = useMemo(() => 
+    sharedResources.filter(r => r.type === 'human' && r.workType === '物料'),
+    [sharedResources]
+  );
+  
+  // 缓存资源ID到资源的映射（用于快速查找）
+  const resourceMap = useMemo(() => {
+    const map = new Map<string, Resource>();
+    sharedResources.forEach(r => map.set(r.id, r));
+    return map;
+  }, [sharedResources]);
+  
+  // 缓存按工作类型分组的资源
+  const resourcesByWorkType = useMemo(() => {
+    const map = new Map<string, Resource[]>();
+    sharedResources.forEach(r => {
+      if (r.type === 'human' && r.workType) {
+        const list = map.get(r.workType) || [];
+        list.push(r);
+        map.set(r.workType, list);
+      }
+    });
+    return map;
+  }, [sharedResources]);
 
   const handleGenerateSchedule = (force = false, tasksOverride?: Task[]) => {
     const tasksToUse = tasksOverride || tasks;
@@ -2546,10 +2585,7 @@ export default function ComplexScenario() {
                             task.estimatedHoursGraphic > 0 && task.estimatedHoursPost > 0;
                           
                           if (isCompoundTask) {
-                            // 复合任务：显示两个独立的负责人选择器
-                            const graphicResources = sharedResources.filter(r => r.type === 'human' && r.workType === '平面');
-                            const postResources = sharedResources.filter(r => r.type === 'human' && r.workType === '后期');
-                            
+                            // 复合任务：显示两个独立的负责人选择器（使用缓存的资源列表）
                             return (
                               <div className="flex flex-col gap-1 min-w-[160px]">
                                 {/* 平面负责人 */}
@@ -2560,7 +2596,7 @@ export default function ComplexScenario() {
                                   <SelectTrigger className="h-7 text-xs">
                                     <SelectValue placeholder="平面负责人">
                                       {task.fixedResourceIdGraphic ? (() => {
-                                        const resource = sharedResources.find(r => r.id === task.fixedResourceIdGraphic);
+                                        const resource = resourceMap.get(task.fixedResourceIdGraphic);
                                         return resource ? (
                                           <span className="flex items-center gap-1">
                                             <div className="w-2 h-2 rounded-full bg-blue-500" />
@@ -2591,7 +2627,7 @@ export default function ComplexScenario() {
                                   <SelectTrigger className="h-7 text-xs">
                                     <SelectValue placeholder="后期负责人">
                                       {task.fixedResourceIdPost ? (() => {
-                                        const resource = sharedResources.find(r => r.id === task.fixedResourceIdPost);
+                                        const resource = resourceMap.get(task.fixedResourceIdPost);
                                         return resource ? (
                                           <span className="flex items-center gap-1">
                                             <div className="w-2 h-2 rounded-full bg-green-500" />
@@ -2617,7 +2653,7 @@ export default function ComplexScenario() {
                             );
                           }
                           
-                          // 普通任务：单一负责人选择器
+                          // 普通任务：单一负责人选择器（使用缓存的资源列表）
                           return (
                           <Select
                             value={task.fixedResourceId || 'none'}
@@ -2626,7 +2662,7 @@ export default function ComplexScenario() {
                             <SelectTrigger className="h-8 min-w-[140px]">
                               <SelectValue>
                                 {task.fixedResourceId ? (() => {
-                                  const resource = sharedResources.find(r => r.id === task.fixedResourceId);
+                                  const resource = resourceMap.get(task.fixedResourceId);
                                   if (resource) {
                                     return (
                                       <div className="flex items-center gap-2">
@@ -2647,15 +2683,12 @@ export default function ComplexScenario() {
                             <SelectContent>
                               <SelectItem value="none">自动分配</SelectItem>
                               {(() => {
-                                // 获取可用资源
-                                let filteredResources: Resource[] = [];
-                                if (task.taskType) {
-                                  filteredResources = sharedResources.filter(r =>
-                                    r.type === 'human' && r.workType === task.taskType
-                                  );
-                                }
+                                // 使用缓存的资源分组获取可用资源
+                                const filteredResources = task.taskType 
+                                  ? (resourcesByWorkType.get(task.taskType) || [])
+                                  : [];
 
-                                const currentResource = task.fixedResourceId ? sharedResources.find(r => r.id === task.fixedResourceId) : null;
+                                const currentResource = task.fixedResourceId ? resourceMap.get(task.fixedResourceId) : null;
                                 const displayResources = currentResource && !filteredResources.find(r => r.id === task.fixedResourceId)
                                   ? [currentResource, ...filteredResources]
                                   : filteredResources;
