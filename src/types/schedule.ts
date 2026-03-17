@@ -105,6 +105,10 @@ export interface Task {
   supplier?: string; // 供应商
   projectSize?: string; // 项目大小
   workOrderSubmitted?: boolean; // 已提交工单条
+
+  // 需求表扩展字段
+  category?: string; // 分类
+  requirementDate?: Date; // 需求日期
 }
 
 export interface Project {

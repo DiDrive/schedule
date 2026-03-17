@@ -309,16 +309,36 @@ export async function GET(request: NextRequest) {
           const projectNameToIdMap = new Map<string, string>();
           const projectMap = new Map<string, any>();
           
-          tasksData.data.items.forEach((item: any) => {
+          log(`[飞书加载] 🔍 开始解析需求表数据，共 ${tasksData.data.items.length} 条记录`);
+          
+          tasksData.data.items.forEach((item: any, index: number) => {
             const fields = item.fields;
-            const projectName = parseStringField(fields['项目'] || fields['projectName'] || fields['项目名称']);
             
+            // 打印前3条记录的字段名，帮助调试
+            if (index < 3) {
+              log(`[飞书加载] 📋 记录${index + 1}的字段: ${Object.keys(fields).join(', ')}`);
+            }
+            
+            // 字段映射（根据实际需求表结构）
+            // 任务名称: 需求项目 / 需求名称
+            // 项目名称: 客户名称（每个客户作为一个项目）
+            // 负责人: 所属
+            // 状态: 项目进展
+            // 平面工时: 平面报工耗时 / 平面深加工 / 平面预估工时
+            // 后期工时: 后期报工耗时 / 后期深加工 / 后期预估工时
+            // 截止日期: 验收时间 / 需求日期
+            
+            const customerName = parseStringField(fields['客户名称'] || fields['customerName'], '');
+            const taskName = parseStringField(fields['需求项目'] || fields['需求名称'] || fields['任务名称'] || fields['name'], `需求_${index + 1}`);
+            
+            // 使用客户名称作为项目名
+            const projectName = customerName || '默认项目';
             if (projectName && !projectMap.has(projectName)) {
               const projectId = `project-${projectName}`;
               projectMap.set(projectName, {
                 id: projectId,
                 name: projectName,
-                description: parseStringField(fields['项目描述'] || fields['projectDescription'], ''),
+                description: parseStringField(fields['分类'] || fields['项目描述'], ''),
                 priority: 'normal',
                 status: 'pending',
                 resourcePool: [],
@@ -333,14 +353,17 @@ export async function GET(request: NextRequest) {
           log(`[飞书加载] ✅ 从需求表提取了 ${result.projects.length} 个项目`);
           
           // 从需求表提取任务
-          result.tasks = tasksData.data.items.map((item: any) => {
+          result.tasks = tasksData.data.items.map((item: any, index: number) => {
             const fields = item.fields;
-            const taskId = parseStringField(fields['需求ID'] || fields['任务ID'] || fields['id'] || fields['ID']);
-            const name = parseStringField(fields['需求名称'] || fields['任务名称'] || fields['name'] || fields['名称'], taskId || `需求_${item.record_id.substring(0, 8)}`);
-            const projectName = parseStringField(fields['项目'] || fields['projectName'] || fields['项目名称']);
-            const projectId = projectName ? (projectNameToIdMap.get(projectName) || projectName) : '';
+            const taskId = parseStringField(fields['需求ID'] || fields['任务ID'] || fields['id'] || fields['ID']) || `req_${item.record_id.substring(0, 8)}`;
             
-            const assigneeField = fields['负责人'] || fields['指定人员'] || fields['assignedResourceId'];
+            const customerName = parseStringField(fields['客户名称'] || fields['customerName'], '');
+            const taskName = parseStringField(fields['需求项目'] || fields['需求名称'] || fields['任务名称'] || fields['name'], `需求_${index + 1}`);
+            const projectName = customerName || '默认项目';
+            const projectId = projectNameToIdMap.get(projectName) || '';
+            
+            // 负责人：所属字段
+            const assigneeField = fields['所属'] || fields['负责人'] || fields['指定人员'] || fields['assignedResourceId'];
             const feishuPersonId = parsePersonId(assigneeField);
             
             let assigneeId = '';
@@ -353,37 +376,53 @@ export async function GET(request: NextRequest) {
               }
             }
             
-            // 解析工时字段
-            const estimatedHoursGraphic = parseNumberField(fields['平面预估工时'] || fields['estimatedHoursGraphic'], undefined);
-            const estimatedHoursPost = parseNumberField(fields['后期预估工时'] || fields['estimatedHoursPost'], undefined);
-            const totalHours = parseNumberField(fields['预估工时'] || fields['estimatedHours'], 
-              (estimatedHoursGraphic || 0) + (estimatedHoursPost || 0));
+            // 解析工时字段：兼容多种字段名
+            const estimatedHoursGraphic = parseNumberField(
+              fields['平面报工耗时'] || fields['平面深加工'] || fields['平面预估工时'] || fields['estimatedHoursGraphic'], 
+              undefined
+            );
+            const estimatedHoursPost = parseNumberField(
+              fields['后期报工耗时'] || fields['后期深加工'] || fields['后期预估工时'] || fields['estimatedHoursPost'], 
+              undefined
+            );
+            const totalHours = parseNumberField(
+              fields['预估工时'] || fields['estimatedHours'], 
+              (estimatedHoursGraphic || 0) + (estimatedHoursPost || 0)
+            );
             
             // 解析子任务依赖模式
             const subTaskDependencyMode = parseStringField(fields['子任务依赖模式'] || fields['subTaskDependencyMode'], '');
             const dependencyMode: 'parallel' | 'serial' = subTaskDependencyMode === '串行' ? 'serial' : 'parallel';
             
-            // 解析其他字段
+            // 解析状态：项目进展
+            const statusStr = parseStringField(fields['项目进展'] || fields['状态'] || fields['status'], 'pending');
+            let status: 'pending' | 'in-progress' | 'completed' | 'blocked' = 'pending';
+            if (statusStr === '进行中' || statusStr === 'in-progress' || statusStr.includes('进行')) status = 'in-progress';
+            else if (statusStr === '已完成' || statusStr === 'completed' || statusStr.includes('完成') || statusStr.includes('验收')) status = 'completed';
+            else if (statusStr === '阻塞' || statusStr === 'blocked') status = 'blocked';
+            
+            // 解析优先级
             const priorityStr = parseStringField(fields['优先级'] || fields['priority'], '普通');
             let priority: 'urgent' | 'normal' | 'low' = 'normal';
             if (priorityStr === '紧急' || priorityStr === '高') priority = 'urgent';
             else if (priorityStr === '低') priority = 'low';
             
-            const statusStr = parseStringField(fields['状态'] || fields['status'], 'pending');
-            let status: 'pending' | 'in-progress' | 'completed' | 'blocked' = 'pending';
-            if (statusStr === '进行中' || statusStr === 'in-progress') status = 'in-progress';
-            else if (statusStr === '已完成' || statusStr === 'completed') status = 'completed';
-            else if (statusStr === '阻塞' || statusStr === 'blocked') status = 'blocked';
+            // 解析截止日期：验收时间 或 需求日期
+            let deadline = parseDateField(fields['验收时间'] || fields['截止日期'] || fields['deadline']) ||
+                          parseDateField(fields['需求日期'] || fields['requirementDate']);
             
-            const deadlineType = parseStringField(fields['截止日期类型'] || fields['deadlineType'], '指定日期');
-            let deadline = parseDateField(fields['截止日期'] || fields['deadline']);
-            if (deadlineType === '不确定' || deadlineType === 'uncertain') {
-              deadline = null;
-            }
+            // 扩展字段
+            const category = parseStringField(fields['分类'] || fields['category'], '');
+            const requirementDate = parseDateField(fields['需求日期']);
+            const businessMonth = parseStringField(fields['商务月份'], '');
+            const size = parseStringField(fields['尺寸'] || fields['size'], '');
+            const contactPerson = parseStringField(fields['对接人'] || fields['contactPerson'], '');
+            
+            log(`[飞书加载] 📝 任务: ${taskName}, 项目: ${projectName}, 负责人: ${assigneeName || '未分配'}, 状态: ${status}, 平面: ${estimatedHoursGraphic || 0}h, 后期: ${estimatedHoursPost || 0}h`);
             
             return {
-              id: taskId || item.record_id,
-              name,
+              id: taskId,
+              name: taskName,
               projectId,
               estimatedHours: totalHours,
               estimatedHoursGraphic,
@@ -394,8 +433,14 @@ export async function GET(request: NextRequest) {
               assigneeName,
               deadline,
               status,
-              deadlineType: deadlineType === '不确定' ? 'uncertain' : 'specified',
-              feishuRecordId: item.record_id, // 用于同步时更新记录
+              deadlineType: deadline ? 'specified' : 'uncertain',
+              feishuRecordId: item.record_id,
+              // 扩展字段
+              category,
+              requirementDate,
+              businessMonth,
+              size,
+              contactPerson,
             };
           });
           log(`[飞书加载] ✅ 使用需求表模式加载了 ${result.tasks.length} 个任务`);
