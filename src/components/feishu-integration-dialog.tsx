@@ -187,6 +187,7 @@ export default function FeishuIntegrationDialog({
       appId: config.appId.trim(),
       appSecret: config.appSecret.trim(),
       dataSourceMode: config.dataSourceMode,
+      requirementsLoadMode: config.requirementsLoadMode || 'all',
       newMode: {
         appToken: config.newMode.appToken.trim(),
         tableIds: {
@@ -218,7 +219,11 @@ export default function FeishuIntegrationDialog({
     if (cleanedConfig.dataSourceMode === 'new') {
       if (!cleanedConfig.newMode.appToken) missingFields.push('需求表模式 App Token');
       if (!cleanedConfig.newMode.tableIds.resources) missingFields.push('需求表模式 人员表 ID');
-      if (!cleanedConfig.newMode.tableIds.requirements1) missingFields.push('需求表模式 需求表1 ID');
+      // 根据加载选项决定是否验证需求表1
+      const loadMode = cleanedConfig.requirementsLoadMode || 'all';
+      if (loadMode === 'all' || loadMode === 'requirements1') {
+        if (!cleanedConfig.newMode.tableIds.requirements1) missingFields.push('需求表模式 需求表1 ID');
+      }
     } else {
       if (!cleanedConfig.legacyMode.appToken) missingFields.push('传统模式 App Token');
       if (!cleanedConfig.legacyMode.tableIds.resources) missingFields.push('传统模式 人员表 ID');
