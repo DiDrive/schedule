@@ -333,11 +333,30 @@ export default function ComplexScenario() {
     hasLoadedData.current = true;
 
     console.log('[数据加载] 开始加载数据...');
+    
+    // 检查数据来源
+    const dataSourceInfo = localStorage.getItem('complex-scenario-data-source');
+    if (dataSourceInfo) {
+      const source = JSON.parse(dataSourceInfo);
+      console.log('[数据加载] 数据来源:', source.source);
+      console.log('[数据加载] 加载模式:', source.loadMode);
+      console.log('[数据加载] 任务数量:', source.taskCount);
+      console.log('[数据加载] 保存时间:', new Date(source.timestamp).toLocaleString());
+    }
 
     const savedProjects = localStorage.getItem('complex-scenario-projects');
     const savedTasks = localStorage.getItem('complex-scenario-tasks');
     const savedResources = localStorage.getItem('complex-scenario-resources');
     const savedScheduleResult = localStorage.getItem('complex-scenario-schedule-result');
+
+    if (savedTasks) {
+      const parsed = JSON.parse(savedTasks);
+      console.log('[数据加载] 从localStorage加载了', parsed.length, '个任务');
+      if (parsed.length > 0) {
+        console.log('[数据加载] 第一个任务:', parsed[0].name);
+        console.log('[数据加载] 最后一个任务:', parsed[parsed.length - 1].name);
+      }
+    }
 
     // 检查并清理可能存在的不一致数据
     if (savedResources) {
@@ -1766,23 +1785,34 @@ export default function ComplexScenario() {
 
       const { resources, projects, tasks } = result.data;
       
-      // 先清空现有数据，确保UI更新
-      console.log('[Feishu Load] 清空现有数据...');
-      setSharedResources([]);
-      setProjects([]);
-      setTasks([]);
+      // 更新React状态
+      console.log('[Feishu Load] 更新React状态...');
+      setSharedResources([...resources]);
+      setProjects([...projects]);
+      setTasks([...tasks]);
       
-      // 使用setTimeout确保状态更新后再设置新数据
-      setTimeout(() => {
-        console.log('[Feishu Load] 设置新数据...');
-        setSharedResources(resources);
-        setProjects(projects);
-        setTasks(tasks);
-      }, 0);
-      
+      // 保存到localStorage，添加数据来源标记
+      const dataWithSource = {
+        resources,
+        projects,
+        tasks,
+        _source: 'feishu',
+        _loadMode: requirementsLoadMode,
+        _timestamp: Date.now()
+      };
       localStorage.setItem('complex-scenario-resources', JSON.stringify(resources));
       localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
       localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
+      localStorage.setItem('complex-scenario-data-source', JSON.stringify({
+        source: 'feishu',
+        loadMode: requirementsLoadMode,
+        taskCount: tasks.length,
+        timestamp: Date.now()
+      }));
+      
+      console.log('[Feishu Load] ✅ 数据已保存到localStorage');
+      console.log('[Feishu Load] 当前任务数:', tasks.length);
+      console.log('[Feishu Load] 第一个任务:', tasks[0]?.name || '无');
 
       // 更详细的加载结果提示
       const loadModeText = requirementsLoadMode === 'all' ? '全部' : 
