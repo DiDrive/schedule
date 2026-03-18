@@ -537,18 +537,30 @@ export default function ComplexScenario() {
     }
   }, []);
 
+  // 防抖保存到 localStorage - 避免每次输入都触发大量序列化操作
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   useEffect(() => {
-    // 始终保存数据，即使数量为0也要保存
-    localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
-    
-    // 保存任务时，保留所有 assignedResources（包括手动分配的）
-    // 在下次重新生成排期时，autoAssignResources 会清除并重新分配
-    localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
-    
-    localStorage.setItem('complex-scenario-resources', JSON.stringify(sharedResources));
-    if (scheduleResult) {
-      localStorage.setItem('complex-scenario-schedule-result', JSON.stringify(scheduleResult));
+    // 清除之前的定时器
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
     }
+    
+    // 延迟 500ms 保存，避免频繁写入
+    saveTimeoutRef.current = setTimeout(() => {
+      localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
+      localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
+      localStorage.setItem('complex-scenario-resources', JSON.stringify(sharedResources));
+      if (scheduleResult) {
+        localStorage.setItem('complex-scenario-schedule-result', JSON.stringify(scheduleResult));
+      }
+    }, 500);
+    
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
   }, [projects, tasks, sharedResources, scheduleResult]);
 
   // 计算快到截止日期的任务数量
@@ -631,6 +643,28 @@ export default function ComplexScenario() {
     });
     return map;
   }, [sharedResources]);
+  
+  // 缓存筛选后的任务列表（避免每次渲染都执行 filter）
+  const filteredTasks = useMemo(() => 
+    tasks.filter(task =>
+      (activeProject === 'all' || task.projectId === activeProject) &&
+      (activeTaskType === 'all' || task.taskType === activeTaskType)
+    ),
+    [tasks, activeProject, activeTaskType]
+  );
+  
+  // 缓存项目ID到项目的映射
+  const projectMap = useMemo(() => {
+    const map = new Map<string, Project>();
+    projects.forEach(p => map.set(p.id, p));
+    return map;
+  }, [projects]);
+  
+  // 获取项目的辅助函数（使用缓存）
+  const getProjectById = useCallback((projectId: string) => 
+    projectMap.get(projectId),
+    [projectMap]
+  );
 
   const handleGenerateSchedule = (force = false, tasksOverride?: Task[]) => {
     const tasksToUse = tasksOverride || tasks;
@@ -911,58 +945,60 @@ export default function ComplexScenario() {
   };
 
   const handleTaskChange = (taskId: string, field: keyof Task, value: any) => {
-    setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
-    setSavedResolutions(null); // 重置保存的解决方案
-    setPendingConflicts(new Map()); // 清除待处理的冲突
+    // 合并状态更新，减少渲染次数
+    setTasks(prevTasks => {
+      const newTasks = prevTasks.map(t => {
+        if (t.id !== taskId) return t;
 
-    setTasks(tasks.map(t => {
-      if (t.id !== taskId) return t;
-
-      // 如果修改的是截止日期，将时间设置为18:30（下班时间）
-      const WORK_END_HOUR = 18.5; // 18:30
-      if (field === 'deadline' && value instanceof Date) {
-        const deadline = new Date(value);
-        deadline.setHours(WORK_END_HOUR, 30, 0, 0); // 设置为18:30:00
-        value = deadline;
-      }
-
-      // 如果修改的是任务类型，检查当前的 fixedResourceId 是否匹配新的类型
-      if (field === 'taskType' && t.fixedResourceId) {
-        const fixedResource = sharedResources.find(r => r.id === t.fixedResourceId);
-        if (fixedResource && fixedResource.workType !== value) {
-          // 指定的资源类型与新的任务类型不匹配，清除指定资源
-          console.log(`任务 ${t.name} 的类型从 ${t.taskType} 改为 ${value}，清除指定的资源 ${fixedResource.name}`);
-          return { ...t, [field]: value, fixedResourceId: undefined };
+        // 如果修改的是截止日期，将时间设置为18:30（下班时间）
+        const WORK_END_HOUR = 18.5; // 18:30
+        if (field === 'deadline' && value instanceof Date) {
+          const deadline = new Date(value);
+          deadline.setHours(WORK_END_HOUR, 30, 0, 0); // 设置为18:30:00
+          value = deadline;
         }
-      }
 
-      // 如果状态变为已完成，记录实际完成时间
-      if (field === 'status' && value === 'completed') {
-        const now = new Date();
-        console.log(`[ComplexScenario] 任务 ${t.name} 已完成，实际完成时间: ${now.toLocaleString()}`);
-        return { ...t, [field]: value, actualEndDate: now };
-      }
+        // 如果修改的是任务类型，检查当前的 fixedResourceId 是否匹配新的类型
+        if (field === 'taskType' && t.fixedResourceId) {
+          const fixedResource = resourceMap.get(t.fixedResourceId);
+          if (fixedResource && fixedResource.workType !== value) {
+            return { ...t, [field]: value, fixedResourceId: undefined };
+          }
+        }
 
-      // 如果状态从已完成变为其他状态，清除实际完成时间
-      if (field === 'status' && t.status === 'completed' && value !== 'completed') {
-        return { ...t, [field]: value, actualEndDate: undefined };
-      }
+        // 如果状态变为已完成，记录实际完成时间
+        if (field === 'status' && value === 'completed') {
+          return { ...t, [field]: value, actualEndDate: new Date() };
+        }
 
-      // 如果修改的是平面工时或后期工时，自动计算总工时
-      if (field === 'estimatedHoursGraphic' || field === 'estimatedHoursPost') {
-        const graphicHours = field === 'estimatedHoursGraphic' ? (value || 0) : (t.estimatedHoursGraphic || 0);
-        const postHours = field === 'estimatedHoursPost' ? (value || 0) : (t.estimatedHoursPost || 0);
-        const totalHours = graphicHours + postHours;
-        
-        return { 
-          ...t, 
-          [field]: value,
-          estimatedHours: totalHours || t.estimatedHours // 如果总工时为0，保持原值
-        };
-      }
+        // 如果状态从已完成变为其他状态，清除实际完成时间
+        if (field === 'status' && t.status === 'completed' && value !== 'completed') {
+          return { ...t, [field]: value, actualEndDate: undefined };
+        }
 
-      return { ...t, [field]: value };
-    }));
+        // 如果修改的是平面工时或后期工时，自动计算总工时
+        if (field === 'estimatedHoursGraphic' || field === 'estimatedHoursPost') {
+          const graphicHours = field === 'estimatedHoursGraphic' ? (value || 0) : (t.estimatedHoursGraphic || 0);
+          const postHours = field === 'estimatedHoursPost' ? (value || 0) : (t.estimatedHoursPost || 0);
+          const totalHours = graphicHours + postHours;
+          
+          return { 
+            ...t, 
+            [field]: value,
+            estimatedHours: totalHours || t.estimatedHours
+          };
+        }
+
+        return { ...t, [field]: value };
+      });
+      
+      return newTasks;
+    });
+    
+    // 重置冲突相关状态（合并为一次更新）
+    setJustResolvedConflict(false);
+    setSavedResolutions(null);
+    setPendingConflicts(new Map());
   };
 
   const handleDeleteTask = (taskId: string) => {
@@ -1165,13 +1201,7 @@ export default function ComplexScenario() {
     }
   };
 
-  const filteredTasks = activeProject === 'all' 
-    ? tasks 
-    : tasks.filter(t => t.projectId === activeProject);
-
-  const getProjectById = (projectId: string) => {
-    return projects.find(p => p.id === projectId);
-  };
+  // filteredTasks 已在上方使用 useMemo 缓存
 
   // 根据排期时间自动计算任务状态
   // 新逻辑：
@@ -2502,10 +2532,7 @@ export default function ComplexScenario() {
                   <TableHead>任务类型</TableHead>
                   <TableHead>指定人员</TableHead>
                   <TableHead>
-                    {tasks.filter(t =>
-                      (activeProject === 'all' || t.projectId === activeProject) &&
-                      (activeTaskType === 'all' || t.taskType === activeTaskType)
-                    ).some(t => t.taskType === '物料') ? '工时/提供时间' : '预估工时'}
+                    {filteredTasks.some(t => t.taskType === '物料') ? '工时/提供时间' : '预估工时'}
                   </TableHead>
                   <TableHead>平面工时</TableHead>
                   <TableHead>后期工时</TableHead>
@@ -2518,10 +2545,7 @@ export default function ComplexScenario() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tasks.filter(task =>
-                  (activeProject === 'all' || task.projectId === activeProject) &&
-                  (activeTaskType === 'all' || task.taskType === activeTaskType)
-                ).map(task => {
+                {filteredTasks.map(task => {
                   const project = getProjectById(task.projectId || '');
 
                   return (
