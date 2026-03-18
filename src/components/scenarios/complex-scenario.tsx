@@ -1597,11 +1597,13 @@ export default function ComplexScenario() {
       console.log('[Feishu Load] 检测到旧配置格式，自动转换...');
       const oldTableIds = config.tableIds || {};
       const dataSourceMode = config.dataSourceMode || 'new';
+      const requirementsLoadMode = config.requirementsLoadMode || 'all';
       
       config = {
         appId: config.appId,
         appSecret: config.appSecret,
         dataSourceMode: dataSourceMode,
+        requirementsLoadMode: requirementsLoadMode,
         newMode: {
           appToken: config.appToken,
           tableIds: {
@@ -1682,6 +1684,9 @@ export default function ComplexScenario() {
       const requirementsLoadMode = config.requirementsLoadMode || 'all';
       url += `&requirements_load_mode=${encodeURIComponent(requirementsLoadMode)}`;
       
+      console.log('[Feishu Load] 需求表加载模式:', requirementsLoadMode);
+      console.log('[Feishu Load] 配置中的需求表加载模式:', config.requirementsLoadMode);
+      
       if (dataSourceMode === 'new') {
         // 需求表模式 - 根据加载模式决定传递哪些表 ID
         if (requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements1') {
@@ -1692,6 +1697,8 @@ export default function ComplexScenario() {
             url += `&requirements2_table_id=${encodeURIComponent(modeConfig.tableIds.requirements2)}`;
           }
         }
+        console.log('[Feishu Load] 需求表1 ID:', modeConfig.tableIds.requirements1 || '未设置');
+        console.log('[Feishu Load] 需求表2 ID:', modeConfig.tableIds.requirements2 || '未设置');
       } else {
         // 传统模式
         url += `&projects_table_id=${encodeURIComponent(modeConfig.tableIds.projects)}` +

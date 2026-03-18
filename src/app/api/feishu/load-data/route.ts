@@ -64,6 +64,8 @@ export async function GET(request: NextRequest) {
     const shouldLoadRequirements1 = requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements1';
     const shouldLoadRequirements2 = requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements2';
     log(`[飞书加载] 加载模式: ${isRequirementsMode ? '需求表模式' : '传统模式'}, ${isWorkorderMode ? '工单表' : '标准任务表'}`);
+    log(`[飞书加载] 需求表加载选项: ${requirementsLoadMode}, shouldLoadRequirements1=${shouldLoadRequirements1}, shouldLoadRequirements2=${shouldLoadRequirements2}`);
+    log(`[飞书加载] 需求表1 ID: ${requirements1TableId || '未设置'}, 需求表2 ID: ${requirements2TableId || '未设置'}`);
 
     if (!appId || !appSecret) {
       log('[飞书加载] ❌ 缺少 app_id 或 app_secret');
