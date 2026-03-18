@@ -39,6 +39,7 @@ const log = (message: string) => {
  * - requirements2_table_id: 需求表2 Table ID（新模式）
  * - table_type: 表格类型（'tasks' 标准任务表 或 'workorders' 工单表）
  * - data_source_mode: 数据源模式（'legacy' 传统模式 或 'new' 需求表模式）
+ * - requirements_load_mode: 需求表加载模式（'all' 全部 | 'requirements1' 仅需求表1 | 'requirements2' 仅需求表2）
  */
 export async function GET(request: NextRequest) {
   try {
@@ -53,11 +54,15 @@ export async function GET(request: NextRequest) {
     const requirements2TableId = searchParams.get('requirements2_table_id');
     const tableType = searchParams.get('table_type') || 'tasks';
     const dataSourceMode = searchParams.get('data_source_mode') || 'legacy';
+    const requirementsLoadMode = searchParams.get('requirements_load_mode') || 'all';
     
     // 判断是否为需求表模式
     const isRequirementsMode = dataSourceMode === 'new';
     // 判断是否为工单表模式
     const isWorkorderMode = tableType === 'workorders';
+    // 判断需求表加载范围
+    const shouldLoadRequirements1 = requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements1';
+    const shouldLoadRequirements2 = requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements2';
     log(`[飞书加载] 加载模式: ${isRequirementsMode ? '需求表模式' : '传统模式'}, ${isWorkorderMode ? '工单表' : '标准任务表'}`);
 
     if (!appId || !appSecret) {
@@ -281,35 +286,32 @@ export async function GET(request: NextRequest) {
     }
 
     // ===== 第三步：加载任务数据，使用映射表转换字段 =====
-    // 需求表模式使用 requirements1TableId，传统模式使用 tasksTableId
-    const actualTasksTableId = isRequirementsMode ? requirements1TableId : tasksTableId;
+    // 需求表模式根据 requirementsLoadMode 决定加载哪些表
+    // 传统模式使用 tasksTableId
     
-    if (actualTasksTableId) {
-      log(`[飞书加载] 步骤3：加载任务数据: table_id=${actualTasksTableId}, 模式=${isRequirementsMode ? '需求表' : '传统'}`);
-      const tasksResponse = await fetch(
-        `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${actualTasksTableId}/records/search`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${appAccessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ page_size: 500 }),
-        }
-      );
+    if (isRequirementsMode) {
+      // 需求表模式：根据加载模式加载对应的表
+      const projectNameToIdMap = new Map<string, string>();
+      const projectMap = new Map<string, any>();
+      
+      // 加载需求表1
+      if (shouldLoadRequirements1 && requirements1TableId) {
+        log(`[飞书加载] 步骤3.1：加载需求表1数据: table_id=${requirements1TableId}`);
+        const tasksResponse = await fetch(
+          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${requirements1TableId}/records/search`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${appAccessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ page_size: 500 }),
+          }
+        );
 
-      const tasksData = await tasksResponse.json();
-      if (tasksData.code === 0 && tasksData.data) {
-        const sample = tasksData.data.items[0]?.fields;
-        log(`[飞书加载] 🔍 任务原始数据示例: ${JSON.stringify(sample).substring(0, 300)}...`);
-
-        // 根据模式选择转换方式
-        if (isRequirementsMode && !isWorkorderMode) {
-          // 需求表模式：同时提取项目和任务信息
-          const projectNameToIdMap = new Map<string, string>();
-          const projectMap = new Map<string, any>();
-          
-          log(`[飞书加载] 🔍 开始解析需求表数据，共 ${tasksData.data.items.length} 条记录`);
+        const tasksData = await tasksResponse.json();
+        if (tasksData.code === 0 && tasksData.data) {
+          log(`[飞书加载] 🔍 需求表1记录数: ${tasksData.data.items.length}`);
           
           tasksData.data.items.forEach((item: any, index: number) => {
             const fields = item.fields;
@@ -464,8 +466,8 @@ export async function GET(request: NextRequest) {
           });
           log(`[飞书加载] ✅ 使用需求表模式从需求表1加载了 ${result.tasks.length} 个任务`);
           
-          // 如果有需求表2，也加载数据
-          if (requirements2TableId) {
+          // 如果需要加载需求表2，也加载数据
+          if (requirements2TableId && shouldLoadRequirements2) {
             log(`[飞书加载] 步骤3.2：加载需求表2数据: table_id=${requirements2TableId}`);
             const req2Response = await fetch(
               `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${requirements2TableId}/records/search`,
@@ -569,8 +571,155 @@ export async function GET(request: NextRequest) {
               log(`[飞书加载] ⚠️ 加载需求表2失败: ${JSON.stringify(req2Data)}`);
             }
           }
-        } else if (isWorkorderMode) {
-          // 工单表模式：使用 workorderRecordToTask 转换
+        } else {
+          log(`[飞书加载] ⚠️ 需求表1数据加载失败或无数据`);
+        }
+      }
+      
+      // 独立加载需求表2（用于"仅加载需求表2"模式）
+      if (shouldLoadRequirements2 && requirements2TableId && !shouldLoadRequirements1) {
+        log(`[飞书加载] 步骤3.2（独立）：加载需求表2数据: table_id=${requirements2TableId}`);
+        const req2Response = await fetch(
+          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${requirements2TableId}/records/search`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${appAccessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ page_size: 500 }),
+          }
+        );
+
+        const req2Data = await req2Response.json();
+        if (req2Data.code === 0 && req2Data.data) {
+          log(`[飞书加载] 🔍 需求表2记录数: ${req2Data.data.items.length}`);
+          
+          // 先提取项目
+          req2Data.data.items.forEach((item: any, index: number) => {
+            const fields = item.fields;
+            const categoryName = parseStringField(fields['需求类目'] || fields['客户名称'] || fields['customerName'], '');
+            const projectName = categoryName || '默认项目';
+            if (projectName && !projectMap.has(projectName)) {
+              const projectId = `project-${projectName}`;
+              projectMap.set(projectName, {
+                id: projectId,
+                name: projectName,
+                description: parseStringField(fields['分类'] || fields['项目描述'], ''),
+                priority: 'normal',
+                status: 'pending',
+                resourcePool: [],
+                color: '#3b82f6',
+                tasks: [],
+              });
+              projectNameToIdMap.set(projectName, projectId);
+            }
+          });
+          result.projects = Array.from(projectMap.values());
+          
+          const req2Tasks = req2Data.data.items.map((item: any, index: number) => {
+            const fields = item.fields;
+            const taskId = parseStringField(fields['员工填报用索引编号'] || fields['需求ID'] || fields['任务ID'] || fields['id'] || fields['ID']) || `req2_${item.record_id.substring(0, 8)}`;
+            
+            const categoryName = parseStringField(fields['需求类目'] || fields['客户名称'] || fields['customerName'], '');
+            const taskName = parseStringField(fields['脚本名称'] || fields['需求项目'] || fields['需求名称'] || fields['任务名称'] || fields['name'], `需求2_${index + 1}`);
+            const projectName = categoryName || '默认项目';
+            const projectId = projectNameToIdMap.get(projectName) || '';
+            
+            const assigneeField = fields['对接人'] || fields['所属'] || fields['负责人'] || fields['指定人员'];
+            const feishuPersonId = parsePersonId(assigneeField);
+            
+            let assigneeId = '';
+            let assigneeName = '';
+            if (feishuPersonId) {
+              const resource = result.resources.find((r: any) => r.feishuPersonId === feishuPersonId);
+              if (resource) {
+                assigneeId = resource.id;
+                assigneeName = resource.name;
+              }
+            }
+            
+            const estimatedHoursGraphic = parseNumberField(
+              fields['内部平面'] || fields['平面预估工时'] || fields['平面报工耗时'] || fields['平面深加工'], 
+              undefined
+            );
+            const estimatedHoursPost = parseNumberField(
+              fields['内部后期'] || fields['后期预估工时'] || fields['后期报工耗时'] || fields['后期深加工'], 
+              undefined
+            );
+            const totalHours = parseNumberField(
+              fields['预估工时'], 
+              (estimatedHoursGraphic || 0) + (estimatedHoursPost || 0)
+            );
+            
+            const statusStr = parseStringField(fields['项目进展'] || fields['状态'] || fields['status'], 'pending');
+            let status: 'pending' | 'in-progress' | 'completed' | 'blocked' = 'pending';
+            if (statusStr === '进行中' || statusStr === 'in-progress' || statusStr.includes('进行')) status = 'in-progress';
+            else if (statusStr === '已完成' || statusStr === 'completed' || statusStr.includes('完成') || statusStr.includes('验收')) status = 'completed';
+            else if (statusStr === '阻塞' || statusStr === 'blocked') status = 'blocked';
+            
+            let taskType: '平面' | '后期' | '' = '';
+            const hasGraphic = estimatedHoursGraphic && estimatedHoursGraphic > 0;
+            const hasPost = estimatedHoursPost && estimatedHoursPost > 0;
+            if (hasGraphic && !hasPost) {
+              taskType = '平面';
+            } else if (hasPost && !hasGraphic) {
+              taskType = '后期';
+            }
+            
+            let deadline = parseDateField(fields['需求日期'] || fields['截止日期']) ||
+                          parseDateField(fields['验收时间']);
+            
+            return {
+              id: taskId,
+              name: taskName,
+              projectId,
+              taskType,
+              estimatedHours: totalHours,
+              estimatedHoursGraphic,
+              estimatedHoursPost,
+              priority: 'normal' as const,
+              assigneeId,
+              assigneeName,
+              deadline,
+              status,
+              deadlineType: deadline ? 'specified' as const : 'uncertain' as const,
+              feishuRecordId: item.record_id,
+              category: parseStringField(fields['需求类目'] || fields['分类'], ''),
+              businessMonth: parseStringField(fields['商务月份'], ''),
+              subType: parseStringField(fields['细分类'], ''),
+              language: parseStringField(fields['语言'], ''),
+              dubbing: parseStringField(fields['配音'], ''),
+              contactPerson: parseStringField(fields['对接人'], ''),
+            };
+          });
+          
+          result.tasks.push(...req2Tasks);
+          log(`[飞书加载] ✅ 从需求表2独立加载了 ${req2Tasks.length} 个任务`);
+        } else {
+          log(`[飞书加载] ⚠️ 加载需求表2失败: ${JSON.stringify(req2Data)}`);
+        }
+      }
+      
+      log(`[飞书加载] ✅ 需求表模式加载完成，共 ${result.tasks.length} 个任务, ${result.projects.length} 个项目`);
+    } else if (tasksTableId) {
+      // 传统模式：使用 tasksTableId
+      log(`[飞书加载] 步骤3：加载任务数据（传统模式）: table_id=${tasksTableId}`);
+      const tasksResponse = await fetch(
+        `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tasksTableId}/records/search`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${appAccessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ page_size: 500 }),
+        }
+      );
+
+      const tasksData = await tasksResponse.json();
+      if (tasksData.code === 0 && tasksData.data) {
+        if (isWorkorderMode) {
           result.tasks = tasksData.data.items.map((item: any) => {
             return workorderRecordToTask(item, item.record_id);
           });

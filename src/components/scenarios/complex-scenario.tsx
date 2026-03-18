@@ -1678,11 +1678,19 @@ export default function ComplexScenario() {
         `&resources_table_id=${encodeURIComponent(modeConfig.tableIds.resources)}` +
         `&data_source_mode=${encodeURIComponent(dataSourceMode)}`;
       
+      // 需求表加载模式
+      const requirementsLoadMode = config.requirementsLoadMode || 'all';
+      url += `&requirements_load_mode=${encodeURIComponent(requirementsLoadMode)}`;
+      
       if (dataSourceMode === 'new') {
-        // 需求表模式
-        url += `&requirements1_table_id=${encodeURIComponent(modeConfig.tableIds.requirements1 || '')}`;
-        if (modeConfig.tableIds.requirements2) {
-          url += `&requirements2_table_id=${encodeURIComponent(modeConfig.tableIds.requirements2)}`;
+        // 需求表模式 - 根据加载模式决定传递哪些表 ID
+        if (requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements1') {
+          url += `&requirements1_table_id=${encodeURIComponent(modeConfig.tableIds.requirements1 || '')}`;
+        }
+        if (requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements2') {
+          if (modeConfig.tableIds.requirements2) {
+            url += `&requirements2_table_id=${encodeURIComponent(modeConfig.tableIds.requirements2)}`;
+          }
         }
       } else {
         // 传统模式
@@ -1709,8 +1717,14 @@ export default function ComplexScenario() {
       localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
 
       // 更详细的加载结果提示
+      const loadModeText = requirementsLoadMode === 'all' ? '全部' : 
+        requirementsLoadMode === 'requirements1' ? '仅需求表1' : '仅需求表2';
+      
       let message = `成功从飞书多维表加载数据！\n\n`;
       message += `数据源模式: ${dataSourceMode === 'new' ? '需求表模式' : '传统模式'}\n`;
+      if (dataSourceMode === 'new') {
+        message += `加载范围: ${loadModeText}\n`;
+      }
       message += `人员：${resources.length}\n`;
       message += `项目：${projects.length}\n`;
       message += `任务：${tasks.length}\n`;

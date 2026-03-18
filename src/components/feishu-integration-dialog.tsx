@@ -20,6 +20,9 @@ interface FeishuConfig {
   appSecret: string;
   dataSourceMode: 'legacy' | 'new';
   
+  // 需求表加载模式：'all' 全部 | 'requirements1' 仅需求表1 | 'requirements2' 仅需求表2
+  requirementsLoadMode?: 'all' | 'requirements1' | 'requirements2';
+  
   // 需求表模式配置（独立的多维表）
   newMode: {
     appToken: string;
@@ -57,6 +60,7 @@ const defaultConfig: FeishuConfig = {
   appId: '',
   appSecret: '',
   dataSourceMode: 'new',
+  requirementsLoadMode: 'all',
   newMode: {
     appToken: '',
     tableIds: {
@@ -105,6 +109,7 @@ export default function FeishuIntegrationDialog({
           appId: parsed.appId || '',
           appSecret: parsed.appSecret || '',
           dataSourceMode: parsed.dataSourceMode || 'new',
+          requirementsLoadMode: parsed.requirementsLoadMode || 'all',
           newMode: {
             appToken: parsed.newMode?.appToken || '',
             tableIds: {
@@ -450,6 +455,44 @@ export default function FeishuIntegrationDialog({
                   value={config.newMode.tableIds.requirements2}
                   onChange={(e) => updateNewMode('requirements2', e.target.value)}
                 />
+              </div>
+              
+              {/* 需求表加载选项 */}
+              <div className="space-y-2">
+                <Label>数据加载选项</Label>
+                <div className="flex flex-col gap-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="requirementsLoadMode"
+                      checked={config.requirementsLoadMode === 'all'}
+                      onChange={() => setConfig(prev => ({ ...prev, requirementsLoadMode: 'all' }))}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm">全部加载</span>
+                    <span className="text-xs text-slate-500">（需求表1 + 需求表2）</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="requirementsLoadMode"
+                      checked={config.requirementsLoadMode === 'requirements1'}
+                      onChange={() => setConfig(prev => ({ ...prev, requirementsLoadMode: 'requirements1' }))}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm">仅加载需求表1</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="requirementsLoadMode"
+                      checked={config.requirementsLoadMode === 'requirements2'}
+                      onChange={() => setConfig(prev => ({ ...prev, requirementsLoadMode: 'requirements2' }))}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm">仅加载需求表2</span>
+                  </label>
+                </div>
               </div>
               
               <div className="space-y-2">
