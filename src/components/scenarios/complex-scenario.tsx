@@ -2473,11 +2473,11 @@ export default function ComplexScenario() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-[200px]">任务名称</TableHead>
-                  <TableHead className="min-w-[120px]">项目</TableHead>
+                  <TableHead className="min-w-[240px]">任务名称</TableHead>
+                  <TableHead className="min-w-[160px]">项目</TableHead>
                   <TableHead>任务类型</TableHead>
-                  <TableHead className="min-w-[100px]">细分类</TableHead>
-                  <TableHead>语言</TableHead>
+                  <TableHead className="min-w-[120px]">细分类</TableHead>
+                  <TableHead className="min-w-[80px]">语言</TableHead>
                   <TableHead>指定人员</TableHead>
                   <TableHead>
                     {filteredTasks.some(t => t.taskType === '物料') ? '提供时间' : '预估工时'}

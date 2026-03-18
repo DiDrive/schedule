@@ -503,37 +503,79 @@ export function resolveConflictWithFeishu(task: Task, feishuRecord: Record<strin
 function inferTaskTypeFromSubType(subType: string): string {
   if (!subType) return '后期';
   
-  const typeMap: Record<string, string> = {
-    '前瞻pv视频': '后期',
-    'pv视频-延展': '后期',
-    '前瞻pv视频-动态kv': '平面',
-    '动态kv': '平面',
-    '英改简': '后期',
-    '英语新片': '后期',
-    '简中新片': '后期',
-    '简改繁': '后期',
-    '简改日': '后期',
-    '简改韩': '后期',
-    '简改英': '后期',
-    '简改泰': '后期',
-    '英改日': '后期',
-    '英改韩': '后期',
-    '英改泰': '后期',
-    '英改繁': '后期',
-    '特殊需求-改标题': '平面',
-    '改标题': '平面',
-  };
+  // 平面类细分类
+  const graphicTypes = [
+    '简中平面',
+    '动态kv',
+    '静态kv',
+    '前瞻pv视频-动态kv',
+    '特殊需求-改标题',
+    '改标题',
+  ];
   
-  // 尝试直接匹配
-  if (typeMap[subType]) {
-    return typeMap[subType];
-  }
+  // 物料类细分类
+  const materialTypes = [
+    'NOVA-买量需求',
+    '05-富婆人生（春节跳舞福利）',
+  ];
+  
+  // 后期类细分类（包含翻译、配音、延展等）
+  const postTypes = [
+    '简中新片',
+    '繁中新片',
+    '日语新片',
+    '英语新片',
+    '简改繁',
+    '简改日',
+    '简改韩',
+    '简改英',
+    '简改泰',
+    '简改越南',
+    '繁改日',
+    '繁改英',
+    '繁改简',
+    '繁改韩',
+    '繁改泰',
+    '英改简',
+    '英改繁',
+    '英改日',
+    '英改韩',
+    '英改德',
+    '英改法',
+    '英改西',
+    '英改葡',
+    '日改韩',
+    '日改英',
+    '日改简',
+    '日改繁',
+    'AI混剪',
+    '翻译需求-英文',
+    '翻译需求-韩文',
+    '翻译需求-日文',
+    '配音需求-英语',
+    '配音需求-韩语',
+    '英语延展',
+    '繁中延展',
+    '韩语延展',
+    '日语延展',
+    '前瞻pv视频',
+    'pv视频-延展',
+  ];
+  
+  // 直接匹配
+  if (graphicTypes.includes(subType)) return '平面';
+  if (materialTypes.includes(subType)) return '物料';
+  if (postTypes.includes(subType)) return '后期';
   
   // 模糊匹配
-  if (subType.includes('平面') || subType.includes('kv') || subType.includes('改标题')) {
+  if (subType.includes('平面') || subType.includes('kv') || subType.includes('KV')) {
     return '平面';
   }
-  if (subType.includes('pv') || subType.includes('视频') || subType.includes('新片') || subType.includes('改')) {
+  if (subType.includes('物料') || subType.includes('素材') || subType.includes('买量')) {
+    return '物料';
+  }
+  if (subType.includes('改') || subType.includes('新片') || subType.includes('翻译') || 
+      subType.includes('配音') || subType.includes('延展') || subType.includes('混剪')) {
     return '后期';
   }
   
@@ -653,6 +695,7 @@ export function taskToWorkorderRecord(
     [f.name]: task.name,
     [f.project]: task.projectId || '心动小镇-品牌需求',
     [f.sub_type]: task.subType || (task.taskType === '平面' ? '动态kv' : '简中新片'),
+    [f.language]: task.language || '',
     [f.deadline]: dateToFeishuDate(task.deadline, false),
     [f.status]: statusMap[task.status] || '未开始',
   };

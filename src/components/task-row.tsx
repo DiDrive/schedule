@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { Lock, Trash2 } from 'lucide-react';
 import { Task, Project, Resource } from '@/types/schedule';
+import { SUB_TYPE_OPTIONS, LANGUAGE_OPTIONS } from '@/lib/constants';
 
 // 辅助函数
 const formatDateToInputValue = (date: Date | string | undefined): string => {
@@ -31,31 +32,6 @@ const formatDateTimeToInputValue = (date: Date | string | undefined): string => 
   const minutes = d.getMinutes().toString().padStart(2, '0');
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
-
-// 细分类选项
-const SUB_TYPE_OPTIONS = [
-  '前瞻pv视频',
-  '动态kv',
-  '静态kv',
-  '宣传海报',
-  '产品图',
-  '视频剪辑',
-  '特效制作',
-  '字幕制作',
-  '调色',
-  '音频处理',
-  '其他'
-];
-
-// 语言选项
-const LANGUAGE_OPTIONS = [
-  '中文',
-  '英文',
-  '日文',
-  '韩文',
-  '中英双语',
-  '多语言'
-];
 
 interface TaskRowProps {
   task: Task;
@@ -208,7 +184,7 @@ const TaskRow = memo(function TaskRow({
         <Input
           value={task.name}
           onChange={handleNameChange}
-          className="h-8 min-w-[180px]"
+          className="h-8 min-w-[220px]"
         />
       </TableCell>
       
@@ -219,7 +195,7 @@ const TaskRow = memo(function TaskRow({
           onValueChange={handleProjectChange}
           disabled={activeProject !== 'all'}
         >
-          <SelectTrigger className="h-8 min-w-[100px]">
+          <SelectTrigger className="h-8 min-w-[140px]">
             <SelectValue placeholder="选择项目" />
           </SelectTrigger>
           <SelectContent>
