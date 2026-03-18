@@ -66,6 +66,7 @@ export async function GET(request: NextRequest) {
     log(`[飞书加载] 加载模式: ${isRequirementsMode ? '需求表模式' : '传统模式'}, ${isWorkorderMode ? '工单表' : '标准任务表'}`);
     log(`[飞书加载] 需求表加载选项: ${requirementsLoadMode}, shouldLoadRequirements1=${shouldLoadRequirements1}, shouldLoadRequirements2=${shouldLoadRequirements2}`);
     log(`[飞书加载] 需求表1 ID: ${requirements1TableId || '未设置'}, 需求表2 ID: ${requirements2TableId || '未设置'}`);
+    log(`[飞书加载] 是否进入独立加载需求表2: shouldLoadRequirements2=${shouldLoadRequirements2}, hasReq2Id=${!!requirements2TableId}, !shouldLoadRequirements1=${!shouldLoadRequirements1}`);
 
     if (!appId || !appSecret) {
       log('[飞书加载] ❌ 缺少 app_id 或 app_secret');

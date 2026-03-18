@@ -1689,16 +1689,23 @@ export default function ComplexScenario() {
       
       if (dataSourceMode === 'new') {
         // 需求表模式 - 根据加载模式决定传递哪些表 ID
-        if (requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements1') {
-          url += `&requirements1_table_id=${encodeURIComponent(modeConfig.tableIds.requirements1 || '')}`;
+        // 注意：只有当表ID存在时才添加到URL中，避免传递空字符串
+        const req1Id = modeConfig.tableIds.requirements1;
+        const req2Id = modeConfig.tableIds.requirements2;
+        
+        console.log('[Feishu Load] 需求表1 ID:', req1Id || '未设置');
+        console.log('[Feishu Load] 需求表2 ID:', req2Id || '未设置');
+        console.log('[Feishu Load] 加载模式:', requirementsLoadMode);
+        
+        if ((requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements1') && req1Id) {
+          url += `&requirements1_table_id=${encodeURIComponent(req1Id)}`;
+          console.log('[Feishu Load] 添加需求表1参数');
         }
-        if (requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements2') {
-          if (modeConfig.tableIds.requirements2) {
-            url += `&requirements2_table_id=${encodeURIComponent(modeConfig.tableIds.requirements2)}`;
-          }
+        if ((requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements2') && req2Id) {
+          url += `&requirements2_table_id=${encodeURIComponent(req2Id)}`;
+          console.log('[Feishu Load] 添加需求表2参数');
         }
-        console.log('[Feishu Load] 需求表1 ID:', modeConfig.tableIds.requirements1 || '未设置');
-        console.log('[Feishu Load] 需求表2 ID:', modeConfig.tableIds.requirements2 || '未设置');
+        console.log('[Feishu Load] 最终URL:', url);
       } else {
         // 传统模式
         url += `&projects_table_id=${encodeURIComponent(modeConfig.tableIds.projects)}` +
