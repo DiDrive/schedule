@@ -1756,6 +1756,7 @@ export default function ComplexScenario() {
       console.log('[Feishu Load] 人员数量:', result.data?.resources?.length || 0);
       console.log('[Feishu Load] 项目数量:', result.data?.projects?.length || 0);
       console.log('[Feishu Load] 任务数量:', result.data?.tasks?.length || 0);
+      console.log('[Feishu Load] 第一个任务名称:', result.data?.tasks?.[0]?.name || '无');
       console.log('[Feishu Load] 完整响应:', result);
 
       if (!result.success) {
@@ -1764,9 +1765,21 @@ export default function ComplexScenario() {
       }
 
       const { resources, projects, tasks } = result.data;
-      setSharedResources(resources);
-      setProjects(projects);
-      setTasks(tasks);
+      
+      // 先清空现有数据，确保UI更新
+      console.log('[Feishu Load] 清空现有数据...');
+      setSharedResources([]);
+      setProjects([]);
+      setTasks([]);
+      
+      // 使用setTimeout确保状态更新后再设置新数据
+      setTimeout(() => {
+        console.log('[Feishu Load] 设置新数据...');
+        setSharedResources(resources);
+        setProjects(projects);
+        setTasks(tasks);
+      }, 0);
+      
       localStorage.setItem('complex-scenario-resources', JSON.stringify(resources));
       localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
       localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
