@@ -1704,19 +1704,28 @@ export default function ComplexScenario() {
         const req1Id = modeConfig.tableIds.requirements1;
         const req2Id = modeConfig.tableIds.requirements2;
         
-        console.log('[Feishu Load] 需求表1 ID:', req1Id || '未设置');
-        console.log('[Feishu Load] 需求表2 ID:', req2Id || '未设置');
+        console.log('[Feishu Load] ★★★ 调试信息 ★★★');
+        console.log('[Feishu Load] 需求表1 ID:', req1Id || '(未设置)');
+        console.log('[Feishu Load] 需求表2 ID:', req2Id || '(未设置)');
         console.log('[Feishu Load] 加载模式:', requirementsLoadMode);
+        console.log('[Feishu Load] 完整配置:', JSON.stringify(config, null, 2));
+        
+        // 检查是否两个ID相同（常见配置错误）
+        if (req1Id && req2Id && req1Id === req2Id) {
+          console.warn('[Feishu Load] ⚠️ 警告: 需求表1和需求表2的ID相同，这可能是配置错误！');
+        }
         
         if ((requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements1') && req1Id) {
           url += `&requirements1_table_id=${encodeURIComponent(req1Id)}`;
-          console.log('[Feishu Load] 添加需求表1参数');
+          console.log('[Feishu Load] ✅ 添加需求表1参数');
+        } else if ((requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements1') && !req1Id) {
+          console.warn('[Feishu Load] ⚠️ 需求表1 ID为空，跳过添加参数');
         }
         if ((requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements2') && req2Id) {
           url += `&requirements2_table_id=${encodeURIComponent(req2Id)}`;
-          console.log('[Feishu Load] 添加需求表2参数');
+          console.log('[Feishu Load] ✅ 添加需求表2参数');
         }
-        console.log('[Feishu Load] 最终URL:', url);
+        console.log('[Feishu Load] 最终请求URL:', url);
       } else {
         // 传统模式
         url += `&projects_table_id=${encodeURIComponent(modeConfig.tableIds.projects)}` +
@@ -1726,7 +1735,12 @@ export default function ComplexScenario() {
       const response = await fetch(url);
 
       const result = await response.json();
-      console.log('[Feishu Load] 加载结果:', result);
+      console.log('[Feishu Load] ★★★ API响应结果 ★★★');
+      console.log('[Feishu Load] 成功:', result.success);
+      console.log('[Feishu Load] 人员数量:', result.data?.resources?.length || 0);
+      console.log('[Feishu Load] 项目数量:', result.data?.projects?.length || 0);
+      console.log('[Feishu Load] 任务数量:', result.data?.tasks?.length || 0);
+      console.log('[Feishu Load] 完整响应:', result);
 
       if (!result.success) {
         alert(`加载数据失败：${result.error}`);
