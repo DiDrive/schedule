@@ -1713,6 +1713,22 @@ export default function ComplexScenario() {
         // 检查是否两个ID相同（常见配置错误）
         if (req1Id && req2Id && req1Id === req2Id) {
           console.warn('[Feishu Load] ⚠️ 警告: 需求表1和需求表2的ID相同，这可能是配置错误！');
+          alert('⚠️ 配置错误：需求表1和需求表2的ID相同！\n\n请检查配置，确保两个表的ID不同。');
+          setIsLoadingFromFeishu(false);
+          return;
+        }
+        
+        // 检查"全部加载"模式下是否两个ID都存在
+        if (requirementsLoadMode === 'all') {
+          if (!req1Id && !req2Id) {
+            alert('❌ 配置错误：选择"全部加载"但两个需求表的ID都未设置！\n\n请打开配置对话框，填写需求表1和需求表2的Table ID。');
+            setIsLoadingFromFeishu(false);
+            return;
+          } else if (!req1Id) {
+            alert('⚠️ 提示：选择"全部加载"但需求表1的ID未设置，将只加载需求表2的数据。');
+          } else if (!req2Id) {
+            alert('⚠️ 提示：选择"全部加载"但需求表2的ID未设置，将只加载需求表1的数据。\n\n如果你需要加载需求表2，请打开配置对话框填写需求表2的Table ID。');
+          }
         }
         
         if ((requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements1') && req1Id) {
