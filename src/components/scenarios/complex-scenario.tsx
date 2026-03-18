@@ -1630,11 +1630,14 @@ export default function ComplexScenario() {
     }
     
     console.log('[Feishu Load] 解析后的完整配置:', JSON.stringify(config, null, 2));
+    console.log('[Feishu Load] ★★★ requirementsLoadMode:', config.requirementsLoadMode);
     
     const dataSourceMode = config.dataSourceMode || 'new';
     const modeConfig = dataSourceMode === 'new' ? config.newMode : config.legacyMode;
+    const requirementsLoadMode = config.requirementsLoadMode || 'all';
     
     console.log('[Feishu Load] 当前模式:', dataSourceMode);
+    console.log('[Feishu Load] 需求表加载模式:', requirementsLoadMode);
     console.log('[Feishu Load] 模式配置:', JSON.stringify(modeConfig, null, 2));
     
     // 详细检查每个字段
@@ -1647,10 +1650,18 @@ export default function ComplexScenario() {
         appToken: config.newMode?.appToken,
         resources: config.newMode?.tableIds?.resources,
         requirements1: config.newMode?.tableIds?.requirements1,
+        requirements2: config.newMode?.tableIds?.requirements2,
       });
       if (!config.newMode?.appToken) missingFields.push('需求表模式 App Token');
       if (!config.newMode?.tableIds?.resources) missingFields.push('需求表模式 人员表 ID');
-      if (!config.newMode?.tableIds?.requirements1) missingFields.push('需求表模式 需求表1 ID');
+      // 根据加载模式决定是否验证需求表1
+      const loadMode = config.requirementsLoadMode || 'all';
+      if ((loadMode === 'all' || loadMode === 'requirements1') && !config.newMode?.tableIds?.requirements1) {
+        missingFields.push('需求表模式 需求表1 ID');
+      }
+      if (loadMode === 'requirements2' && !config.newMode?.tableIds?.requirements2) {
+        missingFields.push('需求表模式 需求表2 ID');
+      }
     } else {
       console.log('[Feishu Load] 检查传统模式配置:', {
         appToken: config.legacyMode?.appToken,
