@@ -210,6 +210,9 @@ export default function FeishuIntegrationDialog({
       autoSyncInterval: config.autoSyncInterval,
     };
     
+    console.log('[Feishu Dialog] 保存配置:', JSON.stringify(cleanedConfig, null, 2));
+    console.log('[Feishu Dialog] requirements2:', cleanedConfig.newMode.tableIds.requirements2);
+    
     // 验证当前选中模式的必填字段
     const missingFields: string[] = [];
     
@@ -277,6 +280,7 @@ export default function FeishuIntegrationDialog({
 
   // 更新需求表模式字段
   const updateNewMode = (field: string, value: string) => {
+    console.log('[Feishu Dialog] updateNewMode:', field, value);
     if (field === 'appToken') {
       setConfig(prev => ({
         ...prev,
