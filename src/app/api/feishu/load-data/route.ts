@@ -468,27 +468,52 @@ export async function GET(request: NextRequest) {
             };
           });
           log(`[飞书加载] ✅ 使用需求表模式从需求表1加载了 ${result.tasks.length} 个任务`);
-          
-          // 如果需要加载需求表2，也加载数据
-          if (requirements2TableId && shouldLoadRequirements2) {
-            log(`[飞书加载] 步骤3.2：加载需求表2数据: table_id=${requirements2TableId}`);
-            const req2Response = await fetch(
-              `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${requirements2TableId}/records/search`,
-              {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${appAccessToken}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ page_size: 500 }),
-              }
-            );
+        } else {
+          log(`[飞书加载] ⚠️ 需求表1数据加载失败或无数据`);
+        }
+      }
+      
+      // 独立加载需求表2（用于"全部加载"和"仅加载需求表2"模式）
+      if (shouldLoadRequirements2 && requirements2TableId) {
+        log(`[飞书加载] 步骤3.2：加载需求表2数据: table_id=${requirements2TableId}`);
+        const req2Response = await fetch(
+          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${requirements2TableId}/records/search`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${appAccessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ page_size: 500 }),
+          }
+        );
 
-            const req2Data = await req2Response.json();
-            if (req2Data.code === 0 && req2Data.data) {
-              log(`[飞书加载] 🔍 需求表2记录数: ${req2Data.data.items.length}`);
-              
-              const req2Tasks = req2Data.data.items.map((item: any, index: number) => {
+        const req2Data = await req2Response.json();
+        if (req2Data.code === 0 && req2Data.data) {
+          log(`[飞书加载] 🔍 需求表2记录数: ${req2Data.data.items.length}`);
+          
+          // 先提取项目
+          req2Data.data.items.forEach((item: any) => {
+            const fields = item.fields;
+            const categoryName = parseStringField(fields['需求类目'] || fields['客户名称'] || fields['customerName'], '');
+            const projectName = categoryName || '默认项目';
+            if (projectName && !projectMap.has(projectName)) {
+              const projectId = `project-${projectName}`;
+              projectMap.set(projectName, {
+                id: projectId,
+                name: projectName,
+                description: parseStringField(fields['分类'] || fields['项目描述'], ''),
+                priority: 'normal',
+                status: 'pending',
+                resourcePool: [],
+                color: '#3b82f6',
+                tasks: [],
+              });
+              projectNameToIdMap.set(projectName, projectId);
+            }
+          });
+          
+          const req2Tasks = req2Data.data.items.map((item: any, index: number) => {
                 const fields = item.fields;
                 const taskId = parseStringField(fields['员工填报用索引编号'] || fields['需求ID'] || fields['任务ID'] || fields['id'] || fields['ID']) || `req2_${item.record_id.substring(0, 8)}`;
                 
@@ -568,137 +593,10 @@ export async function GET(request: NextRequest) {
                 };
               });
               
-              result.tasks.push(...req2Tasks);
-              log(`[飞书加载] ✅ 从需求表2加载了 ${req2Tasks.length} 个任务，总计 ${result.tasks.length} 个任务`);
-            } else {
-              log(`[飞书加载] ⚠️ 加载需求表2失败: ${JSON.stringify(req2Data)}`);
-            }
-          }
-        } else {
-          log(`[飞书加载] ⚠️ 需求表1数据加载失败或无数据`);
-        }
-      }
-      
-      // 独立加载需求表2（用于"仅加载需求表2"模式）
-      if (shouldLoadRequirements2 && requirements2TableId && !shouldLoadRequirements1) {
-        log(`[飞书加载] 步骤3.2（独立）：加载需求表2数据: table_id=${requirements2TableId}`);
-        const req2Response = await fetch(
-          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${requirements2TableId}/records/search`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${appAccessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ page_size: 500 }),
-          }
-        );
-
-        const req2Data = await req2Response.json();
-        if (req2Data.code === 0 && req2Data.data) {
-          log(`[飞书加载] 🔍 需求表2记录数: ${req2Data.data.items.length}`);
-          
-          // 先提取项目
-          req2Data.data.items.forEach((item: any, index: number) => {
-            const fields = item.fields;
-            const categoryName = parseStringField(fields['需求类目'] || fields['客户名称'] || fields['customerName'], '');
-            const projectName = categoryName || '默认项目';
-            if (projectName && !projectMap.has(projectName)) {
-              const projectId = `project-${projectName}`;
-              projectMap.set(projectName, {
-                id: projectId,
-                name: projectName,
-                description: parseStringField(fields['分类'] || fields['项目描述'], ''),
-                priority: 'normal',
-                status: 'pending',
-                resourcePool: [],
-                color: '#3b82f6',
-                tasks: [],
-              });
-              projectNameToIdMap.set(projectName, projectId);
-            }
-          });
-          result.projects = Array.from(projectMap.values());
-          
-          const req2Tasks = req2Data.data.items.map((item: any, index: number) => {
-            const fields = item.fields;
-            const taskId = parseStringField(fields['员工填报用索引编号'] || fields['需求ID'] || fields['任务ID'] || fields['id'] || fields['ID']) || `req2_${item.record_id.substring(0, 8)}`;
-            
-            const categoryName = parseStringField(fields['需求类目'] || fields['客户名称'] || fields['customerName'], '');
-            const taskName = parseStringField(fields['脚本名称'] || fields['需求项目'] || fields['需求名称'] || fields['任务名称'] || fields['name'], `需求2_${index + 1}`);
-            const projectName = categoryName || '默认项目';
-            const projectId = projectNameToIdMap.get(projectName) || '';
-            
-            const assigneeField = fields['对接人'] || fields['所属'] || fields['负责人'] || fields['指定人员'];
-            const feishuPersonId = parsePersonId(assigneeField);
-            
-            let assigneeId = '';
-            let assigneeName = '';
-            if (feishuPersonId) {
-              const resource = result.resources.find((r: any) => r.feishuPersonId === feishuPersonId);
-              if (resource) {
-                assigneeId = resource.id;
-                assigneeName = resource.name;
-              }
-            }
-            
-            const estimatedHoursGraphic = parseNumberField(
-              fields['内部平面'] || fields['平面预估工时'] || fields['平面报工耗时'] || fields['平面深加工'], 
-              undefined
-            );
-            const estimatedHoursPost = parseNumberField(
-              fields['内部后期'] || fields['后期预估工时'] || fields['后期报工耗时'] || fields['后期深加工'], 
-              undefined
-            );
-            const totalHours = parseNumberField(
-              fields['预估工时'], 
-              (estimatedHoursGraphic || 0) + (estimatedHoursPost || 0)
-            );
-            
-            const statusStr = parseStringField(fields['项目进展'] || fields['状态'] || fields['status'], 'pending');
-            let status: 'pending' | 'in-progress' | 'completed' | 'blocked' = 'pending';
-            if (statusStr === '进行中' || statusStr === 'in-progress' || statusStr.includes('进行')) status = 'in-progress';
-            else if (statusStr === '已完成' || statusStr === 'completed' || statusStr.includes('完成') || statusStr.includes('验收')) status = 'completed';
-            else if (statusStr === '阻塞' || statusStr === 'blocked') status = 'blocked';
-            
-            let taskType: '平面' | '后期' | '' = '';
-            const hasGraphic = estimatedHoursGraphic && estimatedHoursGraphic > 0;
-            const hasPost = estimatedHoursPost && estimatedHoursPost > 0;
-            if (hasGraphic && !hasPost) {
-              taskType = '平面';
-            } else if (hasPost && !hasGraphic) {
-              taskType = '后期';
-            }
-            
-            let deadline = parseDateField(fields['需求日期'] || fields['截止日期']) ||
-                          parseDateField(fields['验收时间']);
-            
-            return {
-              id: taskId,
-              name: taskName,
-              projectId,
-              taskType,
-              estimatedHours: totalHours,
-              estimatedHoursGraphic,
-              estimatedHoursPost,
-              priority: 'normal' as const,
-              assigneeId,
-              assigneeName,
-              deadline,
-              status,
-              deadlineType: deadline ? 'specified' as const : 'uncertain' as const,
-              feishuRecordId: item.record_id,
-              category: parseStringField(fields['需求类目'] || fields['分类'], ''),
-              businessMonth: parseStringField(fields['商务月份'], ''),
-              subType: parseStringField(fields['细分类'], ''),
-              language: parseStringField(fields['语言'], ''),
-              dubbing: parseStringField(fields['配音'], ''),
-              contactPerson: parseStringField(fields['对接人'], ''),
-            };
-          });
-          
           result.tasks.push(...req2Tasks);
-          log(`[飞书加载] ✅ 从需求表2独立加载了 ${req2Tasks.length} 个任务`);
+          log(`[飞书加载] ✅ 从需求表2加载了 ${req2Tasks.length} 个任务，总计 ${result.tasks.length} 个任务`);
+          // 更新项目列表
+          result.projects = Array.from(projectMap.values());
         } else {
           log(`[飞书加载] ⚠️ 加载需求表2失败: ${JSON.stringify(req2Data)}`);
         }
