@@ -1648,8 +1648,34 @@ export default function ComplexScenario() {
       console.log('[Feishu Load] 配置已转换为新格式');
     }
     
+    // 确保config.newMode存在
+    if (!config.newMode) {
+      console.error('[Feishu Load] ❌ config.newMode不存在！');
+      config.newMode = {
+        appToken: '',
+        tableIds: {
+          resources: '',
+          requirements1: '',
+          requirements2: '',
+          schedules: '',
+        },
+      };
+    }
+    
+    // 确保config.newMode.tableIds存在
+    if (!config.newMode.tableIds) {
+      console.error('[Feishu Load] ❌ config.newMode.tableIds不存在！');
+      config.newMode.tableIds = {
+        resources: '',
+        requirements1: '',
+        requirements2: '',
+        schedules: '',
+      };
+    }
+    
     console.log('[Feishu Load] 解析后的完整配置:', JSON.stringify(config, null, 2));
     console.log('[Feishu Load] ★★★ requirementsLoadMode:', config.requirementsLoadMode);
+    console.log('[Feishu Load] ★★★ config.newMode.tableIds:', JSON.stringify(config.newMode?.tableIds));
     
     const dataSourceMode = config.dataSourceMode || 'new';
     const modeConfig = dataSourceMode === 'new' ? config.newMode : config.legacyMode;
