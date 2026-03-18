@@ -121,11 +121,10 @@ export interface Project {
   name: string;
   description?: string;
   priority: 'urgent' | 'normal'; // 项目优先级：紧急/普通
-  deadline?: Date;
   tasks: Task[];
   resourcePool: string[]; // Resource IDs
   color?: string; // 项目在甘特图中的显示颜色
-  startDate?: Date; // 项目开始时间
+  // 注：项目不再需要开始日期和截止日期，使用任务的截止日期即可
 }
 
 // 排期算法结果

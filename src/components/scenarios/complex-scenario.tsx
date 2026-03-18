@@ -91,7 +91,6 @@ const defaultProjects: Project[] = [
     name: '宣传片项目',
     description: '企业宣传视频制作',
     priority: 'urgent',
-    deadline: new Date('2024-04-30T18:30:00'),
     resourcePool: ['res-1', 'res-2', 'res-3', 'res-4'],
     color: '#3b82f6',
     tasks: []
@@ -101,7 +100,6 @@ const defaultProjects: Project[] = [
     name: '广告片项目',
     description: '产品广告视频制作',
     priority: 'urgent',
-    deadline: new Date('2024-05-15T18:30:00'),
     resourcePool: ['res-1', 'res-3'],
     color: '#10b981',
     tasks: []
@@ -111,7 +109,6 @@ const defaultProjects: Project[] = [
     name: '纪录片项目',
     description: '企业纪录片制作',
     priority: 'normal',
-    deadline: new Date('2024-06-01T18:30:00'),
     resourcePool: ['res-2', 'res-5'],
     color: '#f59e0b',
     tasks: []
@@ -357,20 +354,7 @@ export default function ComplexScenario() {
 
     if (savedProjects) {
       const parsed = JSON.parse(savedProjects);
-      // 将日期字符串转换回 Date 对象
-      const projectsWithDates = parsed.map((p: Project) => {
-        const deadline = p.deadline ? new Date(p.deadline) : undefined;
-        // 统一将截止日期时间设置为18:30:00（下班时间）
-        if (deadline) {
-          deadline.setHours(18, 30, 0, 0);
-        }
-        return {
-          ...p,
-          deadline,
-          startDate: p.startDate ? new Date(p.startDate) : undefined
-        };
-      });
-      setProjects(projectsWithDates);
+      setProjects(parsed);
     }
 
     // 先加载资源，这样在加载任务时可以验证资源ID
@@ -521,18 +505,7 @@ export default function ComplexScenario() {
             end: new Date(rc.timeRange.end)
           }
         })),
-        projects: parsed.projects.map((p: Project) => {
-          const deadline = p.deadline ? new Date(p.deadline) : undefined;
-          // 统一将截止日期时间设置为18:30:00（下班时间）
-          if (deadline) {
-            deadline.setHours(18, 30, 0, 0);
-          }
-          return {
-            ...p,
-            deadline,
-            startDate: p.startDate ? new Date(p.startDate) : undefined
-          };
-        })
+        projects: parsed.projects
       };
       setScheduleResult(scheduleResultWithDates);
     }
@@ -1182,13 +1155,6 @@ export default function ComplexScenario() {
   };
 
   const handleProjectChange = (projectId: string, field: keyof Project, value: any) => {
-    // 如果修改的是截止日期，将时间设置为18:30（下班时间）
-    const WORK_END_HOUR = 18.5; // 18:30
-    if (field === 'deadline' && value instanceof Date) {
-      const deadline = new Date(value);
-      deadline.setHours(WORK_END_HOUR, 30, 0, 0); // 设置为18:30:00
-      value = deadline;
-    }
     setProjects(projects.map(p => p.id === projectId ? { ...p, [field]: value } : p));
     
     // 如果修改的是项目优先级，同步更新所有子任务的优先级
@@ -2304,8 +2270,6 @@ export default function ComplexScenario() {
                   <TableHead>项目名称</TableHead>
                   <TableHead>描述</TableHead>
                   <TableHead>优先级</TableHead>
-                  <TableHead>开始日期</TableHead>
-                  <TableHead>截止日期</TableHead>
                   <TableHead>颜色</TableHead>
                   <TableHead>任务数</TableHead>
                   <TableHead>资源数</TableHead>
@@ -2342,22 +2306,6 @@ export default function ComplexScenario() {
                           <SelectItem value="urgent">紧急</SelectItem>
                         </SelectContent>
                       </Select>
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="datetime-local"
-                        value={formatDateTimeToInputValue(project.startDate)}
-                        onChange={(e) => handleProjectChange(project.id, 'startDate', new Date(e.target.value))}
-                        className="w-40 h-8"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="date"
-                        value={formatDateToInputValue(project.deadline)}
-                        onChange={(e) => handleProjectChange(project.id, 'deadline', new Date(e.target.value))}
-                        className="w-36 h-8"
-                      />
                     </TableCell>
                     <TableCell>
                       <Input
@@ -2525,21 +2473,22 @@ export default function ComplexScenario() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[350px]">任务名称</TableHead>
-                  <TableHead>项目</TableHead>
+                  <TableHead className="min-w-[200px]">任务名称</TableHead>
+                  <TableHead className="min-w-[120px]">项目</TableHead>
                   <TableHead>任务类型</TableHead>
+                  <TableHead className="min-w-[100px]">细分类</TableHead>
+                  <TableHead>语言</TableHead>
                   <TableHead>指定人员</TableHead>
                   <TableHead>
-                    {filteredTasks.some(t => t.taskType === '物料') ? '工时/提供时间' : '预估工时'}
+                    {filteredTasks.some(t => t.taskType === '物料') ? '提供时间' : '预估工时'}
                   </TableHead>
-                  <TableHead>平面工时</TableHead>
-                  <TableHead>后期工时</TableHead>
+                  <TableHead>平面</TableHead>
+                  <TableHead>后期</TableHead>
                   <TableHead>优先级</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead>截止日期</TableHead>
-                  <TableHead className="w-[120px]">子任务依赖</TableHead>
-                  <TableHead>依赖任务</TableHead>
-                  <TableHead className="w-[100px]">操作</TableHead>
+                  <TableHead className="w-[100px]">依赖</TableHead>
+                  <TableHead className="w-[80px]">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

@@ -35,8 +35,6 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
   const [selectedTemplate, setSelectedTemplate] = useState<ProjectTemplate | null>(null);
   const [projectName, setProjectName] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [deadline, setDeadline] = useState('');
   const [priority, setPriority] = useState<'urgent' | 'normal'>('normal');
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ProjectTemplate | undefined>(undefined);
@@ -53,8 +51,6 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
       setSelectedTemplate(null);
       setProjectName('');
       setProjectDescription('');
-      setStartDate('');
-      setDeadline('');
       setPriority('normal');
     }
   }, [open]);
@@ -123,20 +119,13 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
       return;
     }
 
-    if (!startDate) {
-      alert('请选择项目开始日期');
-      return;
-    }
-
     try {
       const project = createProjectFromTemplate(
         selectedTemplate,
         projectName,
-        new Date(startDate),
         priority,
         [],
-        projectDescription,
-        deadline ? new Date(deadline) : undefined
+        projectDescription
       );
 
       onProjectCreated(project);
@@ -146,8 +135,6 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
       setSelectedTemplate(null);
       setProjectName('');
       setProjectDescription('');
-      setStartDate('');
-      setDeadline('');
       setPriority('normal');
     } catch (error) {
       console.error('创建项目失败:', error);
@@ -342,26 +329,6 @@ export default function TemplateDialog({ open, onOpenChange, onProjectCreated, e
                           value={projectName}
                           onChange={(e) => setProjectName(e.target.value)}
                           placeholder="输入项目名称"
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="startDate">开始日期和时间</Label>
-                        <Input
-                          id="startDate"
-                          type="datetime-local"
-                          value={startDate}
-                          onChange={(e) => setStartDate(e.target.value)}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="deadline">截止日期（可选）</Label>
-                        <Input
-                          id="deadline"
-                          type="date"
-                          value={deadline}
-                          onChange={(e) => setDeadline(e.target.value)}
                           className="mt-1"
                         />
                       </div>

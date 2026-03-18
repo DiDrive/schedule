@@ -233,58 +233,36 @@ export function generateTasksFromTemplate(
  * 从模板创建完整项目
  * @param template 项目模板
  * @param projectName 项目名称
- * @param startDate 项目开始日期
  * @param priority 项目优先级
  * @param resourcePool 资源池
  * @param projectDescription 项目描述
- * @param deadline 项目截止日期（可选）
  * @returns 创建的项目对象
  */
 export function createProjectFromTemplate(
   template: ProjectTemplate,
   projectName: string,
-  startDate: Date,
   priority: 'urgent' | 'normal' = 'normal',
   resourcePool: string[] = [],
-  projectDescription?: string,
-  deadline?: Date
+  projectDescription?: string
 ): Project {
   const projectId = `proj-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
-  // 直接使用用户选择的开始日期和时间
-  const projectStartDate = new Date(startDate);
-  
-  // 设置项目截止日期时间为18:30（如果有）
-  let projectDeadline = deadline;
-  if (projectDeadline) {
-    projectDeadline = new Date(projectDeadline);
-    projectDeadline.setHours(18, 30, 0, 0);
-  }
-  
-  // 生成任务（传入项目截止日期）
-  const tasks = generateTasksFromTemplate(template, projectId, projectStartDate, 8, projectDeadline);
+  // 生成任务（不传入开始日期，任务会在排期时自动分配时间）
+  const tasks = generateTasksFromTemplate(template, projectId, new Date(), 8, undefined);
 
   // 将项目优先级应用到所有子任务
   tasks.forEach(task => {
     task.priority = priority;
   });
 
-  // 如果没有传入截止日期，使用最后一个任务的结束日期
-  if (!projectDeadline) {
-    const lastTask = tasks[tasks.length - 1];
-    projectDeadline = lastTask.endDate ? new Date(lastTask.endDate) : undefined;
-  }
-
   const project: Project = {
     id: projectId,
     name: projectName,
     description: projectDescription || template.description,
     priority: priority,
-    deadline: projectDeadline,
     tasks: tasks,
     resourcePool: resourcePool,
-    color: template.color,
-    startDate: projectStartDate
+    color: template.color
   };
 
   return project;

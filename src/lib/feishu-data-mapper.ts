@@ -230,11 +230,6 @@ export function projectToFeishuRecord(project: Project): Record<string, any> {
     [FEISHU_FIELD_IDS.projects.status]: '进行中',
   };
 
-  const deadline = dateToFeishuDate(project.deadline, false);
-  if (deadline !== undefined) {
-    record[FEISHU_FIELD_IDS.projects.end_date] = deadline;
-  }
-
   return record;
 }
 
@@ -255,7 +250,6 @@ export function feishuRecordToProject(record: Record<string, any>, recordId: str
     priority: priority,
     tasks: [],
     resourcePool: [],
-    deadline: feishuDateToDate(fields[FEISHU_FIELD_IDS.projects.end_date] as number) || undefined,
   };
 }
 
