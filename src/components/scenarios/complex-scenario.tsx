@@ -1683,7 +1683,11 @@ export default function ComplexScenario() {
     
     console.log('[Feishu Load] 当前模式:', dataSourceMode);
     console.log('[Feishu Load] 需求表加载模式:', requirementsLoadMode);
-    console.log('[Feishu Load] 模式配置:', JSON.stringify(modeConfig, null, 2));
+    console.log('[Feishu Load] modeConfig:', JSON.stringify(modeConfig, null, 2));
+    
+    // 关键修复：直接使用config.newMode.tableIds，确保读取到最新的值
+    const currentTableIds = dataSourceMode === 'new' ? config.newMode.tableIds : config.legacyMode.tableIds;
+    console.log('[Feishu Load] 当前tableIds:', JSON.stringify(currentTableIds));
     
     // 详细检查每个字段
     const missingFields = [];
@@ -1745,9 +1749,9 @@ export default function ComplexScenario() {
       
       if (dataSourceMode === 'new') {
         // 需求表模式 - 根据加载模式决定传递哪些表 ID
-        // 注意：只有当表ID存在时才添加到URL中，避免传递空字符串
-        const req1Id = modeConfig.tableIds.requirements1;
-        const req2Id = modeConfig.tableIds.requirements2;
+        // 使用 currentTableIds 确保读取到最新的值
+        const req1Id = currentTableIds.requirements1;
+        const req2Id = currentTableIds.requirements2;
         
         console.log('[Feishu Load] ★★★ 调试信息 ★★★');
         console.log('[Feishu Load] 需求表1 ID:', req1Id || '(未设置)');
