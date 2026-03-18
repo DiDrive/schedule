@@ -1688,6 +1688,8 @@ export default function ComplexScenario() {
     // 关键修复：直接使用config.newMode.tableIds，确保读取到最新的值
     const currentTableIds = dataSourceMode === 'new' ? config.newMode.tableIds : config.legacyMode.tableIds;
     console.log('[Feishu Load] 当前tableIds:', JSON.stringify(currentTableIds));
+    console.log('[Feishu Load] ★★★ currentTableIds.requirements2:', currentTableIds?.requirements2);
+    console.log('[Feishu Load] ★★★ config.newMode.tableIds.requirements2:', config.newMode?.tableIds?.requirements2);
     
     // 详细检查每个字段
     const missingFields = [];
@@ -1765,6 +1767,15 @@ export default function ComplexScenario() {
           alert('⚠️ 配置错误：需求表1和需求表2的ID相同！\n\n请检查配置，确保两个表的ID不同。');
           setIsLoadingFromFeishu(false);
           return;
+        }
+        
+        // 检查"仅加载需求表2"模式下是否设置了ID
+        if (requirementsLoadMode === 'requirements2') {
+          if (!req2Id) {
+            alert('❌ 配置错误：选择"仅加载需求表2"但需求表2的ID未设置！\n\n请打开配置对话框，在"需求表2 Table ID"字段中填写正确的Table ID。');
+            setIsLoadingFromFeishu(false);
+            return;
+          }
         }
         
         // 检查"全部加载"模式下是否两个ID都存在
