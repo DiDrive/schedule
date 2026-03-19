@@ -54,6 +54,7 @@ export interface Task {
 
   // 复杂场景扩展
   projectId?: string;
+  projectName?: string; // 项目名称（从飞书加载时直接获取）
   dependencies?: string[]; // 前置任务 IDs
 
   // 复合场景扩展

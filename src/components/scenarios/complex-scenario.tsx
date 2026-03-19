@@ -2018,10 +2018,16 @@ export default function ComplexScenario() {
         const resource = sharedResources.find(r => r.id === task.assignedResources[0]);
         const project = getProjectById(task.projectId || '');
         // 从原始任务列表中获取更多信息
-        const originalTask = tasks.find(t => t.id === task.id);
+        // 注意：子任务ID格式是 "父任务ID_子任务类型"，需要提取父任务ID
+        let originalTask = tasks.find(t => t.id === task.id);
+        if (!originalTask && task.id.includes('_')) {
+          // 子任务，查找父任务
+          const parentId = task.id.split('_')[0];
+          originalTask = tasks.find(t => t.id === parentId);
+        }
         
         // 项目名称：优先从原始任务获取，其次从projectMap获取
-        const projectNameValue = (originalTask as any)?.projectName || 
+        const projectNameValue = originalTask?.projectName || 
           project?.name || 
           (originalTask as any)?.category || 
           '';
@@ -2063,9 +2069,6 @@ export default function ComplexScenario() {
       });
 
       console.log('[Feishu Sync] 准备同步', syncTasks.length, '个任务');
-      // 调试：检查前5个任务的项目名称
-      console.log('[Feishu Sync] 前5个任务的项目名称:', syncTasks.slice(0, 5).map((t: any) => ({ name: t.name, projectName: t.projectName })));
-      console.log('[Feishu Sync] 原始任务前5个:', tasks.slice(0, 5).map((t: any) => ({ name: t.name, projectName: (t as any).projectName, category: (t as any).category })));
 
       // 调用同步接口 - 使用新的配置结构
       const url = `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
