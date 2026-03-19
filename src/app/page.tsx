@@ -242,6 +242,7 @@ export default function ProjectScheduleSystem() {
         `&resources_table_id=${encodeURIComponent(modeConfig.tableIds.resources || '')}`;
 
       console.log('[同步调试] 请求URL:', url.substring(0, 100) + '...');
+      console.log('[同步调试] syncTasks[0]:', syncTasks[0]);
 
       const response = await fetch(url, {
         method: 'POST',

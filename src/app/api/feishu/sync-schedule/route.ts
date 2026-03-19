@@ -282,6 +282,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { tasks } = body;
 
+    // 调试：打印第一个任务的 projectName
+    if (tasks && tasks.length > 0) {
+      log(`[飞书同步] 第一个任务数据: ${JSON.stringify({ name: tasks[0].name, projectName: tasks[0].projectName, projectId: tasks[0].projectId })}`);
+    }
+
     if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
       return NextResponse.json({ 
         success: true, 
