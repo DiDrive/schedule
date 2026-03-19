@@ -2056,8 +2056,7 @@ export default function ComplexScenario() {
       });
 
       console.log('[Feishu Sync] 准备同步', syncTasks.length, '个任务');
-      console.log('[Feishu Sync] 前3个syncTasks:', JSON.stringify(syncTasks.slice(0, 3).map((t: any) => ({ name: t.name, projectId: t.projectId, projectName: t.projectName }))));
-      console.log('[Feishu Sync] 前3个scheduleResult.tasks:', JSON.stringify(scheduleResult.tasks.slice(0, 3).map((t: any) => ({ name: t.name, projectId: t.projectId }))));
+      console.log('[Feishu Sync] 排期结果第一个任务的所有字段:', JSON.stringify(scheduleResult.tasks[0], null, 2));
 
       // 调用同步接口 - 使用新的配置结构
       const url = `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
