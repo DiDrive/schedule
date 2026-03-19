@@ -200,6 +200,12 @@ export async function POST(request: NextRequest) {
       if (listData.code === 0 && listData.data?.items?.length > 0) {
         log(`[飞书同步] 现有记录数: ${listData.data.items.length}`);
         
+        // 调试：打印第一条记录的所有字段名
+        if (listData.data.items[0]) {
+          const firstFields = listData.data.items[0].fields;
+          log(`[飞书同步] 排期表字段名: ${Object.keys(firstFields).join(', ')}`);
+        }
+        
         // 用"任务名称|所属项目|细分类|语言"建立映射
         listData.data.items.forEach((item: any) => {
           const fields = item.fields;
@@ -237,6 +243,11 @@ export async function POST(request: NextRequest) {
           resourceIdToFeishuPersonIdMap.get(task.assignedResourceId) || '' : '';
         return { fields: buildTaskFields(task, feishuPersonId) };
       });
+      
+      log(`[飞书同步] 准备创建 ${recordsToCreate.length} 条记录`);
+      if (recordsToCreate.length > 0) {
+        log(`[飞书同步] 第一条记录字段: ${JSON.stringify(recordsToCreate[0].fields).substring(0, 500)}`);
+      }
 
       // 批量创建
       const batchSize = 500;
@@ -258,10 +269,13 @@ export async function POST(request: NextRequest) {
           const data = await response.json();
           if (data.code === 0 && data.data?.records) {
             createdCount += data.data.records.length;
+            log(`[飞书同步] 批量创建成功: ${data.data.records.length} 条`);
           } else {
+            log(`[飞书同步] 批量创建失败: code=${data.code}, msg=${data.msg}`);
             errors.push(`创建失败: ${data.msg}`);
           }
         } catch (error) {
+          log(`[飞书同步] 批量创建异常: ${error}`);
           errors.push(`创建异常: ${error instanceof Error ? error.message : '未知错误'}`);
         }
       }
