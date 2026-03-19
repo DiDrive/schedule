@@ -412,68 +412,52 @@ export async function POST(request: NextRequest) {
     let deletedCount = 0;
     const errors: string[] = [];
 
-    // 1. 分批删除所有现有记录
+    // 1. 并发删除所有现有记录
     if (allExistingRecordIds.length > 0) {
-      log(`[飞书同步] 开始删除 ${allExistingRecordIds.length} 条现有记录...`);
+      log(`[飞书同步] 开始并发删除 ${allExistingRecordIds.length} 条现有记录...`);
       
       const deleteBatchSize = 500;
-      let deleteSuccess = 0;
+      const batches: string[][] = [];
       
       for (let i = 0; i < allExistingRecordIds.length; i += deleteBatchSize) {
-        const batch = allExistingRecordIds.slice(i, i + deleteBatchSize);
-        log(`[飞书同步] 删除第 ${i + 1}-${Math.min(i + deleteBatchSize, allExistingRecordIds.length)} 条...`);
-        
-        try {
-          const deleteResponse = await fetchWithTimeout(
-            `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/batch_delete`,
-            {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${appAccessToken}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ records: batch }),
-            },
-            30000
-          );
-          const result = await deleteResponse.json();
-          if (result.code === 0) {
-            deleteSuccess += batch.length;
-            log(`[飞书同步] ✅ 批量删除成功 ${batch.length} 条`);
-          } else {
-            log(`[飞书同步] ⚠️ 批量删除失败: code=${result.code}, msg=${result.msg}`);
-          }
-        } catch (error) {
-          log(`[飞书同步] ⚠️ 批量删除异常: ${error}`);
-        }
+        batches.push(allExistingRecordIds.slice(i, i + deleteBatchSize));
       }
       
-      deletedCount = deleteSuccess;
-      log(`[飞书同步] 删除完成，共删除 ${deletedCount} 条记录`);
-    }
-
-    // 2. 再次确认排期表为空（可选的二次检查）
-    if (deletedCount > 0) {
-      log(`[飞书同步] 确认排期表是否已清空...`);
-      try {
-        const checkResponse = await fetchWithTimeout(
-          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/search`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${appAccessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ page_size: 1 }),
-          },
-          10000
+      log(`[飞书同步] 分为 ${batches.length} 批，开始并发删除...`);
+      
+      // 并发删除所有批次（每5个一批并发）
+      const concurrentLimit = 5;
+      for (let i = 0; i < batches.length; i += concurrentLimit) {
+        const concurrentBatches = batches.slice(i, i + concurrentLimit);
+        
+        const results = await Promise.all(
+          concurrentBatches.map(async (batch, idx) => {
+            try {
+              const deleteResponse = await fetchWithTimeout(
+                `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/batch_delete`,
+                {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${appAccessToken}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ records: batch }),
+                },
+                30000
+              );
+              const result = await deleteResponse.json();
+              return { success: result.code === 0, count: batch.length };
+            } catch (error) {
+              return { success: false, count: 0 };
+            }
+          })
         );
-        const checkData = await checkResponse.json();
-        if (checkData.code === 0 && checkData.data?.items?.length > 0) {
-          log(`[飞书同步] ⚠️ 警告: 排期表仍有 ${checkData.data.total || '?'} 条记录，可能存在并发写入`);
-        } else {
-          log(`[飞书同步] ✅ 排期表已清空`);
-        }
-      } catch (error) {
-        log(`[飞书同步] 检查排期表状态失败: ${error}`);
+        
+        results.forEach(r => {
+          if (r.success) deletedCount += r.count;
+        });
+        
+        log(`[飞书同步] 已删除 ${deletedCount}/${allExistingRecordIds.length} 条...`);
       }
+      
+      log(`[飞书同步] 删除完成，共删除 ${deletedCount} 条记录`);
     }
 
     // 2. 创建所有新记录
