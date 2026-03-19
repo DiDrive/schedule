@@ -388,10 +388,11 @@ export async function POST(request: NextRequest) {
       if (listData.code === 0 && listData.data?.items?.length > 0) {
         log(`[飞书同步] 现有记录数: ${listData.data.items.length}`);
         
-        // 调试：打印第一条记录的所有字段名
+        // 调试：打印第一条记录的所有字段名和值
         if (listData.data.items[0]) {
           const firstFields = listData.data.items[0].fields;
           log(`[飞书同步] 排期表字段名: ${Object.keys(firstFields).join(', ')}`);
+          log(`[飞书同步] 第一条记录: 任务名称=${firstFields['任务名称']}, 所属项目=${JSON.stringify(firstFields['所属项目'])}, 细分类=${JSON.stringify(firstFields['细分类'])}, 语言=${JSON.stringify(firstFields['语言'])}`);
         }
         
         // 用"任务名称|所属项目|细分类|语言"建立映射
@@ -400,9 +401,10 @@ export async function POST(request: NextRequest) {
           
           const fields = item.fields;
           const name = fields['任务名称'] || '';
-          const project = fields['所属项目'] || '';
-          const subType = fields['细分类'] || '';
-          const language = fields['语言'] || '';
+          // 单选字段可能返回对象 { id: 'xxx', text: 'xxx' } 或直接返回字符串
+          const project = typeof fields['所属项目'] === 'object' ? (fields['所属项目']?.text || '') : (fields['所属项目'] || '');
+          const subType = typeof fields['细分类'] === 'object' ? (fields['细分类']?.text || '') : (fields['细分类'] || '');
+          const language = typeof fields['语言'] === 'object' ? (fields['语言']?.text || '') : (fields['语言'] || '');
           const key = `${name}|${project}|${subType}|${language}`;
           
           if (name) {
@@ -504,6 +506,14 @@ export async function POST(request: NextRequest) {
     } else {
       // ===== 增量同步 =====
       log(`[飞书同步] 增量模式：新增/更新/删除`);
+      
+      // 调试：打印第一个新任务的 key 和现有记录的前几个 key
+      if (tasks.length > 0) {
+        const firstTaskKey = getTaskUniqueKey(tasks[0]);
+        log(`[飞书同步] 新任务第一个key: ${firstTaskKey}`);
+        const existingKeys = Array.from(existingRecords.keys()).slice(0, 3);
+        log(`[飞书同步] 现有记录前3个key: ${existingKeys.join(' | ')}`);
+      }
       
       const tasksToCreate: any[] = [];
       const tasksToUpdate: Array<{ record_id: string; fields: any }> = [];
