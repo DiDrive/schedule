@@ -87,6 +87,9 @@ function buildTaskFields(task: any, feishuPersonId: string): any {
   // 单选字段：直接传字符串
   if (task.projectName) {
     fields['所属项目'] = task.projectName;
+    log(`[飞书同步] 设置所属项目字段: ${task.projectName}`);
+  } else {
+    log(`[飞书同步] 警告: 任务 projectName 为空, task=${task.name}`);
   }
   if (task.subType) {
     fields['细分类'] = task.subType;
@@ -296,6 +299,11 @@ export async function POST(request: NextRequest) {
     }
 
     log(`[飞书同步] 排期结果任务数: ${tasks.length}`);
+    
+    // 调试：检查所有任务的 projectName
+    const withProjectName = tasks.filter((t: any) => t.projectName).length;
+    const withoutProjectName = tasks.filter((t: any) => !t.projectName).length;
+    log(`[飞书同步] 有 projectName 的任务数: ${withProjectName}, 无 projectName 的任务数: ${withoutProjectName}`);
 
     // 强制刷新 token（解决权限刚开通但缓存了旧 token 的问题）
     clearAccessTokenCache();
