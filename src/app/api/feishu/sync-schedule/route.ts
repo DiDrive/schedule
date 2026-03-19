@@ -360,12 +360,17 @@ export async function POST(request: NextRequest) {
       // 分页获取所有现有记录
       let hasMore = true;
       let pageToken: string | undefined = undefined;
+      let pageCount = 0;
+      const maxPages = 100; // 安全限制，最多100页
       
-      while (hasMore) {
+      while (hasMore && pageCount < maxPages) {
+        pageCount++;
         const requestBody: any = { page_size: 500 };
         if (pageToken) {
           requestBody.page_token = pageToken;
         }
+        
+        log(`[飞书同步] 获取第 ${pageCount} 页记录...`);
         
         const listResponse = await fetchWithTimeout(
           `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/search`,
@@ -390,9 +395,15 @@ export async function POST(request: NextRequest) {
           // 检查是否有更多页
           hasMore = listData.data.has_more || false;
           pageToken = listData.data.page_token;
+          log(`[飞书同步] 第 ${pageCount} 页获取 ${listData.data.items.length} 条，has_more=${hasMore}`);
         } else {
+          log(`[飞书同步] 获取记录结束: code=${listData.code}, items=${listData.data?.items?.length || 0}`);
           hasMore = false;
         }
+      }
+      
+      if (pageCount >= maxPages) {
+        log(`[飞书同步] ⚠️ 达到最大页数限制 ${maxPages}`);
       }
       
       log(`[飞书同步] 现有记录总数: ${allExistingRecordIds.length}`);
