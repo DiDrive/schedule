@@ -88,9 +88,30 @@ export default function ProjectScheduleSystem() {
         `&resources_table_id=${encodeURIComponent(modeConfig.tableIds.resources)}` +
         `&data_source_mode=${encodeURIComponent(dataSourceMode)}`;
       
+      // 需求表加载模式
+      const requirementsLoadMode = config.requirementsLoadMode || 'all';
+      url += `&requirements_load_mode=${encodeURIComponent(requirementsLoadMode)}`;
+      
+      console.log('[Page Load] 需求表加载模式:', requirementsLoadMode);
+      
       if (dataSourceMode === 'new') {
-        url += `&requirements1_table_id=${encodeURIComponent(modeConfig.tableIds.requirements1 || '')}`;
+        // 需求表模式 - 根据加载模式决定传递哪些表 ID
+        const req1Id = config.newMode?.tableIds?.requirements1;
+        const req2Id = config.newMode?.tableIds?.requirements2;
+        
+        console.log('[Page Load] 需求表1 ID:', req1Id || '(未设置)');
+        console.log('[Page Load] 需求表2 ID:', req2Id || '(未设置)');
+        
+        if ((requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements1') && req1Id) {
+          url += `&requirements1_table_id=${encodeURIComponent(req1Id)}`;
+          console.log('[Page Load] ✅ 添加需求表1参数');
+        }
+        if ((requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements2') && req2Id) {
+          url += `&requirements2_table_id=${encodeURIComponent(req2Id)}`;
+          console.log('[Page Load] ✅ 添加需求表2参数');
+        }
       } else {
+        // 传统模式
         url += `&projects_table_id=${encodeURIComponent(modeConfig.tableIds.projects)}` +
           `&tasks_table_id=${encodeURIComponent(modeConfig.tableIds.tasks)}`;
       }
