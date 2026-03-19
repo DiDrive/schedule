@@ -53,15 +53,14 @@ function getTaskUniqueKey(task: any): string {
 
 // 构建任务记录字段
 function buildTaskFields(task: any, feishuPersonId: string): any {
-  const taskType = task.subTaskType || task.taskType || '';
-  
   const fields: any = {
     '任务名称': task.name || '',
   };
 
-  // 单选字段：直接发送选项名称字符串
+  // 单选字段：飞书要求 { "text": "选项文本" } 格式
+  const taskType = task.subTaskType || task.taskType || '';
   if (taskType) {
-    fields['任务类型'] = taskType;
+    fields['任务类型'] = { text: taskType };
   }
   
   // 人员字段
@@ -83,17 +82,17 @@ function buildTaskFields(task: any, feishuPersonId: string): any {
   fields['后期工时'] = task.estimatedHoursPost || 0;
   
   // 状态单选
-  fields['状态'] = mapStatusToFeishu(task.status || 'pending');
+  fields['状态'] = { text: mapStatusToFeishu(task.status || 'pending') };
   
   // 单选字段
   if (task.projectName) {
-    fields['所属项目'] = task.projectName;
+    fields['所属项目'] = { text: task.projectName };
   }
   if (task.subType) {
-    fields['细分类'] = task.subType;
+    fields['细分类'] = { text: task.subType };
   }
   if (task.language) {
-    fields['语言'] = task.language;
+    fields['语言'] = { text: task.language };
   }
   
   // 截止日期
