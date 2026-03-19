@@ -376,14 +376,20 @@ export async function POST(request: NextRequest) {
         const data = await res.json();
         const items = data.data?.items || [];
         
-        // 没数据或失败就退出
+        // 失败、没数据就退出
         if (data.code !== 0 || items.length === 0) break;
         
         items.forEach((item: any) => allExistingRecordIds.push(item.record_id));
         
-        // 没有下一页就退出
+        // has_more=false 就退出
         if (!data.data?.has_more) break;
+        
+        // 获取下一页 token，没有就退出
         pageToken = data.data.page_token;
+        if (!pageToken) {
+          log(`[飞书同步] has_more=true 但没有 page_token，退出循环`);
+          break;
+        }
       }
       
       log(`[飞书同步] 现有记录: ${allExistingRecordIds.length} 条`);
