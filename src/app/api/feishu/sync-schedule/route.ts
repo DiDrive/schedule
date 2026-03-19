@@ -358,16 +358,11 @@ export async function POST(request: NextRequest) {
     
     try {
       // 分页获取所有现有记录
-      let pageToken: string | undefined = undefined;
-      let loopCount = 0;
+      let pageToken: string | undefined;
       
-      while (loopCount < 20) { // 最多20页，足够了
-        loopCount++;
-        
+      while (true) {
         const requestBody: any = { page_size: 500 };
-        if (pageToken) {
-          requestBody.page_token = pageToken;
-        }
+        if (pageToken) requestBody.page_token = pageToken;
         
         const listResponse = await fetchWithTimeout(
           `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/search`,
@@ -383,25 +378,20 @@ export async function POST(request: NextRequest) {
         );
 
         const listData = await listResponse.json();
-        
-        if (listData.code !== 0) {
-          log(`[飞书同步] 获取记录失败: ${listData.msg}`);
-          break;
-        }
+        if (listData.code !== 0) break;
         
         const items = listData.data?.items || [];
         items.forEach((item: any) => allExistingRecordIds.push(item.record_id));
         
-        log(`[飞书同步] 第${loopCount}页: ${items.length}条，累计: ${allExistingRecordIds.length}条`);
+        // has_more 为 false 就退出
+        if (!listData.data?.has_more) break;
         
-        // 没有更多页就结束
-        if (!listData.data?.has_more) {
-          break;
-        }
+        // 没有下一页 token 也退出
         pageToken = listData.data.page_token;
+        if (!pageToken) break;
       }
       
-      log(`[飞书同步] 现有记录总数: ${allExistingRecordIds.length}`);
+      log(`[飞书同步] 现有记录: ${allExistingRecordIds.length} 条`);
     } catch (error) {
       log(`[飞书同步] 获取现有记录失败: ${error}`);
     }
