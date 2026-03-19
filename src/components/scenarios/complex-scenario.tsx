@@ -1605,6 +1605,10 @@ export default function ComplexScenario() {
     let config;
     try {
       config = JSON.parse(configStr);
+      console.log('[Feishu Load] 解析后的配置对象:', config);
+      console.log('[Feishu Load] config.newMode:', config.newMode);
+      console.log('[Feishu Load] config.newMode.tableIds:', config.newMode?.tableIds);
+      console.log('[Feishu Load] 直接读取 requirements2:', config.newMode?.tableIds?.requirements2);
     } catch (e) {
       alert('配置格式错误，请重新配置');
       localStorage.removeItem('feishu-config');
