@@ -695,7 +695,9 @@ export default function ComplexScenario() {
           status: task.status,
           assignedResources: [],
           dependencies: task.dependencies || [], // 继承父任务的依赖
-          fixedResourceId: task.fixedResourceIdGraphic // 使用指定的平面负责人
+          fixedResourceId: task.fixedResourceIdGraphic, // 使用指定的平面负责人
+          subType: task.subType, // 继承细分类
+          language: task.language, // 继承语言
         };
         
         // 后期子任务的依赖：根据配置决定是否依赖平面子任务
@@ -719,7 +721,9 @@ export default function ComplexScenario() {
           status: task.status,
           assignedResources: [],
           dependencies: postTaskDependencies,
-          fixedResourceId: task.fixedResourceIdPost // 使用指定的后期负责人
+          fixedResourceId: task.fixedResourceIdPost, // 使用指定的后期负责人
+          subType: task.subType, // 继承细分类
+          language: task.language, // 继承语言
         };
         
         expandedTasks.push(parentTask, graphicTask, postTask);
@@ -2794,6 +2798,8 @@ export default function ComplexScenario() {
                           <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">任务名称</th>
                           <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">所属项目</th>
                           <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">任务类型</th>
+                          <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">细分类</th>
+                          <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">语言</th>
                           <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">负责人</th>
                           <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">开始时间</th>
                           <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap">结束时间</th>
@@ -2830,6 +2836,8 @@ export default function ComplexScenario() {
                                   {task.taskType || '-'}
                                 </Badge>
                               </td>
+                              <td className="p-2 align-middle whitespace-nowrap text-sm">{task.subType || '-'}</td>
+                              <td className="p-2 align-middle whitespace-nowrap text-sm">{task.language || '-'}</td>
                               <td className="p-2 align-middle whitespace-nowrap min-w-[250px]">
                                 {task.taskType === '物料' ? (
                                   <div className="flex items-center gap-2 text-sm">
