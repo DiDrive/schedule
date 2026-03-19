@@ -112,6 +112,7 @@ function buildTaskFields(task: any, feishuPersonId: string): any {
 }
 
 // 需要的字段定义 - 单选字段不预定义选项，让飞书从数据中自动创建
+// 飞书字段类型：1=文本, 2=数字, 3=单选, 4=多选, 5=日期, 11=人员
 function buildRequiredFields(existingOptions: {
   taskTypes: string[],
   projects: string[],
@@ -122,8 +123,8 @@ function buildRequiredFields(existingOptions: {
     { field_name: '任务名称', type: 1 }, // 1=文本
     { field_name: '任务类型', type: 3 }, // 3=单选，不预定义选项
     { field_name: '负责人', type: 11 }, // 11=人员
-    { field_name: '开始时间', type: 4 }, // 4=日期
-    { field_name: '结束时间', type: 4 },
+    { field_name: '开始时间', type: 5 }, // 5=日期
+    { field_name: '结束时间', type: 5 },
     { field_name: '预估工时', type: 2 }, // 2=数字
     { field_name: '平面工时', type: 2 },
     { field_name: '后期工时', type: 2 },
@@ -137,8 +138,8 @@ function buildRequiredFields(existingOptions: {
     { field_name: '所属项目', type: 3 }, // 3=单选，不预定义选项
     { field_name: '细分类', type: 3 }, // 3=单选，不预定义选项
     { field_name: '语言', type: 3 }, // 3=单选，不预定义选项
-    { field_name: '截止日期', type: 4 }, // 4=日期
-    { field_name: '建议截止日期', type: 4 },
+    { field_name: '截止日期', type: 5 }, // 5=日期
+    { field_name: '建议截止日期', type: 5 },
     { field_name: '父任务ID', type: 1 },
   ];
 }
