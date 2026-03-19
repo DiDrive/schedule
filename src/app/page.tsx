@@ -6,14 +6,23 @@ import { BarChart3, Globe, Info, Loader2, Settings } from 'lucide-react';
 import ComplexScenario from '@/components/scenarios/complex-scenario';
 import FeishuIntegrationDialog from '@/components/feishu-integration-dialog';
 import FeishuConfigHelper from '@/components/feishu-config-helper';
+import { SyncLoadingOverlay, LoadingOverlay } from '@/components/sync-loading-overlay';
 import { loadFeishuConfig, validateConfig } from '@/lib/feishu-config';
 import { Task } from '@/types/schedule';
+
+interface SyncProgress {
+  current: number;
+  total: number;
+  currentPhase: string;
+}
 
 export default function ProjectScheduleSystem() {
   const [showFeishuDialog, setShowFeishuDialog] = useState(false);
   const [showConfigHelper, setShowConfigHelper] = useState(false);
   const [isSyncingToFeishu, setIsSyncingToFeishu] = useState(false);
   const [isLoadingFromFeishu, setIsLoadingFromFeishu] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
+  const [syncMessage, setSyncMessage] = useState<string>('');
 
   // 从飞书加载数据
   const handleLoadFromFeishu = async () => {
@@ -34,6 +43,8 @@ export default function ProjectScheduleSystem() {
     const modeConfig = dataSourceMode === 'new' ? config.newMode : config.legacyMode;
 
     setIsLoadingFromFeishu(true);
+    setSyncMessage('正在连接飞书...');
+    
     try {
       // 构建请求 URL
       let url = `/api/feishu/load-data?app_id=${encodeURIComponent(config.appId)}` +
@@ -59,6 +70,7 @@ export default function ProjectScheduleSystem() {
           `&tasks_table_id=${encodeURIComponent(config.legacyMode.tableIds.tasks)}`;
       }
 
+      setSyncMessage('正在获取数据...');
       const response = await fetch(url);
       const result = await response.json();
 
@@ -68,6 +80,8 @@ export default function ProjectScheduleSystem() {
       }
 
       const { resources, projects, tasks } = result.data;
+      
+      setSyncMessage('正在保存数据...');
       localStorage.setItem('complex-scenario-resources', JSON.stringify(resources));
       localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
       localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
@@ -91,6 +105,7 @@ export default function ProjectScheduleSystem() {
       alert(`加载数据失败：${error instanceof Error ? error.message : '请检查网络连接和配置信息'}`);
     } finally {
       setIsLoadingFromFeishu(false);
+      setSyncMessage('');
     }
   };
 
@@ -119,6 +134,7 @@ export default function ProjectScheduleSystem() {
     }
 
     setIsSyncingToFeishu(true);
+    setSyncMessage('准备同步数据...');
     const results: string[] = [];
 
     try {
@@ -152,9 +168,21 @@ export default function ProjectScheduleSystem() {
         let successCount = 0;
         let errorCount = 0;
 
+        // 初始化进度
+        setSyncProgress({
+          current: 0,
+          total: batches.length,
+          currentPhase: '准备同步...'
+        });
+
         for (let i = 0; i < batches.length; i++) {
-          // 显示进度
-          console.log(`[同步进度] 正在同步第 ${i + 1}/${batches.length} 批数据...`);
+          // 更新进度
+          setSyncProgress({
+            current: i + 1,
+            total: batches.length,
+            currentPhase: `正在同步第 ${i + 1}/${batches.length} 批数据`
+          });
+          setSyncMessage(`已处理 ${i * batchSize} 条，共 ${syncTasks.length} 条数据`);
           
           const url = `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
             `&app_secret=${encodeURIComponent(config.appSecret)}` +
@@ -192,12 +220,16 @@ export default function ProjectScheduleSystem() {
         results.push('⚠️ 没有排期数据或未配置排期表ID');
       }
 
+      setSyncProgress(null);
+      setSyncMessage('');
       alert(`同步完成！\n\n${results.join('\n')}`);
     } catch (error) {
       console.error('同步失败:', error);
       alert(`同步失败：${error instanceof Error ? error.message : '未知错误'}`);
     } finally {
       setIsSyncingToFeishu(false);
+      setSyncProgress(null);
+      setSyncMessage('');
     }
   };
 
@@ -253,6 +285,19 @@ export default function ProjectScheduleSystem() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950">
+      {/* 同步蒙版 - 阻止用户操作 */}
+      <SyncLoadingOverlay 
+        isVisible={isSyncingToFeishu} 
+        progress={syncProgress || undefined}
+        message={syncMessage}
+      />
+      
+      {/* 加载蒙版 */}
+      <LoadingOverlay 
+        isVisible={isLoadingFromFeishu} 
+        message={syncMessage}
+      />
+
       {/* Header */}
       <header className="border-b bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-6">
@@ -274,7 +319,7 @@ export default function ProjectScheduleSystem() {
               <Button
                 variant="outline"
                 onClick={handleLoadFromFeishu}
-                disabled={isLoadingFromFeishu}
+                disabled={isLoadingFromFeishu || isSyncingToFeishu}
                 className="gap-2"
               >
                 {isLoadingFromFeishu ? (
@@ -287,7 +332,7 @@ export default function ProjectScheduleSystem() {
               <Button
                 variant="outline"
                 onClick={handleSyncToFeishu}
-                disabled={isSyncingToFeishu}
+                disabled={isSyncingToFeishu || isLoadingFromFeishu}
                 className="gap-2"
               >
                 {isSyncingToFeishu ? (
@@ -301,6 +346,7 @@ export default function ProjectScheduleSystem() {
                 variant="outline"
                 onClick={() => setShowConfigHelper(true)}
                 className="gap-2"
+                disabled={isSyncingToFeishu || isLoadingFromFeishu}
               >
                 <Info className="h-4 w-4" />
                 配置助手
@@ -309,6 +355,7 @@ export default function ProjectScheduleSystem() {
                 variant="outline"
                 onClick={() => setShowFeishuDialog(true)}
                 className="gap-2"
+                disabled={isSyncingToFeishu || isLoadingFromFeishu}
               >
                 <Settings className="h-4 w-4" />
                 飞书配置
