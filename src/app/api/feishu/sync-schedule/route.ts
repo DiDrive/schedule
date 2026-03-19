@@ -163,6 +163,9 @@ function collectTaskOptions(tasks: any[]): {
     if (task.subType) subTypes.add(task.subType);
     if (task.language) languages.add(task.language);
   });
+  
+  // 调试：打印前3个任务的 projectName
+  log(`[飞书同步] 前3个任务的projectName: ${tasks.slice(0, 3).map((t: any) => t.projectName).join(', ')}`);
 
   return {
     taskTypes: Array.from(taskTypes).filter(Boolean),
