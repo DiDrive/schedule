@@ -42,6 +42,15 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeout = 300
   }
 };
 
+// 生成任务唯一标识：任务名称|所属项目|细分类|语言
+function getTaskUniqueKey(task: any): string {
+  const name = task.name || '';
+  const project = task.projectName || '';
+  const subType = task.subType || '';
+  const language = task.language || '';
+  return `${name}|${project}|${subType}|${language}`;
+}
+
 // 构建任务记录字段
 function buildTaskFields(task: any, feishuPersonId: string): any {
   const taskType = task.subTaskType || task.taskType || '';
@@ -57,6 +66,8 @@ function buildTaskFields(task: any, feishuPersonId: string): any {
     '后期工时': task.estimatedHoursPost || 0,
     '状态': mapStatusToFeishu(task.status || 'pending'),
     '所属项目': task.projectName || '',
+    '细分类': task.subType || '',
+    '语言': task.language || '',
   };
 
   if (task.deadline) {
@@ -189,14 +200,20 @@ export async function POST(request: NextRequest) {
       if (listData.code === 0 && listData.data?.items?.length > 0) {
         log(`[飞书同步] 现有记录数: ${listData.data.items.length}`);
         
-        // 用"任务名称"建立映射
+        // 用"任务名称|所属项目|细分类|语言"建立映射
         listData.data.items.forEach((item: any) => {
-          const taskName = item.fields['任务名称'] || '';
-          if (taskName) {
-            existingRecords.set(taskName, { record_id: item.record_id, fields: item.fields });
+          const fields = item.fields;
+          const name = fields['任务名称'] || '';
+          const project = fields['所属项目'] || '';
+          const subType = fields['细分类'] || '';
+          const language = fields['语言'] || '';
+          const key = `${name}|${project}|${subType}|${language}`;
+          
+          if (name) {
+            existingRecords.set(key, { record_id: item.record_id, fields });
           }
         });
-        log(`[飞书同步] 已建立 ${existingRecords.size} 个任务名称映射`);
+        log(`[飞书同步] 已建立 ${existingRecords.size} 个任务映射`);
       } else {
         log(`[飞书同步] 排期表为空`);
       }
@@ -255,18 +272,18 @@ export async function POST(request: NextRequest) {
       
       const tasksToCreate: any[] = [];
       const tasksToUpdate: Array<{ record_id: string; fields: any }> = [];
-      const newTaskNames = new Set<string>();
+      const newTaskKeys = new Set<string>();
       
       for (const task of tasks) {
-        const taskName = task.name || '';
-        newTaskNames.add(taskName);
+        const key = getTaskUniqueKey(task);
+        newTaskKeys.add(key);
         
         const feishuPersonId = task.assignedResourceId ? 
           resourceIdToFeishuPersonIdMap.get(task.assignedResourceId) || '' : '';
         
         const fields = buildTaskFields(task, feishuPersonId);
         
-        const existing = existingRecords.get(taskName);
+        const existing = existingRecords.get(key);
         if (existing) {
           // 已存在，检查是否需要更新
           const oldFields = existing.fields;
@@ -287,8 +304,8 @@ export async function POST(request: NextRequest) {
 
       // 需要删除的记录（排期表中有，但排期结果中没有）
       const recordsToDelete: string[] = [];
-      for (const [taskName, record] of existingRecords) {
-        if (!newTaskNames.has(taskName)) {
+      for (const [key, record] of existingRecords) {
+        if (!newTaskKeys.has(key)) {
           recordsToDelete.push(record.record_id);
         }
       }

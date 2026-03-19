@@ -186,6 +186,8 @@ export default function ProjectScheduleSystem() {
           subTaskDependencyMode: task.subTaskDependencyMode || originalTask?.subTaskDependencyMode || 'parallel',
           subTaskType: task.subTaskType || '',
           parentTaskId: task.parentTaskId || '',
+          subType: originalTask?.subType || '',
+          language: originalTask?.language || '',
         };
       });
 
