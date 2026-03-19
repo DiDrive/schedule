@@ -2013,37 +2013,22 @@ export default function ComplexScenario() {
     setIsSyncingToFeishu(true);
 
     try {
-      // 准备同步数据
+      // 准备同步数据 - 直接使用排期结果中的数据
       const syncTasks = scheduleResult.tasks.map(task => {
         const resource = sharedResources.find(r => r.id === task.assignedResources[0]);
         const project = getProjectById(task.projectId || '');
-        // 从原始任务列表中获取更多信息（细分类、语言等）
-        let originalTask = tasks.find(t => t.id === task.id);
-        if (!originalTask && task.id.includes('_')) {
-          const parentId = task.id.split('_')[0];
-          originalTask = tasks.find(t => t.id === parentId);
+        
+        // 项目名称：优先从 project 获取，否则从 projectId 提取（格式：project-项目名）
+        let projectName = project?.name || '';
+        if (!projectName && task.projectId && task.projectId.startsWith('project-')) {
+          projectName = task.projectId.replace('project-', '');
         }
         
-        // 项目名称：优先从project获取，其次从projectId中提取（格式：project-项目名）
-        let projectNameValue = project?.name || '';
-        if (!projectNameValue && task.projectId) {
-          // projectId 格式是 "project-项目名"，提取项目名
-          const match = task.projectId.match(/^project-(.+)$/);
-          if (match) {
-            projectNameValue = match[1];
-          }
-        }
-        
-        // 父任务名称
-        const parentTaskId = task.parentTaskId || '';
-        const parentTask = parentTaskId ? tasks.find(t => t.id === parentTaskId) : null;
-        const parentTaskName = parentTask?.name || '';
-
         return {
           id: task.id,
           name: task.name,
-          // 项目信息
-          projectName: projectNameValue,
+          // 项目名称
+          projectName,
           // 负责人信息
           assignedResourceId: task.assignedResources[0] || '',
           assignedResourceName: resource?.name || '',
@@ -2051,22 +2036,22 @@ export default function ComplexScenario() {
           startDate: task.startDate ? task.startDate.toISOString() : '',
           endDate: task.endDate ? task.endDate.toISOString() : '',
           estimatedHours: task.estimatedHours,
-          estimatedHoursGraphic: task.estimatedHoursGraphic || originalTask?.estimatedHoursGraphic || 0,
-          estimatedHoursPost: task.estimatedHoursPost || originalTask?.estimatedHoursPost || 0,
+          estimatedHoursGraphic: task.estimatedHoursGraphic || 0,
+          estimatedHoursPost: task.estimatedHoursPost || 0,
           // 状态和优先级
           status: task.status,
           priority: task.priority,
-          // 其他信息
+          // 任务类型
           taskType: task.taskType || '',
-          subTaskType: task.subTaskType || originalTask?.subTaskType || '',
-          // 细分类和语言
-          subType: task.subType || originalTask?.subType || '',
-          language: task.language || originalTask?.language || '',
+          subTaskType: task.subTaskType || '',
+          // 细分类和语言 - 直接从 task 获取
+          subType: task.subType || '',
+          language: task.language || '',
           // 截止日期
-          deadline: task.deadline ? task.deadline.toISOString() : (originalTask?.deadline ? originalTask.deadline.toISOString() : ''),
+          deadline: task.deadline ? task.deadline.toISOString() : '',
           suggestedDeadline: task.suggestedDeadline ? task.suggestedDeadline.toISOString() : '',
           // 父任务名称
-          parentTaskName: parentTaskName,
+          parentTaskName: '',
         };
       });
 
