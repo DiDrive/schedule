@@ -360,62 +360,49 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ===== 获取排期表中现有记录 =====
+    // ===== 获取排期表中所有现有记录（分页获取）=====
     log(`[飞书同步] 检查排期表现有记录...`);
     
-    const existingRecords = new Map<string, { record_id: string; fields: any }>();
     const allExistingRecordIds: string[] = [];
+    let hasMore = true;
+    let pageToken: string | undefined;
     
     try {
-      const listResponse = await fetchWithTimeout(
-        `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/search`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${appAccessToken}`,
-            'Content-Type': 'application/json',
+      while (hasMore) {
+        const requestBody: any = { page_size: 500 };
+        if (pageToken) requestBody.page_token = pageToken;
+        
+        const listResponse = await fetchWithTimeout(
+          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/search`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${appAccessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody),
           },
-          body: JSON.stringify({ page_size: 500 }),
-        },
-        30000
-      );
+          30000
+        );
 
-      const listData = await listResponse.json();
-      
-      if (listData.code === 0 && listData.data?.items?.length > 0) {
-        log(`[飞书同步] 现有记录数: ${listData.data.items.length}`);
+        const listData = await listResponse.json();
         
-        // 调试：打印第一条记录的所有字段名和值
-        if (listData.data.items[0]) {
-          const firstFields = listData.data.items[0].fields;
-          log(`[飞书同步] 排期表字段名: ${Object.keys(firstFields).join(', ')}`);
-          log(`[飞书同步] 第一条记录: 任务名称=${firstFields['任务名称']}, 所属项目=${JSON.stringify(firstFields['所属项目'])}, 细分类=${JSON.stringify(firstFields['细分类'])}, 语言=${JSON.stringify(firstFields['语言'])}`);
-        }
-        
-        // 用"任务名称|所属项目|细分类|语言"建立映射
-        listData.data.items.forEach((item: any) => {
-          allExistingRecordIds.push(item.record_id);
+        if (listData.code === 0 && listData.data?.items?.length > 0) {
+          listData.data.items.forEach((item: any) => {
+            allExistingRecordIds.push(item.record_id);
+          });
+          log(`[飞书同步] 已获取 ${allExistingRecordIds.length} 条现有记录...`);
           
-          const fields = item.fields;
-          const name = fields['任务名称'] || '';
-          // 单选字段可能返回对象 { id: 'xxx', text: 'xxx' } 或直接返回字符串
-          const project = typeof fields['所属项目'] === 'object' ? (fields['所属项目']?.text || '') : (fields['所属项目'] || '');
-          const subType = typeof fields['细分类'] === 'object' ? (fields['细分类']?.text || '') : (fields['细分类'] || '');
-          const language = typeof fields['语言'] === 'object' ? (fields['语言']?.text || '') : (fields['语言'] || '');
-          const key = `${name}|${project}|${subType}|${language}`;
-          
-          if (name) {
-            existingRecords.set(key, { record_id: item.record_id, fields });
-          }
-        });
-        log(`[飞书同步] 已建立 ${existingRecords.size} 个任务映射`);
-        
-        if (existingRecords.size === 0 && allExistingRecordIds.length > 0) {
-          log(`[飞书同步] 检测到 ${allExistingRecordIds.length} 条旧记录（无任务名称字段），将清理后重建`);
+          // 检查是否还有更多
+          hasMore = listData.data.has_more;
+          pageToken = listData.data.page_token;
+        } else {
+          hasMore = false;
         }
-      } else {
-        log(`[飞书同步] 排期表为空`);
       }
+      
+      log(`[飞书同步] 共获取 ${allExistingRecordIds.length} 条现有记录`);
+      
     } catch (error) {
       log(`[飞书同步] 获取现有记录失败: ${error}`);
     }
@@ -425,28 +412,67 @@ export async function POST(request: NextRequest) {
     let deletedCount = 0;
     const errors: string[] = [];
 
-    // 1. 删除所有现有记录
+    // 1. 分批删除所有现有记录
     if (allExistingRecordIds.length > 0) {
-      log(`[飞书同步] 删除现有 ${allExistingRecordIds.length} 条记录...`);
+      log(`[飞书同步] 开始删除 ${allExistingRecordIds.length} 条现有记录...`);
+      
+      const deleteBatchSize = 500;
+      let deleteSuccess = 0;
+      
+      for (let i = 0; i < allExistingRecordIds.length; i += deleteBatchSize) {
+        const batch = allExistingRecordIds.slice(i, i + deleteBatchSize);
+        log(`[飞书同步] 删除第 ${i + 1}-${Math.min(i + deleteBatchSize, allExistingRecordIds.length)} 条...`);
+        
+        try {
+          const deleteResponse = await fetchWithTimeout(
+            `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/batch_delete`,
+            {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${appAccessToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ records: batch }),
+            },
+            30000
+          );
+          const result = await deleteResponse.json();
+          if (result.code === 0) {
+            deleteSuccess += batch.length;
+            log(`[飞书同步] ✅ 批量删除成功 ${batch.length} 条`);
+          } else {
+            log(`[飞书同步] ⚠️ 批量删除失败: code=${result.code}, msg=${result.msg}`);
+          }
+        } catch (error) {
+          log(`[飞书同步] ⚠️ 批量删除异常: ${error}`);
+        }
+      }
+      
+      deletedCount = deleteSuccess;
+      log(`[飞书同步] 删除完成，共删除 ${deletedCount} 条记录`);
+    }
+
+    // 2. 再次确认排期表为空（可选的二次检查）
+    if (deletedCount > 0) {
+      log(`[飞书同步] 确认排期表是否已清空...`);
       try {
-        const deleteResponse = await fetchWithTimeout(
-          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/batch_delete`,
+        const checkResponse = await fetchWithTimeout(
+          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/search`,
           {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${appAccessToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ records: allExistingRecordIds }),
+            headers: {
+              'Authorization': `Bearer ${appAccessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ page_size: 1 }),
           },
-          30000
+          10000
         );
-        const result = await deleteResponse.json();
-        if (result.code === 0) {
-          deletedCount = allExistingRecordIds.length;
-          log(`[飞书同步] ✅ 已删除 ${deletedCount} 条记录`);
+        const checkData = await checkResponse.json();
+        if (checkData.code === 0 && checkData.data?.items?.length > 0) {
+          log(`[飞书同步] ⚠️ 警告: 排期表仍有 ${checkData.data.total || '?'} 条记录，可能存在并发写入`);
         } else {
-          log(`[飞书同步] ⚠️ 删除失败: code=${result.code}, msg=${result.msg}`);
+          log(`[飞书同步] ✅ 排期表已清空`);
         }
       } catch (error) {
-        log(`[飞书同步] ⚠️ 删除异常: ${error}`);
+        log(`[飞书同步] 检查排期表状态失败: ${error}`);
       }
     }
 
