@@ -138,13 +138,6 @@ export default function ProjectScheduleSystem() {
     // 创建 projectId -> projectName 的映射
     const projectIdToName = new Map(localProjects.map((p: any) => [p.id, p.name]));
 
-    console.log('[同步调试] 本地任务数:', localTasks.length);
-    console.log('[同步调试] 排期结果:', scheduleResult ? `存在，${scheduleResult.tasks?.length} 个任务` : '不存在');
-    console.log('[同步调试] 资源数:', sharedResources.length);
-    console.log('[同步调试] 项目数:', localProjects.length);
-    console.log('[同步调试] 数据源模式:', dataSourceMode);
-    console.log('[同步调试] 排期表ID:', modeConfig.tableIds.schedules);
-
     // 检查是否有排期数据
     if (!scheduleResult || !scheduleResult.tasks || scheduleResult.tasks.length === 0) {
       alert('⚠️ 没有排期数据可同步\n\n请先点击"生成排期"按钮生成排期结果，然后再同步到飞书。');
@@ -166,42 +159,13 @@ export default function ProjectScheduleSystem() {
     });
 
     try {
-      // 准备同步数据
-      // 排期表是独立的，每次同步会清空后重新创建所有记录
-      // 所以每个子任务（平面/后期）都会有独立的排期记录
-      
-      // 调试：打印映射和第一个任务
-      console.log('[同步调试] projectIdToName 前3个:', Array.from(projectIdToName.entries()).slice(0, 3));
-      console.log('[同步调试] scheduleResult.tasks[0]:', {
-        id: scheduleResult.tasks[0]?.id,
-        projectId: scheduleResult.tasks[0]?.projectId,
-        name: scheduleResult.tasks[0]?.name
-      });
-      console.log('[同步调试] localTasks[0]:', {
-        id: localTasks[0]?.id,
-        projectId: localTasks[0]?.projectId,
-        projectName: localTasks[0]?.projectName
-      });
-      
+      // 准备同步数据（每次同步会删除所有旧记录，重新创建）
       const syncTasks = scheduleResult.tasks.map((task: any) => {
         const resource = sharedResources.find((r: any) => r.id === task.assignedResources?.[0]);
         const originalTask = localTasks.find((t: Task) => t.id === task.id);
         
-        // 优先使用 originalTask.projectName，否则通过 projectId 查找
-        const projectName = originalTask?.projectName 
-          || projectIdToName.get(task.projectId || originalTask?.projectId) 
-          || '';
-        
-        // 调试：打印第一个任务的匹配结果
-        if (task === scheduleResult.tasks[0]) {
-          console.log('[同步调试] 第一个任务匹配结果:', {
-            'originalTask?.projectName': originalTask?.projectName,
-            'task.projectId': task.projectId,
-            'originalTask?.projectId': originalTask?.projectId,
-            'projectIdToName.get结果': projectIdToName.get(task.projectId || originalTask?.projectId),
-            '最终projectName': projectName
-          });
-        }
+        // 通过 projectId 查找项目名称
+        const projectName = projectIdToName.get(task.projectId || originalTask?.projectId) || '';
         
         return {
           id: task.id,
@@ -227,7 +191,6 @@ export default function ProjectScheduleSystem() {
         };
       });
 
-      console.log('[同步调试] 准备同步的任务数:', syncTasks.length);
       setSyncProgress({
         current: 0,
         total: 1,
@@ -241,9 +204,6 @@ export default function ProjectScheduleSystem() {
         `&schedules_table_id=${encodeURIComponent(modeConfig.tableIds.schedules)}` +
         `&resources_table_id=${encodeURIComponent(modeConfig.tableIds.resources || '')}`;
 
-      console.log('[同步调试] 请求URL:', url.substring(0, 100) + '...');
-      console.log('[同步调试] syncTasks[0]:', syncTasks[0]);
-
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -251,7 +211,6 @@ export default function ProjectScheduleSystem() {
       });
 
       const result = await response.json();
-      console.log('[同步调试] API响应:', result);
 
       setSyncProgress({
         current: 1,
