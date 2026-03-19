@@ -357,44 +357,38 @@ export async function POST(request: NextRequest) {
     let allExistingRecordIds: string[] = [];
     
     try {
-      // 分页获取所有现有记录（用 Set 防止重复）
-      const recordIds = new Set<string>();
       let pageToken: string | undefined;
       
       while (true) {
         const requestBody: any = { page_size: 500 };
         if (pageToken) requestBody.page_token = pageToken;
         
-        const listResponse = await fetchWithTimeout(
+        const res = await fetchWithTimeout(
           `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/search`,
           {
             method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${appAccessToken}`,
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Authorization': `Bearer ${appAccessToken}`, 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody),
           },
           30000
         );
 
-        const listData = await listResponse.json();
-        if (listData.code !== 0) break;
+        const data = await res.json();
+        const items = data.data?.items || [];
         
-        const items = listData.data?.items || [];
-        items.forEach((item: any) => recordIds.add(item.record_id));
+        // 没数据或失败就退出
+        if (data.code !== 0 || items.length === 0) break;
         
-        // has_more 为 false 就退出
-        if (!listData.data?.has_more) break;
+        items.forEach((item: any) => allExistingRecordIds.push(item.record_id));
         
-        pageToken = listData.data.page_token;
-        if (!pageToken) break;
+        // 没有下一页就退出
+        if (!data.data?.has_more) break;
+        pageToken = data.data.page_token;
       }
       
-      allExistingRecordIds = Array.from(recordIds);
       log(`[飞书同步] 现有记录: ${allExistingRecordIds.length} 条`);
     } catch (error) {
-      log(`[飞书同步] 获取现有记录失败: ${error}`);
+      log(`[飞书同步] 获取失败: ${error}`);
     }
 
     // ===== 执行同步：全量覆盖模式（先删除所有，再重新创建）=====
