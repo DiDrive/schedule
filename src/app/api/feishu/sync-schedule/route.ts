@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAppAccessToken } from '@/lib/feishu-api';
+import { getAppAccessToken, clearAccessTokenCache } from '@/lib/feishu-api';
 
 // 日志函数
 const log = (message: string) => {
@@ -217,6 +217,10 @@ export async function POST(request: NextRequest) {
     }
 
     log(`[飞书同步] 排期结果任务数: ${tasks.length}`);
+
+    // 强制刷新 token（解决权限刚开通但缓存了旧 token 的问题）
+    clearAccessTokenCache();
+    log(`[飞书同步] 已清除 token 缓存，重新获取`);
 
     // 获取 access token
     let appAccessToken: string;
