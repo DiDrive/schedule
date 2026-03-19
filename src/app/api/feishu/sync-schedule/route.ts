@@ -83,15 +83,104 @@ function buildTaskFields(task: any, feishuPersonId: string): any {
   return fields;
 }
 
+// 需要的字段定义
+const REQUIRED_FIELDS = [
+  { field_name: '任务名称', type: 1 }, // 1=文本
+  { field_name: '任务类型', type: 1 },
+  { field_name: '负责人', type: 21 }, // 21=人员
+  { field_name: '开始时间', type: 2 }, // 2=数字(时间戳)
+  { field_name: '结束时间', type: 2 },
+  { field_name: '预估工时', type: 2 },
+  { field_name: '平面工时', type: 2 },
+  { field_name: '后期工时', type: 2 },
+  { field_name: '状态', type: 3, property: { options: [ // 3=单选
+    { name: '待处理' },
+    { name: '进行中' },
+    { name: '已完成' },
+    { name: '阻塞' },
+    { name: '待确认' }
+  ]}},
+  { field_name: '所属项目', type: 1 },
+  { field_name: '细分类', type: 1 },
+  { field_name: '语言', type: 1 },
+  { field_name: '截止日期', type: 2 },
+  { field_name: '建议截止日期', type: 2 },
+  { field_name: '父任务ID', type: 1 },
+];
+
+// 确保排期表有必要的字段
+async function ensureTableFields(
+  appToken: string, 
+  tableId: string, 
+  accessToken: string
+): Promise<{ createdCount: number }> {
+  log(`[飞书同步] 检查排期表字段...`);
+  
+  // 获取现有字段
+  const fieldsResponse = await fetchWithTimeout(
+    `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/fields`,
+    {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    },
+    30000
+  );
+  
+  const fieldsData = await fieldsResponse.json();
+  const existingFieldNames = new Set<string>();
+  
+  if (fieldsData.code === 0 && fieldsData.data?.items) {
+    fieldsData.data.items.forEach((field: any) => {
+      existingFieldNames.add(field.field_name);
+    });
+    log(`[飞书同步] 现有字段: ${Array.from(existingFieldNames).join(', ')}`);
+  }
+  
+  // 创建缺失的字段
+  let createdCount = 0;
+  for (const field of REQUIRED_FIELDS) {
+    if (!existingFieldNames.has(field.field_name)) {
+      log(`[飞书同步] 创建字段: ${field.field_name}`);
+      try {
+        const createResponse = await fetchWithTimeout(
+          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/fields`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(field),
+          },
+          10000
+        );
+        const result = await createResponse.json();
+        if (result.code === 0) {
+          log(`[飞书同步] ✅ 字段创建成功: ${field.field_name}`);
+          createdCount++;
+        } else {
+          log(`[飞书同步] ⚠️ 字段创建失败: ${field.field_name}, ${result.msg}`);
+        }
+      } catch (error) {
+        log(`[飞书同步] ⚠️ 字段创建异常: ${field.field_name}`);
+      }
+    }
+  }
+  
+  // 如果创建了新字段，等待一小段时间让飞书生效
+  if (createdCount > 0) {
+    log(`[飞书同步] 等待 2 秒让新字段生效...`);
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+  
+  return { createdCount };
+}
+
 /**
  * 同步排期结果到飞书排期表（智能增量同步）
- * 
- * 逻辑：
- * 1. 获取排期表中现有记录数量
- * 2. 如果排期表为空 → 直接全部新增
- * 3. 如果排期表有数据：
- *    - 尝试按"任务ID"匹配进行增量同步
- *    - 如果没有"任务ID"字段，提示用户需要添加
  */
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -138,6 +227,9 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
+    // 确保排期表有必要的字段
+    await ensureTableFields(appToken, schedulesTableId, appAccessToken);
+
     // 创建资源ID到飞书人员ID的映射表
     const resourceIdToFeishuPersonIdMap = new Map<string, string>();
     const resourcesTableId = searchParams.get('resources_table_id');
@@ -181,6 +273,7 @@ export async function POST(request: NextRequest) {
     log(`[飞书同步] 检查排期表现有记录...`);
     
     const existingRecords = new Map<string, { record_id: string; fields: any }>();
+    const allExistingRecordIds: string[] = [];
     
     try {
       const listResponse = await fetchWithTimeout(
@@ -197,6 +290,7 @@ export async function POST(request: NextRequest) {
       );
 
       const listData = await listResponse.json();
+      
       if (listData.code === 0 && listData.data?.items?.length > 0) {
         log(`[飞书同步] 现有记录数: ${listData.data.items.length}`);
         
@@ -208,6 +302,8 @@ export async function POST(request: NextRequest) {
         
         // 用"任务名称|所属项目|细分类|语言"建立映射
         listData.data.items.forEach((item: any) => {
+          allExistingRecordIds.push(item.record_id);
+          
           const fields = item.fields;
           const name = fields['任务名称'] || '';
           const project = fields['所属项目'] || '';
@@ -220,6 +316,10 @@ export async function POST(request: NextRequest) {
           }
         });
         log(`[飞书同步] 已建立 ${existingRecords.size} 个任务映射`);
+        
+        if (existingRecords.size === 0 && allExistingRecordIds.length > 0) {
+          log(`[飞书同步] 检测到 ${allExistingRecordIds.length} 条旧记录（无任务名称字段），将清理后重建`);
+        }
       } else {
         log(`[飞书同步] 排期表为空`);
       }
@@ -233,6 +333,29 @@ export async function POST(request: NextRequest) {
     let updatedCount = 0;
     let deletedCount = 0;
     const errors: string[] = [];
+
+    // 清理无法匹配的旧记录
+    if (isEmpty && allExistingRecordIds.length > 0) {
+      log(`[飞书同步] 清理 ${allExistingRecordIds.length} 条旧记录...`);
+      try {
+        const deleteResponse = await fetchWithTimeout(
+          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/batch_delete`,
+          {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${appAccessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ records: allExistingRecordIds }),
+          },
+          30000
+        );
+        const result = await deleteResponse.json();
+        if (result.code === 0) {
+          deletedCount = allExistingRecordIds.length;
+          log(`[飞书同步] ✅ 已清理 ${deletedCount} 条旧记录`);
+        }
+      } catch (error) {
+        log(`[飞书同步] ⚠️ 清理旧记录失败: ${error}`);
+      }
+    }
 
     if (isEmpty) {
       // ===== 空表：直接全部新增 =====
