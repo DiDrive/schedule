@@ -57,7 +57,6 @@ function buildTaskFields(task: any, feishuPersonId: string): any {
     '后期工时': task.estimatedHoursPost || 0,
     '状态': mapStatusToFeishu(task.status || 'pending'),
     '所属项目': task.projectName || '',
-    '任务ID': task.id || '',
   };
 
   if (task.deadline) {
@@ -171,7 +170,6 @@ export async function POST(request: NextRequest) {
     log(`[飞书同步] 检查排期表现有记录...`);
     
     const existingRecords = new Map<string, { record_id: string; fields: any }>();
-    let hasTaskIdField = true; // 是否有"任务ID"字段
     
     try {
       const listResponse = await fetchWithTimeout(
@@ -191,49 +189,23 @@ export async function POST(request: NextRequest) {
       if (listData.code === 0 && listData.data?.items?.length > 0) {
         log(`[飞书同步] 现有记录数: ${listData.data.items.length}`);
         
-        // 检查是否有"任务ID"字段
-        const firstItem = listData.data.items[0];
-        const hasField = firstItem.fields && firstItem.fields['任务ID'] !== undefined;
-        
-        if (hasField) {
-          // 有"任务ID"字段，建立映射
-          listData.data.items.forEach((item: any) => {
-            const taskId = item.fields['任务ID'] || '';
-            if (taskId) {
-              existingRecords.set(taskId, { record_id: item.record_id, fields: item.fields });
-            }
-          });
-          hasTaskIdField = true;
-          log(`[飞书同步] 已建立 ${existingRecords.size} 个任务ID映射`);
-        } else {
-          // 没有"任务ID"字段
-          hasTaskIdField = false;
-          log(`[飞书同步] 排期表没有"任务ID"字段`);
-        }
+        // 用"任务名称"建立映射
+        listData.data.items.forEach((item: any) => {
+          const taskName = item.fields['任务名称'] || '';
+          if (taskName) {
+            existingRecords.set(taskName, { record_id: item.record_id, fields: item.fields });
+          }
+        });
+        log(`[飞书同步] 已建立 ${existingRecords.size} 个任务名称映射`);
       } else {
-        // 空表
         log(`[飞书同步] 排期表为空`);
-        hasTaskIdField = true; // 空表不需要检查字段
       }
     } catch (error) {
       log(`[飞书同步] 获取现有记录失败: ${error}`);
     }
 
-    // ===== 决定同步策略 =====
-    
-    // 空表 或 没有"任务ID"字段但有数据 → 全部清空重建
-    const isEmpty = existingRecords.size === 0;
-    
-    if (!isEmpty && !hasTaskIdField) {
-      // 有数据但没有"任务ID"字段，提示用户
-      return NextResponse.json({ 
-        success: false, 
-        error: '排期表中已有数据，但缺少"任务ID"字段。\n\n请在飞书排期表中添加"任务ID"字段（文本类型），然后重新同步。\n\n这样系统才能识别哪些记录需要更新、哪些需要新增。',
-        needField: '任务ID'
-      }, { status: 400 });
-    }
-
     // ===== 执行同步 =====
+    const isEmpty = existingRecords.size === 0;
     let createdCount = 0;
     let updatedCount = 0;
     let deletedCount = 0;
@@ -283,18 +255,18 @@ export async function POST(request: NextRequest) {
       
       const tasksToCreate: any[] = [];
       const tasksToUpdate: Array<{ record_id: string; fields: any }> = [];
-      const newTaskIds = new Set<string>();
+      const newTaskNames = new Set<string>();
       
       for (const task of tasks) {
-        const taskId = task.id || '';
-        newTaskIds.add(taskId);
+        const taskName = task.name || '';
+        newTaskNames.add(taskName);
         
         const feishuPersonId = task.assignedResourceId ? 
           resourceIdToFeishuPersonIdMap.get(task.assignedResourceId) || '' : '';
         
         const fields = buildTaskFields(task, feishuPersonId);
         
-        const existing = existingRecords.get(taskId);
+        const existing = existingRecords.get(taskName);
         if (existing) {
           // 已存在，检查是否需要更新
           const oldFields = existing.fields;
@@ -313,10 +285,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 需要删除的记录
+      // 需要删除的记录（排期表中有，但排期结果中没有）
       const recordsToDelete: string[] = [];
-      for (const [taskId, record] of existingRecords) {
-        if (!newTaskIds.has(taskId)) {
+      for (const [taskName, record] of existingRecords) {
+        if (!newTaskNames.has(taskName)) {
           recordsToDelete.push(record.record_id);
         }
       }
