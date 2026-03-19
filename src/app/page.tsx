@@ -160,24 +160,12 @@ export default function ProjectScheduleSystem() {
     });
 
     try {
-      // 先建立父任务的 feishuRecordId 映射
-      const parentRecordIdMap = new Map<string, string>();
-      localTasks.forEach((t: any) => {
-        if (t.feishuRecordId && !t.parentTaskId) {
-          parentRecordIdMap.set(t.id, t.feishuRecordId);
-        }
-      });
-      
       // 准备同步数据
+      // 排期表是独立的，每次同步会清空后重新创建所有记录
+      // 所以每个子任务（平面/后期）都会有独立的排期记录
       const syncTasks = scheduleResult.tasks.map((task: any) => {
         const resource = sharedResources.find((r: any) => r.id === task.assignedResources?.[0]);
         const originalTask = localTasks.find((t: Task) => t.id === task.id);
-        
-        // 获取 feishuRecordId：优先使用自己的，否则使用父任务的
-        let feishuRecordId = task.feishuRecordId || originalTask?.feishuRecordId || '';
-        if (!feishuRecordId && task.parentTaskId) {
-          feishuRecordId = parentRecordIdMap.get(task.parentTaskId) || '';
-        }
         
         return {
           id: task.id,
@@ -198,7 +186,6 @@ export default function ProjectScheduleSystem() {
           subTaskDependencyMode: task.subTaskDependencyMode || originalTask?.subTaskDependencyMode || 'parallel',
           subTaskType: task.subTaskType || '',
           parentTaskId: task.parentTaskId || '',
-          feishuRecordId,
         };
       });
 
@@ -209,13 +196,12 @@ export default function ProjectScheduleSystem() {
         currentPhase: `正在同步 ${syncTasks.length} 条排期记录...`
       });
 
-      // 构建请求 URL
+      // 构建请求 URL - 只需要排期表ID
       const url = `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
         `&app_secret=${encodeURIComponent(config.appSecret)}` +
         `&app_token=${encodeURIComponent(modeConfig.appToken)}` +
         `&schedules_table_id=${encodeURIComponent(modeConfig.tableIds.schedules)}` +
-        `&resources_table_id=${encodeURIComponent(modeConfig.tableIds.resources || '')}` +
-        `&data_source_mode=${encodeURIComponent(dataSourceMode)}`;
+        `&resources_table_id=${encodeURIComponent(modeConfig.tableIds.resources || '')}`;
 
       console.log('[同步调试] 请求URL:', url.substring(0, 100) + '...');
 
