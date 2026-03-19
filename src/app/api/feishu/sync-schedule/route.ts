@@ -42,67 +42,24 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeout = 300
   }
 }
 
-// 批量删除记录（每批最多500条，带重试）
-async function batchDeleteRecords(
+// 批量更新记录（飞书批量更新 API）
+async function batchUpdateRecords(
   appToken: string,
   tableId: string,
   appAccessToken: string,
-  recordIds: string[]
-): Promise<{ success: number; failed: number }> {
+  records: Array<{ record_id: string; fields: any }>
+): Promise<{ success: number; failed: number; errors: string[] }> {
   const batchSize = 500;
   let success = 0;
   let failed = 0;
-
-  for (let i = 0; i < recordIds.length; i += batchSize) {
-    const batch = recordIds.slice(i, i + batchSize);
-    try {
-      const response = await fetchWithTimeout(
-        `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records/batch_delete`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${appAccessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ records: batch }),
-        },
-        30000
-      );
-      const data = await response.json();
-      if (data.code === 0) {
-        success += batch.length;
-        log(`[飞书同步] 批量删除成功: ${batch.length} 条`);
-      } else {
-        failed += batch.length;
-        log(`[飞书同步] ⚠️ 批量删除失败: ${data.msg}`);
-      }
-    } catch (error) {
-      failed += batch.length;
-      log(`[飞书同步] ⚠️ 批量删除异常: ${error instanceof Error ? error.message : '未知错误'}`);
-    }
-  }
-
-  return { success, failed };
-}
-
-// 批量创建记录（每批最多500条，带重试）
-async function batchCreateRecords(
-  appToken: string,
-  tableId: string,
-  appAccessToken: string,
-  records: any[]
-): Promise<{ success: number; failed: number }> {
-  const batchSize = 500;
-  let success = 0;
-  let failed = 0;
+  const errors: string[] = [];
 
   for (let i = 0; i < records.length; i += batchSize) {
     const batch = records.slice(i, i + batchSize);
     try {
-      log(`[飞书同步] 正在创建第 ${Math.floor(i / batchSize) + 1} 批，共 ${batch.length} 条记录`);
-      
+      // 飞书批量更新 API
       const response = await fetchWithTimeout(
-        `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records/batch_create`,
+        `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records/batch_update`,
         {
           method: 'POST',
           headers: {
@@ -111,28 +68,32 @@ async function batchCreateRecords(
           },
           body: JSON.stringify({ records: batch }),
         },
-        60000 // 增加超时时间到60秒
+        60000
       );
       const data = await response.json();
       if (data.code === 0 && data.data?.records) {
         success += data.data.records.length;
-        log(`[飞书同步] 批量创建成功: ${data.data.records.length} 条`);
+        log(`[飞书同步] 批量更新成功: ${data.data.records.length} 条`);
       } else {
         failed += batch.length;
-        log(`[飞书同步] ⚠️ 批量创建失败: ${data.msg}, code: ${data.code}`);
+        const errorMsg = data.msg || '未知错误';
+        errors.push(`批量更新失败: ${errorMsg}`);
+        log(`[飞书同步] ⚠️ 批量更新失败: ${errorMsg}, code: ${data.code}`);
       }
     } catch (error) {
       failed += batch.length;
-      log(`[飞书同步] ⚠️ 批量创建异常: ${error instanceof Error ? error.message : '未知错误'}`);
+      const errorMsg = error instanceof Error ? error.message : '未知错误';
+      errors.push(`批量更新异常: ${errorMsg}`);
+      log(`[飞书同步] ⚠️ 批量更新异常: ${errorMsg}`);
     }
   }
 
-  return { success, failed };
+  return { success, failed, errors };
 }
 
 /**
  * 同步排期结果到飞书多维表
- * 优化版本：使用批量 API，增加超时处理
+ * 需求表模式：更新现有记录的排期信息
  */
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -238,73 +199,124 @@ export async function POST(request: NextRequest) {
     let errorCount = 0;
     const errors: string[] = [];
 
-    // 需求表模式：逐个更新记录
     if (isRequirementMode) {
-      log(`[飞书同步] 需求表模式：逐个更新记录`);
+      // ===== 需求表模式：批量更新现有记录 =====
+      log(`[飞书同步] 需求表模式：准备批量更新记录`);
+      
+      // 构建更新记录列表
+      const recordsToUpdate: Array<{ record_id: string; fields: any }> = [];
+      const tasksWithoutRecordId: string[] = [];
+      
+      // 先收集父任务的 feishuRecordId 映射（用于子任务）
+      const parentRecordIdMap = new Map<string, string>();
+      tasks.forEach((task: any) => {
+        if (task.feishuRecordId && !task.parentTaskId) {
+          parentRecordIdMap.set(task.id, task.feishuRecordId);
+        }
+      });
       
       for (const task of tasks) {
-        if (!task.feishuRecordId) {
-          log(`[飞书同步] 跳过无 record_id 的任务: ${task.name}`);
+        // 获取 feishuRecordId：
+        // 1. 任务自己有 feishuRecordId
+        // 2. 子任务使用父任务的 feishuRecordId
+        let feishuRecordId = task.feishuRecordId;
+        
+        if (!feishuRecordId && task.parentTaskId) {
+          // 子任务：尝试使用父任务的 record_id
+          feishuRecordId = parentRecordIdMap.get(task.parentTaskId);
+        }
+        
+        if (!feishuRecordId) {
+          tasksWithoutRecordId.push(task.name);
           continue;
         }
 
-        try {
-          const feishuPersonId = task.assignedResourceId ? 
-            resourceIdToFeishuPersonIdMap.get(task.assignedResourceId) || '' : '';
+        const feishuPersonId = task.assignedResourceId ? 
+          resourceIdToFeishuPersonIdMap.get(task.assignedResourceId) || '' : '';
 
-          const scheduleRecord: any = {
-            fields: {
-              '需求项目': task.name || '',
-              '需求名称': task.name || '',
-              '所属': feishuPersonId ? [{ id: feishuPersonId }] : [],
-              '项目进展': mapStatusToFeishu(task.status || 'pending'),
-              '平面预估工时': task.estimatedHoursGraphic || 0,
-              '后期预估工时': task.estimatedHoursPost || 0,
-              '子任务依赖模式': task.subTaskDependencyMode === 'serial' ? '串行' : '并行',
-            },
-          };
+        const fields: any = {
+          '开始时间': task.startDate ? Math.floor(new Date(task.startDate).getTime() / 1000) * 1000 : 0,
+          '结束时间': task.endDate ? Math.floor(new Date(task.endDate).getTime() / 1000) * 1000 : 0,
+          '项目进展': mapStatusToFeishu(task.status || 'pending'),
+        };
 
-          if (task.startDate) {
-            scheduleRecord.fields['开始时间'] = Math.floor(new Date(task.startDate).getTime() / 1000) * 1000;
-          }
-          if (task.endDate) {
-            scheduleRecord.fields['结束时间'] = Math.floor(new Date(task.endDate).getTime() / 1000) * 1000;
-          }
-          if (task.suggestedDeadline) {
-            scheduleRecord.fields['建议截止日期'] = Math.floor(new Date(task.suggestedDeadline).getTime() / 1000) * 1000;
-          }
-
-          const response = await fetchWithTimeout(
-            `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${targetTableId}/records/${task.feishuRecordId}`,
-            {
-              method: 'PUT',
-              headers: {
-                'Authorization': `Bearer ${appAccessToken}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(scheduleRecord),
-            },
-            15000
-          );
-
-          const data = await response.json();
-          if (data.code === 0) {
-            successCount++;
-          } else {
-            errorCount++;
-            errors.push(`任务 "${task.name}" 更新失败: ${data.msg}`);
-          }
-        } catch (error) {
-          errorCount++;
-          errors.push(`任务 "${task.name}" 更新异常: ${error instanceof Error ? error.message : '未知错误'}`);
+        // 只有非子任务才更新负责人（子任务的负责人是分开的）
+        if (!task.parentTaskId && feishuPersonId) {
+          fields['所属'] = [{ id: feishuPersonId }];
         }
+        
+        // 子任务更新对应的工时字段
+        if (task.subTaskType === '平面' || task.taskType === '平面') {
+          fields['平面预估工时'] = task.estimatedHours || task.estimatedHoursGraphic || 0;
+        } else if (task.subTaskType === '后期' || task.taskType === '后期') {
+          fields['后期预估工时'] = task.estimatedHours || task.estimatedHoursPost || 0;
+        }
+        
+        if (task.suggestedDeadline) {
+          fields['建议截止日期'] = Math.floor(new Date(task.suggestedDeadline).getTime() / 1000) * 1000;
+        }
+
+        recordsToUpdate.push({ record_id: feishuRecordId, fields });
       }
-    } else {
-      // 传统模式：先清空再批量创建
-      log(`[飞书同步] 传统模式：先清空再批量创建`);
+
+      if (tasksWithoutRecordId.length > 0) {
+        log(`[飞书同步] ⚠️ 有 ${tasksWithoutRecordId.length} 个任务没有 feishuRecordId，将跳过`);
+        log(`[飞书同步] 跳过的任务: ${tasksWithoutRecordId.slice(0, 5).join(', ')}${tasksWithoutRecordId.length > 5 ? '...' : ''}`);
+      }
+
+      if (recordsToUpdate.length > 0) {
+        log(`[飞书同步] 准备批量更新 ${recordsToUpdate.length} 条记录`);
+        
+        // 每批最多更新500条
+        const batchSize = 500;
+        for (let i = 0; i < recordsToUpdate.length; i += batchSize) {
+          const batch = recordsToUpdate.slice(i, i + batchSize);
+          log(`[飞书同步] 正在更新第 ${Math.floor(i / batchSize) + 1} 批，共 ${batch.length} 条`);
+          
+          try {
+            const response = await fetchWithTimeout(
+              `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${targetTableId}/records/batch_update`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${appAccessToken}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ records: batch }),
+              },
+              60000
+            );
+            
+            const data = await response.json();
+            if (data.code === 0 && data.data?.records) {
+              successCount += data.data.records.length;
+              log(`[飞书同步] ✅ 批量更新成功: ${data.data.records.length} 条`);
+            } else {
+              errorCount += batch.length;
+              errors.push(`批量更新失败: ${data.msg}`);
+              log(`[飞书同步] ⚠️ 批量更新失败: ${data.msg}, code: ${data.code}`);
+            }
+          } catch (error) {
+            errorCount += batch.length;
+            errors.push(`批量更新异常: ${error instanceof Error ? error.message : '未知错误'}`);
+            log(`[飞书同步] ⚠️ 批量更新异常: ${error instanceof Error ? error.message : '未知错误'}`);
+          }
+          
+          // 批次间等待100ms
+          if (i + batchSize < recordsToUpdate.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
+      } else {
+        log(`[飞书同步] ⚠️ 没有需要更新的记录`);
+      }
       
+    } else {
+      // ===== 传统模式：清空并重新创建 =====
+      log(`[飞书同步] 传统模式：清空并重新创建`);
+      
+      // 先获取所有现有记录
       try {
-        // 获取所有现有记录
         const listResponse = await fetchWithTimeout(
           `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${targetTableId}/records/search`,
           {
@@ -322,13 +334,27 @@ export async function POST(request: NextRequest) {
         if (listData.code === 0 && listData.data?.items?.length > 0) {
           const recordIds = listData.data.items.map((item: any) => item.record_id);
           log(`[飞书同步] 清空 ${recordIds.length} 条旧记录`);
-          await batchDeleteRecords(appToken, targetTableId, appAccessToken, recordIds);
+          
+          // 批量删除
+          const deleteResponse = await fetchWithTimeout(
+            `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${targetTableId}/records/batch_delete`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${appAccessToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ records: recordIds }),
+            },
+            30000
+          );
+          log(`[飞书同步] 清空完成`);
         }
       } catch (error) {
         log(`[飞书同步] ⚠️ 清空旧记录失败: ${error instanceof Error ? error.message : '未知错误'}`);
       }
 
-      // 批量创建新记录
+      // 准备批量创建的记录
       const recordsToCreate = tasks.map((task: any) => {
         const feishuPersonId = task.assignedResourceId ? 
           resourceIdToFeishuPersonIdMap.get(task.assignedResourceId) || '' : '';
@@ -342,15 +368,11 @@ export async function POST(request: NextRequest) {
           '预估工时': task.estimatedHours || 0,
           '平面工时': task.estimatedHoursGraphic || 0,
           '后期工时': task.estimatedHoursPost || 0,
-          '子任务依赖': task.subTaskDependencyMode === 'serial' ? '串行' : '并行',
           '状态': mapStatusToFeishu(task.status || 'pending'),
         };
 
         if (task.deadline) {
           fields['截止日期'] = Math.floor(new Date(task.deadline).getTime() / 1000) * 1000;
-        }
-        if (task.suggestedDeadline) {
-          fields['建议截止日期'] = Math.floor(new Date(task.suggestedDeadline).getTime() / 1000) * 1000;
         }
         if (task.projectName) {
           fields['所属项目'] = task.projectName;
@@ -361,9 +383,41 @@ export async function POST(request: NextRequest) {
 
       if (recordsToCreate.length > 0) {
         log(`[飞书同步] 开始批量创建 ${recordsToCreate.length} 条记录`);
-        const result = await batchCreateRecords(appToken, targetTableId, appAccessToken, recordsToCreate);
-        successCount = result.success;
-        errorCount = result.failed;
+        
+        const batchSize = 500;
+        for (let i = 0; i < recordsToCreate.length; i += batchSize) {
+          const batch = recordsToCreate.slice(i, i + batchSize);
+          log(`[飞书同步] 正在创建第 ${Math.floor(i / batchSize) + 1} 批，共 ${batch.length} 条`);
+          
+          try {
+            const response = await fetchWithTimeout(
+              `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${targetTableId}/records/batch_create`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${appAccessToken}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ records: batch }),
+              },
+              60000
+            );
+            
+            const data = await response.json();
+            if (data.code === 0 && data.data?.records) {
+              successCount += data.data.records.length;
+              log(`[飞书同步] ✅ 批量创建成功: ${data.data.records.length} 条`);
+            } else {
+              errorCount += batch.length;
+              errors.push(`批量创建失败: ${data.msg}`);
+              log(`[飞书同步] ⚠️ 批量创建失败: ${data.msg}, code: ${data.code}`);
+            }
+          } catch (error) {
+            errorCount += batch.length;
+            errors.push(`批量创建异常: ${error instanceof Error ? error.message : '未知错误'}`);
+            log(`[飞书同步] ⚠️ 批量创建异常: ${error instanceof Error ? error.message : '未知错误'}`);
+          }
+        }
       }
     }
 
@@ -373,7 +427,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      stats: { success: successCount, error: errorCount },
+      stats: { success: successCount, error: errorCount, skipped: tasks.length - successCount - errorCount },
       errors: errors.length > 0 ? errors : undefined,
       elapsed,
     });

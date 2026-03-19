@@ -160,10 +160,25 @@ export default function ProjectScheduleSystem() {
     });
 
     try {
+      // 先建立父任务的 feishuRecordId 映射
+      const parentRecordIdMap = new Map<string, string>();
+      localTasks.forEach((t: any) => {
+        if (t.feishuRecordId && !t.parentTaskId) {
+          parentRecordIdMap.set(t.id, t.feishuRecordId);
+        }
+      });
+      
       // 准备同步数据
       const syncTasks = scheduleResult.tasks.map((task: any) => {
         const resource = sharedResources.find((r: any) => r.id === task.assignedResources?.[0]);
         const originalTask = localTasks.find((t: Task) => t.id === task.id);
+        
+        // 获取 feishuRecordId：优先使用自己的，否则使用父任务的
+        let feishuRecordId = task.feishuRecordId || originalTask?.feishuRecordId || '';
+        if (!feishuRecordId && task.parentTaskId) {
+          feishuRecordId = parentRecordIdMap.get(task.parentTaskId) || '';
+        }
+        
         return {
           id: task.id,
           name: task.name,
@@ -181,7 +196,9 @@ export default function ProjectScheduleSystem() {
           deadline: task.deadline || originalTask?.deadline || '',
           suggestedDeadline: task.suggestedDeadline || '',
           subTaskDependencyMode: task.subTaskDependencyMode || originalTask?.subTaskDependencyMode || 'parallel',
-          feishuRecordId: task.feishuRecordId || '',
+          subTaskType: task.subTaskType || '',
+          parentTaskId: task.parentTaskId || '',
+          feishuRecordId,
         };
       });
 
