@@ -169,6 +169,20 @@ export default function ProjectScheduleSystem() {
       // 准备同步数据
       // 排期表是独立的，每次同步会清空后重新创建所有记录
       // 所以每个子任务（平面/后期）都会有独立的排期记录
+      
+      // 调试：打印映射和第一个任务
+      console.log('[同步调试] projectIdToName 前3个:', Array.from(projectIdToName.entries()).slice(0, 3));
+      console.log('[同步调试] scheduleResult.tasks[0]:', {
+        id: scheduleResult.tasks[0]?.id,
+        projectId: scheduleResult.tasks[0]?.projectId,
+        name: scheduleResult.tasks[0]?.name
+      });
+      console.log('[同步调试] localTasks[0]:', {
+        id: localTasks[0]?.id,
+        projectId: localTasks[0]?.projectId,
+        projectName: localTasks[0]?.projectName
+      });
+      
       const syncTasks = scheduleResult.tasks.map((task: any) => {
         const resource = sharedResources.find((r: any) => r.id === task.assignedResources?.[0]);
         const originalTask = localTasks.find((t: Task) => t.id === task.id);
@@ -177,6 +191,17 @@ export default function ProjectScheduleSystem() {
         const projectName = originalTask?.projectName 
           || projectIdToName.get(task.projectId || originalTask?.projectId) 
           || '';
+        
+        // 调试：打印第一个任务的匹配结果
+        if (task === scheduleResult.tasks[0]) {
+          console.log('[同步调试] 第一个任务匹配结果:', {
+            'originalTask?.projectName': originalTask?.projectName,
+            'task.projectId': task.projectId,
+            'originalTask?.projectId': originalTask?.projectId,
+            'projectIdToName.get结果': projectIdToName.get(task.projectId || originalTask?.projectId),
+            '最终projectName': projectName
+          });
+        }
         
         return {
           id: task.id,
