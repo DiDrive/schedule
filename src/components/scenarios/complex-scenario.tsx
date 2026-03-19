@@ -2077,6 +2077,7 @@ export default function ComplexScenario() {
         },
         body: JSON.stringify({
           tasks: syncTasks,
+          projects: projects.map(p => ({ id: p.id, name: p.name })),
         }),
       });
 
