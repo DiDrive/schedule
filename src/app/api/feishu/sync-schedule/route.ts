@@ -354,10 +354,11 @@ export async function POST(request: NextRequest) {
     // ===== 获取排期表中现有记录 =====
     log(`[飞书同步] 检查排期表现有记录...`);
     
-    const allExistingRecordIds: string[] = [];
+    let allExistingRecordIds: string[] = [];
     
     try {
-      // 分页获取所有现有记录
+      // 分页获取所有现有记录（用 Set 防止重复）
+      const recordIds = new Set<string>();
       let pageToken: string | undefined;
       
       while (true) {
@@ -381,16 +382,16 @@ export async function POST(request: NextRequest) {
         if (listData.code !== 0) break;
         
         const items = listData.data?.items || [];
-        items.forEach((item: any) => allExistingRecordIds.push(item.record_id));
+        items.forEach((item: any) => recordIds.add(item.record_id));
         
         // has_more 为 false 就退出
         if (!listData.data?.has_more) break;
         
-        // 没有下一页 token 也退出
         pageToken = listData.data.page_token;
         if (!pageToken) break;
       }
       
+      allExistingRecordIds = Array.from(recordIds);
       log(`[飞书同步] 现有记录: ${allExistingRecordIds.length} 条`);
     } catch (error) {
       log(`[飞书同步] 获取现有记录失败: ${error}`);
