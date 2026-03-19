@@ -57,10 +57,10 @@ function buildTaskFields(task: any, feishuPersonId: string): any {
     '任务名称': task.name || '',
   };
 
-  // 单选字段：飞书要求 { "text": "选项文本" } 格式
+  // 单选字段：直接传字符串（飞书会自动创建或匹配选项）
   const taskType = task.subTaskType || task.taskType || '';
   if (taskType) {
-    fields['任务类型'] = { text: taskType };
+    fields['任务类型'] = taskType;
   }
   
   // 人员字段
@@ -82,17 +82,17 @@ function buildTaskFields(task: any, feishuPersonId: string): any {
   fields['后期工时'] = task.estimatedHoursPost || 0;
   
   // 状态单选
-  fields['状态'] = { text: mapStatusToFeishu(task.status || 'pending') };
+  fields['状态'] = mapStatusToFeishu(task.status || 'pending');
   
-  // 单选字段
+  // 单选字段：直接传字符串
   if (task.projectName) {
-    fields['所属项目'] = { text: task.projectName };
+    fields['所属项目'] = task.projectName;
   }
   if (task.subType) {
-    fields['细分类'] = { text: task.subType };
+    fields['细分类'] = task.subType;
   }
   if (task.language) {
-    fields['语言'] = { text: task.language };
+    fields['语言'] = task.language;
   }
   
   // 截止日期
@@ -111,7 +111,7 @@ function buildTaskFields(task: any, feishuPersonId: string): any {
   return fields;
 }
 
-// 需要的字段定义 - 动态生成，单选字段需要先收集选项
+// 需要的字段定义 - 单选字段不预定义选项，让飞书从数据中自动创建
 function buildRequiredFields(existingOptions: {
   taskTypes: string[],
   projects: string[],
@@ -120,23 +120,23 @@ function buildRequiredFields(existingOptions: {
 }) {
   return [
     { field_name: '任务名称', type: 1 }, // 1=文本
-    { field_name: '任务类型', type: 3, property: { options: existingOptions.taskTypes.map(name => ({ name })) } }, // 3=单选
+    { field_name: '任务类型', type: 3 }, // 3=单选，不预定义选项
     { field_name: '负责人', type: 11 }, // 11=人员
     { field_name: '开始时间', type: 4 }, // 4=日期
     { field_name: '结束时间', type: 4 },
     { field_name: '预估工时', type: 2 }, // 2=数字
     { field_name: '平面工时', type: 2 },
     { field_name: '后期工时', type: 2 },
-    { field_name: '状态', type: 3, property: { options: [ // 3=单选
+    { field_name: '状态', type: 3, property: { options: [ // 状态选项固定
       { name: '待处理' },
       { name: '进行中' },
       { name: '已完成' },
       { name: '阻塞' },
       { name: '待确认' }
     ]}},
-    { field_name: '所属项目', type: 3, property: { options: existingOptions.projects.map(name => ({ name })) } }, // 3=单选
-    { field_name: '细分类', type: 3, property: { options: existingOptions.subTypes.map(name => ({ name })) } }, // 3=单选
-    { field_name: '语言', type: 3, property: { options: existingOptions.languages.map(name => ({ name })) } }, // 3=单选
+    { field_name: '所属项目', type: 3 }, // 3=单选，不预定义选项
+    { field_name: '细分类', type: 3 }, // 3=单选，不预定义选项
+    { field_name: '语言', type: 3 }, // 3=单选，不预定义选项
     { field_name: '截止日期', type: 4 }, // 4=日期
     { field_name: '建议截止日期', type: 4 },
     { field_name: '父任务ID', type: 1 },
