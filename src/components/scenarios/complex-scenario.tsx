@@ -1683,7 +1683,12 @@ export default function ComplexScenario() {
     
     const dataSourceMode = config.dataSourceMode || 'new';
     const modeConfig = dataSourceMode === 'new' ? config.newMode : config.legacyMode;
-    const requirementsLoadMode = config.requirementsLoadMode || 'all';
+    let requirementsLoadMode = config.requirementsLoadMode || 'all'; // 🔥 改为let，允许修改
+    
+    // 🔥 紧急修复：强制使用 requirements2 模式
+    console.warn('[Feishu Load] ⚠️ 强制修改加载模式为 requirements2');
+    requirementsLoadMode = 'requirements2';
+    config.requirementsLoadMode = 'requirements2';
     
     console.log('[Feishu Load] 当前模式:', dataSourceMode);
     console.log('[Feishu Load] 需求表加载模式:', requirementsLoadMode);
@@ -1756,8 +1761,7 @@ export default function ComplexScenario() {
         `&resources_table_id=${encodeURIComponent(modeConfig.tableIds.resources)}` +
         `&data_source_mode=${encodeURIComponent(dataSourceMode)}`;
       
-      // 需求表加载模式
-      const requirementsLoadMode = config.requirementsLoadMode || 'all';
+      // 需求表加载模式 - 🔥 已在上方强制修改，这里直接使用
       url += `&requirements_load_mode=${encodeURIComponent(requirementsLoadMode)}`;
       
       console.log('[Feishu Load] 需求表加载模式:', requirementsLoadMode);
