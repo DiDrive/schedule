@@ -83,38 +83,19 @@ function buildTaskFields(task: any, feishuPersonId: string): any {
   return fields;
 }
 
-// 需要的字段定义
-const REQUIRED_FIELDS = [
-  { field_name: '任务名称', type: 1 }, // 1=文本
-  { field_name: '任务类型', type: 1 },
-  { field_name: '负责人', type: 21 }, // 21=人员
-  { field_name: '开始时间', type: 2 }, // 2=数字(时间戳)
-  { field_name: '结束时间', type: 2 },
-  { field_name: '预估工时', type: 2 },
-  { field_name: '平面工时', type: 2 },
-  { field_name: '后期工时', type: 2 },
-  { field_name: '状态', type: 3, property: { options: [ // 3=单选
-    { name: '待处理' },
-    { name: '进行中' },
-    { name: '已完成' },
-    { name: '阻塞' },
-    { name: '待确认' }
-  ]}},
-  { field_name: '所属项目', type: 1 },
-  { field_name: '细分类', type: 1 },
-  { field_name: '语言', type: 1 },
-  { field_name: '截止日期', type: 2 },
-  { field_name: '建议截止日期', type: 2 },
-  { field_name: '父任务ID', type: 1 },
-];
-
-// 确保排期表有必要的字段
-async function ensureTableFields(
+// 检查排期表是否有必要的字段，返回缺失的字段列表
+async function checkTableFields(
   appToken: string, 
   tableId: string, 
   accessToken: string
-): Promise<{ createdCount: number }> {
+): Promise<{ missingFields: string[], hasAllFields: boolean }> {
   log(`[飞书同步] 检查排期表字段...`);
+  
+  const requiredFieldNames = [
+    '任务名称', '任务类型', '负责人', '开始时间', '结束时间',
+    '预估工时', '平面工时', '后期工时', '状态', '所属项目',
+    '细分类', '语言', '截止日期', '建议截止日期', '父任务ID'
+  ];
   
   // 获取现有字段
   const fieldsResponse = await fetchWithTimeout(
@@ -136,49 +117,17 @@ async function ensureTableFields(
     fieldsData.data.items.forEach((field: any) => {
       existingFieldNames.add(field.field_name);
     });
-    log(`[飞书同步] 现有字段(${existingFieldNames.size}个): ${Array.from(existingFieldNames).slice(0, 10).join(', ')}${existingFieldNames.size > 10 ? '...' : ''}`);
+    log(`[飞书同步] 现有字段(${existingFieldNames.size}个): ${Array.from(existingFieldNames).slice(0, 10).join(', ')}...`);
   } else {
     log(`[飞书同步] 获取字段失败: code=${fieldsData.code}, msg=${fieldsData.msg}`);
   }
   
-  // 创建缺失的字段
-  let createdCount = 0;
-  for (const field of REQUIRED_FIELDS) {
-    if (!existingFieldNames.has(field.field_name)) {
-      log(`[飞书同步] 创建字段: ${field.field_name}`);
-      try {
-        const createResponse = await fetchWithTimeout(
-          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/fields`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(field),
-          },
-          10000
-        );
-        const result = await createResponse.json();
-        if (result.code === 0) {
-          log(`[飞书同步] ✅ 字段创建成功: ${field.field_name}`);
-          createdCount++;
-        } else {
-          log(`[飞书同步] ⚠️ 字段创建失败: ${field.field_name}, ${result.msg}`);
-        }
-      } catch (error) {
-        log(`[飞书同步] ⚠️ 字段创建异常: ${field.field_name}`);
-      }
-    }
-  }
+  const missingFields = requiredFieldNames.filter(name => !existingFieldNames.has(name));
   
-  // 如果创建了新字段，等待一小段时间让飞书生效
-  if (createdCount > 0) {
-    log(`[飞书同步] 等待 2 秒让新字段生效...`);
-    await new Promise(resolve => setTimeout(resolve, 2000));
-  }
-  
-  return { createdCount };
+  return { 
+    missingFields, 
+    hasAllFields: missingFields.length === 0 
+  };
 }
 
 /**
@@ -230,7 +179,17 @@ export async function POST(request: NextRequest) {
     }
 
     // 确保排期表有必要的字段
-    await ensureTableFields(appToken, schedulesTableId, appAccessToken);
+    const { missingFields, hasAllFields } = await checkTableFields(appToken, schedulesTableId, appAccessToken);
+    
+    if (!hasAllFields) {
+      log(`[飞书同步] 缺失字段: ${missingFields.join(', ')}`);
+      return NextResponse.json({ 
+        success: false, 
+        error: `排期表缺少必要字段，请先在飞书中添加以下字段：\n\n${missingFields.map(f => `• ${f}`).join('\n')}\n\n或者：在多维表格页面右上角「...」→「添加文档应用」，给应用「可管理」权限后重试。`,
+        missingFields,
+        needPermission: true
+      }, { status: 400 });
+    }
 
     // 创建资源ID到飞书人员ID的映射表
     const resourceIdToFeishuPersonIdMap = new Map<string, string>();
