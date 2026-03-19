@@ -2017,23 +2017,25 @@ export default function ComplexScenario() {
       const syncTasks = scheduleResult.tasks.map(task => {
         const resource = sharedResources.find(r => r.id === task.assignedResources[0]);
         const project = getProjectById(task.projectId || '');
-        // 从原始任务列表中获取更多信息
-        // 注意：子任务ID格式是 "父任务ID_子任务类型"，需要提取父任务ID
+        // 从原始任务列表中获取更多信息（细分类、语言等）
         let originalTask = tasks.find(t => t.id === task.id);
         if (!originalTask && task.id.includes('_')) {
-          // 子任务，查找父任务
           const parentId = task.id.split('_')[0];
           originalTask = tasks.find(t => t.id === parentId);
         }
         
-        // 项目名称：优先从原始任务获取，其次从projectMap获取
-        const projectNameValue = originalTask?.projectName || 
-          project?.name || 
-          (originalTask as any)?.category || 
-          '';
+        // 项目名称：优先从project获取，其次从projectId中提取（格式：project-项目名）
+        let projectNameValue = project?.name || '';
+        if (!projectNameValue && task.projectId) {
+          // projectId 格式是 "project-项目名"，提取项目名
+          const match = task.projectId.match(/^project-(.+)$/);
+          if (match) {
+            projectNameValue = match[1];
+          }
+        }
         
-        // 父任务名称：根据parentTaskId查找
-        const parentTaskId = task.parentTaskId || (originalTask as any)?.parentTaskId || '';
+        // 父任务名称
+        const parentTaskId = task.parentTaskId || '';
         const parentTask = parentTaskId ? tasks.find(t => t.id === parentTaskId) : null;
         const parentTaskName = parentTask?.name || '';
 
@@ -2069,7 +2071,6 @@ export default function ComplexScenario() {
       });
 
       console.log('[Feishu Sync] 准备同步', syncTasks.length, '个任务');
-      console.log('[Feishu Sync] 前3个任务数据:', JSON.stringify(syncTasks.slice(0, 3), null, 2));
 
       // 调用同步接口 - 使用新的配置结构
       const url = `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
