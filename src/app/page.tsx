@@ -128,14 +128,20 @@ export default function ProjectScheduleSystem() {
     const tasksStr = localStorage.getItem('complex-scenario-tasks');
     const scheduleResultStr = localStorage.getItem('complex-scenario-schedule-result');
     const resourcesStr = localStorage.getItem('complex-scenario-resources');
+    const projectsStr = localStorage.getItem('complex-scenario-projects');
 
     const localTasks = tasksStr ? JSON.parse(tasksStr) : [];
     const scheduleResult = scheduleResultStr ? JSON.parse(scheduleResultStr) : null;
     const sharedResources = resourcesStr ? JSON.parse(resourcesStr) : [];
+    const localProjects = projectsStr ? JSON.parse(projectsStr) : [];
+    
+    // 创建 projectId -> projectName 的映射
+    const projectIdToName = new Map(localProjects.map((p: any) => [p.id, p.name]));
 
     console.log('[同步调试] 本地任务数:', localTasks.length);
     console.log('[同步调试] 排期结果:', scheduleResult ? `存在，${scheduleResult.tasks?.length} 个任务` : '不存在');
     console.log('[同步调试] 资源数:', sharedResources.length);
+    console.log('[同步调试] 项目数:', localProjects.length);
     console.log('[同步调试] 数据源模式:', dataSourceMode);
     console.log('[同步调试] 排期表ID:', modeConfig.tableIds.schedules);
 
@@ -167,10 +173,15 @@ export default function ProjectScheduleSystem() {
         const resource = sharedResources.find((r: any) => r.id === task.assignedResources?.[0]);
         const originalTask = localTasks.find((t: Task) => t.id === task.id);
         
+        // 优先使用 originalTask.projectName，否则通过 projectId 查找
+        const projectName = originalTask?.projectName 
+          || projectIdToName.get(task.projectId || originalTask?.projectId) 
+          || '';
+        
         return {
           id: task.id,
           name: task.name,
-          projectName: originalTask?.projectName || '',
+          projectName: projectName,
           assignedResourceId: task.assignedResources?.[0] || '',
           assignedResourceName: resource?.name || '',
           startDate: task.startDate || '',
