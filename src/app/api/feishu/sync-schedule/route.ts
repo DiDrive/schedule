@@ -455,6 +455,7 @@ export async function POST(request: NextRequest) {
       const batchSize = 500;
       for (let i = 0; i < recordsToCreate.length; i += batchSize) {
         const batch = recordsToCreate.slice(i, i + batchSize);
+        log(`[飞书同步] 正在创建第 ${i + 1}-${Math.min(i + batchSize, recordsToCreate.length)} 条记录...`);
         try {
           const response = await fetchWithTimeout(
             `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/batch_create`,
@@ -469,15 +470,16 @@ export async function POST(request: NextRequest) {
             60000
           );
           const data = await response.json();
+          log(`[飞书同步] 批量创建响应: code=${data.code}, msg=${data.msg}, records=${data.data?.records?.length || 0}`);
           if (data.code === 0 && data.data?.records) {
             createdCount += data.data.records.length;
-            log(`[飞书同步] 批量创建成功: ${data.data.records.length} 条`);
+            log(`[飞书同步] ✅ 批量创建成功: ${data.data.records.length} 条`);
           } else {
-            log(`[飞书同步] 批量创建失败: code=${data.code}, msg=${data.msg}`);
+            log(`[飞书同步] ❌ 批量创建失败: code=${data.code}, msg=${data.msg}`);
             errors.push(`创建失败: ${data.msg}`);
           }
         } catch (error) {
-          log(`[飞书同步] 批量创建异常: ${error}`);
+          log(`[飞书同步] ❌ 批量创建异常: ${error}`);
           errors.push(`创建异常: ${error instanceof Error ? error.message : '未知错误'}`);
         }
       }

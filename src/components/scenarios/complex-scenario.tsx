@@ -2052,6 +2052,7 @@ export default function ComplexScenario() {
       });
 
       console.log('[Feishu Sync] 准备同步', syncTasks.length, '个任务');
+      console.log('[Feishu Sync] 第一条任务数据:', JSON.stringify(syncTasks[0], null, 2));
 
       // 调用同步接口 - 使用新的配置结构
       const url = `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +
