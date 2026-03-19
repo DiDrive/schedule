@@ -1683,12 +1683,7 @@ export default function ComplexScenario() {
     
     const dataSourceMode = config.dataSourceMode || 'new';
     const modeConfig = dataSourceMode === 'new' ? config.newMode : config.legacyMode;
-    let requirementsLoadMode = config.requirementsLoadMode || 'all'; // 🔥 改为let，允许修改
-    
-    // 🔥 紧急修复：强制使用 requirements2 模式
-    console.warn('[Feishu Load] ⚠️ 强制修改加载模式为 requirements2');
-    requirementsLoadMode = 'requirements2';
-    config.requirementsLoadMode = 'requirements2';
+    const requirementsLoadMode = config.requirementsLoadMode || 'all';
     
     console.log('[Feishu Load] 当前模式:', dataSourceMode);
     console.log('[Feishu Load] 需求表加载模式:', requirementsLoadMode);
@@ -1699,16 +1694,6 @@ export default function ComplexScenario() {
     console.log('[Feishu Load] 当前tableIds:', JSON.stringify(currentTableIds));
     console.log('[Feishu Load] ★★★ currentTableIds.requirements2:', currentTableIds?.requirements2);
     console.log('[Feishu Load] ★★★ config.newMode.tableIds.requirements2:', config.newMode?.tableIds?.requirements2);
-    
-    // 🔥 紧急修复：强制设置需求表2的ID，解决配置问题
-    if (dataSourceMode === 'new' && !currentTableIds.requirements2) {
-      console.warn('[Feishu Load] ⚠️ requirements2 为空，强制设置为 tbl2DmMEixMBJMlJ');
-      currentTableIds.requirements2 = 'tbl2DmMEixMBJMlJ';
-      // 同时更新 config 中的值
-      if (config.newMode && config.newMode.tableIds) {
-        config.newMode.tableIds.requirements2 = 'tbl2DmMEixMBJMlJ';
-      }
-    }
     
     // 详细检查每个字段
     const missingFields = [];
@@ -1761,7 +1746,8 @@ export default function ComplexScenario() {
         `&resources_table_id=${encodeURIComponent(modeConfig.tableIds.resources)}` +
         `&data_source_mode=${encodeURIComponent(dataSourceMode)}`;
       
-      // 需求表加载模式 - 🔥 已在上方强制修改，这里直接使用
+      // 需求表加载模式
+      const requirementsLoadMode = config.requirementsLoadMode || 'all';
       url += `&requirements_load_mode=${encodeURIComponent(requirementsLoadMode)}`;
       
       console.log('[Feishu Load] 需求表加载模式:', requirementsLoadMode);
@@ -1771,7 +1757,7 @@ export default function ComplexScenario() {
         // 需求表模式 - 根据加载模式决定传递哪些表 ID
         // 使用 currentTableIds 确保读取到最新的值
         const req1Id = currentTableIds.requirements1;
-        let req2Id = currentTableIds.requirements2; // 🔥 改为let，允许修改
+        const req2Id = currentTableIds.requirements2;
         
         console.log('[Feishu Load] ★★★ 调试信息 ★★★');
         console.log('[Feishu Load] 需求表1 ID:', req1Id || '(未设置)');
@@ -1787,12 +1773,6 @@ export default function ComplexScenario() {
           return;
         }
         
-        // 🔥 紧急修复：强制使用正确的ID，绕过配置问题
-        if (!req2Id) {
-          console.warn('[Feishu Load] ⚠️ req2Id 为空，强制使用 tbl2DmMEixMBJMlJ');
-          req2Id = 'tbl2DmMEixMBJMlJ';
-        }
-        
         // 检查"仅加载需求表2"模式下是否设置了ID
         if (requirementsLoadMode === 'requirements2') {
           if (!req2Id) {
@@ -1802,9 +1782,17 @@ export default function ComplexScenario() {
           }
         }
         
-        // 检查"全部加载"模式下是否两个ID都存在 - 🔥 暂时跳过这个检查，强制加载
+        // 检查"全部加载"模式下是否两个ID都存在
         if (requirementsLoadMode === 'all') {
-          // 跳过验证，直接强制加载
+          if (!req1Id && !req2Id) {
+            alert('❌ 配置错误：选择"全部加载"但两个需求表的ID都未设置！\n\n请打开配置对话框，填写需求表1和需求表2的Table ID。');
+            setIsLoadingFromFeishu(false);
+            return;
+          } else if (!req1Id) {
+            alert('⚠️ 提示：选择"全部加载"但需求表1的ID未设置，将只加载需求表2的数据。');
+          } else if (!req2Id) {
+            alert('⚠️ 提示：选择"全部加载"但需求表2的ID未设置，将只加载需求表1的数据。\n\n如果你需要加载需求表2，请打开配置对话框填写需求表2的Table ID。');
+          }
         }
         
         if ((requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements1') && req1Id) {
@@ -1813,14 +1801,10 @@ export default function ComplexScenario() {
         } else if ((requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements1') && !req1Id) {
           console.warn('[Feishu Load] ⚠️ 需求表1 ID为空，跳过添加参数');
         }
-        
-        // 🔥 紧急修复：强制添加需求表2参数，不管条件
-        if (requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements2') {
-          const forcedReq2Id = req2Id || 'tbl2DmMEixMBJMlJ';
-          url += `&requirements2_table_id=${encodeURIComponent(forcedReq2Id)}`;
-          console.log('[Feishu Load] ✅ 强制添加需求表2参数:', forcedReq2Id);
+        if ((requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements2') && req2Id) {
+          url += `&requirements2_table_id=${encodeURIComponent(req2Id)}`;
+          console.log('[Feishu Load] ✅ 添加需求表2参数');
         }
-        
         console.log('[Feishu Load] 最终请求URL:', url);
       } else {
         // 传统模式
