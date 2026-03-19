@@ -240,10 +240,6 @@ export default function FeishuIntegrationDialog({
     }
     
     localStorage.setItem('feishu-config', JSON.stringify(cleanedConfig));
-    console.log('[Feishu Config] 保存配置:', cleanedConfig);
-    console.log('[Feishu Config] ★★★ 保存的requirements2:', cleanedConfig.newMode.tableIds.requirements2);
-    console.log('[Feishu Config] ★★★ 保存的requirementsLoadMode:', cleanedConfig.requirementsLoadMode);
-    
     setConfig(cleanedConfig);
     onSave?.(cleanedConfig);
     
@@ -251,7 +247,7 @@ export default function FeishuIntegrationDialog({
     const loadModeText = cleanedConfig.requirementsLoadMode === 'all' ? '全部加载' : 
                        cleanedConfig.requirementsLoadMode === 'requirements1' ? '仅需求表1' : '仅需求表2';
     
-    alert(`✅ 配置已保存！\n\n当前使用: ${modeText}\n加载范围: ${loadModeText}\n\n★★★ 需求表2 ID: ${cleanedConfig.newMode.tableIds.requirements2 || '(未设置)'}\n\n现在可以点击「从飞书加载」按钮`);
+    alert(`✅ 配置已保存！\n\n模式: ${modeText}\n加载范围: ${loadModeText}`);
     onOpenChange(false);
   };
 
@@ -266,7 +262,6 @@ export default function FeishuIntegrationDialog({
 
   // 更新需求表模式字段
   const updateNewMode = (field: string, value: string) => {
-    console.log('[Feishu Dialog] updateNewMode:', field, value);
     if (field === 'appToken') {
       setConfig(prev => ({
         ...prev,
@@ -448,14 +443,8 @@ export default function FeishuIntegrationDialog({
                   id="new-requirements2"
                   placeholder="tblxxxxxxxx（可选）"
                   value={config.newMode.tableIds.requirements2}
-                  onChange={(e) => {
-                    console.log('[Feishu Dialog] 需求表2输入变化:', e.target.value);
-                    updateNewMode('requirements2', e.target.value);
-                  }}
+                  onChange={(e) => updateNewMode('requirements2', e.target.value)}
                 />
-                <p className="text-xs text-slate-400">
-                  当前值: {config.newMode.tableIds.requirements2 || '(空)'}
-                </p>
               </div>
               
               {/* 需求表加载选项 */}

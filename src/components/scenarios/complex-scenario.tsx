@@ -1590,25 +1590,18 @@ export default function ComplexScenario() {
     }
   };
 
-  // 从飞书加载数据
+  // 从飞书加载数据（组件内部使用，Header按钮使用 page.tsx 中的函数）
   const handleLoadFromFeishu = async () => {
-    console.log('[Feishu Load] 开始从飞书加载数据');
-
     const configStr = localStorage.getItem('feishu-config');
-    console.log('[Feishu Load] 原始配置字符串:', configStr);
     
     if (!configStr) {
-      alert('请先配置飞书集成信息\n\n点击「飞书集成」按钮进行配置');
+      alert('请先配置飞书集成信息');
       return;
     }
 
     let config;
     try {
       config = JSON.parse(configStr);
-      console.log('[Feishu Load] 解析后的配置对象:', config);
-      console.log('[Feishu Load] config.newMode:', config.newMode);
-      console.log('[Feishu Load] config.newMode.tableIds:', config.newMode?.tableIds);
-      console.log('[Feishu Load] 直接读取 requirements2:', config.newMode?.tableIds?.requirements2);
     } catch (e) {
       alert('配置格式错误，请重新配置');
       localStorage.removeItem('feishu-config');
@@ -1617,7 +1610,6 @@ export default function ComplexScenario() {
     
     // 兼容性处理：检测旧配置格式并转换
     if (config.appToken && !config.newMode && !config.legacyMode) {
-      console.log('[Feishu Load] 检测到旧配置格式，自动转换...');
       const oldTableIds = config.tableIds || {};
       const dataSourceMode = config.dataSourceMode || 'new';
       const requirementsLoadMode = config.requirementsLoadMode || 'all';
@@ -1647,14 +1639,11 @@ export default function ComplexScenario() {
         },
       };
       
-      // 保存转换后的配置
       localStorage.setItem('feishu-config', JSON.stringify(config));
-      console.log('[Feishu Load] 配置已转换为新格式');
     }
     
     // 确保config.newMode存在
     if (!config.newMode) {
-      console.error('[Feishu Load] ❌ config.newMode不存在！');
       config.newMode = {
         appToken: '',
         tableIds: {
@@ -1668,7 +1657,6 @@ export default function ComplexScenario() {
     
     // 确保config.newMode.tableIds存在
     if (!config.newMode.tableIds) {
-      console.error('[Feishu Load] ❌ config.newMode.tableIds不存在！');
       config.newMode.tableIds = {
         resources: '',
         requirements1: '',
@@ -1677,23 +1665,9 @@ export default function ComplexScenario() {
       };
     }
     
-    console.log('[Feishu Load] 解析后的完整配置:', JSON.stringify(config, null, 2));
-    console.log('[Feishu Load] ★★★ requirementsLoadMode:', config.requirementsLoadMode);
-    console.log('[Feishu Load] ★★★ config.newMode.tableIds:', JSON.stringify(config.newMode?.tableIds));
-    
     const dataSourceMode = config.dataSourceMode || 'new';
     const modeConfig = dataSourceMode === 'new' ? config.newMode : config.legacyMode;
     const requirementsLoadMode = config.requirementsLoadMode || 'all';
-    
-    console.log('[Feishu Load] 当前模式:', dataSourceMode);
-    console.log('[Feishu Load] 需求表加载模式:', requirementsLoadMode);
-    console.log('[Feishu Load] modeConfig:', JSON.stringify(modeConfig, null, 2));
-    
-    // 关键修复：直接使用config.newMode.tableIds，确保读取到最新的值
-    const currentTableIds = dataSourceMode === 'new' ? config.newMode.tableIds : config.legacyMode.tableIds;
-    console.log('[Feishu Load] 当前tableIds:', JSON.stringify(currentTableIds));
-    console.log('[Feishu Load] ★★★ currentTableIds.requirements2:', currentTableIds?.requirements2);
-    console.log('[Feishu Load] ★★★ config.newMode.tableIds.requirements2:', config.newMode?.tableIds?.requirements2);
     
     // 详细检查每个字段
     const missingFields = [];
@@ -1701,15 +1675,8 @@ export default function ComplexScenario() {
     if (!config.appSecret) missingFields.push('App Secret');
     
     if (dataSourceMode === 'new') {
-      console.log('[Feishu Load] 检查需求表模式配置:', {
-        appToken: config.newMode?.appToken,
-        resources: config.newMode?.tableIds?.resources,
-        requirements1: config.newMode?.tableIds?.requirements1,
-        requirements2: config.newMode?.tableIds?.requirements2,
-      });
       if (!config.newMode?.appToken) missingFields.push('需求表模式 App Token');
       if (!config.newMode?.tableIds?.resources) missingFields.push('需求表模式 人员表 ID');
-      // 根据加载模式决定是否验证需求表1
       const loadMode = config.requirementsLoadMode || 'all';
       if ((loadMode === 'all' || loadMode === 'requirements1') && !config.newMode?.tableIds?.requirements1) {
         missingFields.push('需求表模式 需求表1 ID');
@@ -1718,12 +1685,6 @@ export default function ComplexScenario() {
         missingFields.push('需求表模式 需求表2 ID');
       }
     } else {
-      console.log('[Feishu Load] 检查传统模式配置:', {
-        appToken: config.legacyMode?.appToken,
-        resources: config.legacyMode?.tableIds?.resources,
-        projects: config.legacyMode?.tableIds?.projects,
-        tasks: config.legacyMode?.tableIds?.tasks,
-      });
       if (!config.legacyMode?.appToken) missingFields.push('传统模式 App Token');
       if (!config.legacyMode?.tableIds?.resources) missingFields.push('传统模式 人员表 ID');
       if (!config.legacyMode?.tableIds?.projects) missingFields.push('传统模式 项目表 ID');
@@ -1739,89 +1700,37 @@ export default function ComplexScenario() {
 
     setIsLoadingFromFeishu(true);
     try {
-      // 构建请求 URL - 使用新的配置结构
+      // 构建请求 URL
       let url = `/api/feishu/load-data?app_id=${encodeURIComponent(config.appId)}` +
         `&app_secret=${encodeURIComponent(config.appSecret)}` +
         `&app_token=${encodeURIComponent(modeConfig.appToken)}` +
         `&resources_table_id=${encodeURIComponent(modeConfig.tableIds.resources)}` +
-        `&data_source_mode=${encodeURIComponent(dataSourceMode)}`;
-      
-      // 需求表加载模式
-      const requirementsLoadMode = config.requirementsLoadMode || 'all';
-      url += `&requirements_load_mode=${encodeURIComponent(requirementsLoadMode)}`;
-      
-      console.log('[Feishu Load] 需求表加载模式:', requirementsLoadMode);
-      console.log('[Feishu Load] 配置中的需求表加载模式:', config.requirementsLoadMode);
+        `&data_source_mode=${encodeURIComponent(dataSourceMode)}` +
+        `&requirements_load_mode=${encodeURIComponent(requirementsLoadMode)}`;
       
       if (dataSourceMode === 'new') {
-        // 需求表模式 - 根据加载模式决定传递哪些表 ID
-        // 使用 currentTableIds 确保读取到最新的值
-        const req1Id = currentTableIds.requirements1;
-        const req2Id = currentTableIds.requirements2;
+        const req1Id = config.newMode.tableIds.requirements1;
+        const req2Id = config.newMode.tableIds.requirements2;
         
-        console.log('[Feishu Load] ★★★ 调试信息 ★★★');
-        console.log('[Feishu Load] 需求表1 ID:', req1Id || '(未设置)');
-        console.log('[Feishu Load] 需求表2 ID:', req2Id || '(未设置)');
-        console.log('[Feishu Load] 加载模式:', requirementsLoadMode);
-        console.log('[Feishu Load] 完整配置:', JSON.stringify(config, null, 2));
-        
-        // 检查是否两个ID相同（常见配置错误）
         if (req1Id && req2Id && req1Id === req2Id) {
-          console.warn('[Feishu Load] ⚠️ 警告: 需求表1和需求表2的ID相同，这可能是配置错误！');
-          alert('⚠️ 配置错误：需求表1和需求表2的ID相同！\n\n请检查配置，确保两个表的ID不同。');
+          alert('配置错误：需求表1和需求表2的ID相同！');
           setIsLoadingFromFeishu(false);
           return;
         }
         
-        // 检查"仅加载需求表2"模式下是否设置了ID
-        if (requirementsLoadMode === 'requirements2') {
-          if (!req2Id) {
-            alert('❌ 配置错误：选择"仅加载需求表2"但需求表2的ID未设置！\n\n请打开配置对话框，在"需求表2 Table ID"字段中填写正确的Table ID。');
-            setIsLoadingFromFeishu(false);
-            return;
-          }
-        }
-        
-        // 检查"全部加载"模式下是否两个ID都存在
-        if (requirementsLoadMode === 'all') {
-          if (!req1Id && !req2Id) {
-            alert('❌ 配置错误：选择"全部加载"但两个需求表的ID都未设置！\n\n请打开配置对话框，填写需求表1和需求表2的Table ID。');
-            setIsLoadingFromFeishu(false);
-            return;
-          } else if (!req1Id) {
-            alert('⚠️ 提示：选择"全部加载"但需求表1的ID未设置，将只加载需求表2的数据。');
-          } else if (!req2Id) {
-            alert('⚠️ 提示：选择"全部加载"但需求表2的ID未设置，将只加载需求表1的数据。\n\n如果你需要加载需求表2，请打开配置对话框填写需求表2的Table ID。');
-          }
-        }
-        
         if ((requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements1') && req1Id) {
           url += `&requirements1_table_id=${encodeURIComponent(req1Id)}`;
-          console.log('[Feishu Load] ✅ 添加需求表1参数');
-        } else if ((requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements1') && !req1Id) {
-          console.warn('[Feishu Load] ⚠️ 需求表1 ID为空，跳过添加参数');
         }
         if ((requirementsLoadMode === 'all' || requirementsLoadMode === 'requirements2') && req2Id) {
           url += `&requirements2_table_id=${encodeURIComponent(req2Id)}`;
-          console.log('[Feishu Load] ✅ 添加需求表2参数');
         }
-        console.log('[Feishu Load] 最终请求URL:', url);
       } else {
-        // 传统模式
-        url += `&projects_table_id=${encodeURIComponent(modeConfig.tableIds.projects)}` +
-          `&tasks_table_id=${encodeURIComponent(modeConfig.tableIds.tasks)}`;
+        url += `&projects_table_id=${encodeURIComponent(config.legacyMode.tableIds.projects)}` +
+          `&tasks_table_id=${encodeURIComponent(config.legacyMode.tableIds.tasks)}`;
       }
 
       const response = await fetch(url);
-
       const result = await response.json();
-      console.log('[Feishu Load] ★★★ API响应结果 ★★★');
-      console.log('[Feishu Load] 成功:', result.success);
-      console.log('[Feishu Load] 人员数量:', result.data?.resources?.length || 0);
-      console.log('[Feishu Load] 项目数量:', result.data?.projects?.length || 0);
-      console.log('[Feishu Load] 任务数量:', result.data?.tasks?.length || 0);
-      console.log('[Feishu Load] 第一个任务名称:', result.data?.tasks?.[0]?.name || '无');
-      console.log('[Feishu Load] 完整响应:', result);
 
       if (!result.success) {
         alert(`加载数据失败：${result.error}`);
@@ -1830,8 +1739,6 @@ export default function ComplexScenario() {
 
       const { resources, projects, tasks } = result.data;
       
-      // 更新React状态
-      console.log('[Feishu Load] 更新React状态...');
       setSharedResources([...resources]);
       setProjects([...projects]);
       setTasks([...tasks]);
