@@ -1531,6 +1531,12 @@ export default function ComplexScenario() {
     // 同步排期
     if (scheduleResult && modeConfig?.tableIds?.schedules) {
       try {
+        // 调试：检查 projects 数组
+        console.log('[Feishu Sync] projects数组长度:', projects.length);
+        console.log('[Feishu Sync] projects前3个:', projects.slice(0, 3).map(p => ({ id: p.id, name: p.name })));
+        console.log('[Feishu Sync] 第一个任务projectId:', scheduleResult.tasks[0]?.projectId);
+        console.log('[Feishu Sync] getProjectById结果:', getProjectById(scheduleResult.tasks[0]?.projectId || ''));
+        
         const syncTasks = scheduleResult.tasks.map(task => {
           const resource = sharedResources.find(r => r.id === task.assignedResources[0]);
           const project = getProjectById(task.projectId || '');
