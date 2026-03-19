@@ -360,125 +360,73 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ===== 获取排期表中所有现有记录（分页获取）=====
-    log(`[飞书同步] 检查排期表现有记录...`);
-    
-    const allExistingRecordIds = new Set<string>(); // 用 Set 去重
-    let hasMore = true;
-    let pageToken: string | undefined;
-    let pageCount = 0;
-    const maxPages = 100; // 防止死循环，最多获取100页
-    
-    try {
-      while (hasMore && pageCount < maxPages) {
-        pageCount++;
-        const requestBody: any = { page_size: 500 };
-        if (pageToken) requestBody.page_token = pageToken;
-        
-        const listResponse = await fetchWithTimeout(
-          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/search`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${appAccessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody),
-          },
-          30000
-        );
-
-        const listData = await listResponse.json();
-        
-        if (listData.code === 0 && listData.data?.items?.length > 0) {
-          const beforeCount = allExistingRecordIds.size;
-          
-          listData.data.items.forEach((item: any) => {
-            allExistingRecordIds.add(item.record_id);
-          });
-          
-          const newRecords = allExistingRecordIds.size - beforeCount;
-          log(`[飞书同步] 第${pageCount}页: 获取 ${listData.data.items.length} 条，新增 ${newRecords} 条，累计 ${allExistingRecordIds.size} 条`);
-          
-          // 如果没有新增记录，说明遇到重复，停止
-          if (newRecords === 0) {
-            log(`[飞书同步] 检测到重复数据，停止获取`);
-            break;
-          }
-          
-          // 检查是否还有更多
-          hasMore = listData.data.has_more === true;
-          pageToken = listData.data.page_token;
-          
-          // 如果返回的条数少于 page_size，说明已经是最后一页
-          if (listData.data.items.length < 500) {
-            hasMore = false;
-          }
-        } else {
-          hasMore = false;
-        }
-      }
-      
-      log(`[飞书同步] 共获取 ${allExistingRecordIds.size} 条现有记录`);
-      
-    } catch (error) {
-      log(`[飞书同步] 获取现有记录失败: ${error}`);
-    }
-
-    const recordIdsToDelete = Array.from(allExistingRecordIds);
-
     // ===== 执行同步：全量覆盖模式（先删除所有，再重新创建）=====
     let createdCount = 0;
     let deletedCount = 0;
     const errors: string[] = [];
 
-    // 1. 并发删除所有现有记录
-    if (recordIdsToDelete.length > 0) {
-      log(`[飞书同步] 开始并发删除 ${recordIdsToDelete.length} 条现有记录...`);
+    // 1. 循环删除直到表为空
+    log(`[飞书同步] 开始清空排期表...`);
+    let deleteRound = 0;
+    const maxDeleteRounds = 50; // 最多删除50轮，防止死循环
+    
+    while (deleteRound < maxDeleteRounds) {
+      deleteRound++;
       
-      const deleteBatchSize = 500;
-      const batches: string[][] = [];
+      // 获取当前记录
+      const listResponse = await fetchWithTimeout(
+        `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/search`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${appAccessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ page_size: 500 }),
+        },
+        30000
+      );
       
-      for (let i = 0; i < recordIdsToDelete.length; i += deleteBatchSize) {
-        batches.push(recordIdsToDelete.slice(i, i + deleteBatchSize));
+      const listData = await listResponse.json();
+      
+      if (listData.code !== 0 || !listData.data?.items?.length) {
+        log(`[飞书同步] 排期表已清空`);
+        break;
       }
       
-      log(`[飞书同步] 分为 ${batches.length} 批，开始并发删除...`);
+      const recordIds = listData.data.items.map((item: any) => item.record_id);
+      log(`[飞书同步] 第${deleteRound}轮: 发现 ${recordIds.length} 条记录，开始删除...`);
       
-      // 并发删除所有批次（每5个一批并发）
-      const concurrentLimit = 5;
-      for (let i = 0; i < batches.length; i += concurrentLimit) {
-        const concurrentBatches = batches.slice(i, i + concurrentLimit);
-        
-        const results = await Promise.all(
-          concurrentBatches.map(async (batch, idx) => {
-            try {
-              const deleteResponse = await fetchWithTimeout(
-                `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/batch_delete`,
-                {
-                  method: 'POST',
-                  headers: { 'Authorization': `Bearer ${appAccessToken}`, 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ records: batch }),
-                },
-                30000
-              );
-              const result = await deleteResponse.json();
-              return { success: result.code === 0, count: batch.length };
-            } catch (error) {
-              return { success: false, count: 0 };
-            }
-          })
+      // 删除这批记录
+      try {
+        const deleteResponse = await fetchWithTimeout(
+          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${schedulesTableId}/records/batch_delete`,
+          {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${appAccessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ records: recordIds }),
+          },
+          30000
         );
-        
-        results.forEach(r => {
-          if (r.success) deletedCount += r.count;
-        });
-        
-        log(`[飞书同步] 已删除 ${deletedCount}/${recordIdsToDelete.length} 条...`);
+        const result = await deleteResponse.json();
+        if (result.code === 0) {
+          deletedCount += recordIds.length;
+          log(`[飞书同步] 第${deleteRound}轮: 删除成功 ${recordIds.length} 条，累计 ${deletedCount} 条`);
+        } else {
+          log(`[飞书同步] 第${deleteRound}轮: 删除失败 - ${result.msg}`);
+          break;
+        }
+      } catch (error) {
+        log(`[飞书同步] 第${deleteRound}轮: 删除异常 - ${error}`);
+        break;
       }
-      
-      log(`[飞书同步] 删除完成，共删除 ${deletedCount} 条记录`);
     }
+    
+    if (deleteRound >= maxDeleteRounds) {
+      log(`[飞书同步] ⚠️ 达到最大删除轮数，可能仍有残留记录`);
+    }
+    
+    log(`[飞书同步] 删除完成，共删除 ${deletedCount} 条记录`);
 
     // 2. 创建所有新记录
     log(`[飞书同步] 创建 ${tasks.length} 条新记录...`);
