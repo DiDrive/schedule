@@ -156,6 +156,9 @@ function collectTaskOptions(tasks: any[]): {
   const subTypes = new Set<string>();
   const languages = new Set<string>();
 
+  // 调试：打印前3个任务的完整数据
+  log(`[飞书同步] 前3个任务完整数据: ${JSON.stringify(tasks.slice(0, 3).map((t: any) => ({ name: t.name, projectId: t.projectId, projectName: t.projectName })))}`);
+
   tasks.forEach(task => {
     if (task.taskType) taskTypes.add(task.taskType);
     if (task.subTaskType) taskTypes.add(task.subTaskType);
