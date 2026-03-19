@@ -2017,6 +2017,8 @@ export default function ComplexScenario() {
       const syncTasks = scheduleResult.tasks.map(task => {
         const resource = sharedResources.find(r => r.id === task.assignedResources[0]);
         const project = getProjectById(task.projectId || '');
+        // 从原始任务列表中获取更多信息
+        const originalTask = tasks.find(t => t.id === task.id);
 
         return {
           id: task.id,
@@ -2030,11 +2032,22 @@ export default function ComplexScenario() {
           startDate: task.startDate ? task.startDate.toISOString() : '',
           endDate: task.endDate ? task.endDate.toISOString() : '',
           estimatedHours: task.estimatedHours,
+          estimatedHoursGraphic: task.estimatedHoursGraphic || originalTask?.estimatedHoursGraphic || 0,
+          estimatedHoursPost: task.estimatedHoursPost || originalTask?.estimatedHoursPost || 0,
           // 状态和优先级
           status: task.status,
           priority: task.priority,
           // 其他信息
           taskType: task.taskType || '',
+          subTaskType: task.subTaskType || originalTask?.subTaskType || '',
+          // 细分类和语言
+          subType: task.subType || originalTask?.subType || '',
+          language: task.language || originalTask?.language || '',
+          // 截止日期
+          deadline: task.deadline ? task.deadline.toISOString() : (originalTask?.deadline ? originalTask.deadline.toISOString() : ''),
+          suggestedDeadline: task.suggestedDeadline ? task.suggestedDeadline.toISOString() : '',
+          // 父任务
+          parentTaskId: task.parentTaskId || originalTask?.parentTaskId || '',
         };
       });
 

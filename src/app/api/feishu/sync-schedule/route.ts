@@ -57,25 +57,54 @@ function buildTaskFields(task: any, feishuPersonId: string): any {
   
   const fields: any = {
     '任务名称': task.name || '',
-    '任务类型': taskType,
-    '负责人': feishuPersonId ? [{ id: feishuPersonId }] : [],
-    '开始时间': task.startDate ? Math.floor(new Date(task.startDate).getTime() / 1000) * 1000 : 0,
-    '结束时间': task.endDate ? Math.floor(new Date(task.endDate).getTime() / 1000) * 1000 : 0,
-    '预估工时': task.estimatedHours || 0,
-    '平面工时': task.estimatedHoursGraphic || 0,
-    '后期工时': task.estimatedHoursPost || 0,
-    '状态': mapStatusToFeishu(task.status || 'pending'),
-    '所属项目': task.projectName || '',
-    '细分类': task.subType || '',
-    '语言': task.language || '',
   };
 
+  // 单选字段：直接发送选项名称字符串
+  if (taskType) {
+    fields['任务类型'] = taskType;
+  }
+  
+  // 人员字段
+  if (feishuPersonId) {
+    fields['负责人'] = [{ id: feishuPersonId }];
+  }
+  
+  // 日期字段：Unix 时间戳（毫秒）
+  if (task.startDate) {
+    fields['开始时间'] = Math.floor(new Date(task.startDate).getTime() / 1000) * 1000;
+  }
+  if (task.endDate) {
+    fields['结束时间'] = Math.floor(new Date(task.endDate).getTime() / 1000) * 1000;
+  }
+  
+  // 数字字段
+  fields['预估工时'] = task.estimatedHours || 0;
+  fields['平面工时'] = task.estimatedHoursGraphic || 0;
+  fields['后期工时'] = task.estimatedHoursPost || 0;
+  
+  // 状态单选
+  fields['状态'] = mapStatusToFeishu(task.status || 'pending');
+  
+  // 单选字段
+  if (task.projectName) {
+    fields['所属项目'] = task.projectName;
+  }
+  if (task.subType) {
+    fields['细分类'] = task.subType;
+  }
+  if (task.language) {
+    fields['语言'] = task.language;
+  }
+  
+  // 截止日期
   if (task.deadline) {
     fields['截止日期'] = Math.floor(new Date(task.deadline).getTime() / 1000) * 1000;
   }
   if (task.suggestedDeadline) {
     fields['建议截止日期'] = Math.floor(new Date(task.suggestedDeadline).getTime() / 1000) * 1000;
   }
+  
+  // 父任务ID
   if (task.parentTaskId) {
     fields['父任务ID'] = task.parentTaskId;
   }
@@ -83,38 +112,80 @@ function buildTaskFields(task: any, feishuPersonId: string): any {
   return fields;
 }
 
-// 需要的字段定义
-const REQUIRED_FIELDS = [
-  { field_name: '任务名称', type: 1 }, // 1=文本
-  { field_name: '任务类型', type: 1 },
-  { field_name: '负责人', type: 11 }, // 11=人员
-  { field_name: '开始时间', type: 2 }, // 2=数字(时间戳)
-  { field_name: '结束时间', type: 2 },
-  { field_name: '预估工时', type: 2 },
-  { field_name: '平面工时', type: 2 },
-  { field_name: '后期工时', type: 2 },
-  { field_name: '状态', type: 3, property: { options: [ // 3=单选
-    { name: '待处理' },
-    { name: '进行中' },
-    { name: '已完成' },
-    { name: '阻塞' },
-    { name: '待确认' }
-  ]}},
-  { field_name: '所属项目', type: 1 },
-  { field_name: '细分类', type: 1 },
-  { field_name: '语言', type: 1 },
-  { field_name: '截止日期', type: 2 },
-  { field_name: '建议截止日期', type: 2 },
-  { field_name: '父任务ID', type: 1 },
-];
+// 需要的字段定义 - 动态生成，单选字段需要先收集选项
+function buildRequiredFields(existingOptions: {
+  taskTypes: string[],
+  projects: string[],
+  subTypes: string[],
+  languages: string[]
+}) {
+  return [
+    { field_name: '任务名称', type: 1 }, // 1=文本
+    { field_name: '任务类型', type: 3, property: { options: existingOptions.taskTypes.map(name => ({ name })) } }, // 3=单选
+    { field_name: '负责人', type: 11 }, // 11=人员
+    { field_name: '开始时间', type: 4 }, // 4=日期
+    { field_name: '结束时间', type: 4 },
+    { field_name: '预估工时', type: 2 }, // 2=数字
+    { field_name: '平面工时', type: 2 },
+    { field_name: '后期工时', type: 2 },
+    { field_name: '状态', type: 3, property: { options: [ // 3=单选
+      { name: '待处理' },
+      { name: '进行中' },
+      { name: '已完成' },
+      { name: '阻塞' },
+      { name: '待确认' }
+    ]}},
+    { field_name: '所属项目', type: 3, property: { options: existingOptions.projects.map(name => ({ name })) } }, // 3=单选
+    { field_name: '细分类', type: 3, property: { options: existingOptions.subTypes.map(name => ({ name })) } }, // 3=单选
+    { field_name: '语言', type: 3, property: { options: existingOptions.languages.map(name => ({ name })) } }, // 3=单选
+    { field_name: '截止日期', type: 4 }, // 4=日期
+    { field_name: '建议截止日期', type: 4 },
+    { field_name: '父任务ID', type: 1 },
+  ];
+}
+
+// 收集任务中的选项值
+function collectTaskOptions(tasks: any[]): {
+  taskTypes: string[],
+  projects: string[],
+  subTypes: string[],
+  languages: string[]
+} {
+  const taskTypes = new Set<string>();
+  const projects = new Set<string>();
+  const subTypes = new Set<string>();
+  const languages = new Set<string>();
+
+  tasks.forEach(task => {
+    if (task.taskType) taskTypes.add(task.taskType);
+    if (task.subTaskType) taskTypes.add(task.subTaskType);
+    if (task.projectName) projects.add(task.projectName);
+    if (task.subType) subTypes.add(task.subType);
+    if (task.language) languages.add(task.language);
+  });
+
+  return {
+    taskTypes: Array.from(taskTypes).filter(Boolean),
+    projects: Array.from(projects).filter(Boolean),
+    subTypes: Array.from(subTypes).filter(Boolean),
+    languages: Array.from(languages).filter(Boolean),
+  };
+}
 
 // 确保排期表有必要的字段
 async function ensureTableFields(
   appToken: string, 
   tableId: string, 
-  accessToken: string
+  accessToken: string,
+  tasks: any[]
 ): Promise<{ createdCount: number }> {
   log(`[飞书同步] 检查排期表字段...`);
+  
+  // 收集选项值
+  const options = collectTaskOptions(tasks);
+  log(`[飞书同步] 收集到选项 - 任务类型: ${options.taskTypes.length}, 项目: ${options.projects.length}, 细分类: ${options.subTypes.length}, 语言: ${options.languages.length}`);
+  
+  const REQUIRED_FIELDS = buildRequiredFields(options);
   
   // 获取现有字段
   const fieldsResponse = await fetchWithTimeout(
@@ -234,7 +305,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 确保排期表有必要的字段
-    const { createdCount: newFieldCount } = await ensureTableFields(appToken, schedulesTableId, appAccessToken);
+    const { createdCount: newFieldCount } = await ensureTableFields(appToken, schedulesTableId, appAccessToken, tasks);
     log(`[飞书同步] 字段检查完成，新建 ${newFieldCount} 个字段`);
 
     // 创建资源ID到飞书人员ID的映射表
