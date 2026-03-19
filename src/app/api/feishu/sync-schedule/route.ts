@@ -136,7 +136,9 @@ async function ensureTableFields(
     fieldsData.data.items.forEach((field: any) => {
       existingFieldNames.add(field.field_name);
     });
-    log(`[飞书同步] 现有字段: ${Array.from(existingFieldNames).join(', ')}`);
+    log(`[飞书同步] 现有字段(${existingFieldNames.size}个): ${Array.from(existingFieldNames).slice(0, 10).join(', ')}${existingFieldNames.size > 10 ? '...' : ''}`);
+  } else {
+    log(`[飞书同步] 获取字段失败: code=${fieldsData.code}, msg=${fieldsData.msg}`);
   }
   
   // 创建缺失的字段
@@ -351,9 +353,11 @@ export async function POST(request: NextRequest) {
         if (result.code === 0) {
           deletedCount = allExistingRecordIds.length;
           log(`[飞书同步] ✅ 已清理 ${deletedCount} 条旧记录`);
+        } else {
+          log(`[飞书同步] ⚠️ 清理旧记录失败: code=${result.code}, msg=${result.msg}`);
         }
       } catch (error) {
-        log(`[飞书同步] ⚠️ 清理旧记录失败: ${error}`);
+        log(`[飞书同步] ⚠️ 清理旧记录异常: ${error}`);
       }
     }
 
