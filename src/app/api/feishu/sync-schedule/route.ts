@@ -357,12 +357,11 @@ export async function POST(request: NextRequest) {
     const allExistingRecordIds: string[] = [];
     
     try {
-      // 分页获取所有现有记录
+      // 分页获取所有现有记录（用 Set 去重）
+      const recordIdSet = new Set<string>();
       let pageToken: string | undefined = undefined;
-      let pageCount = 0;
       
       while (true) {
-        pageCount++;
         const requestBody: any = { page_size: 500 };
         if (pageToken) {
           requestBody.page_token = pageToken;
@@ -389,14 +388,25 @@ export async function POST(request: NextRequest) {
         }
         
         const items = listData.data?.items || [];
+        const beforeSize = recordIdSet.size;
+        
         if (items.length > 0) {
           items.forEach((item: any) => {
-            allExistingRecordIds.push(item.record_id);
+            recordIdSet.add(item.record_id);
           });
         }
         
+        const addedCount = recordIdSet.size - beforeSize;
+        log(`[飞书同步] 获取 ${items.length} 条，新增 ${addedCount} 条，总计 ${recordIdSet.size} 条`);
+        
+        // 如果没有新增记录，说明重复了，直接退出
+        if (addedCount === 0) {
+          log(`[飞书同步] 没有新记录，停止获取`);
+          break;
+        }
+        
         // 没有更多数据了就结束
-        if (!listData.data?.has_more || items.length === 0) {
+        if (!listData.data?.has_more) {
           break;
         }
         
@@ -406,6 +416,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
+      allExistingRecordIds.push(...recordIdSet);
       log(`[飞书同步] 现有记录总数: ${allExistingRecordIds.length}`);
     } catch (error) {
       log(`[飞书同步] 获取现有记录失败: ${error}`);
