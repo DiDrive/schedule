@@ -444,6 +444,7 @@ export async function GET(request: NextRequest) {
               id: taskId,
               name: taskName,
               projectId,
+              projectName, // 添加项目名称字段
               taskType,
               estimatedHours: totalHours,
               estimatedHoursGraphic,
@@ -573,6 +574,7 @@ export async function GET(request: NextRequest) {
                   id: taskId,
                   name: taskName,
                   projectId,
+                  projectName, // 添加项目名称字段
                   taskType,
                   estimatedHours: totalHours,
                   estimatedHoursGraphic,

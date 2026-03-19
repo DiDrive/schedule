@@ -2020,8 +2020,16 @@ export default function ComplexScenario() {
         // 从原始任务列表中获取更多信息
         const originalTask = tasks.find(t => t.id === task.id);
         
-        // 优先级：排期结果项目名 > 原始任务category字段
-        const projectNameValue = project?.name || (originalTask as any)?.category || '';
+        // 项目名称：优先从原始任务获取，其次从projectMap获取
+        const projectNameValue = (originalTask as any)?.projectName || 
+          project?.name || 
+          (originalTask as any)?.category || 
+          '';
+        
+        // 父任务名称：根据parentTaskId查找
+        const parentTaskId = task.parentTaskId || (originalTask as any)?.parentTaskId || '';
+        const parentTask = parentTaskId ? tasks.find(t => t.id === parentTaskId) : null;
+        const parentTaskName = parentTask?.name || '';
 
         return {
           id: task.id,
@@ -2049,16 +2057,12 @@ export default function ComplexScenario() {
           // 截止日期
           deadline: task.deadline ? task.deadline.toISOString() : (originalTask?.deadline ? originalTask.deadline.toISOString() : ''),
           suggestedDeadline: task.suggestedDeadline ? task.suggestedDeadline.toISOString() : '',
-          // 父任务
-          parentTaskId: task.parentTaskId || originalTask?.parentTaskId || '',
+          // 父任务名称
+          parentTaskName: parentTaskName,
         };
       });
 
       console.log('[Feishu Sync] 准备同步', syncTasks.length, '个任务');
-      console.log('[Feishu Sync] 第一条任务数据:', JSON.stringify(syncTasks[0], null, 2));
-      console.log('[Feishu Sync] 第一条原始任务:', JSON.stringify(tasks[0], null, 2));
-      console.log('[Feishu Sync] projects数量:', projects.length, '第一条:', projects[0]?.name);
-      console.log('[Feishu Sync] projectMap keys:', Array.from(projectMap.keys()).slice(0, 5));
 
       // 调用同步接口 - 使用新的配置结构
       const url = `/api/feishu/sync-schedule?app_id=${encodeURIComponent(config.appId)}` +

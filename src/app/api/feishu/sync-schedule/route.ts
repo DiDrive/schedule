@@ -103,9 +103,9 @@ function buildTaskFields(task: any, feishuPersonId: string): any {
     fields['建议截止日期'] = Math.floor(new Date(task.suggestedDeadline).getTime() / 1000) * 1000;
   }
   
-  // 父任务ID
-  if (task.parentTaskId) {
-    fields['父任务ID'] = task.parentTaskId;
+  // 父任务名称
+  if (task.parentTaskName) {
+    fields['父任务名称'] = task.parentTaskName;
   }
 
   return fields;
@@ -140,7 +140,7 @@ function buildRequiredFields(existingOptions: {
     { field_name: '语言', type: 3 }, // 3=单选，不预定义选项
     { field_name: '截止日期', type: 5 }, // 5=日期
     { field_name: '建议截止日期', type: 5 },
-    { field_name: '父任务ID', type: 1 },
+    { field_name: '父任务名称', type: 1 }, // 1=文本
   ];
 }
 
