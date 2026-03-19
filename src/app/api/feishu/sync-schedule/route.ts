@@ -363,12 +363,15 @@ export async function POST(request: NextRequest) {
     // ===== 获取排期表中所有现有记录（分页获取）=====
     log(`[飞书同步] 检查排期表现有记录...`);
     
-    const allExistingRecordIds: string[] = [];
+    const allExistingRecordIds = new Set<string>(); // 用 Set 去重
     let hasMore = true;
     let pageToken: string | undefined;
+    let pageCount = 0;
+    const maxPages = 100; // 防止死循环，最多获取100页
     
     try {
-      while (hasMore) {
+      while (hasMore && pageCount < maxPages) {
+        pageCount++;
         const requestBody: any = { page_size: 500 };
         if (pageToken) requestBody.page_token = pageToken;
         
@@ -388,24 +391,41 @@ export async function POST(request: NextRequest) {
         const listData = await listResponse.json();
         
         if (listData.code === 0 && listData.data?.items?.length > 0) {
+          const beforeCount = allExistingRecordIds.size;
+          
           listData.data.items.forEach((item: any) => {
-            allExistingRecordIds.push(item.record_id);
+            allExistingRecordIds.add(item.record_id);
           });
-          log(`[飞书同步] 已获取 ${allExistingRecordIds.length} 条现有记录...`);
+          
+          const newRecords = allExistingRecordIds.size - beforeCount;
+          log(`[飞书同步] 第${pageCount}页: 获取 ${listData.data.items.length} 条，新增 ${newRecords} 条，累计 ${allExistingRecordIds.size} 条`);
+          
+          // 如果没有新增记录，说明遇到重复，停止
+          if (newRecords === 0) {
+            log(`[飞书同步] 检测到重复数据，停止获取`);
+            break;
+          }
           
           // 检查是否还有更多
-          hasMore = listData.data.has_more;
+          hasMore = listData.data.has_more === true;
           pageToken = listData.data.page_token;
+          
+          // 如果返回的条数少于 page_size，说明已经是最后一页
+          if (listData.data.items.length < 500) {
+            hasMore = false;
+          }
         } else {
           hasMore = false;
         }
       }
       
-      log(`[飞书同步] 共获取 ${allExistingRecordIds.length} 条现有记录`);
+      log(`[飞书同步] 共获取 ${allExistingRecordIds.size} 条现有记录`);
       
     } catch (error) {
       log(`[飞书同步] 获取现有记录失败: ${error}`);
     }
+
+    const recordIdsToDelete = Array.from(allExistingRecordIds);
 
     // ===== 执行同步：全量覆盖模式（先删除所有，再重新创建）=====
     let createdCount = 0;
@@ -413,14 +433,14 @@ export async function POST(request: NextRequest) {
     const errors: string[] = [];
 
     // 1. 并发删除所有现有记录
-    if (allExistingRecordIds.length > 0) {
-      log(`[飞书同步] 开始并发删除 ${allExistingRecordIds.length} 条现有记录...`);
+    if (recordIdsToDelete.length > 0) {
+      log(`[飞书同步] 开始并发删除 ${recordIdsToDelete.length} 条现有记录...`);
       
       const deleteBatchSize = 500;
       const batches: string[][] = [];
       
-      for (let i = 0; i < allExistingRecordIds.length; i += deleteBatchSize) {
-        batches.push(allExistingRecordIds.slice(i, i + deleteBatchSize));
+      for (let i = 0; i < recordIdsToDelete.length; i += deleteBatchSize) {
+        batches.push(recordIdsToDelete.slice(i, i + deleteBatchSize));
       }
       
       log(`[飞书同步] 分为 ${batches.length} 批，开始并发删除...`);
@@ -454,7 +474,7 @@ export async function POST(request: NextRequest) {
           if (r.success) deletedCount += r.count;
         });
         
-        log(`[飞书同步] 已删除 ${deletedCount}/${allExistingRecordIds.length} 条...`);
+        log(`[飞书同步] 已删除 ${deletedCount}/${recordIdsToDelete.length} 条...`);
       }
       
       log(`[飞书同步] 删除完成，共删除 ${deletedCount} 条记录`);
