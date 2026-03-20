@@ -2486,10 +2486,10 @@ export default function ComplexScenario() {
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="选择项目" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-[300px]">
                   <SelectItem value="all">全部项目</SelectItem>
                   {projects.map(project => (
-                    <SelectItem key={project.id} value={project.id}>
+                    <SelectItem key={project.id} value={project.id} className="whitespace-normal">
                       {project.name}
                     </SelectItem>
                   ))}
@@ -2607,11 +2607,11 @@ export default function ComplexScenario() {
       {/* Schedule Results */}
       {scheduleResult && (
         <Tabs value={activeProject} onValueChange={setActiveProject} className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="all">全部项目</TabsTrigger>
+          <TabsList className="flex flex-wrap h-auto gap-1 bg-transparent p-0">
+            <TabsTrigger value="all" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">全部项目</TabsTrigger>
             {projects.map(project => (
-              <TabsTrigger key={project.id} value={project.id}>
-                {project.name}
+              <TabsTrigger key={project.id} value={project.id} className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-xs">
+                {project.name.length > 15 ? project.name.slice(0, 15) + '...' : project.name}
               </TabsTrigger>
             ))}
           </TabsList>
