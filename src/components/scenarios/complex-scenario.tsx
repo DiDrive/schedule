@@ -2607,10 +2607,19 @@ export default function ComplexScenario() {
       {/* Schedule Results */}
       {scheduleResult && (
         <Tabs value={activeProject} onValueChange={setActiveProject} className="space-y-4">
-          <TabsList className="flex flex-wrap h-auto gap-1 bg-transparent p-0">
-            <TabsTrigger value="all" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">全部项目</TabsTrigger>
+          <TabsList className="flex flex-wrap h-auto gap-2 bg-transparent p-0">
+            <TabsTrigger 
+              value="all" 
+              className="border border-slate-300 rounded-md px-3 py-1.5 text-sm data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:border-primary hover:bg-slate-100 data-[state=active]:hover:bg-primary"
+            >
+              全部项目
+            </TabsTrigger>
             {projects.map(project => (
-              <TabsTrigger key={project.id} value={project.id} className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-xs">
+              <TabsTrigger 
+                key={project.id} 
+                value={project.id} 
+                className="border border-slate-300 rounded-md px-3 py-1.5 text-sm data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:border-primary hover:bg-slate-100 data-[state=active]:hover:bg-primary"
+              >
                 {project.name.length > 15 ? project.name.slice(0, 15) + '...' : project.name}
               </TabsTrigger>
             ))}
