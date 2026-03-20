@@ -334,155 +334,72 @@ export default function ComplexScenario() {
 
     console.log('[数据加载] 开始加载数据...');
     
-    // 检查数据来源
-    const dataSourceInfo = localStorage.getItem('complex-scenario-data-source');
-    if (dataSourceInfo) {
-      const source = JSON.parse(dataSourceInfo);
-      console.log('[数据加载] 数据来源:', source.source);
-      console.log('[数据加载] 加载模式:', source.loadMode);
-      console.log('[数据加载] 任务数量:', source.taskCount);
-      console.log('[数据加载] 保存时间:', new Date(source.timestamp).toLocaleString());
-    }
-
+    // 一次性解析所有数据
     const savedProjects = localStorage.getItem('complex-scenario-projects');
     const savedTasks = localStorage.getItem('complex-scenario-tasks');
     const savedResources = localStorage.getItem('complex-scenario-resources');
     const savedScheduleResult = localStorage.getItem('complex-scenario-schedule-result');
 
-    if (savedTasks) {
-      const parsed = JSON.parse(savedTasks);
-      console.log('[数据加载] 从localStorage加载了', parsed.length, '个任务');
-      if (parsed.length > 0) {
-        console.log('[数据加载] 第一个任务:', parsed[0].name);
-        console.log('[数据加载] 最后一个任务:', parsed[parsed.length - 1].name);
-      }
-    }
+    // 解析数据（只解析一次）
+    let parsedProjects = savedProjects ? JSON.parse(savedProjects) : defaultProjects;
+    let parsedTasks = savedTasks ? JSON.parse(savedTasks) : [];
+    let parsedResources = savedResources ? JSON.parse(savedResources) : defaultResources;
+    let parsedScheduleResult = savedScheduleResult ? JSON.parse(savedScheduleResult) : null;
 
-    // 检查并清理可能存在的不一致数据
-    if (savedResources) {
-      const resources = JSON.parse(savedResources);
-      console.log('[数据加载] 检测到已保存的资源数据，数量:', resources.length);
+    console.log(`[数据加载] 项目: ${parsedProjects.length}, 任务: ${parsedTasks.length}, 资源: ${parsedResources.length}`);
 
-      // 检查资源是否有 feishuPersonId 字段（飞书数据的标志）
-      const hasFeishuData = resources.some((r: any) => r.feishuPersonId);
-
-      if (!hasFeishuData && resources.length > 0) {
-        console.warn('[数据加载] 检测到旧格式的资源数据，建议从飞书重新加载以确保数据一致性');
-      }
-    }
-
-    if (savedProjects) {
-      const parsed = JSON.parse(savedProjects);
-      setProjects(parsed);
-    }
-
-    // 先加载资源，这样在加载任务时可以验证资源ID
-    if (savedResources) {
-      setSharedResources(JSON.parse(savedResources));
-    }
-
-    if (savedTasks) {
-      // 检测是否有重复ID问题（只检查 tasks 中的数据）
+    // 检测重复ID问题
+    if (parsedTasks.length > 0) {
+      const taskIdSet = new Set<string>();
       let hasDuplicateIds = false;
-      let duplicateIds: string[] = [];
-
-      const parsed = JSON.parse(savedTasks);
-
-      // 收集所有任务ID进行检查
-      const allTaskIds = new Map<string, number>();
-      parsed.forEach((t: Task) => {
-        const count = allTaskIds.get(t.id) || 0;
-        allTaskIds.set(t.id, count + 1);
-        if (count > 0) {
+      
+      for (const t of parsedTasks) {
+        if (taskIdSet.has(t.id)) {
           hasDuplicateIds = true;
-          if (!duplicateIds.includes(t.id)) {
-            duplicateIds.push(t.id);
-          }
+          break;
         }
-
-        // 检测多次拆分导致的嵌套ID
-        const subCount = (t.id.match(/-sub-/g) || []).length;
-        if (subCount >= 2) {
-          hasDuplicateIds = true;
-          if (!duplicateIds.includes(t.id)) {
-            duplicateIds.push(t.id);
-          }
-        }
-      });
+        taskIdSet.add(t.id);
+      }
 
       if (hasDuplicateIds) {
-        console.warn('检测到数据异常，重复的任务ID:', duplicateIds);
-        console.warn('清除旧数据并重新加载');
-        // 清除所有旧数据
-        localStorage.removeItem('complex-scenario-projects');
-        localStorage.removeItem('complex-scenario-tasks');
-        localStorage.removeItem('complex-scenario-resources');
-        localStorage.removeItem('complex-scenario-schedule-result');
-
-        // 使用默认数据
+        console.warn('[数据加载] 检测到重复ID，清除数据');
+        localStorage.clear();
         setProjects(defaultProjects);
         setTasks(defaultTasks);
         setSharedResources(defaultResources);
         setScheduleResult(null);
-        hasLoadedData.current = true;
         return;
       }
     }
+
+    // 设置项目
+    setProjects(parsedProjects);
     
-    if (savedTasks) {
-      const parsed = JSON.parse(savedTasks);
+    // 设置资源
+    setSharedResources(parsedResources);
 
-      // 从已加载的资源中提取所有有效的资源ID
-      const resourceIds = new Set<string>();
-      if (savedResources) {
-        const resources = JSON.parse(savedResources);
-        resources.forEach((r: any) => resourceIds.add(r.id));
-        console.log('[数据加载] 可用的资源ID列表:', Array.from(resourceIds));
-      }
+    // 构建资源ID集合（用于验证）
+    const resourceIds = new Set(parsedResources.map((r: any) => r.id));
+    const taskIdSet = new Set(parsedTasks.map((t: Task) => t.id));
 
-      // 重新构建任务ID集合（因为之前可能因为重复ID而返回）
-      const taskIdSet = new Set<string>();
-      parsed.forEach((t: Task) => taskIdSet.add(t.id));
-
-      // 将日期字符串转换回 Date 对象
-      const tasksWithDates = parsed.map((t: Task) => {
+    // 处理任务数据
+    if (parsedTasks.length > 0) {
+      const tasksWithDates = parsedTasks.map((t: Task) => {
         const deadline = t.deadline ? new Date(t.deadline) : undefined;
-        // 统一将截止日期时间设置为18:30:00（下班时间）
         if (deadline) {
           deadline.setHours(18, 30, 0, 0);
         }
 
-        // 清理无效的依赖关系（指向不存在的任务ID）
-        const validDependencies = (t.dependencies || []).filter(depId => {
-          const isValid = taskIdSet.has(depId) && depId !== t.id; // 检查依赖是否存在且不是自依赖
-          if (!isValid && depId) {
-            console.warn(`发现无效依赖: 任务 ${t.name} (${t.id}) 依赖不存在的任务 ${depId}`);
-          }
-          return isValid;
-        });
+        // 清理无效依赖
+        const validDependencies = (t.dependencies || []).filter(depId => 
+          taskIdSet.has(depId) && depId !== t.id
+        );
 
-        // 验证并清理无效的资源引用
-        let validFixedResourceId = t.fixedResourceId;
-        let validAssignedResources = t.assignedResources || [];
-
-        // 检查 fixedResourceId 是否存在
-        if (t.fixedResourceId && !resourceIds.has(t.fixedResourceId)) {
-          console.warn(`[数据加载] 任务 ${t.name} (${t.id}): fixedResourceId ${t.fixedResourceId} 不存在，已清除`);
-          validFixedResourceId = undefined;
-        }
-
-        // 检查 assignedResources 中的资源ID是否都存在
-        validAssignedResources = (t.assignedResources || []).filter(resourceId => {
-          if (!resourceIds.has(resourceId)) {
-            console.warn(`[数据加载] 任务 ${t.name} (${t.id}): assignedResources ${resourceId} 不存在，已移除`);
-            return false;
-          }
-          return true;
-        });
-
-        if (t.fixedResourceId !== validFixedResourceId || JSON.stringify(t.assignedResources) !== JSON.stringify(validAssignedResources)) {
-          console.log(`[数据加载] 任务 ${t.name} (${t.id}): 资源引用已清理`);
-        }
+        // 清理无效资源引用
+        const validFixedResourceId = t.fixedResourceId && resourceIds.has(t.fixedResourceId) 
+          ? t.fixedResourceId 
+          : undefined;
+        const validAssignedResources = (t.assignedResources || []).filter(id => resourceIds.has(id));
 
         return {
           ...t,
@@ -497,16 +414,12 @@ export default function ComplexScenario() {
       setTasks(tasksWithDates);
     }
 
-    // 资源已经在前面的代码中加载了，这里不需要重复加载
-
-    if (savedScheduleResult) {
-      const parsed = JSON.parse(savedScheduleResult);
-      // 将日期字符串转换回 Date 对象
+    // 处理排期结果
+    if (parsedScheduleResult) {
       const scheduleResultWithDates = {
-        ...parsed,
-        tasks: parsed.tasks.map((t: Task) => {
+        ...parsedScheduleResult,
+        tasks: parsedScheduleResult.tasks.map((t: Task) => {
           const deadline = t.deadline ? new Date(t.deadline) : undefined;
-          // 统一将截止日期时间设置为18:30:00（下班时间）
           if (deadline) {
             deadline.setHours(18, 30, 0, 0);
           }
@@ -517,14 +430,14 @@ export default function ComplexScenario() {
             endDate: t.endDate ? new Date(t.endDate) : undefined
           };
         }),
-        resourceConflicts: parsed.resourceConflicts.map((rc: any) => ({
+        resourceConflicts: parsedScheduleResult.resourceConflicts.map((rc: any) => ({
           ...rc,
           timeRange: {
             start: new Date(rc.timeRange.start),
             end: new Date(rc.timeRange.end)
           }
         })),
-        projects: parsed.projects
+        projects: parsedScheduleResult.projects
       };
       setScheduleResult(scheduleResultWithDates);
     }

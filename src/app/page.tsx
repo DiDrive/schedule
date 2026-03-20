@@ -97,14 +97,14 @@ export default function ProjectScheduleSystem() {
       const loadModeText = config.requirementsLoadMode === 'all' ? '全部' : 
                           config.requirementsLoadMode === 'requirements1' ? '仅需求表1' : '仅需求表2';
 
-      // 先关闭蒙版，再显示提示
-      setIsLoadingFromFeishu(false);
-      setSyncMessage('');
-
-      alert(`✅ 成功从飞书加载数据！\n\n模式: ${modeText}\n加载范围: ${loadModeText}\n\n人员: ${resources.length}\n项目: ${projects.length}\n任务: ${tasks.length}`);
-
-      // 刷新页面以加载数据
-      window.location.reload();
+      // 更新消息，保持 loading 状态
+      setSyncMessage(`加载完成！人员: ${resources.length}, 项目: ${projects.length}, 任务: ${tasks.length}。正在刷新页面...`);
+      
+      // 延迟刷新，让用户看到成功消息
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+      
     } catch (error) {
       console.error('飞书数据加载失败:', error);
       setIsLoadingFromFeishu(false);
