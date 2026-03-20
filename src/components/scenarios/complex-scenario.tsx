@@ -319,9 +319,10 @@ export default function ComplexScenario() {
   const [isLoadingFromFeishu, setIsLoadingFromFeishu] = useState(false);
   const [showFeishuDialog, setShowFeishuDialog] = useState(false);
   
-  // 分页状态 - 解决大量数据渲染卡顿问题
+  // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50); // 每页50条
+  const [isPageLoading, setIsPageLoading] = useState(false); // 分页加载状态
   
   // 增量排期相关状态
   const [forceFullReschedule, setForceFullReschedule] = useState(false); // 强制完全重新排期
@@ -608,16 +609,26 @@ export default function ComplexScenario() {
     setCurrentPage(1);
   }, [activeProject, activeTaskType]);
   
-  // 翻页时滚动到表格顶部
+  // 分页加载完成后滚动到表格顶部
   const tableRef = useRef<HTMLDivElement>(null);
+  
+  // 监听 paginatedTasks 变化，滚动到表格顶部
+  useEffect(() => {
+    if (isPageLoading && tableRef.current) {
+      // 数据已加载，滚动到表格顶部
+      tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // 延迟清除 loading 状态，让用户看到新数据
+      const timer = setTimeout(() => {
+        setIsPageLoading(false);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [paginatedTasks, isPageLoading]);
+  
+  // 翻页处理
   const handlePageChange = useCallback((newPage: number) => {
+    setIsPageLoading(true);
     setCurrentPage(newPage);
-    // 滚动到表格顶部
-    setTimeout(() => {
-      if (tableRef.current) {
-        tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 50);
   }, []);
   
   // 缓存项目ID到项目的映射
@@ -2534,8 +2545,9 @@ export default function ComplexScenario() {
       </div>
 
       {/* Task Management Card */}
-      <Card ref={tableRef}>
-        <CardHeader>
+      <div ref={tableRef}>
+        <Card>
+          <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -2587,28 +2599,37 @@ export default function ComplexScenario() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedTasks.map(task => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    project={getProjectById(task.projectId || '')}
-                    projects={projects}
-                    dependencyOptions={dependencyOptions}
-                    dependencyNames={dependencyNames}
-                    resourceMap={resourceMap}
-                    graphicResources={graphicResources}
-                    postResources={postResources}
-                    resourcesByWorkType={resourcesByWorkType}
-                    sharedResources={sharedResources}
-                    activeProject={activeProject}
-                    getTaskActualStatus={getTaskActualStatus}
-                    isTaskOverdue={isTaskOverdue}
-                    onTaskChange={handleTaskChange}
-                    onToggleLock={handleToggleTaskLock}
-                    onDelete={handleDeleteTask}
-                    getProjectById={getProjectById}
-                  />
-                ))}
+                {isPageLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={14} className="text-center py-12 text-slate-500">
+                      <Loader2 className="h-6 w-6 animate-spin inline mr-2" />
+                      加载中...
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedTasks.map(task => (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      project={getProjectById(task.projectId || '')}
+                      projects={projects}
+                      dependencyOptions={dependencyOptions}
+                      dependencyNames={dependencyNames}
+                      resourceMap={resourceMap}
+                      graphicResources={graphicResources}
+                      postResources={postResources}
+                      resourcesByWorkType={resourcesByWorkType}
+                      sharedResources={sharedResources}
+                      activeProject={activeProject}
+                      getTaskActualStatus={getTaskActualStatus}
+                      isTaskOverdue={isTaskOverdue}
+                      onTaskChange={handleTaskChange}
+                      onToggleLock={handleToggleTaskLock}
+                      onDelete={handleDeleteTask}
+                      getProjectById={getProjectById}
+                    />
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -2677,6 +2698,7 @@ export default function ComplexScenario() {
           )}
         </CardContent>
       </Card>
+      </div>
 
       {/* Schedule Results */}
       {scheduleResult && (
