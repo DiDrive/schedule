@@ -115,22 +115,40 @@ const TaskRow = memo(function TaskRow({
   const isOverdue = t.deadline && new Date(t.deadline) < new Date() && t.status !== 'completed';
   
   // 获取可用资源 - 根据 taskType 获取对应类型的资源
-  // 如果 taskType 为空，或者对应的资源列表为空，显示所有可用人员
   const taskType = t.taskType || '';
-  let resources = taskType ? (resourcesByType.get(taskType) || []) : [];
   
-  // 如果按类型找不到资源，或者 resourcesByType 为空，尝试显示所有人员
-  // 这处理了以下情况：
-  // 1. 任务的 taskType 为空
-  // 2. 飞书表中没有"工作类型"字段，导致 resourcesByType 为空
-  if (resources.length === 0) {
-    // 合并所有类型的资源
-    resources = Array.from(resourcesByType.values()).flat();
-    // 如果还是空的，使用平面和后期资源
+  // 优先从 resourcesByType 获取（飞书有工作类型字段时）
+  // 如果没有，则从缓存的 graphicResources/postResources 获取
+  // 如果还是没有，则合并所有可用资源作为兜底
+  let resources: { id: string; name: string }[] = [];
+  
+  if (taskType === '平面') {
+    // 平面任务：优先使用按类型分组的资源，否则使用 graphicResources
+    resources = resourcesByType.get('平面')?.length ? resourcesByType.get('平面')! : graphicResources;
+    // 如果还是没有，使用所有资源作为兜底
     if (resources.length === 0) {
       resources = [...graphicResources, ...postResources];
     }
+  } else if (taskType === '后期') {
+    // 后期任务：优先使用按类型分组的资源，否则使用 postResources
+    resources = resourcesByType.get('后期')?.length ? resourcesByType.get('后期')! : postResources;
+    // 如果还是没有，使用所有资源作为兜底
+    if (resources.length === 0) {
+      resources = [...graphicResources, ...postResources];
+    }
+  } else if (taskType === '物料') {
+    // 物料任务：不需要人员
+    resources = [];
   }
+  // 注意：复合任务 (isCompound=true) 不走这里，因为它在 UI 上显示两个下拉框
+  
+  // 复合任务的备选数据：如果 graphicResources/postResources 为空，使用所有资源
+  const graphicOpts = graphicResources.length > 0 
+    ? graphicResources 
+    : [...graphicResources, ...postResources]; // 如果平面资源为空，使用所有资源
+  const postOpts = postResources.length > 0 
+    ? postResources 
+    : [...graphicResources, ...postResources]; // 如果后期资源为空，使用所有资源
   
   const resourceOpts = [{ value: '', label: '自动' }, ...resources.map(r => ({ value: r.id, label: r.name }))];
   const projectOpts = [{ value: '', label: '未分配' }, ...projects.map(p => ({ value: p.id, label: p.name }))];
@@ -158,8 +176,8 @@ const TaskRow = memo(function TaskRow({
         {t.taskType === '物料' ? <span className="text-slate-400">-</span> :
           isCompound ? (
             <div className="flex flex-col gap-1">
-              <FastSelect defaultValue={t.fixedResourceIdGraphic || ''} options={[{ value: '', label: '平面' }, ...graphicResources.map(r => ({ value: r.id, label: r.name }))]} onChange={v => set('fixedResourceIdGraphic', v || undefined)} className="min-w-[80px] h-6 text-xs" />
-              <FastSelect defaultValue={t.fixedResourceIdPost || ''} options={[{ value: '', label: '后期' }, ...postResources.map(r => ({ value: r.id, label: r.name }))]} onChange={v => set('fixedResourceIdPost', v || undefined)} className="min-w-[80px] h-6 text-xs" />
+              <FastSelect defaultValue={t.fixedResourceIdGraphic || ''} options={[{ value: '', label: '平面' }, ...graphicOpts.map(r => ({ value: r.id, label: r.name }))]} onChange={v => set('fixedResourceIdGraphic', v || undefined)} className="min-w-[80px] h-6 text-xs" />
+              <FastSelect defaultValue={t.fixedResourceIdPost || ''} options={[{ value: '', label: '后期' }, ...postOpts.map(r => ({ value: r.id, label: r.name }))]} onChange={v => set('fixedResourceIdPost', v || undefined)} className="min-w-[80px] h-6 text-xs" />
             </div>
           ) : <FastSelect defaultValue={t.fixedResourceId || ''} options={resourceOpts} onChange={v => set('fixedResourceId', v || undefined)} className="min-w-[100px]" />}
       </TableCell>
