@@ -68,7 +68,8 @@ interface TaskRowProps {
   task: Task;
   project: Project | undefined;
   projects: Project[];
-  tasks: Task[];
+  dependencyOptions: { id: string; name: string }[];  // 预计算的依赖选项
+  dependencyNames: Map<string, string>;  // 预计算的依赖名称映射
   resourceMap: Map<string, Resource>;
   graphicResources: Resource[];
   postResources: Resource[];
@@ -88,7 +89,8 @@ const TaskRow = memo(function TaskRow({
   task,
   project,
   projects,
-  tasks,
+  dependencyOptions,
+  dependencyNames,
   resourceMap,
   graphicResources,
   postResources,
@@ -119,11 +121,6 @@ const TaskRow = memo(function TaskRow({
     }
     return filtered;
   }, [task.taskType, task.fixedResourceId, resourcesByWorkType, resourceMap]);
-
-  // 可选的依赖任务（限制数量）
-  const availableDependencies = useMemo(() => {
-    return tasks.filter(t => t.id !== task.id && !task.dependencies?.includes(t.id)).slice(0, 20);
-  }, [tasks, task.id, task.dependencies]);
 
   // ========== 性能优化：使用本地状态 + onBlur 更新 ==========
   // 文本输入本地状态
@@ -268,6 +265,11 @@ const TaskRow = memo(function TaskRow({
     }
     onTaskChange(task.id, 'deadline', defaultDeadline);
   }, [task.id, onTaskChange]);
+
+  // 过滤掉已经是依赖的任务（使用预计算的选项）
+  const availableDependencies = useMemo(() => {
+    return dependencyOptions.filter(opt => !task.dependencies?.includes(opt.id)).slice(0, 20);
+  }, [dependencyOptions, task.dependencies]);
 
   return (
     <TableRow key={task.id}>
@@ -585,11 +587,11 @@ const TaskRow = memo(function TaskRow({
           {task.dependencies && task.dependencies.length > 0 && (
             <div className="flex flex-wrap gap-0.5">
               {task.dependencies.slice(0, 2).map(depId => {
-                const depTask = tasks.find(t => t.id === depId);
-                if (!depTask) return null;
+                const depName = dependencyNames.get(depId);
+                if (!depName) return null;
                 return (
                   <Badge key={depId} variant="secondary" className="h-4 text-[10px] px-1">
-                    {depTask.name.slice(0, 6)}
+                    {depName.slice(0, 6)}
                     <button onClick={() => handleRemoveDependency(depId)} className="ml-0.5">×</button>
                   </Badge>
                 );

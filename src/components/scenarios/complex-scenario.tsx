@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback, memo, useTransition } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, memo, useTransition, useDeferredValue, FC } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -603,6 +603,10 @@ export default function ComplexScenario() {
     return filteredTasks.slice(start, start + pageSize);
   }, [filteredTasks, currentPage, pageSize]);
   
+  // 使用 useDeferredValue 延迟渲染新页面，让分页切换更流畅
+  const deferredPaginatedTasks = useDeferredValue(paginatedTasks);
+  const isPageLoading = paginatedTasks !== deferredPaginatedTasks;
+  
   // 当筛选条件变化时，重置页码
   useEffect(() => {
     setCurrentPage(1);
@@ -611,16 +615,12 @@ export default function ComplexScenario() {
   // 翻页时滚动到表格顶部 - 使用 startTransition 优化
   const tableRef = useRef<HTMLDivElement>(null);
   const handlePageChange = useCallback((newPage: number) => {
-    // 使用 startTransition 标记为低优先级更新
-    startTransition(() => {
-      setCurrentPage(newPage);
-    });
-    // 延迟滚动，避免阻塞渲染
-    requestAnimationFrame(() => {
-      if (tableRef.current) {
-        tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    });
+    // 滚动到表格顶部
+    if (tableRef.current) {
+      tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    // 更新页码
+    setCurrentPage(newPage);
   }, []);
   
   // 缓存项目ID到项目的映射
@@ -635,6 +635,17 @@ export default function ComplexScenario() {
     projectMap.get(projectId),
     [projectMap]
   );
+  
+  // 预计算依赖选项和名称映射（优化 TaskRow 性能）
+  const dependencyOptions = useMemo(() => {
+    return tasks.map(t => ({ id: t.id, name: t.name }));
+  }, [tasks]);
+  
+  const dependencyNames = useMemo(() => {
+    const map = new Map<string, string>();
+    tasks.forEach(t => map.set(t.id, t.name));
+    return map;
+  }, [tasks]);
   
   // 使用 startTransition 优化项目切换
   const handleSetActiveProject = useCallback((value: string) => {
@@ -2579,13 +2590,22 @@ export default function ComplexScenario() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedTasks.map(task => (
+                {isPageLoading && (
+                  <TableRow>
+                    <TableCell colSpan={14} className="text-center py-8 text-slate-500">
+                      <Loader2 className="h-5 w-5 animate-spin inline mr-2" />
+                      加载中...
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!isPageLoading && deferredPaginatedTasks.map(task => (
                   <TaskRow
                     key={task.id}
                     task={task}
                     project={getProjectById(task.projectId || '')}
                     projects={projects}
-                    tasks={tasks}
+                    dependencyOptions={dependencyOptions}
+                    dependencyNames={dependencyNames}
                     resourceMap={resourceMap}
                     graphicResources={graphicResources}
                     postResources={postResources}
