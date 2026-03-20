@@ -40,9 +40,11 @@ async function fetchAllRecords(
   pageSize: number = 500
 ): Promise<any[]> {
   const allRecords: any[] = [];
-  let pageToken: string | undefined = undefined;
+  const seenRecordIds = new Set<string>(); // 用于去重
   let pageCount = 0;
-  const maxPages = 20; // 安全限制：最多读取20页（10000条记录）
+  const maxPages = 50; // 安全限制
+  
+  let pageToken: string | undefined = undefined;
   
   while (pageCount < maxPages) {
     pageCount++;
@@ -69,23 +71,36 @@ async function fetchAllRecords(
     const items = data.data?.items || [];
     const nextPageToken = data.data?.page_token;
     
-    log(`[分页读取] 返回 ${items.length} 条, next_page_token=${nextPageToken ? '有' : '无'}`);
-    
     if (items.length === 0) {
       log(`[分页读取] 本页无数据，读取完成`);
       break;
     }
     
-    allRecords.push(...items);
-    log(`[分页读取] ✅ 本次获取 ${items.length} 条，累计 ${allRecords.length} 条`);
+    // 使用 record_id 去重
+    let newCount = 0;
+    for (const item of items) {
+      if (!seenRecordIds.has(item.record_id)) {
+        seenRecordIds.add(item.record_id);
+        allRecords.push(item);
+        newCount++;
+      }
+    }
     
-    // 如果返回的条数少于 page_size，说明已经是最后一页了
-    if (items.length < pageSize) {
-      log(`[分页读取] 已到达最后一页（返回${items.length}条<${pageSize}条），读取完成`);
+    log(`[分页读取] 返回 ${items.length} 条, 新增 ${newCount} 条, 累计 ${allRecords.length} 条`);
+    
+    // 如果没有新增记录，说明数据已重复，退出
+    if (newCount === 0) {
+      log(`[分页读取] 数据重复，读取完成`);
       break;
     }
     
-    // 获取下一页的 token
+    // 如果返回条数少于 page_size，说明是最后一页
+    if (items.length < pageSize) {
+      log(`[分页读取] 已到达最后一页，读取完成`);
+      break;
+    }
+    
+    // 获取下一页 token
     pageToken = nextPageToken;
     if (!pageToken) {
       log(`[分页读取] 无page_token，读取完成`);
@@ -94,10 +109,10 @@ async function fetchAllRecords(
   }
   
   if (pageCount >= maxPages) {
-    log(`[分页读取] ⚠️ 已达到最大页数限制 (${maxPages}页)，可能存在更多数据`);
+    log(`[分页读取] ⚠️ 已达到最大页数限制 (${maxPages}页)`);
   }
   
-  log(`[分页读取] 完成，共 ${pageCount} 页，${allRecords.length} 条记录`);
+  log(`[分页读取] 完成，共 ${pageCount} 页，${allRecords.length} 条记录（去重后）`);
   return allRecords;
 }
 
