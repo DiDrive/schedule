@@ -376,7 +376,7 @@ export default function ProjectScheduleSystem() {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
+      <main className="w-full px-4 py-6">
         <ComplexScenario />
       </main>
 

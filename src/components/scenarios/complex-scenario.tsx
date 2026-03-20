@@ -556,8 +556,10 @@ export default function ComplexScenario() {
     [tasks, activeProject, activeTaskType]
   );
   
-  // 分页逻辑 - 解决大量数据渲染卡顿
+  // 分页逻辑
   const totalPages = Math.ceil(filteredTasks.length / pageSize);
+  
+  // 当前页数据
   const paginatedTasks = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return filteredTasks.slice(start, start + pageSize);
@@ -567,6 +569,16 @@ export default function ComplexScenario() {
   useEffect(() => {
     setCurrentPage(1);
   }, [activeProject, activeTaskType]);
+  
+  // 翻页时滚动到表格顶部
+  const tableRef = useRef<HTMLDivElement>(null);
+  const handlePageChange = useCallback((newPage: number) => {
+    setCurrentPage(newPage);
+    // 滚动到表格顶部
+    if (tableRef.current) {
+      tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
   
   // 缓存项目ID到项目的映射
   const projectMap = useMemo(() => {
@@ -2486,27 +2498,27 @@ export default function ComplexScenario() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="rounded-md border">
-            <Table>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table className="w-full table-fixed">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-[240px]">任务名称</TableHead>
-                  <TableHead className="min-w-[160px]">项目</TableHead>
-                  <TableHead>任务类型</TableHead>
-                  <TableHead className="min-w-[120px]">细分类</TableHead>
-                  <TableHead className="min-w-[80px]">语言</TableHead>
-                  <TableHead>指定人员</TableHead>
-                  <TableHead>
+                  <TableHead className="w-[180px]">任务名称</TableHead>
+                  <TableHead className="w-[120px]">项目</TableHead>
+                  <TableHead className="w-[70px]">任务类型</TableHead>
+                  <TableHead className="w-[90px]">细分类</TableHead>
+                  <TableHead className="w-[70px]">语言</TableHead>
+                  <TableHead className="w-[100px]">指定人员</TableHead>
+                  <TableHead className="w-[80px]">
                     {filteredTasks.some(t => t.taskType === '物料') ? '提供时间' : '预估工时'}
                   </TableHead>
-                  <TableHead>平面</TableHead>
-                  <TableHead>后期</TableHead>
-                  <TableHead>优先级</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead>截止日期</TableHead>
-                  <TableHead className="w-[100px]">依赖</TableHead>
-                  <TableHead className="w-[80px]">操作</TableHead>
+                  <TableHead className="w-[60px]">平面</TableHead>
+                  <TableHead className="w-[60px]">后期</TableHead>
+                  <TableHead className="w-[70px]">优先级</TableHead>
+                  <TableHead className="w-[80px]">状态</TableHead>
+                  <TableHead className="w-[100px]">截止日期</TableHead>
+                  <TableHead className="w-[80px]">依赖</TableHead>
+                  <TableHead className="w-[60px]">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -2545,7 +2557,7 @@ export default function ComplexScenario() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setCurrentPage(1)}
+                  onClick={() => handlePageChange(1)}
                   disabled={currentPage === 1}
                 >
                   首页
@@ -2553,7 +2565,7 @@ export default function ComplexScenario() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  onClick={() => handlePageChange(currentPage - 1)}
                   disabled={currentPage === 1}
                 >
                   上一页
@@ -2562,7 +2574,7 @@ export default function ComplexScenario() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages}
                 >
                   下一页
@@ -2570,7 +2582,7 @@ export default function ComplexScenario() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setCurrentPage(totalPages)}
+                  onClick={() => handlePageChange(totalPages)}
                   disabled={currentPage === totalPages}
                 >
                   末页

@@ -183,22 +183,22 @@ const TaskRow = memo(function TaskRow({
   return (
     <TableRow key={task.id}>
       {/* 任务名称 */}
-      <TableCell>
+      <TableCell className="p-1">
         <Input
           value={task.name}
           onChange={handleNameChange}
-          className="h-8 min-w-[220px]"
+          className="h-8 w-full text-sm"
         />
       </TableCell>
       
       {/* 项目 */}
-      <TableCell>
+      <TableCell className="p-1">
         <Select
           value={task.projectId || 'none'}
           onValueChange={handleProjectChange}
           disabled={activeProject !== 'all'}
         >
-          <SelectTrigger className="h-8 min-w-[140px]">
+          <SelectTrigger className="h-8 w-full text-sm">
             <SelectValue placeholder="选择项目" />
           </SelectTrigger>
           <SelectContent>
@@ -213,9 +213,9 @@ const TaskRow = memo(function TaskRow({
       </TableCell>
       
       {/* 任务类型 */}
-      <TableCell>
+      <TableCell className="p-1">
         {isCompoundTask ? (
-          <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300">
+          <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300 text-xs">
             复合
           </Badge>
         ) : (
@@ -223,7 +223,7 @@ const TaskRow = memo(function TaskRow({
             value={task.taskType || 'none'}
             onValueChange={handleTaskTypeChange}
           >
-            <SelectTrigger className="h-8 w-20">
+            <SelectTrigger className="h-8 w-full text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -237,12 +237,12 @@ const TaskRow = memo(function TaskRow({
       </TableCell>
       
       {/* 细分类 */}
-      <TableCell>
+      <TableCell className="p-1">
         <Select
           value={task.subType || 'none'}
           onValueChange={handleSubTypeChange}
         >
-          <SelectTrigger className="h-8 min-w-[100px]">
+          <SelectTrigger className="h-8 w-full text-sm">
             <SelectValue placeholder="细分类" />
           </SelectTrigger>
           <SelectContent>
@@ -255,12 +255,12 @@ const TaskRow = memo(function TaskRow({
       </TableCell>
       
       {/* 语言 */}
-      <TableCell>
+      <TableCell className="p-1">
         <Select
           value={task.language || 'none'}
           onValueChange={handleLanguageChange}
         >
-          <SelectTrigger className="h-8 w-24">
+          <SelectTrigger className="h-8 w-full text-sm">
             <SelectValue placeholder="语言" />
           </SelectTrigger>
           <SelectContent>
@@ -273,16 +273,16 @@ const TaskRow = memo(function TaskRow({
       </TableCell>
       
       {/* 指定人员 */}
-      <TableCell>
+      <TableCell className="p-1">
         {task.taskType === '物料' ? (
-          <span className="text-slate-400">-</span>
+          <span className="text-slate-400 text-sm">-</span>
         ) : isCompoundTask ? (
           <div className="flex flex-col gap-1">
             <Select
               value={task.fixedResourceIdGraphic || 'none'}
               onValueChange={handleGraphicResourceChange}
             >
-              <SelectTrigger className="h-6 text-xs min-w-[80px]">
+              <SelectTrigger className="h-6 text-xs w-full">
                 <SelectValue placeholder="平面">
                   {task.fixedResourceIdGraphic ? resourceMap.get(task.fixedResourceIdGraphic)?.name : '平面'}
                 </SelectValue>
@@ -298,7 +298,7 @@ const TaskRow = memo(function TaskRow({
               value={task.fixedResourceIdPost || 'none'}
               onValueChange={handlePostResourceChange}
             >
-              <SelectTrigger className="h-6 text-xs min-w-[80px]">
+              <SelectTrigger className="h-6 text-xs w-full">
                 <SelectValue placeholder="后期">
                   {task.fixedResourceIdPost ? resourceMap.get(task.fixedResourceIdPost)?.name : '后期'}
                 </SelectValue>
@@ -316,7 +316,7 @@ const TaskRow = memo(function TaskRow({
             value={task.fixedResourceId || 'none'}
             onValueChange={handleFixedResourceChange}
           >
-            <SelectTrigger className="h-8 min-w-[100px]">
+            <SelectTrigger className="h-8 w-full text-sm">
               <SelectValue placeholder="自动">
                 {task.fixedResourceId ? resourceMap.get(task.fixedResourceId)?.name : '自动'}
               </SelectValue>
@@ -333,62 +333,62 @@ const TaskRow = memo(function TaskRow({
       
       {/* 工时/提供时间 */}
       {task.taskType === '物料' ? (
-        <TableCell>
+        <TableCell className="p-1">
           <Input
             type="datetime-local"
             value={formatDateTimeToInputValue(task.estimatedMaterialDate)}
             onChange={handleMaterialDateChange}
-            className="w-36 h-8 text-xs"
+            className="w-full h-8 text-xs"
           />
         </TableCell>
       ) : (
-        <TableCell>
+        <TableCell className="p-1">
           <Input
             type="number"
             value={task.estimatedHours}
             onChange={handleHoursChange}
-            className="w-16 h-8"
+            className="w-full h-8 text-sm"
           />
         </TableCell>
       )}
       
       {/* 平面工时 */}
-      <TableCell>
+      <TableCell className="p-1">
         {task.taskType === '物料' ? (
-          <span className="text-slate-400">-</span>
+          <span className="text-slate-400 text-sm">-</span>
         ) : (
           <Input
             type="number"
             value={task.estimatedHoursGraphic || ''}
             onChange={handleGraphicHoursChange}
-            className="w-14 h-8"
+            className="w-full h-8 text-sm"
             placeholder="0"
           />
         )}
       </TableCell>
       
       {/* 后期工时 */}
-      <TableCell>
+      <TableCell className="p-1">
         {task.taskType === '物料' ? (
-          <span className="text-slate-400">-</span>
+          <span className="text-slate-400 text-sm">-</span>
         ) : (
           <Input
             type="number"
             value={task.estimatedHoursPost || ''}
             onChange={handlePostHoursChange}
-            className="w-14 h-8"
+            className="w-full h-8 text-sm"
             placeholder="0"
           />
         )}
       </TableCell>
       
       {/* 优先级 */}
-      <TableCell>
+      <TableCell className="p-1">
         <Select
           value={task.priority}
           onValueChange={handlePriorityChange}
         >
-          <SelectTrigger className="h-8 w-16">
+          <SelectTrigger className="h-8 w-full text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -400,13 +400,13 @@ const TaskRow = memo(function TaskRow({
       </TableCell>
       
       {/* 状态 */}
-      <TableCell>
+      <TableCell className="p-1">
         <div className="flex items-center gap-1">
           <Select
             value={task.status || 'pending'}
             onValueChange={handleStatusChange}
           >
-            <SelectTrigger className="h-8 w-20">
+            <SelectTrigger className="h-8 w-full text-sm">
               <SelectValue>
                 {actualStatus === 'pending' && <span className="text-slate-500">待处理</span>}
                 {actualStatus === 'in-progress' && <span className="text-blue-500">进行中</span>}
@@ -429,9 +429,9 @@ const TaskRow = memo(function TaskRow({
       </TableCell>
       
       {/* 截止日期 */}
-      <TableCell>
+      <TableCell className="p-1">
         {task.taskType === '物料' ? (
-          <span className="text-slate-400">-</span>
+          <span className="text-slate-400 text-sm">-</span>
         ) : (
           <div className="flex items-center gap-1">
             <input
@@ -447,7 +447,7 @@ const TaskRow = memo(function TaskRow({
                 type="date"
                 value={formatDateToInputValue(task.deadline)}
                 onChange={handleDeadlineChange}
-                className="w-28 h-8 text-xs"
+                className="w-full h-8 text-xs"
                 disabled={task.status === 'completed'}
               />
             ) : (
@@ -458,13 +458,13 @@ const TaskRow = memo(function TaskRow({
       </TableCell>
       
       {/* 依赖 */}
-      <TableCell>
+      <TableCell className="p-1">
         <div className="flex flex-col gap-0.5">
           <Select
             value=""
             onValueChange={handleAddDependency}
           >
-            <SelectTrigger className="h-6 text-xs w-16">
+            <SelectTrigger className="h-6 text-xs w-full">
               <SelectValue placeholder="+" />
             </SelectTrigger>
             <SelectContent>
@@ -496,7 +496,7 @@ const TaskRow = memo(function TaskRow({
       </TableCell>
       
       {/* 操作 */}
-      <TableCell>
+      <TableCell className="p-1">
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
