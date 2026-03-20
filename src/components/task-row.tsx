@@ -433,35 +433,37 @@ const TaskRow = memo(function TaskRow({
         {task.taskType === '物料' ? (
           <span className="text-slate-400 text-sm">-</span>
         ) : (
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1 cursor-pointer" title="不确定截止日期">
-              <input
-                type="radio"
-                name={`deadline-${task.id}`}
-                checked={task.deadline === undefined}
-                onChange={() => onTaskChange(task.id, 'deadline', undefined)}
-                className="w-3 h-3"
-                disabled={task.status === 'completed'}
-              />
-              <span className="text-xs text-slate-500">不限</span>
-            </label>
-            <label className="flex items-center gap-1 cursor-pointer" title="确定截止日期">
-              <input
-                type="radio"
-                name={`deadline-${task.id}`}
-                checked={task.deadline !== undefined}
-                onChange={handleSetDeadline}
-                className="w-3 h-3"
-                disabled={task.status === 'completed'}
-              />
-              <span className="text-xs text-slate-500">限定</span>
-            </label>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-1 cursor-pointer" title="不确定截止日期">
+                <input
+                  type="radio"
+                  name={`deadline-${task.id}`}
+                  checked={task.deadline === undefined}
+                  onChange={() => onTaskChange(task.id, 'deadline', undefined)}
+                  className="w-3 h-3"
+                  disabled={task.status === 'completed'}
+                />
+                <span className="text-xs text-slate-500">不限</span>
+              </label>
+              <label className="flex items-center gap-1 cursor-pointer" title="确定截止日期">
+                <input
+                  type="radio"
+                  name={`deadline-${task.id}`}
+                  checked={task.deadline !== undefined}
+                  onChange={handleSetDeadline}
+                  className="w-3 h-3"
+                  disabled={task.status === 'completed'}
+                />
+                <span className="text-xs text-slate-500">限定</span>
+              </label>
+            </div>
             {task.deadline && (
               <Input
                 type="date"
                 value={formatDateToInputValue(task.deadline)}
                 onChange={handleDeadlineChange}
-                className="w-24 h-7 text-xs"
+                className="w-full h-7 text-xs"
                 disabled={task.status === 'completed'}
               />
             )}
