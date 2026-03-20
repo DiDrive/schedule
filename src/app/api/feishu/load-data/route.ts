@@ -51,7 +51,7 @@ async function fetchAllRecords(
       body.page_token = pageToken;
     }
     
-    log(`[分页读取] 第 ${pageCount} 次请求`);
+    log(`[分页读取] 第 ${pageCount} 次请求, page_token=${pageToken || '无'}`);
     
     const response = await fetch(url, {
       method: 'POST',
@@ -67,8 +67,11 @@ async function fetchAllRecords(
     }
     
     const items = data.data?.items || [];
+    const nextPageToken = data.data?.page_token;
+    
+    log(`[分页读取] 返回 ${items.length} 条, next_page_token=${nextPageToken ? '有' : '无'}`);
+    
     if (items.length === 0) {
-      // 没有数据了，退出循环
       log(`[分页读取] 本页无数据，读取完成`);
       break;
     }
@@ -78,15 +81,14 @@ async function fetchAllRecords(
     
     // 如果返回的条数少于 page_size，说明已经是最后一页了
     if (items.length < pageSize) {
-      log(`[分页读取] 已到达最后一页，读取完成`);
+      log(`[分页读取] 已到达最后一页（返回${items.length}条<${pageSize}条），读取完成`);
       break;
     }
     
     // 获取下一页的 token
-    pageToken = data.data?.page_token;
+    pageToken = nextPageToken;
     if (!pageToken) {
-      // 没有 page_token，说明数据已全部读取完毕
-      log(`[分页读取] 无更多数据，读取完成`);
+      log(`[分页读取] 无page_token，读取完成`);
       break;
     }
   }
