@@ -2626,10 +2626,10 @@ export default function ComplexScenario() {
             </Table>
             {/* 加载蒙版 - 不改变高度 */}
             {isPageLoading && (
-              <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
-                <div className="flex items-center gap-2 text-slate-600">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>加载中...</span>
+              <div className="absolute inset-0 bg-white/90 flex items-center justify-center z-20">
+                <div className="flex flex-col items-center gap-2 text-slate-600 bg-white px-6 py-4 rounded-lg shadow-lg">
+                  <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                  <span className="font-medium">加载中...</span>
                 </div>
               </div>
             )}
