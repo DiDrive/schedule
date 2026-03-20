@@ -434,15 +434,26 @@ const TaskRow = memo(function TaskRow({
           <span className="text-slate-400 text-sm">-</span>
         ) : (
           <div className="flex items-center gap-1">
-            <input
-              type="radio"
-              name={`deadline-${task.id}`}
-              checked={task.deadline !== undefined}
-              onChange={handleSetDeadline}
-              className="w-3 h-3"
+            <Select
+              value={task.deadline ? 'set' : 'unset'}
+              onValueChange={(value) => {
+                if (value === 'set' && !task.deadline) {
+                  handleSetDeadline();
+                } else if (value === 'unset' && task.deadline) {
+                  onTaskChange(task.id, 'deadline', undefined);
+                }
+              }}
               disabled={task.status === 'completed'}
-            />
-            {task.deadline ? (
+            >
+              <SelectTrigger className="h-8 w-[70px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unset">不限</SelectItem>
+                <SelectItem value="set">限定</SelectItem>
+              </SelectContent>
+            </Select>
+            {task.deadline && (
               <Input
                 type="date"
                 value={formatDateToInputValue(task.deadline)}
@@ -450,8 +461,6 @@ const TaskRow = memo(function TaskRow({
                 className="w-full h-8 text-xs"
                 disabled={task.status === 'completed'}
               />
-            ) : (
-              <span className="text-xs text-slate-400">不限</span>
             )}
           </div>
         )}
