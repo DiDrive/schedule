@@ -612,10 +612,14 @@ export default function ComplexScenario() {
   // 分页加载状态
   const tableRef = useRef<HTMLDivElement>(null);
   
-  // 数据加载完成后清除 loading 状态
+  // 数据加载完成后滚动到表格顶部并清除 loading 状态
   useEffect(() => {
     if (isPageLoading) {
-      // 数据已更新，清除 loading 状态
+      // 数据已更新，滚动到表格顶部
+      if (tableRef.current) {
+        tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      // 清除 loading 状态
       const timer = setTimeout(() => {
         setIsPageLoading(false);
       }, 50);
