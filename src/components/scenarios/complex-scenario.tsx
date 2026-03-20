@@ -614,26 +614,20 @@ export default function ComplexScenario() {
   
   // 数据加载完成后滚动到表格顶部并清除 loading 状态
   useEffect(() => {
-    if (isPageLoading) {
+    if (isPageLoading && tableRef.current) {
       // 数据已更新，滚动到表格顶部
-      if (tableRef.current) {
-        tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-      // 清除 loading 状态
+      tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // 短暂延迟后清除 loading 状态，让用户看到滚动效果
       const timer = setTimeout(() => {
         setIsPageLoading(false);
-      }, 50);
+      }, 100);
       return () => clearTimeout(timer);
     }
   }, [paginatedTasks, isPageLoading]);
   
-  // 翻页处理 - 立即滚动并显示加载中
+  // 翻页处理 - 显示加载中蒙版
   const handlePageChange = useCallback((newPage: number) => {
-    // 立即滚动到表格顶部
-    if (tableRef.current) {
-      tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-    // 显示加载中
+    // 显示加载蒙版
     setIsPageLoading(true);
     // 更新页码
     setCurrentPage(newPage);
@@ -2553,9 +2547,8 @@ export default function ComplexScenario() {
       </div>
 
       {/* Task Management Card */}
-      <div ref={tableRef}>
-        <Card>
-          <CardHeader>
+      <Card>
+        <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -2584,7 +2577,7 @@ export default function ComplexScenario() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto relative" ref={tableRef}>
             <Table className="w-full table-fixed">
               <TableHeader>
                 <TableRow>
@@ -2607,39 +2600,39 @@ export default function ComplexScenario() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isPageLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={14} className="text-center py-12 text-slate-500">
-                      <Loader2 className="h-6 w-6 animate-spin inline mr-2" />
-                      加载中...
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  paginatedTasks.map(task => (
-                    <TaskRow
-                      key={task.id}
-                      task={task}
-                      project={getProjectById(task.projectId || '')}
-                      projects={projects}
-                      dependencyOptions={dependencyOptions}
-                      dependencyNames={dependencyNames}
-                      resourceMap={resourceMap}
-                      graphicResources={graphicResources}
-                      postResources={postResources}
-                      resourcesByWorkType={resourcesByWorkType}
-                      sharedResources={sharedResources}
-                      activeProject={activeProject}
-                      getTaskActualStatus={getTaskActualStatus}
-                      isTaskOverdue={isTaskOverdue}
-                      onTaskChange={handleTaskChange}
-                      onToggleLock={handleToggleTaskLock}
-                      onDelete={handleDeleteTask}
-                      getProjectById={getProjectById}
-                    />
-                  ))
-                )}
+                {paginatedTasks.map(task => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    project={getProjectById(task.projectId || '')}
+                    projects={projects}
+                    dependencyOptions={dependencyOptions}
+                    dependencyNames={dependencyNames}
+                    resourceMap={resourceMap}
+                    graphicResources={graphicResources}
+                    postResources={postResources}
+                    resourcesByWorkType={resourcesByWorkType}
+                    sharedResources={sharedResources}
+                    activeProject={activeProject}
+                    getTaskActualStatus={getTaskActualStatus}
+                    isTaskOverdue={isTaskOverdue}
+                    onTaskChange={handleTaskChange}
+                    onToggleLock={handleToggleTaskLock}
+                    onDelete={handleDeleteTask}
+                    getProjectById={getProjectById}
+                  />
+                ))}
               </TableBody>
             </Table>
+            {/* 加载蒙版 - 不改变高度 */}
+            {isPageLoading && (
+              <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+                <div className="flex items-center gap-2 text-slate-600">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>加载中...</span>
+                </div>
+              </div>
+            )}
           </div>
           
           {/* 分页控件 */}
@@ -2706,7 +2699,6 @@ export default function ComplexScenario() {
           )}
         </CardContent>
       </Card>
-      </div>
 
       {/* Schedule Results */}
       {scheduleResult && (
