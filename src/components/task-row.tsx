@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,37 @@ const formatDateTimeToInputValue = (date: Date | string | undefined): string => 
   const minutes = d.getMinutes().toString().padStart(2, '0');
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
+
+// 防抖 hook
+function useDebouncedCallback<T extends (...args: any[]) => void>(
+  callback: T,
+  delay: number
+): T {
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const callbackRef = useRef(callback);
+  
+  // 更新 callback ref
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+  
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+  
+  return useCallback((...args: Parameters<T>) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      callbackRef.current(...args);
+    }, delay);
+  }, [delay]) as T;
+}
 
 interface TaskRowProps {
   task: Task;
@@ -94,11 +125,81 @@ const TaskRow = memo(function TaskRow({
     return tasks.filter(t => t.id !== task.id && !task.dependencies?.includes(t.id)).slice(0, 20);
   }, [tasks, task.id, task.dependencies]);
 
-  // 使用 useCallback 缓存事件处理器
-  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    onTaskChange(task.id, 'name', e.target.value);
-  }, [task.id, onTaskChange]);
+  // ========== 性能优化：使用本地状态 + onBlur 更新 ==========
+  // 文本输入本地状态
+  const [localName, setLocalName] = useState(task.name);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  
+  // 数字输入本地状态
+  const [localHours, setLocalHours] = useState(task.estimatedHours?.toString() || '');
+  const [localGraphicHours, setLocalGraphicHours] = useState(task.estimatedHoursGraphic?.toString() || '');
+  const [localPostHours, setLocalPostHours] = useState(task.estimatedHoursPost?.toString() || '');
+  
+  // 同步本地状态与 props
+  useEffect(() => {
+    setLocalName(task.name);
+  }, [task.name]);
+  
+  useEffect(() => {
+    setLocalHours(task.estimatedHours?.toString() || '');
+  }, [task.estimatedHours]);
+  
+  useEffect(() => {
+    setLocalGraphicHours(task.estimatedHoursGraphic?.toString() || '');
+  }, [task.estimatedHoursGraphic]);
+  
+  useEffect(() => {
+    setLocalPostHours(task.estimatedHoursPost?.toString() || '');
+  }, [task.estimatedHoursPost]);
 
+  // 任务名称：本地状态 + onBlur 更新
+  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalName(e.target.value);
+  }, []);
+  
+  const handleNameBlur = useCallback(() => {
+    if (localName !== task.name) {
+      onTaskChange(task.id, 'name', localName);
+    }
+  }, [task.id, task.name, localName, onTaskChange]);
+
+  // 工时：本地状态 + onBlur 更新
+  const handleHoursChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalHours(e.target.value);
+  }, []);
+  
+  const handleHoursBlur = useCallback(() => {
+    const newValue = parseInt(localHours) || 0;
+    if (newValue !== task.estimatedHours) {
+      onTaskChange(task.id, 'estimatedHours', newValue);
+    }
+  }, [task.id, task.estimatedHours, localHours, onTaskChange]);
+  
+  // 平面工时：本地状态 + onBlur 更新
+  const handleGraphicHoursChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalGraphicHours(e.target.value);
+  }, []);
+  
+  const handleGraphicHoursBlur = useCallback(() => {
+    const newValue = localGraphicHours ? parseInt(localGraphicHours) : undefined;
+    if (newValue !== task.estimatedHoursGraphic) {
+      onTaskChange(task.id, 'estimatedHoursGraphic', newValue);
+    }
+  }, [task.id, task.estimatedHoursGraphic, localGraphicHours, onTaskChange]);
+  
+  // 后期工时：本地状态 + onBlur 更新
+  const handlePostHoursChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalPostHours(e.target.value);
+  }, []);
+  
+  const handlePostHoursBlur = useCallback(() => {
+    const newValue = localPostHours ? parseInt(localPostHours) : undefined;
+    if (newValue !== task.estimatedHoursPost) {
+      onTaskChange(task.id, 'estimatedHoursPost', newValue);
+    }
+  }, [task.id, task.estimatedHoursPost, localPostHours, onTaskChange]);
+
+  // Select 组件保持即时更新（因为本来就是单次操作）
   const handleProjectChange = useCallback((value: string) => {
     onTaskChange(task.id, 'projectId', value !== 'none' ? value : '');
   }, [task.id, onTaskChange]);
@@ -125,18 +226,6 @@ const TaskRow = memo(function TaskRow({
 
   const handlePostResourceChange = useCallback((value: string) => {
     onTaskChange(task.id, 'fixedResourceIdPost', value !== 'none' ? value : undefined);
-  }, [task.id, onTaskChange]);
-
-  const handleHoursChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    onTaskChange(task.id, 'estimatedHours', parseInt(e.target.value) || 0);
-  }, [task.id, onTaskChange]);
-
-  const handleGraphicHoursChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    onTaskChange(task.id, 'estimatedHoursGraphic', e.target.value ? parseInt(e.target.value) : undefined);
-  }, [task.id, onTaskChange]);
-
-  const handlePostHoursChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    onTaskChange(task.id, 'estimatedHoursPost', e.target.value ? parseInt(e.target.value) : undefined);
   }, [task.id, onTaskChange]);
 
   const handlePriorityChange = useCallback((value: string) => {
@@ -185,8 +274,9 @@ const TaskRow = memo(function TaskRow({
       {/* 任务名称 */}
       <TableCell className="p-1">
         <Input
-          value={task.name}
+          value={localName}
           onChange={handleNameChange}
+          onBlur={handleNameBlur}
           className="h-8 w-full text-sm"
         />
       </TableCell>
@@ -345,8 +435,9 @@ const TaskRow = memo(function TaskRow({
         <TableCell className="p-1">
           <Input
             type="number"
-            value={task.estimatedHours}
+            value={localHours}
             onChange={handleHoursChange}
+            onBlur={handleHoursBlur}
             className="w-full h-8 text-sm"
           />
         </TableCell>
@@ -359,8 +450,9 @@ const TaskRow = memo(function TaskRow({
         ) : (
           <Input
             type="number"
-            value={task.estimatedHoursGraphic || ''}
+            value={localGraphicHours}
             onChange={handleGraphicHoursChange}
+            onBlur={handleGraphicHoursBlur}
             className="w-full h-8 text-sm"
             placeholder="0"
           />
@@ -374,8 +466,9 @@ const TaskRow = memo(function TaskRow({
         ) : (
           <Input
             type="number"
-            value={task.estimatedHoursPost || ''}
+            value={localPostHours}
             onChange={handlePostHoursChange}
+            onBlur={handlePostHoursBlur}
             className="w-full h-8 text-sm"
             placeholder="0"
           />

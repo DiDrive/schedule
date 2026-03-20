@@ -592,8 +592,10 @@ export default function ComplexScenario() {
     };
   }, [scheduleResult, activeProject]);
   
-  // 分页逻辑
-  const totalPages = Math.ceil(filteredTasks.length / pageSize);
+  // 分页逻辑 - 使用 useMemo 缓存 totalPages
+  const totalPages = useMemo(() => {
+    return Math.ceil(filteredTasks.length / pageSize);
+  }, [filteredTasks.length, pageSize]);
   
   // 当前页数据
   const paginatedTasks = useMemo(() => {
@@ -606,14 +608,19 @@ export default function ComplexScenario() {
     setCurrentPage(1);
   }, [activeProject, activeTaskType]);
   
-  // 翻页时滚动到表格顶部
+  // 翻页时滚动到表格顶部 - 使用 startTransition 优化
   const tableRef = useRef<HTMLDivElement>(null);
   const handlePageChange = useCallback((newPage: number) => {
-    setCurrentPage(newPage);
-    // 滚动到表格顶部
-    if (tableRef.current) {
-      tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    // 使用 startTransition 标记为低优先级更新
+    startTransition(() => {
+      setCurrentPage(newPage);
+    });
+    // 延迟滚动，避免阻塞渲染
+    requestAnimationFrame(() => {
+      if (tableRef.current) {
+        tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
   }, []);
   
   // 缓存项目ID到项目的映射
@@ -2637,7 +2644,15 @@ export default function ComplexScenario() {
                 >
                   末页
                 </Button>
-                <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}>
+                <Select 
+                  value={String(pageSize)} 
+                  onValueChange={(v) => { 
+                    startTransition(() => {
+                      setPageSize(Number(v)); 
+                      setCurrentPage(1);
+                    });
+                  }}
+                >
                   <SelectTrigger className="w-[100px]">
                     <SelectValue />
                   </SelectTrigger>
