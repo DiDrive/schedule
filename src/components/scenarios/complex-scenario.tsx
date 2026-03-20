@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, memo, useTransition } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -314,6 +314,9 @@ export default function ComplexScenario() {
   const [isSyncingToFeishu, setIsSyncingToFeishu] = useState(false);
   const [isLoadingFromFeishu, setIsLoadingFromFeishu] = useState(false);
   const [showFeishuDialog, setShowFeishuDialog] = useState(false);
+  
+  // 使用 useTransition 降低状态更新优先级，保持 UI 响应
+  const [isPending, startTransition] = useTransition();
   
   // 分页状态 - 解决大量数据渲染卡顿问题
   const [currentPage, setCurrentPage] = useState(1);
@@ -864,60 +867,71 @@ export default function ComplexScenario() {
   };
 
   const handleTaskChange = useCallback((taskId: string, field: keyof Task, value: any) => {
-    // 合并状态更新，减少渲染次数
-    setTasks(prevTasks => {
-      const newTasks = prevTasks.map(t => {
-        if (t.id !== taskId) return t;
-
-        // 如果修改的是截止日期，将时间设置为18:30（下班时间）
-        const WORK_END_HOUR = 18.5; // 18:30
+    // 使用 startTransition 降低更新优先级，保持 UI 响应
+    startTransition(() => {
+      setTasks(prevTasks => {
+        // 使用二分查找或索引优化（如果任务量大）
+        const index = prevTasks.findIndex(t => t.id === taskId);
+        if (index === -1) return prevTasks;
+        
+        const t = prevTasks[index];
+        let newValue = value;
+        
+        // 截止日期设置下班时间
         if (field === 'deadline' && value instanceof Date) {
           const deadline = new Date(value);
-          deadline.setHours(WORK_END_HOUR, 30, 0, 0); // 设置为18:30:00
-          value = deadline;
+          deadline.setHours(18, 30, 0, 0);
+          newValue = deadline;
         }
 
-        // 如果修改的是任务类型，检查当前的 fixedResourceId 是否匹配新的类型
+        // 任务类型变更时清除不匹配的资源
         if (field === 'taskType' && t.fixedResourceId) {
           const fixedResource = resourceMap.get(t.fixedResourceId);
           if (fixedResource && fixedResource.workType !== value) {
-            return { ...t, [field]: value, fixedResourceId: undefined };
+            return [
+              ...prevTasks.slice(0, index),
+              { ...t, [field]: value, fixedResourceId: undefined },
+              ...prevTasks.slice(index + 1)
+            ];
           }
         }
 
-        // 如果状态变为已完成，记录实际完成时间
+        // 状态变为已完成
         if (field === 'status' && value === 'completed') {
-          return { ...t, [field]: value, actualEndDate: new Date() };
+          return [
+            ...prevTasks.slice(0, index),
+            { ...t, [field]: value, actualEndDate: new Date() },
+            ...prevTasks.slice(index + 1)
+          ];
         }
 
-        // 如果状态从已完成变为其他状态，清除实际完成时间
+        // 状态从已完成变为其他
         if (field === 'status' && t.status === 'completed' && value !== 'completed') {
-          return { ...t, [field]: value, actualEndDate: undefined };
+          return [
+            ...prevTasks.slice(0, index),
+            { ...t, [field]: value, actualEndDate: undefined },
+            ...prevTasks.slice(index + 1)
+          ];
         }
 
-        // 如果修改的是平面工时或后期工时，自动计算总工时
+        // 平面/后期工时自动计算总工时
         if (field === 'estimatedHoursGraphic' || field === 'estimatedHoursPost') {
           const graphicHours = field === 'estimatedHoursGraphic' ? (value || 0) : (t.estimatedHoursGraphic || 0);
           const postHours = field === 'estimatedHoursPost' ? (value || 0) : (t.estimatedHoursPost || 0);
-          const totalHours = graphicHours + postHours;
-          
-          return { 
-            ...t, 
-            [field]: value,
-            estimatedHours: totalHours || t.estimatedHours
-          };
+          return [
+            ...prevTasks.slice(0, index),
+            { ...t, [field]: value, estimatedHours: graphicHours + postHours || t.estimatedHours },
+            ...prevTasks.slice(index + 1)
+          ];
         }
 
-        return { ...t, [field]: value };
+        return [
+          ...prevTasks.slice(0, index),
+          { ...t, [field]: newValue },
+          ...prevTasks.slice(index + 1)
+        ];
       });
-      
-      return newTasks;
     });
-    
-    // 重置冲突相关状态（合并为一次更新）
-    setJustResolvedConflict(false);
-    setSavedResolutions(null);
-    setPendingConflicts(new Map());
   }, [resourceMap]);
 
   const handleDeleteTask = useCallback((taskId: string) => {
