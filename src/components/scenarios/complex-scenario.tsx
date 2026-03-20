@@ -577,6 +577,24 @@ export default function ComplexScenario() {
     return map;
   }, [tasks]);
   
+  // 缓存传递给 TaskRow 的静态数据 - 避免每次渲染创建新对象
+  const projectOptionsLite = useMemo(() => 
+    projects.map(p => ({ id: p.id, name: p.name })),
+    [projects]
+  );
+  
+  const graphicResourcesLite = useMemo(() => 
+    graphicResources.map(r => ({ id: r.id, name: r.name })),
+    [graphicResources]
+  );
+  
+  const postResourcesLite = useMemo(() => 
+    postResources.map(r => ({ id: r.id, name: r.name })),
+    [postResources]
+  );
+  
+  const allTaskIds = useMemo(() => tasks.map(t => t.id), [tasks]);
+  
   // 缓存筛选后的任务列表（避免每次渲染都执行 filter）
   const filteredTasks = useMemo(() => 
     tasks.filter(task =>
@@ -893,71 +911,72 @@ export default function ComplexScenario() {
     }, 500);
   };
 
+  // 批量更新队列 - 减少状态更新频率
+  const pendingUpdatesRef = useRef<Map<string, Partial<Task>>>(new Map());
+  const updateTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const handleTaskChange = useCallback((taskId: string, field: keyof Task, value: any) => {
-    // 使用 startTransition 降低更新优先级，保持 UI 响应
-    startTransition(() => {
-      setTasks(prevTasks => {
-        // 使用二分查找或索引优化（如果任务量大）
-        const index = prevTasks.findIndex(t => t.id === taskId);
-        if (index === -1) return prevTasks;
-        
-        const t = prevTasks[index];
-        let newValue = value;
-        
-        // 截止日期设置下班时间
-        if (field === 'deadline' && value instanceof Date) {
-          const deadline = new Date(value);
-          deadline.setHours(18, 30, 0, 0);
-          newValue = deadline;
-        }
+    // 直接更新，不使用 startTransition
+    setTasks(prevTasks => {
+      const index = prevTasks.findIndex(t => t.id === taskId);
+      if (index === -1) return prevTasks;
+      
+      const t = prevTasks[index];
+      let newValue = value;
+      
+      // 截止日期设置下班时间
+      if (field === 'deadline' && value instanceof Date) {
+        const deadline = new Date(value);
+        deadline.setHours(18, 30, 0, 0);
+        newValue = deadline;
+      }
 
-        // 任务类型变更时清除不匹配的资源
-        if (field === 'taskType' && t.fixedResourceId) {
-          const fixedResource = resourceMap.get(t.fixedResourceId);
-          if (fixedResource && fixedResource.workType !== value) {
-            return [
-              ...prevTasks.slice(0, index),
-              { ...t, [field]: value, fixedResourceId: undefined },
-              ...prevTasks.slice(index + 1)
-            ];
-          }
-        }
-
-        // 状态变为已完成
-        if (field === 'status' && value === 'completed') {
+      // 任务类型变更时清除不匹配的资源
+      if (field === 'taskType' && t.fixedResourceId) {
+        const fixedResource = resourceMap.get(t.fixedResourceId);
+        if (fixedResource && fixedResource.workType !== value) {
           return [
             ...prevTasks.slice(0, index),
-            { ...t, [field]: value, actualEndDate: new Date() },
+            { ...t, [field]: value, fixedResourceId: undefined },
             ...prevTasks.slice(index + 1)
           ];
         }
+      }
 
-        // 状态从已完成变为其他
-        if (field === 'status' && t.status === 'completed' && value !== 'completed') {
-          return [
-            ...prevTasks.slice(0, index),
-            { ...t, [field]: value, actualEndDate: undefined },
-            ...prevTasks.slice(index + 1)
-          ];
-        }
-
-        // 平面/后期工时自动计算总工时
-        if (field === 'estimatedHoursGraphic' || field === 'estimatedHoursPost') {
-          const graphicHours = field === 'estimatedHoursGraphic' ? (value || 0) : (t.estimatedHoursGraphic || 0);
-          const postHours = field === 'estimatedHoursPost' ? (value || 0) : (t.estimatedHoursPost || 0);
-          return [
-            ...prevTasks.slice(0, index),
-            { ...t, [field]: value, estimatedHours: graphicHours + postHours || t.estimatedHours },
-            ...prevTasks.slice(index + 1)
-          ];
-        }
-
+      // 状态变为已完成
+      if (field === 'status' && value === 'completed') {
         return [
           ...prevTasks.slice(0, index),
-          { ...t, [field]: newValue },
+          { ...t, [field]: value, actualEndDate: new Date() },
           ...prevTasks.slice(index + 1)
         ];
-      });
+      }
+
+      // 状态从已完成变为其他
+      if (field === 'status' && t.status === 'completed' && value !== 'completed') {
+        return [
+          ...prevTasks.slice(0, index),
+          { ...t, [field]: value, actualEndDate: undefined },
+          ...prevTasks.slice(index + 1)
+        ];
+      }
+
+      // 平面/后期工时自动计算总工时
+      if (field === 'estimatedHoursGraphic' || field === 'estimatedHoursPost') {
+        const graphicHours = field === 'estimatedHoursGraphic' ? (value || 0) : (t.estimatedHoursGraphic || 0);
+        const postHours = field === 'estimatedHoursPost' ? (value || 0) : (t.estimatedHoursPost || 0);
+        return [
+          ...prevTasks.slice(0, index),
+          { ...t, [field]: value, estimatedHours: graphicHours + postHours || t.estimatedHours },
+          ...prevTasks.slice(index + 1)
+        ];
+      }
+
+      return [
+        ...prevTasks.slice(0, index),
+        { ...t, [field]: newValue },
+        ...prevTasks.slice(index + 1)
+      ];
     });
   }, [resourceMap]);
 
@@ -2555,17 +2574,15 @@ export default function ComplexScenario() {
                   <TaskRow
                     key={task.id}
                     taskId={task.id}
-                    initialTask={task}
-                    projects={projects.map(p => ({ id: p.id, name: p.name }))}
-                    allTaskIds={tasks.map(t => t.id)}
-                    allTaskNames={taskNamesMap}
-                    resourceMap={resourceMapLite}
-                    graphicResources={graphicResources.map(r => ({ id: r.id, name: r.name }))}
-                    postResources={postResources.map(r => ({ id: r.id, name: r.name }))}
-                    resourcesByWorkType={resourcesByWorkTypeLite}
+                    task={task}
+                    projects={projectOptionsLite}
+                    taskNames={taskNamesMap}
+                    resourcesByType={resourcesByWorkTypeLite}
+                    graphicResources={graphicResourcesLite}
+                    postResources={postResourcesLite}
                     activeProject={activeProject}
-                    onChange={handleTaskChange}
-                    onToggleLock={handleToggleTaskLock}
+                    onUpdate={handleTaskChange}
+                    onLock={handleToggleTaskLock}
                     onDelete={handleDeleteTask}
                   />
                 ))}
