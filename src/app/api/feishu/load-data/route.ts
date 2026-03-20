@@ -45,21 +45,49 @@ async function fetchAllRecords(
   const maxPages = 50; // 安全限制
   
   let pageToken: string | undefined = undefined;
+  let consecutiveDuplicates = 0; // 连续重复计数
+  
+  // 解析URL，判断是search还是list API
+  const isSearchApi = url.includes('/records/search');
   
   while (pageCount < maxPages) {
     pageCount++;
-    const body: any = { page_size: pageSize };
-    if (pageToken) {
-      body.page_token = pageToken;
+    
+    let requestUrl = url;
+    let requestBody: any;
+    
+    if (isSearchApi) {
+      // search API 使用 POST
+      requestBody = { 
+        page_size: pageSize
+      };
+      if (pageToken) {
+        requestBody.page_token = pageToken;
+      }
+    } else {
+      // list API 使用 GET
+      if (pageToken) {
+        requestUrl = `${url}?page_size=${pageSize}&page_token=${pageToken}`;
+      } else {
+        requestUrl = `${url}?page_size=${pageSize}`;
+      }
     }
     
     log(`[分页读取] 第 ${pageCount} 次请求, page_token=${pageToken || '无'}`);
     
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    });
+    let response: Response;
+    if (isSearchApi) {
+      response = await fetch(requestUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+      });
+    } else {
+      response = await fetch(requestUrl, {
+        method: 'GET',
+        headers,
+      });
+    }
     
     const data = await response.json();
     
@@ -88,10 +116,16 @@ async function fetchAllRecords(
     
     log(`[分页读取] 返回 ${items.length} 条, 新增 ${newCount} 条, 累计 ${allRecords.length} 条`);
     
-    // 如果没有新增记录，说明数据已重复，退出
+    // 如果没有新增记录
     if (newCount === 0) {
-      log(`[分页读取] 数据重复，读取完成`);
-      break;
+      consecutiveDuplicates++;
+      if (consecutiveDuplicates >= 2) {
+        log(`[分页读取] 连续 ${consecutiveDuplicates} 次重复，退出循环`);
+        break;
+      }
+      log(`[分页读取] 数据重复，尝试继续...`);
+    } else {
+      consecutiveDuplicates = 0;
     }
     
     // 如果返回条数少于 page_size，说明是最后一页
