@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback, memo, useTransition, useDeferredValue, FC } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, memo, useTransition, FC } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -603,24 +603,21 @@ export default function ComplexScenario() {
     return filteredTasks.slice(start, start + pageSize);
   }, [filteredTasks, currentPage, pageSize]);
   
-  // 使用 useDeferredValue 延迟渲染新页面，让分页切换更流畅
-  const deferredPaginatedTasks = useDeferredValue(paginatedTasks);
-  const isPageLoading = paginatedTasks !== deferredPaginatedTasks;
-  
   // 当筛选条件变化时，重置页码
   useEffect(() => {
     setCurrentPage(1);
   }, [activeProject, activeTaskType]);
   
-  // 翻页时滚动到表格顶部 - 使用 startTransition 优化
+  // 翻页时滚动到表格顶部
   const tableRef = useRef<HTMLDivElement>(null);
   const handlePageChange = useCallback((newPage: number) => {
-    // 滚动到表格顶部
-    if (tableRef.current) {
-      tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-    // 更新页码
     setCurrentPage(newPage);
+    // 滚动到表格顶部
+    setTimeout(() => {
+      if (tableRef.current) {
+        tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 50);
   }, []);
   
   // 缓存项目ID到项目的映射
@@ -2537,7 +2534,7 @@ export default function ComplexScenario() {
       </div>
 
       {/* Task Management Card */}
-      <Card>
+      <Card ref={tableRef}>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -2590,15 +2587,7 @@ export default function ComplexScenario() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isPageLoading && (
-                  <TableRow>
-                    <TableCell colSpan={14} className="text-center py-8 text-slate-500">
-                      <Loader2 className="h-5 w-5 animate-spin inline mr-2" />
-                      加载中...
-                    </TableCell>
-                  </TableRow>
-                )}
-                {!isPageLoading && deferredPaginatedTasks.map(task => (
+                {paginatedTasks.map(task => (
                   <TaskRow
                     key={task.id}
                     task={task}
