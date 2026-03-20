@@ -433,35 +433,37 @@ const TaskRow = memo(function TaskRow({
         {task.taskType === '物料' ? (
           <span className="text-slate-400 text-sm">-</span>
         ) : (
-          <div className="flex items-center gap-1">
-            <input
-              type="radio"
-              name={`deadline-${task.id}`}
-              checked={task.deadline === undefined}
-              onChange={() => onTaskChange(task.id, 'deadline', undefined)}
-              className="w-3 h-3 cursor-pointer"
-              disabled={task.status === 'completed'}
-              title="不确定截止日期"
-            />
-            <input
-              type="radio"
-              name={`deadline-${task.id}`}
-              checked={task.deadline !== undefined}
-              onChange={handleSetDeadline}
-              className="w-3 h-3 cursor-pointer ml-1"
-              disabled={task.status === 'completed'}
-              title="确定截止日期"
-            />
-            {task.deadline ? (
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1 cursor-pointer" title="不确定截止日期">
+              <input
+                type="radio"
+                name={`deadline-${task.id}`}
+                checked={task.deadline === undefined}
+                onChange={() => onTaskChange(task.id, 'deadline', undefined)}
+                className="w-3 h-3"
+                disabled={task.status === 'completed'}
+              />
+              <span className="text-xs text-slate-500">不限</span>
+            </label>
+            <label className="flex items-center gap-1 cursor-pointer" title="确定截止日期">
+              <input
+                type="radio"
+                name={`deadline-${task.id}`}
+                checked={task.deadline !== undefined}
+                onChange={handleSetDeadline}
+                className="w-3 h-3"
+                disabled={task.status === 'completed'}
+              />
+              <span className="text-xs text-slate-500">限定</span>
+            </label>
+            {task.deadline && (
               <Input
                 type="date"
                 value={formatDateToInputValue(task.deadline)}
                 onChange={handleDeadlineChange}
-                className="w-full h-8 text-xs"
+                className="w-24 h-7 text-xs"
                 disabled={task.status === 'completed'}
               />
-            ) : (
-              <span className="text-xs text-slate-400">不限</span>
             )}
           </div>
         )}
