@@ -195,18 +195,6 @@ export async function GET(request: NextRequest) {
         });
         log(`[飞书加载] ✅ 加载了 ${result.resources.length} 个人员`);
         log(`[飞书加载] 人员列表: ${result.resources.map((r: any) => r.name).join(', ')}`);
-        
-        // ⚠️ 检查是否所有人员都没有 workType
-        const resourcesWithWorkType = result.resources.filter((r: any) => r.workType);
-        if (resourcesWithWorkType.length === 0 && result.resources.length > 0) {
-          log(`[飞书加载] ⚠️ 警告：所有人员都没有"工作类型"字段！`);
-          log(`[飞书加载] ⚠️ 这将导致无法按类型筛选人员，请确保人员表中有"工作类型"字段`);
-          log(`[飞书加载] ⚠️ 支持的值：平面设计、平面、后期制作、后期等`);
-        } else {
-          log(`[飞书加载] ✅ 有 ${resourcesWithWorkType.length} 个人员设置了工作类型`);
-          const types = [...new Set(result.resources.map((r: any) => r.workType).filter(Boolean))];
-          log(`[飞书加载] ✅ 工作类型分布: ${types.map(t => `${t}: ${result.resources.filter((r: any) => r.workType === t).length}人`).join(', ')}`);
-        }
       } else {
         log(`[飞书加载] ❌ 加载人员数据失败: ${JSON.stringify(resourcesData)}`);
       }

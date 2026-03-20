@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback, memo, useTransition } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -315,9 +315,6 @@ export default function ComplexScenario() {
   const [isLoadingFromFeishu, setIsLoadingFromFeishu] = useState(false);
   const [showFeishuDialog, setShowFeishuDialog] = useState(false);
   
-  // 使用 useTransition 降低状态更新优先级，保持 UI 响应
-  const [isPending, startTransition] = useTransition();
-  
   // 分页状态 - 解决大量数据渲染卡顿问题
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50); // 每页50条
@@ -537,13 +534,6 @@ export default function ComplexScenario() {
     return map;
   }, [sharedResources]);
   
-  // 轻量级资源映射（只包含 TaskRow 需要的字段）
-  const resourceMapLite = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; workType?: string }>();
-    sharedResources.forEach(r => map.set(r.id, { id: r.id, name: r.name, workType: r.workType }));
-    return map;
-  }, [sharedResources]);
-  
   // 缓存按工作类型分组的资源
   const resourcesByWorkType = useMemo(() => {
     const map = new Map<string, Resource[]>();
@@ -556,49 +546,6 @@ export default function ComplexScenario() {
     });
     return map;
   }, [sharedResources]);
-  
-  // 轻量级按工作类型分组的资源
-  const resourcesByWorkTypeLite = useMemo(() => {
-    const map = new Map<string, { id: string; name: string }[]>();
-    sharedResources.forEach(r => {
-      if (r.type === 'human' && r.workType) {
-        const list = map.get(r.workType) || [];
-        list.push({ id: r.id, name: r.name });
-        map.set(r.workType, list);
-      }
-    });
-    // 🔍 调试日志
-    console.log('[ResourceGroup] 🔍 按类型分组的资源:');
-    map.forEach((list, type) => {
-      console.log(`  [${type}]: ${list.length} 人 - ${list.map(r => r.name).join(', ')}`);
-    });
-    return map;
-  }, [sharedResources]);
-  
-  // 任务名称映射（用于依赖显示）- 只在 tasks 变化时更新
-  const taskNamesMap = useMemo(() => {
-    const map = new Map<string, string>();
-    tasks.forEach(t => map.set(t.id, t.name));
-    return map;
-  }, [tasks]);
-  
-  // 缓存传递给 TaskRow 的静态数据 - 避免每次渲染创建新对象
-  const projectOptionsLite = useMemo(() => 
-    projects.map(p => ({ id: p.id, name: p.name })),
-    [projects]
-  );
-  
-  const graphicResourcesLite = useMemo(() => 
-    graphicResources.map(r => ({ id: r.id, name: r.name })),
-    [graphicResources]
-  );
-  
-  const postResourcesLite = useMemo(() => 
-    postResources.map(r => ({ id: r.id, name: r.name })),
-    [postResources]
-  );
-  
-  const allTaskIds = useMemo(() => tasks.map(t => t.id), [tasks]);
   
   // 缓存筛选后的任务列表（避免每次渲染都执行 filter）
   const filteredTasks = useMemo(() => 
@@ -916,73 +863,61 @@ export default function ComplexScenario() {
     }, 500);
   };
 
-  // 批量更新队列 - 减少状态更新频率
-  const pendingUpdatesRef = useRef<Map<string, Partial<Task>>>(new Map());
-  const updateTimerRef = useRef<NodeJS.Timeout | null>(null);
-
   const handleTaskChange = useCallback((taskId: string, field: keyof Task, value: any) => {
-    // 直接更新，不使用 startTransition
+    // 合并状态更新，减少渲染次数
     setTasks(prevTasks => {
-      const index = prevTasks.findIndex(t => t.id === taskId);
-      if (index === -1) return prevTasks;
-      
-      const t = prevTasks[index];
-      let newValue = value;
-      
-      // 截止日期设置下班时间
-      if (field === 'deadline' && value instanceof Date) {
-        const deadline = new Date(value);
-        deadline.setHours(18, 30, 0, 0);
-        newValue = deadline;
-      }
+      const newTasks = prevTasks.map(t => {
+        if (t.id !== taskId) return t;
 
-      // 任务类型变更时清除不匹配的资源
-      if (field === 'taskType' && t.fixedResourceId) {
-        const fixedResource = resourceMap.get(t.fixedResourceId);
-        if (fixedResource && fixedResource.workType !== value) {
-          return [
-            ...prevTasks.slice(0, index),
-            { ...t, [field]: value, fixedResourceId: undefined },
-            ...prevTasks.slice(index + 1)
-          ];
+        // 如果修改的是截止日期，将时间设置为18:30（下班时间）
+        const WORK_END_HOUR = 18.5; // 18:30
+        if (field === 'deadline' && value instanceof Date) {
+          const deadline = new Date(value);
+          deadline.setHours(WORK_END_HOUR, 30, 0, 0); // 设置为18:30:00
+          value = deadline;
         }
-      }
 
-      // 状态变为已完成
-      if (field === 'status' && value === 'completed') {
-        return [
-          ...prevTasks.slice(0, index),
-          { ...t, [field]: value, actualEndDate: new Date() },
-          ...prevTasks.slice(index + 1)
-        ];
-      }
+        // 如果修改的是任务类型，检查当前的 fixedResourceId 是否匹配新的类型
+        if (field === 'taskType' && t.fixedResourceId) {
+          const fixedResource = resourceMap.get(t.fixedResourceId);
+          if (fixedResource && fixedResource.workType !== value) {
+            return { ...t, [field]: value, fixedResourceId: undefined };
+          }
+        }
 
-      // 状态从已完成变为其他
-      if (field === 'status' && t.status === 'completed' && value !== 'completed') {
-        return [
-          ...prevTasks.slice(0, index),
-          { ...t, [field]: value, actualEndDate: undefined },
-          ...prevTasks.slice(index + 1)
-        ];
-      }
+        // 如果状态变为已完成，记录实际完成时间
+        if (field === 'status' && value === 'completed') {
+          return { ...t, [field]: value, actualEndDate: new Date() };
+        }
 
-      // 平面/后期工时自动计算总工时
-      if (field === 'estimatedHoursGraphic' || field === 'estimatedHoursPost') {
-        const graphicHours = field === 'estimatedHoursGraphic' ? (value || 0) : (t.estimatedHoursGraphic || 0);
-        const postHours = field === 'estimatedHoursPost' ? (value || 0) : (t.estimatedHoursPost || 0);
-        return [
-          ...prevTasks.slice(0, index),
-          { ...t, [field]: value, estimatedHours: graphicHours + postHours || t.estimatedHours },
-          ...prevTasks.slice(index + 1)
-        ];
-      }
+        // 如果状态从已完成变为其他状态，清除实际完成时间
+        if (field === 'status' && t.status === 'completed' && value !== 'completed') {
+          return { ...t, [field]: value, actualEndDate: undefined };
+        }
 
-      return [
-        ...prevTasks.slice(0, index),
-        { ...t, [field]: newValue },
-        ...prevTasks.slice(index + 1)
-      ];
+        // 如果修改的是平面工时或后期工时，自动计算总工时
+        if (field === 'estimatedHoursGraphic' || field === 'estimatedHoursPost') {
+          const graphicHours = field === 'estimatedHoursGraphic' ? (value || 0) : (t.estimatedHoursGraphic || 0);
+          const postHours = field === 'estimatedHoursPost' ? (value || 0) : (t.estimatedHoursPost || 0);
+          const totalHours = graphicHours + postHours;
+          
+          return { 
+            ...t, 
+            [field]: value,
+            estimatedHours: totalHours || t.estimatedHours
+          };
+        }
+
+        return { ...t, [field]: value };
+      });
+      
+      return newTasks;
     });
+    
+    // 重置冲突相关状态（合并为一次更新）
+    setJustResolvedConflict(false);
+    setSavedResolutions(null);
+    setPendingConflicts(new Map());
   }, [resourceMap]);
 
   const handleDeleteTask = useCallback((taskId: string) => {
@@ -1735,16 +1670,6 @@ export default function ComplexScenario() {
       }
 
       const { resources, projects, tasks } = result.data;
-      
-      // 🔍 调试：检查资源的 workType 字段
-      console.log('[Feishu Load] 🔍 资源数据检查:');
-      resources.forEach((r: any, i: number) => {
-        if (i < 5) {
-          console.log(`  [${i}] ${r.name}: workType="${r.workType}", type="${r.type}"`);
-        }
-      });
-      console.log('[Feishu Load] 🔍 平面资源数:', resources.filter((r: any) => r.workType === '平面').length);
-      console.log('[Feishu Load] 🔍 后期资源数:', resources.filter((r: any) => r.workType === '后期').length);
       
       setSharedResources([...resources]);
       setProjects([...projects]);
@@ -2588,17 +2513,22 @@ export default function ComplexScenario() {
                 {paginatedTasks.map(task => (
                   <TaskRow
                     key={task.id}
-                    taskId={task.id}
                     task={task}
-                    projects={projectOptionsLite}
-                    taskNames={taskNamesMap}
-                    resourcesByType={resourcesByWorkTypeLite}
-                    graphicResources={graphicResourcesLite}
-                    postResources={postResourcesLite}
+                    project={getProjectById(task.projectId || '')}
+                    projects={projects}
+                    tasks={tasks}
+                    resourceMap={resourceMap}
+                    graphicResources={graphicResources}
+                    postResources={postResources}
+                    resourcesByWorkType={resourcesByWorkType}
+                    sharedResources={sharedResources}
                     activeProject={activeProject}
-                    onUpdate={handleTaskChange}
-                    onLock={handleToggleTaskLock}
+                    getTaskActualStatus={getTaskActualStatus}
+                    isTaskOverdue={isTaskOverdue}
+                    onTaskChange={handleTaskChange}
+                    onToggleLock={handleToggleTaskLock}
                     onDelete={handleDeleteTask}
+                    getProjectById={getProjectById}
                   />
                 ))}
               </TableBody>

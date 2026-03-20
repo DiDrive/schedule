@@ -1,232 +1,552 @@
 'use client';
 
-import { memo, useCallback, useRef, useEffect } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { TableCell, TableRow } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
 import { Lock, Trash2 } from 'lucide-react';
-import { Task } from '@/types/schedule';
+import { Task, Project, Resource } from '@/types/schedule';
 import { SUB_TYPE_OPTIONS, LANGUAGE_OPTIONS } from '@/lib/constants';
 
-// 极速原生输入 - 直接操作 DOM
-function FastInput({ defaultValue, onChange, className, type, placeholder, disabled }: {
-  defaultValue: string | number;
-  onChange?: (v: string) => void;
-  className?: string;
-  type?: string;
-  placeholder?: string;
-  disabled?: boolean;
-}) {
-  const ref = useRef<HTMLInputElement>(null);
-  const onChangeRef = useRef(onChange);
-  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
-  
-  return (
-    <input
-      ref={ref}
-      type={type || 'text'}
-      defaultValue={defaultValue}
-      placeholder={placeholder}
-      disabled={disabled}
-      onChange={(e) => onChangeRef.current?.(e.target.value)}
-      className={`h-8 px-2 text-sm border rounded bg-white ${className || ''}`}
-    />
-  );
-}
-
-// 极速原生选择 - 直接操作 DOM，零 React 重渲染
-function FastSelect({ defaultValue, options, onChange, className, disabled }: {
-  defaultValue: string;
-  options: { value: string; label: string }[];
-  onChange?: (v: string) => void;
-  className?: string;
-  disabled?: boolean;
-}) {
-  const ref = useRef<HTMLSelectElement>(null);
-  const onChangeRef = useRef(onChange);
-  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
-  
-  return (
-    <select
-      ref={ref}
-      defaultValue={defaultValue}
-      disabled={disabled}
-      onChange={(e) => onChangeRef.current?.(e.target.value)}
-      className={`h-8 px-2 text-sm border rounded bg-white cursor-pointer ${className || ''}`}
-    >
-      {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-    </select>
-  );
-}
-
 // 辅助函数
-const formatDate = (d?: Date | string): string => {
-  if (!d) return '';
-  const date = d instanceof Date ? d : new Date(d);
-  if (isNaN(date.getTime())) return '';
-  return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+const formatDateToInputValue = (date: Date | string | undefined): string => {
+  if (!date) return '';
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return '';
+  const year = d.getFullYear();
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
-const formatDateTime = (d?: Date | string): string => {
-  if (!d) return '';
-  const date = d instanceof Date ? d : new Date(d);
-  if (isNaN(date.getTime())) return '';
-  return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}T${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+const formatDateTimeToInputValue = (date: Date | string | undefined): string => {
+  if (!date) return '';
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return '';
+  const year = d.getFullYear();
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  const hours = d.getHours().toString().padStart(2, '0');
+  const minutes = d.getMinutes().toString().padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
-// 预定义选项
-const TASK_TYPES = [{ value: '', label: '-' }, { value: '平面', label: '平面' }, { value: '后期', label: '后期' }, { value: '物料', label: '物料' }];
-const PRIORITIES = [{ value: 'urgent', label: '紧急' }, { value: 'normal', label: '普通' }, { value: 'low', label: '低' }];
-const STATUSES = [{ value: 'pending', label: '待处理' }, { value: 'in-progress', label: '进行中' }, { value: 'completed', label: '已完成' }, { value: 'blocked', label: '已阻塞' }];
-const SUB_TYPES = [{ value: '', label: '-' }, ...SUB_TYPE_OPTIONS.map(o => ({ value: o, label: o }))];
-const LANGUAGES = [{ value: '', label: '-' }, ...LANGUAGE_OPTIONS.map(o => ({ value: o, label: o }))];
-
-interface Props {
-  taskId: string;
+interface TaskRowProps {
   task: Task;
-  projects: { id: string; name: string }[];
-  taskNames: Map<string, string>;
-  resourcesByType: Map<string, { id: string; name: string }[]>;
-  graphicResources: { id: string; name: string }[];
-  postResources: { id: string; name: string }[];
+  project: Project | undefined;
+  projects: Project[];
+  tasks: Task[];
+  resourceMap: Map<string, Resource>;
+  graphicResources: Resource[];
+  postResources: Resource[];
+  resourcesByWorkType: Map<string, Resource[]>;
+  sharedResources: Resource[];
   activeProject: string;
-  onUpdate: (id: string, field: keyof Task, value: any) => void;
-  onLock: (id: string) => void;
-  onDelete: (id: string) => void;
+  getTaskActualStatus: (task: Task) => string;
+  isTaskOverdue: (task: Task) => boolean;
+  onTaskChange: (taskId: string, field: keyof Task, value: any) => void;
+  onToggleLock: (taskId: string) => void;
+  onDelete: (taskId: string) => void;
+  getProjectById: (projectId: string) => Project | undefined;
 }
 
+// 使用轻量级的行组件
 const TaskRow = memo(function TaskRow({
-  taskId, task, projects, taskNames, resourcesByType, graphicResources, postResources, activeProject, onUpdate, onLock, onDelete
-}: Props) {
-  // 本地状态 ref - 完全不触发 React 重渲染
-  const data = useRef({ ...task });
-  const updateRef = useRef(onUpdate);
-  useEffect(() => { updateRef.current = onUpdate; }, [onUpdate]);
+  task,
+  project,
+  projects,
+  tasks,
+  resourceMap,
+  graphicResources,
+  postResources,
+  resourcesByWorkType,
+  sharedResources,
+  activeProject,
+  getTaskActualStatus,
+  isTaskOverdue,
+  onTaskChange,
+  onToggleLock,
+  onDelete,
+  getProjectById,
+}: TaskRowProps) {
+  // 计算状态
+  const actualStatus = getTaskActualStatus(task);
+  const isOverdue = isTaskOverdue(task);
   
-  // 极速更新函数 - 直接修改 ref，异步通知父组件
-  const set = useCallback((field: keyof Task, value: any) => {
-    (data.current as any)[field] = value;
-    // 使用 queueMicrotask 异步通知，不阻塞当前操作
-    queueMicrotask(() => updateRef.current(taskId, field, value));
-  }, [taskId]);
+  // 判断是否是复合任务
+  const isCompoundTask = task.estimatedHoursGraphic && task.estimatedHoursPost && 
+    task.estimatedHoursGraphic > 0 && task.estimatedHoursPost > 0;
 
-  const t = data.current;
-  const isCompound = t.estimatedHoursGraphic && t.estimatedHoursPost && t.estimatedHoursGraphic > 0 && t.estimatedHoursPost > 0;
-  const isOverdue = t.deadline && new Date(t.deadline) < new Date() && t.status !== 'completed';
-  
-  // 获取可用资源 - 根据 taskType 获取对应类型的资源
-  const taskType = t.taskType || '';
-  
-  // 优先从 resourcesByType 获取（飞书有工作类型字段时）
-  // 如果没有，则从缓存的 graphicResources/postResources 获取
-  // 如果还是没有，则合并所有可用资源作为兜底
-  let resources: { id: string; name: string }[] = [];
-  
-  if (taskType === '平面') {
-    // 平面任务：优先使用按类型分组的资源，否则使用 graphicResources
-    resources = resourcesByType.get('平面')?.length ? resourcesByType.get('平面')! : graphicResources;
-    // 如果还是没有，使用所有资源作为兜底
-    if (resources.length === 0) {
-      resources = [...graphicResources, ...postResources];
+  // 获取可用资源 - 使用 useMemo 缓存
+  const displayResources = useMemo(() => {
+    const filtered = task.taskType ? (resourcesByWorkType.get(task.taskType) || []) : [];
+    const current = task.fixedResourceId ? resourceMap.get(task.fixedResourceId) : null;
+    if (current && !filtered.find(r => r.id === task.fixedResourceId)) {
+      return [current, ...filtered];
     }
-  } else if (taskType === '后期') {
-    // 后期任务：优先使用按类型分组的资源，否则使用 postResources
-    resources = resourcesByType.get('后期')?.length ? resourcesByType.get('后期')! : postResources;
-    // 如果还是没有，使用所有资源作为兜底
-    if (resources.length === 0) {
-      resources = [...graphicResources, ...postResources];
-    }
-  } else if (taskType === '物料') {
-    // 物料任务：不需要人员
-    resources = [];
-  }
-  // 注意：复合任务 (isCompound=true) 不走这里，因为它在 UI 上显示两个下拉框
-  
-  // 复合任务的备选数据：如果 graphicResources/postResources 为空，使用所有资源
-  const graphicOpts = graphicResources.length > 0 
-    ? graphicResources 
-    : [...graphicResources, ...postResources]; // 如果平面资源为空，使用所有资源
-  const postOpts = postResources.length > 0 
-    ? postResources 
-    : [...graphicResources, ...postResources]; // 如果后期资源为空，使用所有资源
-  
-  const resourceOpts = [{ value: '', label: '自动' }, ...resources.map(r => ({ value: r.id, label: r.name }))];
-  const projectOpts = [{ value: '', label: '未分配' }, ...projects.map(p => ({ value: p.id, label: p.name }))];
-  
-  
-  const depOpts = [{ value: '', label: '+' }];
-  (t.dependencies || []).forEach(id => {
-    const name = taskNames.get(id);
-    if (name && !depOpts.find(o => o.value === id)) depOpts.push({ value: id, label: name.slice(0, 12) });
-  });
+    return filtered;
+  }, [task.taskType, task.fixedResourceId, resourcesByWorkType, resourceMap]);
 
-  const statusColor: Record<string, string> = { pending: 'text-slate-500', 'in-progress': 'text-blue-500', completed: 'text-green-500', blocked: 'text-red-500' };
+  // 可选的依赖任务（限制数量）
+  const availableDependencies = useMemo(() => {
+    return tasks.filter(t => t.id !== task.id && !task.dependencies?.includes(t.id)).slice(0, 20);
+  }, [tasks, task.id, task.dependencies]);
+
+  // 使用 useCallback 缓存事件处理器
+  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onTaskChange(task.id, 'name', e.target.value);
+  }, [task.id, onTaskChange]);
+
+  const handleProjectChange = useCallback((value: string) => {
+    onTaskChange(task.id, 'projectId', value !== 'none' ? value : '');
+  }, [task.id, onTaskChange]);
+
+  const handleTaskTypeChange = useCallback((value: string) => {
+    onTaskChange(task.id, 'taskType', value !== 'none' ? value : '');
+  }, [task.id, onTaskChange]);
+
+  const handleSubTypeChange = useCallback((value: string) => {
+    onTaskChange(task.id, 'subType', value !== 'none' ? value : undefined);
+  }, [task.id, onTaskChange]);
+
+  const handleLanguageChange = useCallback((value: string) => {
+    onTaskChange(task.id, 'language', value !== 'none' ? value : undefined);
+  }, [task.id, onTaskChange]);
+
+  const handleFixedResourceChange = useCallback((value: string) => {
+    onTaskChange(task.id, 'fixedResourceId', value !== 'none' ? value : undefined);
+  }, [task.id, onTaskChange]);
+
+  const handleGraphicResourceChange = useCallback((value: string) => {
+    onTaskChange(task.id, 'fixedResourceIdGraphic', value !== 'none' ? value : undefined);
+  }, [task.id, onTaskChange]);
+
+  const handlePostResourceChange = useCallback((value: string) => {
+    onTaskChange(task.id, 'fixedResourceIdPost', value !== 'none' ? value : undefined);
+  }, [task.id, onTaskChange]);
+
+  const handleHoursChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onTaskChange(task.id, 'estimatedHours', parseInt(e.target.value) || 0);
+  }, [task.id, onTaskChange]);
+
+  const handleGraphicHoursChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onTaskChange(task.id, 'estimatedHoursGraphic', e.target.value ? parseInt(e.target.value) : undefined);
+  }, [task.id, onTaskChange]);
+
+  const handlePostHoursChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onTaskChange(task.id, 'estimatedHoursPost', e.target.value ? parseInt(e.target.value) : undefined);
+  }, [task.id, onTaskChange]);
+
+  const handlePriorityChange = useCallback((value: string) => {
+    onTaskChange(task.id, 'priority', value);
+  }, [task.id, onTaskChange]);
+
+  const handleStatusChange = useCallback((value: string) => {
+    onTaskChange(task.id, 'status', value);
+  }, [task.id, onTaskChange]);
+
+  const handleDeadlineChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onTaskChange(task.id, 'deadline', new Date(e.target.value));
+  }, [task.id, onTaskChange]);
+
+  const handleMaterialDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onTaskChange(task.id, 'estimatedMaterialDate', new Date(e.target.value));
+  }, [task.id, onTaskChange]);
+
+  const handleAddDependency = useCallback((value: string) => {
+    if (value && !task.dependencies?.includes(value)) {
+      const newDeps = [...(task.dependencies || []), value];
+      onTaskChange(task.id, 'dependencies', newDeps);
+    }
+  }, [task.id, task.dependencies, onTaskChange]);
+
+  const handleRemoveDependency = useCallback((depId: string) => {
+    const newDeps = task.dependencies?.filter(id => id !== depId) || [];
+    onTaskChange(task.id, 'dependencies', newDeps);
+  }, [task.id, task.dependencies, onTaskChange]);
+
+  const handleSetDeadline = useCallback(() => {
+    const defaultDeadline = new Date();
+    let daysToAdd = 7;
+    while (daysToAdd > 0) {
+      defaultDeadline.setDate(defaultDeadline.getDate() + 1);
+      const dayOfWeek = defaultDeadline.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        daysToAdd--;
+      }
+    }
+    onTaskChange(task.id, 'deadline', defaultDeadline);
+  }, [task.id, onTaskChange]);
 
   return (
-    <TableRow>
-      <TableCell><FastInput defaultValue={t.name} onChange={v => set('name', v)} className="h-8 min-w-[220px]" /></TableCell>
-      <TableCell><FastSelect defaultValue={t.projectId || ''} options={projectOpts} onChange={v => set('projectId', v || undefined)} className="min-w-[140px]" disabled={activeProject !== 'all'} /></TableCell>
+    <TableRow key={task.id}>
+      {/* 任务名称 */}
       <TableCell>
-        {isCompound ? <Badge variant="outline" className="bg-purple-50 text-purple-700">复合</Badge> :
-          <FastSelect defaultValue={t.taskType || ''} options={TASK_TYPES} onChange={v => set('taskType', v || undefined)} className="w-20" />}
+        <Input
+          value={task.name}
+          onChange={handleNameChange}
+          className="h-8 min-w-[220px]"
+        />
       </TableCell>
-      <TableCell><FastSelect defaultValue={t.subType || ''} options={SUB_TYPES} onChange={v => set('subType', v || undefined)} className="min-w-[100px]" /></TableCell>
-      <TableCell><FastSelect defaultValue={t.language || ''} options={LANGUAGES} onChange={v => set('language', v || undefined)} className="w-24" /></TableCell>
+      
+      {/* 项目 */}
       <TableCell>
-        {t.taskType === '物料' ? <span className="text-slate-400">-</span> :
-          isCompound ? (
-            <div className="flex flex-col gap-1">
-              <FastSelect defaultValue={t.fixedResourceIdGraphic || ''} options={[{ value: '', label: '平面' }, ...graphicOpts.map(r => ({ value: r.id, label: r.name }))]} onChange={v => set('fixedResourceIdGraphic', v || undefined)} className="min-w-[80px] h-6 text-xs" />
-              <FastSelect defaultValue={t.fixedResourceIdPost || ''} options={[{ value: '', label: '后期' }, ...postOpts.map(r => ({ value: r.id, label: r.name }))]} onChange={v => set('fixedResourceIdPost', v || undefined)} className="min-w-[80px] h-6 text-xs" />
-            </div>
-          ) : <FastSelect defaultValue={t.fixedResourceId || ''} options={resourceOpts} onChange={v => set('fixedResourceId', v || undefined)} className="min-w-[100px]" />}
+        <Select
+          value={task.projectId || 'none'}
+          onValueChange={handleProjectChange}
+          disabled={activeProject !== 'all'}
+        >
+          <SelectTrigger className="h-8 min-w-[140px]">
+            <SelectValue placeholder="选择项目" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">未分配</SelectItem>
+            {projects.map(proj => (
+              <SelectItem key={proj.id} value={proj.id}>
+                {proj.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </TableCell>
+      
+      {/* 任务类型 */}
       <TableCell>
-        {t.taskType === '物料' ? <FastInput type="datetime-local" defaultValue={formatDateTime(t.estimatedMaterialDate)} onChange={v => set('estimatedMaterialDate', v ? new Date(v) : undefined)} className="w-36 h-8 text-xs" /> :
-          <FastInput type="number" defaultValue={t.estimatedHours || 0} onChange={v => set('estimatedHours', parseInt(v) || 0)} className="w-16 h-8" />}
+        {isCompoundTask ? (
+          <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300">
+            复合
+          </Badge>
+        ) : (
+          <Select
+            value={task.taskType || 'none'}
+            onValueChange={handleTaskTypeChange}
+          >
+            <SelectTrigger className="h-8 w-20">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">-</SelectItem>
+              <SelectItem value="平面">平面</SelectItem>
+              <SelectItem value="后期">后期</SelectItem>
+              <SelectItem value="物料">物料</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
       </TableCell>
+      
+      {/* 细分类 */}
       <TableCell>
-        {t.taskType === '物料' ? <span className="text-slate-400">-</span> :
+        <Select
+          value={task.subType || 'none'}
+          onValueChange={handleSubTypeChange}
+        >
+          <SelectTrigger className="h-8 min-w-[100px]">
+            <SelectValue placeholder="细分类" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">-</SelectItem>
+            {SUB_TYPE_OPTIONS.map(opt => (
+              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </TableCell>
+      
+      {/* 语言 */}
+      <TableCell>
+        <Select
+          value={task.language || 'none'}
+          onValueChange={handleLanguageChange}
+        >
+          <SelectTrigger className="h-8 w-24">
+            <SelectValue placeholder="语言" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">-</SelectItem>
+            {LANGUAGE_OPTIONS.map(opt => (
+              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </TableCell>
+      
+      {/* 指定人员 */}
+      <TableCell>
+        {task.taskType === '物料' ? (
+          <span className="text-slate-400">-</span>
+        ) : isCompoundTask ? (
           <div className="flex flex-col gap-1">
-            <FastInput type="number" defaultValue={t.estimatedHoursGraphic || ''} placeholder="平" onChange={v => set('estimatedHoursGraphic', v ? parseInt(v) : undefined)} className="w-14 h-6 text-xs" />
-            <FastInput type="number" defaultValue={t.estimatedHoursPost || ''} placeholder="后" onChange={v => set('estimatedHoursPost', v ? parseInt(v) : undefined)} className="w-14 h-6 text-xs" />
-          </div>}
+            <Select
+              value={task.fixedResourceIdGraphic || 'none'}
+              onValueChange={handleGraphicResourceChange}
+            >
+              <SelectTrigger className="h-6 text-xs min-w-[80px]">
+                <SelectValue placeholder="平面">
+                  {task.fixedResourceIdGraphic ? resourceMap.get(task.fixedResourceIdGraphic)?.name : '平面'}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">自动</SelectItem>
+                {graphicResources.map(r => (
+                  <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={task.fixedResourceIdPost || 'none'}
+              onValueChange={handlePostResourceChange}
+            >
+              <SelectTrigger className="h-6 text-xs min-w-[80px]">
+                <SelectValue placeholder="后期">
+                  {task.fixedResourceIdPost ? resourceMap.get(task.fixedResourceIdPost)?.name : '后期'}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">自动</SelectItem>
+                {postResources.map(r => (
+                  <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : (
+          <Select
+            value={task.fixedResourceId || 'none'}
+            onValueChange={handleFixedResourceChange}
+          >
+            <SelectTrigger className="h-8 min-w-[100px]">
+              <SelectValue placeholder="自动">
+                {task.fixedResourceId ? resourceMap.get(task.fixedResourceId)?.name : '自动'}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">自动</SelectItem>
+              {displayResources.map(r => (
+                <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </TableCell>
-      <TableCell><FastSelect defaultValue={t.priority} options={PRIORITIES} onChange={v => set('priority', v)} className="w-16" /></TableCell>
+      
+      {/* 工时/提供时间 */}
+      {task.taskType === '物料' ? (
+        <TableCell>
+          <Input
+            type="datetime-local"
+            value={formatDateTimeToInputValue(task.estimatedMaterialDate)}
+            onChange={handleMaterialDateChange}
+            className="w-36 h-8 text-xs"
+          />
+        </TableCell>
+      ) : (
+        <TableCell>
+          <Input
+            type="number"
+            value={task.estimatedHours}
+            onChange={handleHoursChange}
+            className="w-16 h-8"
+          />
+        </TableCell>
+      )}
+      
+      {/* 平面工时 */}
+      <TableCell>
+        {task.taskType === '物料' ? (
+          <span className="text-slate-400">-</span>
+        ) : (
+          <Input
+            type="number"
+            value={task.estimatedHoursGraphic || ''}
+            onChange={handleGraphicHoursChange}
+            className="w-14 h-8"
+            placeholder="0"
+          />
+        )}
+      </TableCell>
+      
+      {/* 后期工时 */}
+      <TableCell>
+        {task.taskType === '物料' ? (
+          <span className="text-slate-400">-</span>
+        ) : (
+          <Input
+            type="number"
+            value={task.estimatedHoursPost || ''}
+            onChange={handlePostHoursChange}
+            className="w-14 h-8"
+            placeholder="0"
+          />
+        )}
+      </TableCell>
+      
+      {/* 优先级 */}
+      <TableCell>
+        <Select
+          value={task.priority}
+          onValueChange={handlePriorityChange}
+        >
+          <SelectTrigger className="h-8 w-16">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="urgent">紧急</SelectItem>
+            <SelectItem value="normal">普通</SelectItem>
+            <SelectItem value="low">低</SelectItem>
+          </SelectContent>
+        </Select>
+      </TableCell>
+      
+      {/* 状态 */}
       <TableCell>
         <div className="flex items-center gap-1">
-          <FastSelect defaultValue={t.status || 'pending'} options={STATUSES} onChange={v => set('status', v)} className={`w-20 ${statusColor[t.status || 'pending']}`} />
-          {isOverdue && <span className="text-xs text-red-500">⚠️</span>}
+          <Select
+            value={task.status || 'pending'}
+            onValueChange={handleStatusChange}
+          >
+            <SelectTrigger className="h-8 w-20">
+              <SelectValue>
+                {actualStatus === 'pending' && <span className="text-slate-500">待处理</span>}
+                {actualStatus === 'in-progress' && <span className="text-blue-500">进行中</span>}
+                {actualStatus === 'to-confirm' && <span className="text-amber-500">待确认</span>}
+                {actualStatus === 'completed' && <span className="text-green-500">已完成</span>}
+                {actualStatus === 'blocked' && <span className="text-red-500">已阻塞</span>}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pending">待处理</SelectItem>
+              <SelectItem value="in-progress">进行中</SelectItem>
+              <SelectItem value="completed">已完成</SelectItem>
+              <SelectItem value="blocked">已阻塞</SelectItem>
+            </SelectContent>
+          </Select>
+          {isOverdue && actualStatus !== 'completed' && (
+            <span className="text-xs text-red-500">⚠️</span>
+          )}
         </div>
       </TableCell>
+      
+      {/* 截止日期 */}
       <TableCell>
-        {t.taskType === '物料' ? <span className="text-slate-400">-</span> :
+        {task.taskType === '物料' ? (
+          <span className="text-slate-400">-</span>
+        ) : (
           <div className="flex items-center gap-1">
-            <input type="checkbox" checked={!!t.deadline} onChange={() => set('deadline', t.deadline ? undefined : (() => { const d = new Date(); d.setDate(d.getDate() + 7); d.setHours(18, 30, 0, 0); return d; })())} className="w-3 h-3" />
-            {t.deadline ? <FastInput type="date" defaultValue={formatDate(t.deadline)} onChange={v => { if (v) { const d = new Date(v); d.setHours(18, 30, 0, 0); set('deadline', d); } }} className="w-28 h-8 text-xs" /> : <span className="text-xs text-slate-400">不限</span>}
-          </div>}
+            <input
+              type="radio"
+              name={`deadline-${task.id}`}
+              checked={task.deadline !== undefined}
+              onChange={handleSetDeadline}
+              className="w-3 h-3"
+              disabled={task.status === 'completed'}
+            />
+            {task.deadline ? (
+              <Input
+                type="date"
+                value={formatDateToInputValue(task.deadline)}
+                onChange={handleDeadlineChange}
+                className="w-28 h-8 text-xs"
+                disabled={task.status === 'completed'}
+              />
+            ) : (
+              <span className="text-xs text-slate-400">不限</span>
+            )}
+          </div>
+        )}
       </TableCell>
+      
+      {/* 依赖 */}
       <TableCell>
         <div className="flex flex-col gap-0.5">
-          <FastSelect defaultValue="" options={depOpts.filter(o => o.value && !(t.dependencies || []).includes(o.value)).slice(0, 21)} onChange={v => { if (v && !(t.dependencies || []).includes(v)) set('dependencies', [...(t.dependencies || []), v]); }} className="w-16 h-6 text-xs" />
-          {t.dependencies && t.dependencies.length > 0 && (
+          <Select
+            value=""
+            onValueChange={handleAddDependency}
+          >
+            <SelectTrigger className="h-6 text-xs w-16">
+              <SelectValue placeholder="+" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableDependencies.map(depTask => (
+                <SelectItem key={depTask.id} value={depTask.id}>
+                  {depTask.name.slice(0, 15)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {task.dependencies && task.dependencies.length > 0 && (
             <div className="flex flex-wrap gap-0.5">
-              {t.dependencies.slice(0, 2).map(id => {
-                const name = taskNames.get(id);
-                return name ? <Badge key={id} variant="secondary" className="h-4 text-[10px] px-1">{name.slice(0, 6)}<button onClick={() => set('dependencies', t.dependencies?.filter(d => d !== id))} className="ml-0.5">×</button></Badge> : null;
+              {task.dependencies.slice(0, 2).map(depId => {
+                const depTask = tasks.find(t => t.id === depId);
+                if (!depTask) return null;
+                return (
+                  <Badge key={depId} variant="secondary" className="h-4 text-[10px] px-1">
+                    {depTask.name.slice(0, 6)}
+                    <button onClick={() => handleRemoveDependency(depId)} className="ml-0.5">×</button>
+                  </Badge>
+                );
               })}
-              {t.dependencies.length > 2 && <span className="text-[10px] text-slate-500">+{t.dependencies.length - 2}</span>}
-            </div>)}
+              {task.dependencies.length > 2 && (
+                <span className="text-[10px] text-slate-500">+{task.dependencies.length - 2}</span>
+              )}
+            </div>
+          )}
         </div>
       </TableCell>
+      
+      {/* 操作 */}
       <TableCell>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={() => onLock(taskId)} className="h-6 w-6 p-0"><Lock className={`h-3 w-3 ${t.isLocked ? 'text-amber-500 fill-amber-500' : 'text-slate-400'}`} /></Button>
-          <Button variant="ghost" size="sm" onClick={() => onDelete(taskId)} className="h-6 w-6 p-0" disabled={t.isSubTask}><Trash2 className="h-3 w-3 text-red-500" /></Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onToggleLock(task.id)}
+            title={task.isLocked ? '已锁定' : '点击锁定'}
+            className="h-6 w-6 p-0"
+          >
+            <Lock className={`h-3 w-3 ${task.isLocked ? 'text-amber-500 fill-amber-500' : 'text-slate-400'}`} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onDelete(task.id)}
+            className="h-6 w-6 p-0"
+            disabled={task.isSubTask}
+          >
+            <Trash2 className="h-3 w-3 text-red-500" />
+          </Button>
         </div>
       </TableCell>
     </TableRow>
   );
-}, (p, n) => p.taskId === n.taskId && p.activeProject === n.activeProject);
+}, (prevProps, nextProps) => {
+  // 自定义比较函数 - 只比较真正会变化的字段
+  const prevTask = prevProps.task;
+  const nextTask = nextProps.task;
+  
+  return (
+    prevTask.id === nextTask.id &&
+    prevTask.name === nextTask.name &&
+    prevTask.projectId === nextTask.projectId &&
+    prevTask.taskType === nextTask.taskType &&
+    prevTask.subType === nextTask.subType &&
+    prevTask.language === nextTask.language &&
+    prevTask.fixedResourceId === nextTask.fixedResourceId &&
+    prevTask.fixedResourceIdGraphic === nextTask.fixedResourceIdGraphic &&
+    prevTask.fixedResourceIdPost === nextTask.fixedResourceIdPost &&
+    prevTask.estimatedHours === nextTask.estimatedHours &&
+    prevTask.estimatedHoursGraphic === nextTask.estimatedHoursGraphic &&
+    prevTask.estimatedHoursPost === nextTask.estimatedHoursPost &&
+    prevTask.priority === nextTask.priority &&
+    prevTask.status === nextTask.status &&
+    prevTask.deadline === nextTask.deadline &&
+    prevTask.estimatedMaterialDate === nextTask.estimatedMaterialDate &&
+    prevTask.dependencies?.length === nextTask.dependencies?.length &&
+    prevTask.isLocked === nextTask.isLocked &&
+    prevTask.isSubTask === nextTask.isSubTask &&
+    prevProps.activeProject === nextProps.activeProject
+  );
+});
 
 export default TaskRow;
