@@ -567,6 +567,11 @@ export default function ComplexScenario() {
         map.set(r.workType, list);
       }
     });
+    // 🔍 调试日志
+    console.log('[ResourceGroup] 🔍 按类型分组的资源:');
+    map.forEach((list, type) => {
+      console.log(`  [${type}]: ${list.length} 人 - ${list.map(r => r.name).join(', ')}`);
+    });
     return map;
   }, [sharedResources]);
   
@@ -1730,6 +1735,16 @@ export default function ComplexScenario() {
       }
 
       const { resources, projects, tasks } = result.data;
+      
+      // 🔍 调试：检查资源的 workType 字段
+      console.log('[Feishu Load] 🔍 资源数据检查:');
+      resources.forEach((r: any, i: number) => {
+        if (i < 5) {
+          console.log(`  [${i}] ${r.name}: workType="${r.workType}", type="${r.type}"`);
+        }
+      });
+      console.log('[Feishu Load] 🔍 平面资源数:', resources.filter((r: any) => r.workType === '平面').length);
+      console.log('[Feishu Load] 🔍 后期资源数:', resources.filter((r: any) => r.workType === '后期').length);
       
       setSharedResources([...resources]);
       setProjects([...projects]);

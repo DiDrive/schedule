@@ -114,9 +114,27 @@ const TaskRow = memo(function TaskRow({
   const isCompound = t.estimatedHoursGraphic && t.estimatedHoursPost && t.estimatedHoursGraphic > 0 && t.estimatedHoursPost > 0;
   const isOverdue = t.deadline && new Date(t.deadline) < new Date() && t.status !== 'completed';
   
-  const resources = t.taskType ? (resourcesByType.get(t.taskType) || []) : [];
+  // 获取可用资源 - 根据 taskType 获取对应类型的资源
+  // 如果 taskType 为空，或者对应的资源列表为空，显示所有可用人员
+  const taskType = t.taskType || '';
+  let resources = taskType ? (resourcesByType.get(taskType) || []) : [];
+  
+  // 如果按类型找不到资源，或者 resourcesByType 为空，尝试显示所有人员
+  // 这处理了以下情况：
+  // 1. 任务的 taskType 为空
+  // 2. 飞书表中没有"工作类型"字段，导致 resourcesByType 为空
+  if (resources.length === 0) {
+    // 合并所有类型的资源
+    resources = Array.from(resourcesByType.values()).flat();
+    // 如果还是空的，使用平面和后期资源
+    if (resources.length === 0) {
+      resources = [...graphicResources, ...postResources];
+    }
+  }
+  
   const resourceOpts = [{ value: '', label: '自动' }, ...resources.map(r => ({ value: r.id, label: r.name }))];
   const projectOpts = [{ value: '', label: '未分配' }, ...projects.map(p => ({ value: p.id, label: p.name }))];
+  
   
   const depOpts = [{ value: '', label: '+' }];
   (t.dependencies || []).forEach(id => {
