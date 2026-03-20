@@ -26,6 +26,65 @@ const log = (message: string) => {
 };
 
 /**
+ * 分页获取飞书多维表所有记录
+ * 飞书 API 一次最多返回 500 条，需要循环获取
+ * 
+ * @param url 请求 URL
+ * @param headers 请求头
+ * @param pageSize 每页条数，默认 500
+ * @returns 所有记录的数组
+ */
+async function fetchAllRecords(
+  url: string,
+  headers: Record<string, string>,
+  pageSize: number = 500
+): Promise<any[]> {
+  const allRecords: any[] = [];
+  let pageToken: string | undefined = undefined;
+  let pageCount = 0;
+  
+  do {
+    pageCount++;
+    const body: any = { page_size: pageSize };
+    if (pageToken) {
+      body.page_token = pageToken;
+    }
+    
+    log(`[分页读取] 第 ${pageCount} 次请求, page_token=${pageToken || '无'}`);
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+    
+    const data = await response.json();
+    
+    if (data.code !== 0) {
+      log(`[分页读取] ❌ 请求失败: ${JSON.stringify(data)}`);
+      break;
+    }
+    
+    if (data.data?.items) {
+      allRecords.push(...data.data.items);
+      log(`[分页读取] ✅ 本次获取 ${data.data.items.length} 条，累计 ${allRecords.length} 条`);
+    }
+    
+    // 获取下一页的 token，如果没有则表示已经获取完毕
+    pageToken = data.data?.page_token;
+    
+    // 安全限制：最多读取 20 页（10000 条记录）
+    if (pageCount >= 20) {
+      log(`[分页读取] ⚠️ 已达到最大页数限制 (20页)`);
+      break;
+    }
+  } while (pageToken);
+  
+  log(`[分页读取] 完成，共 ${pageCount} 页，${allRecords.length} 条记录`);
+  return allRecords;
+}
+
+/**
  * 从飞书多维表加载排期系统数据
  *
  * 请求参数（通过 URL 传递）:
@@ -96,24 +155,20 @@ export async function GET(request: NextRequest) {
     // ===== 第一步：加载人员数据 =====
     if (resourcesTableId) {
       log(`[飞书加载] 步骤1：加载人员数据: table_id=${resourcesTableId}`);
-      const resourcesResponse = await fetch(
-        `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${resourcesTableId}/records/search`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${appAccessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ page_size: 100 }),
-        }
-      );
+      
+      const resourcesUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${resourcesTableId}/records/search`;
+      const resourcesHeaders = {
+        'Authorization': `Bearer ${appAccessToken}`,
+        'Content-Type': 'application/json',
+      };
+      
+      const resourcesItems = await fetchAllRecords(resourcesUrl, resourcesHeaders, 500);
 
-      const resourcesData = await resourcesResponse.json();
-      if (resourcesData.code === 0 && resourcesData.data) {
-        const sample = resourcesData.data.items[0]?.fields;
+      if (resourcesItems.length > 0) {
+        const sample = resourcesItems[0]?.fields;
         log(`[飞书加载] 🔍 人员原始数据示例: ${JSON.stringify(sample).substring(0, 300)}...`);
 
-        result.resources = resourcesData.data.items.map((item: any) => {
+        result.resources = resourcesItems.map((item: any) => {
           const fields = item.fields;
 
           // 解析人员ID：可能是文本数组格式 [{text: "res-1", type: "text"}] 或直接字符串
@@ -196,7 +251,7 @@ export async function GET(request: NextRequest) {
         log(`[飞书加载] ✅ 加载了 ${result.resources.length} 个人员`);
         log(`[飞书加载] 人员列表: ${result.resources.map((r: any) => r.name).join(', ')}`);
       } else {
-        log(`[飞书加载] ❌ 加载人员数据失败: ${JSON.stringify(resourcesData)}`);
+        log(`[飞书加载] ❌ 加载人员数据失败或无数据`);
       }
     }
 
@@ -205,24 +260,20 @@ export async function GET(request: NextRequest) {
 
     if (projectsTableId) {
       log(`[飞书加载] 步骤2：加载项目数据: table_id=${projectsTableId}`);
-      const projectsResponse = await fetch(
-        `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${projectsTableId}/records/search`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${appAccessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ page_size: 100 }),
-        }
-      );
+      
+      const projectsUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${projectsTableId}/records/search`;
+      const projectsHeaders = {
+        'Authorization': `Bearer ${appAccessToken}`,
+        'Content-Type': 'application/json',
+      };
+      
+      const projectsItems = await fetchAllRecords(projectsUrl, projectsHeaders, 500);
 
-      const projectsData = await projectsResponse.json();
-      if (projectsData.code === 0 && projectsData.data) {
-        const sample = projectsData.data.items[0]?.fields;
+      if (projectsItems.length > 0) {
+        const sample = projectsItems[0]?.fields;
         log(`[飞书加载] 🔍 项目原始数据示例: ${JSON.stringify(sample).substring(0, 300)}...`);
 
-        result.projects = projectsData.data.items.map((item: any) => {
+        result.projects = projectsItems.map((item: any) => {
           const fields = item.fields;
 
           // 解析项目ID：可能是文本数组格式 [{text: "proj-xxx", type: "text"}] 或直接字符串
@@ -284,7 +335,7 @@ export async function GET(request: NextRequest) {
         log(`[飞书加载] ✅ 加载了 ${result.projects.length} 个项目`);
         log(`[飞书加载] 📝 项目名称到ID映射: ${Array.from(projectNameToIdMap.entries()).map(([k, v]) => `${k}=${v}`).join(', ')}`);
       } else {
-        log(`[飞书加载] ❌ 加载项目数据失败: ${JSON.stringify(projectsData)}`);
+        log(`[飞书加载] ❌ 加载项目数据失败或无数据`);
       }
     }
 
@@ -300,23 +351,19 @@ export async function GET(request: NextRequest) {
       // 加载需求表1
       if (shouldLoadRequirements1 && requirements1TableId) {
         log(`[飞书加载] 步骤3.1：加载需求表1数据: table_id=${requirements1TableId}`);
-        const tasksResponse = await fetch(
-          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${requirements1TableId}/records/search`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${appAccessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ page_size: 500 }),
-          }
-        );
-
-        const tasksData = await tasksResponse.json();
-        if (tasksData.code === 0 && tasksData.data) {
-          log(`[飞书加载] 🔍 需求表1记录数: ${tasksData.data.items.length}`);
+        
+        const tasksUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${requirements1TableId}/records/search`;
+        const tasksHeaders = {
+          'Authorization': `Bearer ${appAccessToken}`,
+          'Content-Type': 'application/json',
+        };
+        
+        const tasksItems = await fetchAllRecords(tasksUrl, tasksHeaders, 500);
+        
+        if (tasksItems.length > 0) {
+          log(`[飞书加载] 🔍 需求表1记录数: ${tasksItems.length}`);
           
-          tasksData.data.items.forEach((item: any, index: number) => {
+          tasksItems.forEach((item: any, index: number) => {
             const fields = item.fields;
             
             // 打印前3条记录的字段名，帮助调试
@@ -358,7 +405,7 @@ export async function GET(request: NextRequest) {
           log(`[飞书加载] ✅ 从需求表提取了 ${result.projects.length} 个项目`);
           
           // 从需求表提取任务
-          result.tasks = tasksData.data.items.map((item: any, index: number) => {
+          result.tasks = tasksItems.map((item: any, index: number) => {
             const fields = item.fields;
             const taskId = parseStringField(fields['员工填报用索引编号'] || fields['需求ID'] || fields['任务ID'] || fields['id'] || fields['ID']) || `req_${item.record_id.substring(0, 8)}`;
             
@@ -470,31 +517,27 @@ export async function GET(request: NextRequest) {
           });
           log(`[飞书加载] ✅ 使用需求表模式从需求表1加载了 ${result.tasks.length} 个任务`);
         } else {
-          log(`[飞书加载] ⚠️ 需求表1数据加载失败或无数据`);
+          log(`[飞书加载] ⚠️ 需求表1无数据`);
         }
       }
       
       // 独立加载需求表2（用于"全部加载"和"仅加载需求表2"模式）
       if (shouldLoadRequirements2 && requirements2TableId) {
         log(`[飞书加载] 步骤3.2：加载需求表2数据: table_id=${requirements2TableId}`);
-        const req2Response = await fetch(
-          `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${requirements2TableId}/records/search`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${appAccessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ page_size: 500 }),
-          }
-        );
+        
+        // 使用分页读取，解决500条记录限制
+        const req2Url = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${requirements2TableId}/records/search`;
+        const req2Headers = {
+          'Authorization': `Bearer ${appAccessToken}`,
+          'Content-Type': 'application/json',
+        };
+        const req2Records = await fetchAllRecords(req2Url, req2Headers, 500);
 
-        const req2Data = await req2Response.json();
-        if (req2Data.code === 0 && req2Data.data) {
-          log(`[飞书加载] 🔍 需求表2记录数: ${req2Data.data.items.length}`);
+        if (req2Records.length > 0) {
+          log(`[飞书加载] 🔍 需求表2记录数: ${req2Records.length}`);
           
           // 先提取项目
-          req2Data.data.items.forEach((item: any) => {
+          req2Records.forEach((item: any) => {
             const fields = item.fields;
             const categoryName = parseStringField(fields['需求类目'] || fields['客户名称'] || fields['customerName'], '');
             const projectName = categoryName || '默认项目';
@@ -514,7 +557,7 @@ export async function GET(request: NextRequest) {
             }
           });
           
-          const req2Tasks = req2Data.data.items.map((item: any, index: number) => {
+          const req2Tasks = req2Records.map((item: any, index: number) => {
                 const fields = item.fields;
                 const taskId = parseStringField(fields['员工填报用索引编号'] || fields['需求ID'] || fields['任务ID'] || fields['id'] || fields['ID']) || `req2_${item.record_id.substring(0, 8)}`;
                 
@@ -600,7 +643,7 @@ export async function GET(request: NextRequest) {
           // 更新项目列表
           result.projects = Array.from(projectMap.values());
         } else {
-          log(`[飞书加载] ⚠️ 加载需求表2失败: ${JSON.stringify(req2Data)}`);
+          log(`[飞书加载] ⚠️ 需求表2无数据`);
         }
       }
       
@@ -608,28 +651,24 @@ export async function GET(request: NextRequest) {
     } else if (tasksTableId) {
       // 传统模式：使用 tasksTableId
       log(`[飞书加载] 步骤3：加载任务数据（传统模式）: table_id=${tasksTableId}`);
-      const tasksResponse = await fetch(
-        `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tasksTableId}/records/search`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${appAccessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ page_size: 500 }),
-        }
-      );
+      
+      // 使用分页读取，解决500条记录限制
+      const tasksUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tasksTableId}/records/search`;
+      const tasksHeaders = {
+        'Authorization': `Bearer ${appAccessToken}`,
+        'Content-Type': 'application/json',
+      };
+      const tasksRecords = await fetchAllRecords(tasksUrl, tasksHeaders, 500);
 
-      const tasksData = await tasksResponse.json();
-      if (tasksData.code === 0 && tasksData.data) {
+      if (tasksRecords.length > 0) {
         if (isWorkorderMode) {
-          result.tasks = tasksData.data.items.map((item: any) => {
+          result.tasks = tasksRecords.map((item: any) => {
             return workorderRecordToTask(item, item.record_id);
           });
           log(`[飞书加载] ✅ 使用工单表模式加载了 ${result.tasks.length} 个任务`);
         } else {
           // 标准任务表模式：使用原有逻辑
-          result.tasks = tasksData.data.items.map((item: any) => {
+          result.tasks = tasksRecords.map((item: any) => {
             const fields = item.fields;
 
             // 解析任务ID：可能是文本数组格式 [{text: "task-xxx", type: "text"}] 或直接字符串
@@ -794,7 +833,7 @@ export async function GET(request: NextRequest) {
           });
         }
       } else {
-        log(`[飞书加载] ❌ 加载任务数据失败: ${JSON.stringify(tasksData)}`);
+        log(`[飞书加载] ⚠️ 任务表无数据`);
       }
     }
 
