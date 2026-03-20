@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, memo, useTransition } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -295,6 +295,10 @@ export default function ComplexScenario() {
   const [activeProject, setActiveProject] = useState<string>('all');
   const [activeTaskType, setActiveTaskType] = useState<'all' | '平面' | '后期' | '物料'>('all');
   const [activeView, setActiveView] = useState<'gantt' | 'calendar'>('gantt');
+  
+  // 使用 useTransition 优化状态更新
+  const [isPending, startTransition] = useTransition();
+  
   const [aiSuggestion, setAiSuggestion] = useState<string>('');
   const [isAiOptimizing, setIsAiOptimizing] = useState(false);
   const [conflictStrategy, setConflictStrategy] = useState<ResourceConflictStrategy>('auto-switch');
@@ -556,6 +560,38 @@ export default function ComplexScenario() {
     [tasks, activeProject, activeTaskType]
   );
   
+  // 缓存任务类型统计（用于显示数量）
+  const taskTypeStats = useMemo(() => {
+    const baseFilter = (task: Task) => activeProject === 'all' || task.projectId === activeProject;
+    return {
+      all: tasks.filter(baseFilter).length,
+      pingmian: tasks.filter(t => baseFilter(t) && t.taskType === '平面').length,
+      houqi: tasks.filter(t => baseFilter(t) && t.taskType === '后期').length,
+      wuliao: tasks.filter(t => baseFilter(t) && t.taskType === '物料').length,
+    };
+  }, [tasks, activeProject]);
+  
+  // 缓存排期结果的筛选（用于甘特图和日历视图）
+  const filteredScheduleTasks = useMemo(() => {
+    if (!scheduleResult) return [];
+    return scheduleResult.tasks.filter(task =>
+      (activeProject === 'all' || task.projectId === activeProject) &&
+      (activeTaskType === 'all' || task.taskType === activeTaskType)
+    );
+  }, [scheduleResult, activeProject, activeTaskType]);
+  
+  // 缓存排期结果的统计
+  const scheduleTaskTypeStats = useMemo(() => {
+    if (!scheduleResult) return { all: 0, pingmian: 0, houqi: 0, wuliao: 0 };
+    const baseFilter = (task: Task) => activeProject === 'all' || task.projectId === activeProject;
+    return {
+      all: scheduleResult.tasks.filter(baseFilter).length,
+      pingmian: scheduleResult.tasks.filter(t => baseFilter(t) && t.taskType === '平面').length,
+      houqi: scheduleResult.tasks.filter(t => baseFilter(t) && t.taskType === '后期').length,
+      wuliao: scheduleResult.tasks.filter(t => baseFilter(t) && t.taskType === '物料').length,
+    };
+  }, [scheduleResult, activeProject]);
+  
   // 分页逻辑
   const totalPages = Math.ceil(filteredTasks.length / pageSize);
   
@@ -592,6 +628,20 @@ export default function ComplexScenario() {
     projectMap.get(projectId),
     [projectMap]
   );
+  
+  // 使用 startTransition 优化项目切换
+  const handleSetActiveProject = useCallback((value: string) => {
+    startTransition(() => {
+      setActiveProject(value);
+    });
+  }, []);
+  
+  // 使用 startTransition 优化任务类型切换
+  const handleSetActiveTaskType = useCallback((value: string) => {
+    startTransition(() => {
+      setActiveTaskType(value as 'all' | '平面' | '后期' | '物料');
+    });
+  }, []);
 
   const handleGenerateSchedule = (force = false, tasksOverride?: Task[]) => {
     const tasksToUse = tasksOverride || tasks;
@@ -2374,19 +2424,19 @@ export default function ComplexScenario() {
 
 
       {/* Task Type Tabs */}
-      <Tabs value={activeTaskType} onValueChange={(value) => setActiveTaskType(value as 'all' | '平面' | '后期' | '物料')} className="mb-4">
+      <Tabs value={activeTaskType} onValueChange={handleSetActiveTaskType} className="mb-4">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="all">
-            全部 ({tasks.filter(task => activeProject === 'all' || task.projectId === activeProject).length})
+            全部 ({taskTypeStats.all})
           </TabsTrigger>
           <TabsTrigger value="平面">
-            平面 ({tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '平面').length})
+            平面 ({taskTypeStats.pingmian})
           </TabsTrigger>
           <TabsTrigger value="后期">
-            后期 ({tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '后期').length})
+            后期 ({taskTypeStats.houqi})
           </TabsTrigger>
           <TabsTrigger value="物料">
-            物料 ({tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '物料').length})
+            物料 ({taskTypeStats.wuliao})
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -2482,7 +2532,7 @@ export default function ComplexScenario() {
             {/* Project Filter */}
             <div className="flex items-center gap-2">
               <span className="text-sm text-slate-600">项目筛选：</span>
-              <Select value={activeProject} onValueChange={setActiveProject}>
+              <Select value={activeProject} onValueChange={handleSetActiveProject}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="选择项目" />
                 </SelectTrigger>
@@ -2606,11 +2656,11 @@ export default function ComplexScenario() {
 
       {/* Schedule Results */}
       {scheduleResult && (
-        <Tabs value={activeProject} onValueChange={setActiveProject} className="space-y-4">
+        <Tabs value={activeProject} onValueChange={handleSetActiveProject} className="space-y-4">
           <TabsList className="flex flex-wrap h-auto gap-2 bg-transparent p-0">
             <TabsTrigger 
               value="all" 
-              className="border border-slate-300 rounded-md px-3 py-1.5 text-sm data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:border-primary hover:bg-slate-100 data-[state=active]:hover:bg-primary"
+              className="border border-slate-400 bg-white rounded-md px-3 py-1.5 text-sm text-slate-700 cursor-pointer transition-colors data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:border-blue-600 hover:bg-slate-100 data-[state=active]:hover:bg-blue-700"
             >
               全部项目
             </TabsTrigger>
@@ -2618,7 +2668,7 @@ export default function ComplexScenario() {
               <TabsTrigger 
                 key={project.id} 
                 value={project.id} 
-                className="border border-slate-300 rounded-md px-3 py-1.5 text-sm data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:border-primary hover:bg-slate-100 data-[state=active]:hover:bg-primary"
+                className="border border-slate-400 bg-white rounded-md px-3 py-1.5 text-sm text-slate-700 cursor-pointer transition-colors data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:border-blue-600 hover:bg-slate-100 data-[state=active]:hover:bg-blue-700"
               >
                 {project.name.length > 15 ? project.name.slice(0, 15) + '...' : project.name}
               </TabsTrigger>
@@ -2706,12 +2756,12 @@ export default function ComplexScenario() {
             </div>
 
             {/* Task Type Filter for Gantt/Calendar View */}
-            <Tabs value={activeTaskType} onValueChange={(value) => setActiveTaskType(value as 'all' | '平面' | '后期' | '物料')} className="mb-4">
+            <Tabs value={activeTaskType} onValueChange={handleSetActiveTaskType} className="mb-4">
               <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="all">全部 ({scheduleResult.tasks.filter(task => activeProject === 'all' || task.projectId === activeProject).length})</TabsTrigger>
-                <TabsTrigger value="平面">平面 ({scheduleResult.tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '平面').length})</TabsTrigger>
-                <TabsTrigger value="后期">后期 ({scheduleResult.tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '后期').length})</TabsTrigger>
-                <TabsTrigger value="物料">物料 ({scheduleResult.tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '物料').length})</TabsTrigger>
+                <TabsTrigger value="all">全部 ({scheduleTaskTypeStats.all})</TabsTrigger>
+                <TabsTrigger value="平面">平面 ({scheduleTaskTypeStats.pingmian})</TabsTrigger>
+                <TabsTrigger value="后期">后期 ({scheduleTaskTypeStats.houqi})</TabsTrigger>
+                <TabsTrigger value="物料">物料 ({scheduleTaskTypeStats.wuliao})</TabsTrigger>
               </TabsList>
             </Tabs>
 
@@ -2728,10 +2778,7 @@ export default function ComplexScenario() {
                   <GanttChart
                     scheduleResult={{
                       ...scheduleResult,
-                      tasks: scheduleResult.tasks.filter(task =>
-                        (activeProject === 'all' || task.projectId === activeProject) &&
-                        (activeTaskType === 'all' || task.taskType === activeTaskType)
-                      )
+                      tasks: filteredScheduleTasks
                     }}
                     resources={sharedResources}
                     projects={projects.map(p => ({
@@ -2753,15 +2800,9 @@ export default function ComplexScenario() {
                 </CardHeader>
                 <CardContent>
                   <CalendarView
-                    scheduledTasks={scheduleResult.tasks.filter(task =>
-                      (activeProject === 'all' || task.projectId === activeProject) &&
-                      (activeTaskType === 'all' || task.taskType === activeTaskType)
-                    )}
+                    scheduledTasks={filteredScheduleTasks}
                     resources={sharedResources}
-                    tasks={tasks.filter(task =>
-                      (activeProject === 'all' || task.projectId === activeProject) &&
-                      (activeTaskType === 'all' || task.taskType === activeTaskType)
-                    )}
+                    tasks={filteredTasks}
                     onTaskClick={openTaskSplitDialog}
                   />
                 </CardContent>
@@ -2797,19 +2838,19 @@ export default function ComplexScenario() {
                       </div>
                   </div>
                   {/* Task Type Filter */}
-                  <Tabs value={activeTaskType} onValueChange={(value) => setActiveTaskType(value as 'all' | '平面' | '后期' | '物料')} className="w-full">
+                  <Tabs value={activeTaskType} onValueChange={handleSetActiveTaskType} className="w-full">
                     <TabsList className="grid w-full grid-cols-4">
                       <TabsTrigger value="all">
-                        全部 ({scheduleResult.tasks.filter(task => activeProject === 'all' || task.projectId === activeProject).length})
+                        全部 ({scheduleTaskTypeStats.all})
                       </TabsTrigger>
                       <TabsTrigger value="平面">
-                        平面 ({scheduleResult.tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '平面').length})
+                        平面 ({scheduleTaskTypeStats.pingmian})
                       </TabsTrigger>
                       <TabsTrigger value="后期">
-                        后期 ({scheduleResult.tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '后期').length})
+                        后期 ({scheduleTaskTypeStats.houqi})
                       </TabsTrigger>
                       <TabsTrigger value="物料">
-                        物料 ({scheduleResult.tasks.filter(task => (activeProject === 'all' || task.projectId === activeProject) && task.taskType === '物料').length})
+                        物料 ({scheduleTaskTypeStats.wuliao})
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>
