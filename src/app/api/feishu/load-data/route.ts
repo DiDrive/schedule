@@ -42,15 +42,16 @@ async function fetchAllRecords(
   const allRecords: any[] = [];
   let pageToken: string | undefined = undefined;
   let pageCount = 0;
+  const maxPages = 20; // 安全限制：最多读取20页（10000条记录）
   
-  do {
+  while (pageCount < maxPages) {
     pageCount++;
     const body: any = { page_size: pageSize };
     if (pageToken) {
       body.page_token = pageToken;
     }
     
-    log(`[分页读取] 第 ${pageCount} 次请求, page_token=${pageToken || '无'}`);
+    log(`[分页读取] 第 ${pageCount} 次请求`);
     
     const response = await fetch(url, {
       method: 'POST',
@@ -65,20 +66,34 @@ async function fetchAllRecords(
       break;
     }
     
-    if (data.data?.items) {
-      allRecords.push(...data.data.items);
-      log(`[分页读取] ✅ 本次获取 ${data.data.items.length} 条，累计 ${allRecords.length} 条`);
-    }
-    
-    // 获取下一页的 token，如果没有则表示已经获取完毕
-    pageToken = data.data?.page_token;
-    
-    // 安全限制：最多读取 20 页（10000 条记录）
-    if (pageCount >= 20) {
-      log(`[分页读取] ⚠️ 已达到最大页数限制 (20页)`);
+    const items = data.data?.items || [];
+    if (items.length === 0) {
+      // 没有数据了，退出循环
+      log(`[分页读取] 本页无数据，读取完成`);
       break;
     }
-  } while (pageToken);
+    
+    allRecords.push(...items);
+    log(`[分页读取] ✅ 本次获取 ${items.length} 条，累计 ${allRecords.length} 条`);
+    
+    // 如果返回的条数少于 page_size，说明已经是最后一页了
+    if (items.length < pageSize) {
+      log(`[分页读取] 已到达最后一页，读取完成`);
+      break;
+    }
+    
+    // 获取下一页的 token
+    pageToken = data.data?.page_token;
+    if (!pageToken) {
+      // 没有 page_token，说明数据已全部读取完毕
+      log(`[分页读取] 无更多数据，读取完成`);
+      break;
+    }
+  }
+  
+  if (pageCount >= maxPages) {
+    log(`[分页读取] ⚠️ 已达到最大页数限制 (${maxPages}页)，可能存在更多数据`);
+  }
   
   log(`[分页读取] 完成，共 ${pageCount} 页，${allRecords.length} 条记录`);
   return allRecords;
