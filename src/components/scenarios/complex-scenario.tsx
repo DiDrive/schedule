@@ -340,107 +340,88 @@ export default function ComplexScenario() {
     const savedResources = localStorage.getItem('complex-scenario-resources');
     const savedScheduleResult = localStorage.getItem('complex-scenario-schedule-result');
 
-    // 解析数据（只解析一次）
-    let parsedProjects = savedProjects ? JSON.parse(savedProjects) : defaultProjects;
-    let parsedTasks = savedTasks ? JSON.parse(savedTasks) : [];
-    let parsedResources = savedResources ? JSON.parse(savedResources) : defaultResources;
-    let parsedScheduleResult = savedScheduleResult ? JSON.parse(savedScheduleResult) : null;
+    // 解析数据
+    const parsedProjects = savedProjects ? JSON.parse(savedProjects) : defaultProjects;
+    const parsedTasks = savedTasks ? JSON.parse(savedTasks) : [];
+    const parsedResources = savedResources ? JSON.parse(savedResources) : defaultResources;
+    const parsedScheduleResult = savedScheduleResult ? JSON.parse(savedScheduleResult) : null;
 
     console.log(`[数据加载] 项目: ${parsedProjects.length}, 任务: ${parsedTasks.length}, 资源: ${parsedResources.length}`);
 
-    // 检测重复ID问题
-    if (parsedTasks.length > 0) {
+    // 快速设置项目、资源（不阻塞）
+    setProjects(parsedProjects);
+    setSharedResources(parsedResources);
+
+    // 使用 setTimeout 让出主线程，避免页面无响应
+    setTimeout(() => {
+      // 检测重复ID问题
       const taskIdSet = new Set<string>();
-      let hasDuplicateIds = false;
-      
       for (const t of parsedTasks) {
-        if (taskIdSet.has(t.id)) {
-          hasDuplicateIds = true;
-          break;
-        }
         taskIdSet.add(t.id);
       }
 
-      if (hasDuplicateIds) {
-        console.warn('[数据加载] 检测到重复ID，清除数据');
-        localStorage.clear();
-        setProjects(defaultProjects);
-        setTasks(defaultTasks);
-        setSharedResources(defaultResources);
-        setScheduleResult(null);
-        return;
-      }
-    }
+      // 构建资源ID集合
+      const resourceIds = new Set(parsedResources.map((r: any) => r.id));
 
-    // 设置项目
-    setProjects(parsedProjects);
-    
-    // 设置资源
-    setSharedResources(parsedResources);
-
-    // 构建资源ID集合（用于验证）
-    const resourceIds = new Set(parsedResources.map((r: any) => r.id));
-    const taskIdSet = new Set(parsedTasks.map((t: Task) => t.id));
-
-    // 处理任务数据
-    if (parsedTasks.length > 0) {
-      const tasksWithDates = parsedTasks.map((t: Task) => {
-        const deadline = t.deadline ? new Date(t.deadline) : undefined;
-        if (deadline) {
-          deadline.setHours(18, 30, 0, 0);
-        }
-
-        // 清理无效依赖
-        const validDependencies = (t.dependencies || []).filter(depId => 
-          taskIdSet.has(depId) && depId !== t.id
-        );
-
-        // 清理无效资源引用
-        const validFixedResourceId = t.fixedResourceId && resourceIds.has(t.fixedResourceId) 
-          ? t.fixedResourceId 
-          : undefined;
-        const validAssignedResources = (t.assignedResources || []).filter(id => resourceIds.has(id));
-
-        return {
-          ...t,
-          deadline,
-          startDate: t.startDate ? new Date(t.startDate) : undefined,
-          endDate: t.endDate ? new Date(t.endDate) : undefined,
-          dependencies: validDependencies,
-          fixedResourceId: validFixedResourceId,
-          assignedResources: validAssignedResources
-        };
-      });
-      setTasks(tasksWithDates);
-    }
-
-    // 处理排期结果
-    if (parsedScheduleResult) {
-      const scheduleResultWithDates = {
-        ...parsedScheduleResult,
-        tasks: parsedScheduleResult.tasks.map((t: Task) => {
+      // 处理任务数据
+      if (parsedTasks.length > 0) {
+        const tasksWithDates = parsedTasks.map((t: Task) => {
           const deadline = t.deadline ? new Date(t.deadline) : undefined;
           if (deadline) {
             deadline.setHours(18, 30, 0, 0);
           }
+
+          const validDependencies = (t.dependencies || []).filter(depId => 
+            taskIdSet.has(depId) && depId !== t.id
+          );
+          const validFixedResourceId = t.fixedResourceId && resourceIds.has(t.fixedResourceId) 
+            ? t.fixedResourceId 
+            : undefined;
+          const validAssignedResources = (t.assignedResources || []).filter(id => resourceIds.has(id));
+
           return {
             ...t,
             deadline,
             startDate: t.startDate ? new Date(t.startDate) : undefined,
-            endDate: t.endDate ? new Date(t.endDate) : undefined
+            endDate: t.endDate ? new Date(t.endDate) : undefined,
+            dependencies: validDependencies,
+            fixedResourceId: validFixedResourceId,
+            assignedResources: validAssignedResources
           };
-        }),
-        resourceConflicts: parsedScheduleResult.resourceConflicts.map((rc: any) => ({
-          ...rc,
-          timeRange: {
-            start: new Date(rc.timeRange.start),
-            end: new Date(rc.timeRange.end)
-          }
-        })),
-        projects: parsedScheduleResult.projects
-      };
-      setScheduleResult(scheduleResultWithDates);
-    }
+        });
+        setTasks(tasksWithDates);
+        console.log('[数据加载] 任务处理完成');
+      }
+
+      // 处理排期结果
+      if (parsedScheduleResult) {
+        const scheduleResultWithDates = {
+          ...parsedScheduleResult,
+          tasks: parsedScheduleResult.tasks.map((t: Task) => {
+            const deadline = t.deadline ? new Date(t.deadline) : undefined;
+            if (deadline) {
+              deadline.setHours(18, 30, 0, 0);
+            }
+            return {
+              ...t,
+              deadline,
+              startDate: t.startDate ? new Date(t.startDate) : undefined,
+              endDate: t.endDate ? new Date(t.endDate) : undefined
+            };
+          }),
+          resourceConflicts: parsedScheduleResult.resourceConflicts.map((rc: any) => ({
+            ...rc,
+            timeRange: {
+              start: new Date(rc.timeRange.start),
+              end: new Date(rc.timeRange.end)
+            }
+          })),
+          projects: parsedScheduleResult.projects
+        };
+        setScheduleResult(scheduleResultWithDates);
+        console.log('[数据加载] 排期结果处理完成');
+      }
+    }, 50); // 50ms 延迟，让浏览器有时间响应
   }, []);
 
   // 防抖保存到 localStorage - 避免每次输入都触发大量序列化操作
