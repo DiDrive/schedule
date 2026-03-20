@@ -609,25 +609,29 @@ export default function ComplexScenario() {
     setCurrentPage(1);
   }, [activeProject, activeTaskType]);
   
-  // 分页加载完成后滚动到表格顶部
+  // 分页加载状态
   const tableRef = useRef<HTMLDivElement>(null);
   
-  // 监听 paginatedTasks 变化，滚动到表格顶部
+  // 数据加载完成后清除 loading 状态
   useEffect(() => {
-    if (isPageLoading && tableRef.current) {
-      // 数据已加载，滚动到表格顶部
-      tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      // 延迟清除 loading 状态，让用户看到新数据
+    if (isPageLoading) {
+      // 数据已更新，清除 loading 状态
       const timer = setTimeout(() => {
         setIsPageLoading(false);
-      }, 100);
+      }, 50);
       return () => clearTimeout(timer);
     }
   }, [paginatedTasks, isPageLoading]);
   
-  // 翻页处理
+  // 翻页处理 - 立即滚动并显示加载中
   const handlePageChange = useCallback((newPage: number) => {
+    // 立即滚动到表格顶部
+    if (tableRef.current) {
+      tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    // 显示加载中
     setIsPageLoading(true);
+    // 更新页码
     setCurrentPage(newPage);
   }, []);
   
