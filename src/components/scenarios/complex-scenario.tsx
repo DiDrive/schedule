@@ -2514,21 +2514,18 @@ export default function ComplexScenario() {
                   <TaskRow
                     key={task.id}
                     task={task}
-                    project={getProjectById(task.projectId || '')}
                     projects={projects}
                     tasks={tasks}
                     resourceMap={resourceMap}
                     graphicResources={graphicResources}
                     postResources={postResources}
                     resourcesByWorkType={resourcesByWorkType}
-                    sharedResources={sharedResources}
                     activeProject={activeProject}
                     getTaskActualStatus={getTaskActualStatus}
                     isTaskOverdue={isTaskOverdue}
                     onTaskChange={handleTaskChange}
                     onToggleLock={handleToggleTaskLock}
                     onDelete={handleDeleteTask}
-                    getProjectById={getProjectById}
                   />
                 ))}
               </TableBody>
