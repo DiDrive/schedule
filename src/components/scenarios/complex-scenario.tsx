@@ -315,6 +315,10 @@ export default function ComplexScenario() {
   const [isLoadingFromFeishu, setIsLoadingFromFeishu] = useState(false);
   const [showFeishuDialog, setShowFeishuDialog] = useState(false);
   
+  // 分页状态 - 解决大量数据渲染卡顿问题
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50); // 每页50条
+  
   // 增量排期相关状态
   const [forceFullReschedule, setForceFullReschedule] = useState(false); // 强制完全重新排期
 
@@ -348,80 +352,92 @@ export default function ComplexScenario() {
 
     console.log(`[数据加载] 项目: ${parsedProjects.length}, 任务: ${parsedTasks.length}, 资源: ${parsedResources.length}`);
 
-    // 快速设置项目、资源（不阻塞）
+    // 快速设置项目、资源（让 UI 先显示）
     setProjects(parsedProjects);
     setSharedResources(parsedResources);
 
-    // 使用 setTimeout 让出主线程，避免页面无响应
-    setTimeout(() => {
-      // 检测重复ID问题
-      const taskIdSet = new Set<string>();
-      for (const t of parsedTasks) {
-        taskIdSet.add(t.id);
-      }
+    // 使用 requestIdleCallback 或 setTimeout 分批处理大量任务
+    const processDataInBatches = () => {
+      const BATCH_SIZE = 50; // 每批处理 50 个
+      let currentIndex = 0;
+      const processedTasks: Task[] = [];
+      const taskIdSet = new Set(parsedTasks.map((t: Task) => t.id));
+      const resourceIds = new Set(parsedResources.map((r: Resource) => r.id));
 
-      // 构建资源ID集合
-      const resourceIds = new Set(parsedResources.map((r: any) => r.id));
-
-      // 处理任务数据
-      if (parsedTasks.length > 0) {
-        const tasksWithDates = parsedTasks.map((t: Task) => {
+      const processBatch = () => {
+        const endIndex = Math.min(currentIndex + BATCH_SIZE, parsedTasks.length);
+        
+        for (let i = currentIndex; i < endIndex; i++) {
+          const t = parsedTasks[i];
           const deadline = t.deadline ? new Date(t.deadline) : undefined;
           if (deadline) {
             deadline.setHours(18, 30, 0, 0);
           }
 
-          const validDependencies = (t.dependencies || []).filter(depId => 
-            taskIdSet.has(depId) && depId !== t.id
-          );
-          const validFixedResourceId = t.fixedResourceId && resourceIds.has(t.fixedResourceId) 
-            ? t.fixedResourceId 
-            : undefined;
-          const validAssignedResources = (t.assignedResources || []).filter(id => resourceIds.has(id));
-
-          return {
+          processedTasks.push({
             ...t,
             deadline,
             startDate: t.startDate ? new Date(t.startDate) : undefined,
             endDate: t.endDate ? new Date(t.endDate) : undefined,
-            dependencies: validDependencies,
-            fixedResourceId: validFixedResourceId,
-            assignedResources: validAssignedResources
-          };
-        });
-        setTasks(tasksWithDates);
-        console.log('[数据加载] 任务处理完成');
-      }
+            dependencies: (t.dependencies || []).filter((depId: string) => taskIdSet.has(depId) && depId !== t.id),
+            fixedResourceId: t.fixedResourceId && resourceIds.has(t.fixedResourceId) ? t.fixedResourceId : undefined,
+            assignedResources: (t.assignedResources || []).filter((id: string) => resourceIds.has(id))
+          });
+        }
 
-      // 处理排期结果
-      if (parsedScheduleResult) {
-        const scheduleResultWithDates = {
-          ...parsedScheduleResult,
-          tasks: parsedScheduleResult.tasks.map((t: Task) => {
-            const deadline = t.deadline ? new Date(t.deadline) : undefined;
-            if (deadline) {
-              deadline.setHours(18, 30, 0, 0);
-            }
-            return {
-              ...t,
-              deadline,
-              startDate: t.startDate ? new Date(t.startDate) : undefined,
-              endDate: t.endDate ? new Date(t.endDate) : undefined
-            };
-          }),
-          resourceConflicts: parsedScheduleResult.resourceConflicts.map((rc: any) => ({
-            ...rc,
-            timeRange: {
-              start: new Date(rc.timeRange.start),
-              end: new Date(rc.timeRange.end)
-            }
-          })),
-          projects: parsedScheduleResult.projects
-        };
-        setScheduleResult(scheduleResultWithDates);
-        console.log('[数据加载] 排期结果处理完成');
+        currentIndex = endIndex;
+
+        if (currentIndex < parsedTasks.length) {
+          // 还有更多数据，使用 requestIdleCallback 或 setTimeout 继续处理
+          if ('requestIdleCallback' in window) {
+            (window as any).requestIdleCallback(processBatch, { timeout: 100 });
+          } else {
+            setTimeout(processBatch, 0);
+          }
+        } else {
+          // 所有数据处理完成
+          setTasks(processedTasks);
+          console.log(`[数据加载] 任务处理完成: ${processedTasks.length} 个`);
+
+          // 处理排期结果
+          if (parsedScheduleResult) {
+            setTimeout(() => {
+              const scheduleResultWithDates = {
+                ...parsedScheduleResult,
+                tasks: parsedScheduleResult.tasks.map((t: Task) => ({
+                  ...t,
+                  deadline: t.deadline ? new Date(t.deadline) : undefined,
+                  startDate: t.startDate ? new Date(t.startDate) : undefined,
+                  endDate: t.endDate ? new Date(t.endDate) : undefined
+                })),
+                resourceConflicts: parsedScheduleResult.resourceConflicts.map((rc: any) => ({
+                  ...rc,
+                  timeRange: {
+                    start: new Date(rc.timeRange.start),
+                    end: new Date(rc.timeRange.end)
+                  }
+                })),
+                projects: parsedScheduleResult.projects
+              };
+              setScheduleResult(scheduleResultWithDates);
+              console.log('[数据加载] 排期结果处理完成');
+            }, 0);
+          }
+        }
+      };
+
+      // 开始处理
+      if (parsedTasks.length > 0) {
+        processBatch();
       }
-    }, 50); // 50ms 延迟，让浏览器有时间响应
+    };
+
+    // 延迟处理，让 UI 先渲染
+    if ('requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(processDataInBatches, { timeout: 500 });
+    } else {
+      setTimeout(processDataInBatches, 100);
+    }
   }, []);
 
   // 防抖保存到 localStorage - 避免每次输入都触发大量序列化操作
@@ -539,6 +555,18 @@ export default function ComplexScenario() {
     ),
     [tasks, activeProject, activeTaskType]
   );
+  
+  // 分页逻辑 - 解决大量数据渲染卡顿
+  const totalPages = Math.ceil(filteredTasks.length / pageSize);
+  const paginatedTasks = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredTasks.slice(start, start + pageSize);
+  }, [filteredTasks, currentPage, pageSize]);
+  
+  // 当筛选条件变化时，重置页码
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeProject, activeTaskType]);
   
   // 缓存项目ID到项目的映射
   const projectMap = useMemo(() => {
@@ -2482,7 +2510,7 @@ export default function ComplexScenario() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTasks.map(task => (
+                {paginatedTasks.map(task => (
                   <TaskRow
                     key={task.id}
                     task={task}
@@ -2506,6 +2534,61 @@ export default function ComplexScenario() {
               </TableBody>
             </Table>
           </div>
+          
+          {/* 分页控件 */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between py-4 border-t">
+              <div className="text-sm text-slate-500">
+                共 {filteredTasks.length} 条任务，第 {currentPage}/{totalPages} 页
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                >
+                  首页
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  上一页
+                </Button>
+                <span className="px-3">{currentPage} / {totalPages}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  下一页
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                >
+                  末页
+                </Button>
+                <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}>
+                  <SelectTrigger className="w-[100px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="20">20条/页</SelectItem>
+                    <SelectItem value="50">50条/页</SelectItem>
+                    <SelectItem value="100">100条/页</SelectItem>
+                    <SelectItem value="200">200条/页</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

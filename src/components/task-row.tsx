@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -52,6 +52,7 @@ interface TaskRowProps {
   getProjectById: (projectId: string) => Project | undefined;
 }
 
+// 使用轻量级的行组件
 const TaskRow = memo(function TaskRow({
   task,
   project,
@@ -70,6 +71,29 @@ const TaskRow = memo(function TaskRow({
   onDelete,
   getProjectById,
 }: TaskRowProps) {
+  // 计算状态
+  const actualStatus = getTaskActualStatus(task);
+  const isOverdue = isTaskOverdue(task);
+  
+  // 判断是否是复合任务
+  const isCompoundTask = task.estimatedHoursGraphic && task.estimatedHoursPost && 
+    task.estimatedHoursGraphic > 0 && task.estimatedHoursPost > 0;
+
+  // 获取可用资源 - 使用 useMemo 缓存
+  const displayResources = useMemo(() => {
+    const filtered = task.taskType ? (resourcesByWorkType.get(task.taskType) || []) : [];
+    const current = task.fixedResourceId ? resourceMap.get(task.fixedResourceId) : null;
+    if (current && !filtered.find(r => r.id === task.fixedResourceId)) {
+      return [current, ...filtered];
+    }
+    return filtered;
+  }, [task.taskType, task.fixedResourceId, resourcesByWorkType, resourceMap]);
+
+  // 可选的依赖任务（限制数量）
+  const availableDependencies = useMemo(() => {
+    return tasks.filter(t => t.id !== task.id && !task.dependencies?.includes(t.id)).slice(0, 20);
+  }, [tasks, task.id, task.dependencies]);
+
   // 使用 useCallback 缓存事件处理器
   const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     onTaskChange(task.id, 'name', e.target.value);
@@ -155,27 +179,6 @@ const TaskRow = memo(function TaskRow({
     }
     onTaskChange(task.id, 'deadline', defaultDeadline);
   }, [task.id, onTaskChange]);
-
-  const handleClearDeadline = useCallback(() => {
-    onTaskChange(task.id, 'deadline', undefined);
-  }, [task.id, onTaskChange]);
-
-  // 计算状态
-  const actualStatus = getTaskActualStatus(task);
-  const isOverdue = isTaskOverdue(task);
-  
-  // 判断是否是复合任务
-  const isCompoundTask = task.estimatedHoursGraphic && task.estimatedHoursPost && 
-    task.estimatedHoursGraphic > 0 && task.estimatedHoursPost > 0;
-
-  // 获取可用资源
-  const filteredResources = task.taskType 
-    ? (resourcesByWorkType.get(task.taskType) || [])
-    : [];
-  const currentResource = task.fixedResourceId ? resourceMap.get(task.fixedResourceId) : null;
-  const displayResources = currentResource && !filteredResources.find(r => r.id === task.fixedResourceId)
-    ? [currentResource, ...filteredResources]
-    : filteredResources;
 
   return (
     <TableRow key={task.id}>
@@ -465,7 +468,7 @@ const TaskRow = memo(function TaskRow({
               <SelectValue placeholder="+" />
             </SelectTrigger>
             <SelectContent>
-              {tasks.filter(t => t.id !== task.id && !task.dependencies?.includes(t.id)).slice(0, 20).map(depTask => (
+              {availableDependencies.map(depTask => (
                 <SelectItem key={depTask.id} value={depTask.id}>
                   {depTask.name.slice(0, 15)}
                 </SelectItem>
@@ -518,32 +521,31 @@ const TaskRow = memo(function TaskRow({
     </TableRow>
   );
 }, (prevProps, nextProps) => {
-  // 自定义比较函数
+  // 自定义比较函数 - 只比较真正会变化的字段
+  const prevTask = prevProps.task;
+  const nextTask = nextProps.task;
+  
   return (
-    prevProps.task.id === nextProps.task.id &&
-    prevProps.task.name === nextProps.task.name &&
-    prevProps.task.projectId === nextProps.task.projectId &&
-    prevProps.task.taskType === nextProps.task.taskType &&
-    prevProps.task.subType === nextProps.task.subType &&
-    prevProps.task.language === nextProps.task.language &&
-    prevProps.task.fixedResourceId === nextProps.task.fixedResourceId &&
-    prevProps.task.fixedResourceIdGraphic === nextProps.task.fixedResourceIdGraphic &&
-    prevProps.task.fixedResourceIdPost === nextProps.task.fixedResourceIdPost &&
-    prevProps.task.estimatedHours === nextProps.task.estimatedHours &&
-    prevProps.task.estimatedHoursGraphic === nextProps.task.estimatedHoursGraphic &&
-    prevProps.task.estimatedHoursPost === nextProps.task.estimatedHoursPost &&
-    prevProps.task.priority === nextProps.task.priority &&
-    prevProps.task.status === nextProps.task.status &&
-    prevProps.task.deadline === nextProps.task.deadline &&
-    prevProps.task.estimatedMaterialDate === nextProps.task.estimatedMaterialDate &&
-    JSON.stringify(prevProps.task.dependencies) === JSON.stringify(nextProps.task.dependencies) &&
-    prevProps.task.isLocked === nextProps.task.isLocked &&
-    prevProps.task.isSubTask === nextProps.task.isSubTask &&
-    prevProps.activeProject === nextProps.activeProject &&
-    prevProps.graphicResources.length === nextProps.graphicResources.length &&
-    prevProps.postResources.length === nextProps.postResources.length &&
-    prevProps.projects.length === nextProps.projects.length &&
-    prevProps.tasks.length === nextProps.tasks.length
+    prevTask.id === nextTask.id &&
+    prevTask.name === nextTask.name &&
+    prevTask.projectId === nextTask.projectId &&
+    prevTask.taskType === nextTask.taskType &&
+    prevTask.subType === nextTask.subType &&
+    prevTask.language === nextTask.language &&
+    prevTask.fixedResourceId === nextTask.fixedResourceId &&
+    prevTask.fixedResourceIdGraphic === nextTask.fixedResourceIdGraphic &&
+    prevTask.fixedResourceIdPost === nextTask.fixedResourceIdPost &&
+    prevTask.estimatedHours === nextTask.estimatedHours &&
+    prevTask.estimatedHoursGraphic === nextTask.estimatedHoursGraphic &&
+    prevTask.estimatedHoursPost === nextTask.estimatedHoursPost &&
+    prevTask.priority === nextTask.priority &&
+    prevTask.status === nextTask.status &&
+    prevTask.deadline === nextTask.deadline &&
+    prevTask.estimatedMaterialDate === nextTask.estimatedMaterialDate &&
+    prevTask.dependencies?.length === nextTask.dependencies?.length &&
+    prevTask.isLocked === nextTask.isLocked &&
+    prevTask.isSubTask === nextTask.isSubTask &&
+    prevProps.activeProject === nextProps.activeProject
   );
 });
 
