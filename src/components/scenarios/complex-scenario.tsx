@@ -537,6 +537,13 @@ export default function ComplexScenario() {
     return map;
   }, [sharedResources]);
   
+  // 轻量级资源映射（只包含 TaskRow 需要的字段）
+  const resourceMapLite = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; workType?: string }>();
+    sharedResources.forEach(r => map.set(r.id, { id: r.id, name: r.name, workType: r.workType }));
+    return map;
+  }, [sharedResources]);
+  
   // 缓存按工作类型分组的资源
   const resourcesByWorkType = useMemo(() => {
     const map = new Map<string, Resource[]>();
@@ -549,6 +556,26 @@ export default function ComplexScenario() {
     });
     return map;
   }, [sharedResources]);
+  
+  // 轻量级按工作类型分组的资源
+  const resourcesByWorkTypeLite = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }[]>();
+    sharedResources.forEach(r => {
+      if (r.type === 'human' && r.workType) {
+        const list = map.get(r.workType) || [];
+        list.push({ id: r.id, name: r.name });
+        map.set(r.workType, list);
+      }
+    });
+    return map;
+  }, [sharedResources]);
+  
+  // 任务名称映射（用于依赖显示）- 只在 tasks 变化时更新
+  const taskNamesMap = useMemo(() => {
+    const map = new Map<string, string>();
+    tasks.forEach(t => map.set(t.id, t.name));
+    return map;
+  }, [tasks]);
   
   // 缓存筛选后的任务列表（避免每次渲染都执行 filter）
   const filteredTasks = useMemo(() => 
@@ -2527,17 +2554,17 @@ export default function ComplexScenario() {
                 {paginatedTasks.map(task => (
                   <TaskRow
                     key={task.id}
-                    task={task}
-                    projects={projects}
-                    tasks={tasks}
-                    resourceMap={resourceMap}
-                    graphicResources={graphicResources}
-                    postResources={postResources}
-                    resourcesByWorkType={resourcesByWorkType}
+                    taskId={task.id}
+                    initialTask={task}
+                    projects={projects.map(p => ({ id: p.id, name: p.name }))}
+                    allTaskIds={tasks.map(t => t.id)}
+                    allTaskNames={taskNamesMap}
+                    resourceMap={resourceMapLite}
+                    graphicResources={graphicResources.map(r => ({ id: r.id, name: r.name }))}
+                    postResources={postResources.map(r => ({ id: r.id, name: r.name }))}
+                    resourcesByWorkType={resourcesByWorkTypeLite}
                     activeProject={activeProject}
-                    getTaskActualStatus={getTaskActualStatus}
-                    isTaskOverdue={isTaskOverdue}
-                    onTaskChange={handleTaskChange}
+                    onChange={handleTaskChange}
                     onToggleLock={handleToggleTaskLock}
                     onDelete={handleDeleteTask}
                   />
