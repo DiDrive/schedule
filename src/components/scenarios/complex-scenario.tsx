@@ -456,11 +456,30 @@ export default function ComplexScenario() {
     
     // 延迟 500ms 保存，避免频繁写入
     saveTimeoutRef.current = setTimeout(() => {
-      localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
-      localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
-      localStorage.setItem('complex-scenario-resources', JSON.stringify(sharedResources));
-      if (scheduleResult) {
-        localStorage.setItem('complex-scenario-schedule-result', JSON.stringify(scheduleResult));
+      try {
+        localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
+        localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
+        localStorage.setItem('complex-scenario-resources', JSON.stringify(sharedResources));
+        if (scheduleResult) {
+          localStorage.setItem('complex-scenario-schedule-result', JSON.stringify(scheduleResult));
+        }
+      } catch (e: any) {
+        // localStorage 存储空间不足时，尝试清理旧数据
+        if (e.name === 'QuotaExceededError' || e.code === 22) {
+          console.warn('[存储] localStorage 空间不足，清理旧数据后重试...');
+          try {
+            // 清理 scheduleResult（通常最大），只保留核心数据
+            localStorage.removeItem('complex-scenario-schedule-result');
+            localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
+            localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
+            localStorage.setItem('complex-scenario-resources', JSON.stringify(sharedResources));
+            console.log('[存储] 清理后重新保存成功');
+          } catch (e2) {
+            console.error('[存储] 即使清理后仍无法保存，数据量过大:', e2);
+          }
+        } else {
+          throw e;
+        }
       }
     }, 500);
     
