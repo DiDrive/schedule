@@ -34,6 +34,71 @@ const log = (message: string) => {
  * @param pageSize 每页条数，默认 500
  * @returns 所有记录的数组
  */
+/**
+ * 使用 list API（GET）获取所有记录
+ * 飞书的 search API 分页有问题，改用 list API
+ */
+async function fetchAllRecordsByListApi(
+  baseUrl: string,
+  headers: Record<string, string>,
+  pageSize: number = 500
+): Promise<any[]> {
+  const allRecords: any[] = [];
+  let pageToken: string | undefined = undefined;
+  let pageCount = 0;
+  const maxPages = 50;
+  
+  while (pageCount < maxPages) {
+    pageCount++;
+    
+    // 构建 GET 请求 URL
+    let url = `${baseUrl}?page_size=${pageSize}`;
+    if (pageToken) {
+      url += `&page_token=${pageToken}`;
+    }
+    
+    log(`[分页读取-List] 第 ${pageCount} 次请求`);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers,
+    });
+    
+    const data = await response.json();
+    
+    if (data.code !== 0) {
+      log(`[分页读取-List] ❌ 请求失败: ${JSON.stringify(data)}`);
+      break;
+    }
+    
+    const items = data.data?.items || [];
+    
+    if (items.length === 0) {
+      log(`[分页读取-List] 本页无数据，读取完成`);
+      break;
+    }
+    
+    allRecords.push(...items);
+    log(`[分页读取-List] ✅ 本次获取 ${items.length} 条，累计 ${allRecords.length} 条`);
+    
+    // 如果返回条数少于 page_size，说明是最后一页
+    if (items.length < pageSize) {
+      log(`[分页读取-List] 已到达最后一页，读取完成`);
+      break;
+    }
+    
+    // 获取下一页 token
+    pageToken = data.data?.page_token;
+    if (!pageToken) {
+      log(`[分页读取-List] 无page_token，读取完成`);
+      break;
+    }
+  }
+  
+  log(`[分页读取-List] 完成，共 ${pageCount} 页，${allRecords.length} 条记录`);
+  return allRecords;
+}
+
 async function fetchAllRecords(
   url: string,
   headers: Record<string, string>,
@@ -222,13 +287,13 @@ export async function GET(request: NextRequest) {
     if (resourcesTableId) {
       log(`[飞书加载] 步骤1：加载人员数据: table_id=${resourcesTableId}`);
       
-      const resourcesUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${resourcesTableId}/records/search`;
+      // 使用 list API（GET请求），分页更稳定
+      const resourcesUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${resourcesTableId}/records`;
       const resourcesHeaders = {
         'Authorization': `Bearer ${appAccessToken}`,
-        'Content-Type': 'application/json',
       };
       
-      const resourcesItems = await fetchAllRecords(resourcesUrl, resourcesHeaders, 500);
+      const resourcesItems = await fetchAllRecordsByListApi(resourcesUrl, resourcesHeaders, 500);
 
       if (resourcesItems.length > 0) {
         const sample = resourcesItems[0]?.fields;
@@ -327,13 +392,13 @@ export async function GET(request: NextRequest) {
     if (projectsTableId) {
       log(`[飞书加载] 步骤2：加载项目数据: table_id=${projectsTableId}`);
       
-      const projectsUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${projectsTableId}/records/search`;
+      // 使用 list API（GET请求），分页更稳定
+      const projectsUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${projectsTableId}/records`;
       const projectsHeaders = {
         'Authorization': `Bearer ${appAccessToken}`,
-        'Content-Type': 'application/json',
       };
       
-      const projectsItems = await fetchAllRecords(projectsUrl, projectsHeaders, 500);
+      const projectsItems = await fetchAllRecordsByListApi(projectsUrl, projectsHeaders, 500);
 
       if (projectsItems.length > 0) {
         const sample = projectsItems[0]?.fields;
@@ -418,13 +483,13 @@ export async function GET(request: NextRequest) {
       if (shouldLoadRequirements1 && requirements1TableId) {
         log(`[飞书加载] 步骤3.1：加载需求表1数据: table_id=${requirements1TableId}`);
         
-        const tasksUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${requirements1TableId}/records/search`;
+        // 使用 list API（GET请求），分页更稳定
+        const tasksUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${requirements1TableId}/records`;
         const tasksHeaders = {
           'Authorization': `Bearer ${appAccessToken}`,
-          'Content-Type': 'application/json',
         };
         
-        const tasksItems = await fetchAllRecords(tasksUrl, tasksHeaders, 500);
+        const tasksItems = await fetchAllRecordsByListApi(tasksUrl, tasksHeaders, 500);
         
         if (tasksItems.length > 0) {
           log(`[飞书加载] 🔍 需求表1记录数: ${tasksItems.length}`);
@@ -592,12 +657,12 @@ export async function GET(request: NextRequest) {
         log(`[飞书加载] 步骤3.2：加载需求表2数据: table_id=${requirements2TableId}`);
         
         // 使用分页读取，解决500条记录限制
-        const req2Url = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${requirements2TableId}/records/search`;
+        // 使用 list API（GET请求），分页更稳定
+        const req2Url = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${requirements2TableId}/records`;
         const req2Headers = {
           'Authorization': `Bearer ${appAccessToken}`,
-          'Content-Type': 'application/json',
         };
-        const req2Records = await fetchAllRecords(req2Url, req2Headers, 500);
+        const req2Records = await fetchAllRecordsByListApi(req2Url, req2Headers, 500);
 
         if (req2Records.length > 0) {
           log(`[飞书加载] 🔍 需求表2记录数: ${req2Records.length}`);
@@ -718,13 +783,12 @@ export async function GET(request: NextRequest) {
       // 传统模式：使用 tasksTableId
       log(`[飞书加载] 步骤3：加载任务数据（传统模式）: table_id=${tasksTableId}`);
       
-      // 使用分页读取，解决500条记录限制
-      const tasksUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tasksTableId}/records/search`;
+      // 使用 list API（GET请求），分页更稳定
+      const tasksUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tasksTableId}/records`;
       const tasksHeaders = {
         'Authorization': `Bearer ${appAccessToken}`,
-        'Content-Type': 'application/json',
       };
-      const tasksRecords = await fetchAllRecords(tasksUrl, tasksHeaders, 500);
+      const tasksRecords = await fetchAllRecordsByListApi(tasksUrl, tasksHeaders, 500);
 
       if (tasksRecords.length > 0) {
         if (isWorkorderMode) {
