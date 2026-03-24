@@ -2614,6 +2614,7 @@ export default function ComplexScenario() {
                   <TableHead className="w-[70px]">优先级</TableHead>
                   <TableHead className="w-[80px]">状态</TableHead>
                   <TableHead className="w-[100px]">截止日期</TableHead>
+                  <TableHead className="w-[70px]">子任务</TableHead>
                   <TableHead className="w-[80px]">依赖</TableHead>
                   <TableHead className="w-[60px]">操作</TableHead>
                 </TableRow>

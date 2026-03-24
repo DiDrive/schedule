@@ -566,6 +566,34 @@ const TaskRow = memo(function TaskRow({
         )}
       </TableCell>
       
+      {/* 子任务依赖：只对复合任务显示 */}
+      <TableCell className="p-1">
+        {isCompoundTask ? (
+          <Select
+            value={task.subTaskDependencyMode || 'parallel'}
+            onValueChange={(value) => onTaskChange(task.id, 'subTaskDependencyMode', value as 'parallel' | 'serial')}
+          >
+            <SelectTrigger className="h-6 text-xs w-16">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="parallel">
+                <span className="flex items-center gap-1">
+                  <span className="text-green-600">∥</span> 并行
+                </span>
+              </SelectItem>
+              <SelectItem value="serial">
+                <span className="flex items-center gap-1">
+                  <span className="text-blue-600">→</span> 串行
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-slate-400 text-xs">-</span>
+        )}
+      </TableCell>
+      
       {/* 依赖 */}
       <TableCell className="p-1">
         <div className="flex flex-col gap-0.5">
