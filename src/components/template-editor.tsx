@@ -190,7 +190,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
   };
 
   const totalHours = formData.tasks?.reduce((sum, t) => sum + t.estimatedHours, 0) || 0;
-  const availableSequences = formData.tasks?.map(t => t.sequence) || [];
+  const availableSequences = [...new Set(formData.tasks?.map(t => t.sequence) || [])];
 
   const getTaskBySequence = (sequence: number) => {
     return formData.tasks?.find(t => t.sequence === sequence);
@@ -595,7 +595,7 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                                 const depTask = getTaskBySequence(seq);
                                 const depTaskName = depTask?.name || `任务${seq}`;
                                 return (
-                                  <label key={seq} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 px-2 py-1.5 rounded border border-slate-200 dark:border-slate-700">
+                                  <label key={`${task.id}-${seq}`} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 px-2 py-1.5 rounded border border-slate-200 dark:border-slate-700">
                                     <input
                                       type="checkbox"
                                       checked={task.dependencies?.includes(seq)}
