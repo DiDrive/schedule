@@ -3,7 +3,7 @@ export type ResourceLevel = 'assistant' | 'junior' | 'senior';
 
 // 资源类型
 export type ResourceType = 'human' | 'material' | 'equipment';
-export type ResourceWorkType = '平面' | '后期' | '物料';
+export type ResourceWorkType = '平面' | '后期' | '物料' | '复合';
 
 // 资源冲突处理策略
 export type ResourceConflictStrategy = 'auto-switch' | 'delay-only' | 'ask-each';
@@ -227,8 +227,11 @@ export interface TemplateTask {
   name: string;
   description?: string;
   estimatedHours: number;
+  estimatedHoursGraphic?: number; // 平面工时（复合任务用）
+  estimatedHoursPost?: number; // 后期工时（复合任务用）
+  subTaskDependencyMode?: 'parallel' | 'serial'; // 子任务依赖模式（复合任务用）
   priority: 'urgent' | 'high' | 'normal' | 'low';
-  taskType: ResourceWorkType; // 平面/后期/物料
+  taskType: ResourceWorkType | '复合'; // 平面/后期/物料/复合
   workType?: ResourceWorkType; // 工作类型（兼容性字段）
   dependencies: number[]; // 依赖的任务序号数组（如 [1] 表示依赖序号为1的任务）
   tags?: string[];

@@ -84,6 +84,9 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
       name: newTask.name || '',
       description: newTask.description,
       estimatedHours: newTask.estimatedHours || 8,
+      estimatedHoursGraphic: newTask.estimatedHoursGraphic,
+      estimatedHoursPost: newTask.estimatedHoursPost,
+      subTaskDependencyMode: newTask.subTaskDependencyMode,
       priority: newTask.priority || 'normal',
       taskType: newTask.taskType || '平面',
       dependencies: newTask.dependencies || [],
@@ -321,6 +324,56 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
+                    <Label htmlFor="taskType">任务类型</Label>
+                    <Select value={newTask.taskType || '平面'} onValueChange={(value) => setNewTask({ ...newTask, taskType: value as any })}>
+                      <SelectTrigger id="taskType">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="平面">平面</SelectItem>
+                        <SelectItem value="后期">后期</SelectItem>
+                        <SelectItem value="物料">物料</SelectItem>
+                        <SelectItem value="复合">复合</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {/* 复合任务：分别设置平面和后期工时 */}
+                {newTask.taskType === '复合' ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="graphicHours">平面工时（小时）</Label>
+                      <Input
+                        id="graphicHours"
+                        type="number"
+                        min="0"
+                        value={newTask.estimatedHoursGraphic || 0}
+                        onChange={(e) => setNewTask({ 
+                          ...newTask, 
+                          estimatedHoursGraphic: parseFloat(e.target.value) || 0,
+                          estimatedHours: (parseFloat(e.target.value) || 0) + (newTask.estimatedHoursPost || 0)
+                        })}
+                        placeholder="4"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="postHours">后期工时（小时）</Label>
+                      <Input
+                        id="postHours"
+                        type="number"
+                        min="0"
+                        value={newTask.estimatedHoursPost || 0}
+                        onChange={(e) => setNewTask({ 
+                          ...newTask, 
+                          estimatedHoursPost: parseFloat(e.target.value) || 0,
+                          estimatedHours: (newTask.estimatedHoursGraphic || 0) + (parseFloat(e.target.value) || 0)
+                        })}
+                        placeholder="4"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
                     <Label htmlFor="taskHours">预估工时（小时）*</Label>
                     <Input
                       id="taskHours"
@@ -331,35 +384,33 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                       placeholder="8"
                     />
                   </div>
+                )}
+                {/* 复合任务：子任务依赖模式 */}
+                {newTask.taskType === '复合' && (
                   <div>
-                    <Label htmlFor="taskPriority">优先级</Label>
-                    <Select value={newTask.priority || 'normal'} onValueChange={(value: any) => setNewTask({ ...newTask, priority: value })}>
-                      <SelectTrigger id="taskPriority">
+                    <Label htmlFor="subTaskMode">子任务模式</Label>
+                    <Select 
+                      value={newTask.subTaskDependencyMode || 'parallel'} 
+                      onValueChange={(value: 'parallel' | 'serial') => setNewTask({ ...newTask, subTaskDependencyMode: value })}
+                    >
+                      <SelectTrigger id="subTaskMode">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="urgent">紧急</SelectItem>
-                        <SelectItem value="normal">普通</SelectItem>
-                        <SelectItem value="low">低</SelectItem>
+                        <SelectItem value="parallel">
+                          <span className="flex items-center gap-1">
+                            <span className="text-green-600">∥</span> 并行（平面和后期同时进行）
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="serial">
+                          <span className="flex items-center gap-1">
+                            <span className="text-blue-600">→</span> 串行（后期等平面完成）
+                          </span>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="taskType">任务类型</Label>
-                    <Select value={newTask.taskType || '平面'} onValueChange={(value: ResourceWorkType) => setNewTask({ ...newTask, taskType: value })}>
-                      <SelectTrigger id="taskType">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="平面">平面</SelectItem>
-                        <SelectItem value="后期">后期</SelectItem>
-                        <SelectItem value="物料">物料</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                )}
                 {availableSequences.length > 0 && (
                   <div>
                     <Label>依赖任务（可选）</Label>
@@ -451,17 +502,67 @@ export default function TemplateEditor({ open, onOpenChange, template, onSave }:
                                     <SelectItem value="平面">平面</SelectItem>
                                     <SelectItem value="后期">后期</SelectItem>
                                     <SelectItem value="物料">物料</SelectItem>
+                                    <SelectItem value="复合">复合</SelectItem>
                                   </SelectContent>
                                 </Select>
-                                <Input
-                                  type="number"
-                                  min="1"
-                                  value={task.estimatedHours}
-                                  onChange={(e) => handleUpdateTaskField(task.id, 'estimatedHours', parseFloat(e.target.value) || 1)}
-                                  className="h-9 w-20"
-                                  placeholder="工时"
-                                />
+                                {task.taskType === '复合' ? (
+                                  <div className="flex gap-1">
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      value={task.estimatedHoursGraphic || 0}
+                                      onChange={(e) => {
+                                        const graphicHours = parseFloat(e.target.value) || 0;
+                                        const postHours = task.estimatedHoursPost || 0;
+                                        handleUpdateTaskField(task.id, 'estimatedHoursGraphic', graphicHours);
+                                        handleUpdateTaskField(task.id, 'estimatedHours', graphicHours + postHours);
+                                      }}
+                                      className="h-9 w-16 text-xs"
+                                      placeholder="平面"
+                                    />
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      value={task.estimatedHoursPost || 0}
+                                      onChange={(e) => {
+                                        const graphicHours = task.estimatedHoursGraphic || 0;
+                                        const postHours = parseFloat(e.target.value) || 0;
+                                        handleUpdateTaskField(task.id, 'estimatedHoursPost', postHours);
+                                        handleUpdateTaskField(task.id, 'estimatedHours', graphicHours + postHours);
+                                      }}
+                                      className="h-9 w-16 text-xs"
+                                      placeholder="后期"
+                                    />
+                                  </div>
+                                ) : (
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    value={task.estimatedHours}
+                                    onChange={(e) => handleUpdateTaskField(task.id, 'estimatedHours', parseFloat(e.target.value) || 1)}
+                                    className="h-9 w-20"
+                                    placeholder="工时"
+                                  />
+                                )}
                               </div>
+                              {/* 复合任务：子任务依赖模式 */}
+                              {task.taskType === '复合' && (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground">子任务依赖：</span>
+                                  <Select
+                                    value={task.subTaskDependencyMode || 'parallel'}
+                                    onValueChange={(value: 'parallel' | 'serial') => handleUpdateTaskField(task.id, 'subTaskDependencyMode', value)}
+                                  >
+                                    <SelectTrigger className="h-7 w-20 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="parallel">并行</SelectItem>
+                                      <SelectItem value="serial">串行</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
                               <Input
                                 value={task.description || ''}
                                 onChange={(e) => handleUpdateTaskField(task.id, 'description', e.target.value)}
