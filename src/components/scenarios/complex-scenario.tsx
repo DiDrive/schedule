@@ -294,6 +294,7 @@ export default function ComplexScenario() {
   const [isComputing, setIsComputing] = useState(false);
   const [activeProject, setActiveProject] = useState<string>('all');
   const [activeTaskType, setActiveTaskType] = useState<'all' | '平面' | '后期' | '物料'>('all');
+  const [activeResource, setActiveResource] = useState<string>('all'); // 新增：负责人筛选
   const [activeView, setActiveView] = useState<'gantt' | 'calendar'>('gantt');
   
   // 使用 useTransition 优化状态更新
@@ -573,11 +574,22 @@ export default function ComplexScenario() {
   
   // 缓存筛选后的任务列表（避免每次渲染都执行 filter）
   const filteredTasks = useMemo(() => 
-    tasks.filter(task =>
-      (activeProject === 'all' || task.projectId === activeProject) &&
-      (activeTaskType === 'all' || task.taskType === activeTaskType)
-    ),
-    [tasks, activeProject, activeTaskType]
+    tasks.filter(task => {
+      // 项目筛选
+      if (activeProject !== 'all' && task.projectId !== activeProject) return false;
+      // 任务类型筛选
+      if (activeTaskType !== 'all' && task.taskType !== activeTaskType) return false;
+      // 负责人筛选（检查 assignedResources 和 fixedResourceId）
+      if (activeResource !== 'all') {
+        const hasAssigned = task.assignedResources?.includes(activeResource);
+        const hasFixed = task.fixedResourceId === activeResource;
+        const hasFixedGraphic = task.fixedResourceIdGraphic === activeResource;
+        const hasFixedPost = task.fixedResourceIdPost === activeResource;
+        if (!hasAssigned && !hasFixed && !hasFixedGraphic && !hasFixedPost) return false;
+      }
+      return true;
+    }),
+    [tasks, activeProject, activeTaskType, activeResource]
   );
   
   // 缓存任务类型统计（用于显示数量）
@@ -594,11 +606,20 @@ export default function ComplexScenario() {
   // 缓存排期结果的筛选（用于甘特图和日历视图）
   const filteredScheduleTasks = useMemo(() => {
     if (!scheduleResult) return [];
-    return scheduleResult.tasks.filter(task =>
-      (activeProject === 'all' || task.projectId === activeProject) &&
-      (activeTaskType === 'all' || task.taskType === activeTaskType)
-    );
-  }, [scheduleResult, activeProject, activeTaskType]);
+    return scheduleResult.tasks.filter(task => {
+      // 项目筛选
+      if (activeProject !== 'all' && task.projectId !== activeProject) return false;
+      // 任务类型筛选
+      if (activeTaskType !== 'all' && task.taskType !== activeTaskType) return false;
+      // 负责人筛选
+      if (activeResource !== 'all') {
+        const hasAssigned = task.assignedResources?.includes(activeResource);
+        const hasFixed = task.fixedResourceId === activeResource;
+        if (!hasAssigned && !hasFixed) return false;
+      }
+      return true;
+    });
+  }, [scheduleResult, activeProject, activeTaskType, activeResource]);
   
   // 缓存排期结果的统计
   const scheduleTaskTypeStats = useMemo(() => {
@@ -626,7 +647,7 @@ export default function ComplexScenario() {
   // 当筛选条件变化时，重置页码
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeProject, activeTaskType]);
+  }, [activeProject, activeTaskType, activeResource]);
   
   // 分页加载状态
   const tableRef = useRef<HTMLDivElement>(null);
@@ -687,6 +708,13 @@ export default function ComplexScenario() {
   const handleSetActiveTaskType = useCallback((value: string) => {
     startTransition(() => {
       setActiveTaskType(value as 'all' | '平面' | '后期' | '物料');
+    });
+  }, []);
+  
+  // 使用 startTransition 优化负责人筛选切换
+  const handleSetActiveResource = useCallback((value: string) => {
+    startTransition(() => {
+      setActiveResource(value);
     });
   }, []);
 
@@ -2588,6 +2616,23 @@ export default function ComplexScenario() {
                   {projects.map(project => (
                     <SelectItem key={project.id} value={project.id} className="whitespace-normal">
                       {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Resource Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-600">负责人筛选：</span>
+              <Select value={activeResource} onValueChange={handleSetActiveResource}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="选择负责人" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  <SelectItem value="all">全部人员</SelectItem>
+                  {sharedResources.filter(r => r.type === 'human').map(resource => (
+                    <SelectItem key={resource.id} value={resource.id}>
+                      {resource.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
