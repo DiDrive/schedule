@@ -24,7 +24,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2, Calendar, MoreVertical, Globe, FileText, RefreshCw, Lock, Zap } from 'lucide-react';
+import { Play, GitBranch, Users, AlertTriangle, CheckCircle2, Network, Plus, Trash2, Settings, Download, Sparkles, Loader2, Calendar, MoreVertical, Globe, FileText, RefreshCw, Lock, Zap, Grid3X3 } from 'lucide-react';
 import { generateSchedule, generateIncrementalSchedule, detectResourceConflicts } from '@/lib/schedule-algorithms';
 import { Checkbox } from '@/components/ui/checkbox';
 import * as XLSX from 'xlsx';
@@ -32,6 +32,7 @@ import { defaultWorkingHours } from '@/lib/sample-data';
 import { Task, ScheduleResult, Project, Resource, ResourceLevel, ResourceConflictStrategy, ConflictTask } from '@/types/schedule';
 import GanttChart from '@/components/gantt-chart';
 import { CalendarView } from '@/components/views/calendar-view';
+import { MatrixCalendarView } from '@/components/views/matrix-calendar-view';
 import { ConflictResolutionDialog } from '@/components/conflict-resolution-dialog';
 import { TaskSplitDialog } from '@/components/task-split-dialog';
 import FeishuIntegrationDialog from '@/components/feishu-integration-dialog';
@@ -295,7 +296,7 @@ export default function ComplexScenario() {
   const [activeProject, setActiveProject] = useState<string>('all');
   const [activeTaskType, setActiveTaskType] = useState<'all' | '平面' | '后期' | '物料'>('all');
   const [activeResource, setActiveResource] = useState<string>('all'); // 新增：负责人筛选
-  const [activeView, setActiveView] = useState<'gantt' | 'calendar'>('gantt');
+  const [activeView, setActiveView] = useState<'gantt' | 'calendar' | 'matrix'>('gantt');
   
   // 使用 useTransition 优化状态更新
   const [isPending, startTransition] = useTransition();
@@ -1071,6 +1072,26 @@ export default function ComplexScenario() {
       }))
       .filter(t => t.id !== taskId)
     );
+  }, []);
+
+  // 处理任务更新（用于矩阵日历视图拖拽等场景）
+  const handleTaskUpdate = useCallback((taskId: string, updates: Partial<Task>) => {
+    setTasks(prevTasks => prevTasks.map(t => {
+      if (t.id !== taskId) return t;
+      return { ...t, ...updates };
+    }));
+    
+    // 同步更新排期结果
+    setScheduleResult(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        tasks: prev.tasks.map(t => {
+          if (t.id !== taskId) return t;
+          return { ...t, ...updates };
+        })
+      };
+    });
   }, []);
 
   // 切换任务锁定状态
@@ -2791,6 +2812,15 @@ export default function ComplexScenario() {
                   <Calendar className="h-4 w-4" />
                   日历视图
                 </Button>
+                <Button
+                  variant={activeView === 'matrix' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setActiveView('matrix')}
+                  className="gap-2"
+                >
+                  <Grid3X3 className="h-4 w-4" />
+                  矩阵日历
+                </Button>
               </div>
             </div>
 
@@ -2905,7 +2935,7 @@ export default function ComplexScenario() {
                   />
                 </CardContent>
               </Card>
-            ) : (
+            ) : activeView === 'calendar' ? (
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -2940,6 +2970,45 @@ export default function ComplexScenario() {
                     resources={sharedResources}
                     tasks={filteredTasks}
                     onTaskClick={openTaskSplitDialog}
+                  />
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>矩阵日历视图</CardTitle>
+                      <CardDescription>
+                        {activeProject === 'all' ? '所有项目' : getProjectById(activeProject)?.name} 任务按类型和日期排期
+                      </CardDescription>
+                    </div>
+                    {/* Resource Filter for Matrix Calendar */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-600">负责人：</span>
+                      <Select value={activeResource} onValueChange={handleSetActiveResource}>
+                        <SelectTrigger className="w-[140px]">
+                          <SelectValue placeholder="选择负责人" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                          <SelectItem value="all">全部人员</SelectItem>
+                          {sharedResources.filter(r => r.type === 'human').map(resource => (
+                            <SelectItem key={resource.id} value={resource.id}>
+                              {resource.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <MatrixCalendarView
+                    scheduledTasks={filteredScheduleTasks}
+                    resources={sharedResources}
+                    tasks={filteredTasks}
+                    onTaskClick={openTaskSplitDialog}
+                    onTaskUpdate={handleTaskUpdate}
                   />
                 </CardContent>
               </Card>
