@@ -253,23 +253,25 @@ function TaskCard({
     }
   };
 
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
-    e.dataTransfer.setData('text/plain', task.id);
-    e.dataTransfer.effectAllowed = 'move';
-    onDragStart(e, task);
-  };
-
   return (
     <div
-      draggable={true}
-      onDragStart={handleDragStart}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/plain', task.id);
+        e.dataTransfer.effectAllowed = 'move';
+        e.stopPropagation();
+        onDragStart(e, task);
+      }}
       onDragEnd={onDragEnd}
       onClick={onClick}
+      style={{ 
+        userSelect: 'none',
+      }}
       className={`
-        px-2 py-1 rounded text-xs cursor-grab
-        border transition-all truncate select-none
+        px-2 py-1 rounded text-xs cursor-grab active:cursor-grabbing
+        border transition-all truncate
         ${getTypeStyle(task.taskType)}
-        ${isDragging ? 'opacity-50 ring-2 ring-blue-400' : ''}
+        ${isDragging ? 'opacity-30 scale-95' : 'hover:shadow-sm'}
       `}
       title={`${displayName}\n拖拽移动日期`}
     >
@@ -364,9 +366,9 @@ function WeekTable({
                 dragOverCell.taskType === taskType.key;
               
               // 调试日志：检查任务是否正确分组
-              if (cellTasks.length > 0) {
-                console.log(`[WeekTable] ${dateKey} ${taskType.key}: ${cellTasks.length} 个任务`);
-              }
+              // if (cellTasks.length > 0) {
+              //   console.log(`[WeekTable] ${dateKey} ${taskType.key}: ${cellTasks.length} 个任务`);
+              // }
 
               return (
                 <div
@@ -469,7 +471,18 @@ export function MatrixCalendarView({
 
   // 组件挂载日志
   useEffect(() => {
-    console.log('[矩阵日历] 组件已挂载');
+    // 检查任务日期范围
+    const dates = scheduledTasks
+      .filter(t => t.startDate)
+      .map(t => new Date(t.startDate!));
+    
+    if (dates.length > 0) {
+      const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+      const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+      console.log('[矩阵日历] 任务日期:', format(minDate, 'yyyy-MM'), '~', format(maxDate, 'yyyy-MM'), '| 当前月份:', format(currentDate, 'yyyy-MM'));
+    }
+  // 仅在首次挂载时执行
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 获取当前月的所有周
@@ -551,8 +564,6 @@ export function MatrixCalendarView({
 
   // 拖拽开始
   const handleDragStart = useCallback((e: React.DragEvent, task: Task) => {
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', task.id);
     setDraggedTask(task);
     dragOverNavRef.current = null;
   }, []);
@@ -597,6 +608,7 @@ export function MatrixCalendarView({
   const handleDragOver = useCallback((e: React.DragEvent, date: Date, taskType: ResourceWorkType) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    e.stopPropagation();
     
     // 离开翻页按钮区域
     if (dragOverNavRef.current) {
@@ -613,6 +625,7 @@ export function MatrixCalendarView({
   // 放置任务
   const handleDrop = useCallback((e: React.DragEvent, targetDate: Date, targetTaskType: ResourceWorkType) => {
     e.preventDefault();
+    e.stopPropagation();
 
     if (!draggedTask) return;
 
@@ -711,7 +724,7 @@ export function MatrixCalendarView({
       )}
 
       {/* 周表格列表 */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" style={{ touchAction: 'pan-y' }}>
         {monthWeeks.map((week) => (
           <WeekTable
             key={week.weekNumber}
