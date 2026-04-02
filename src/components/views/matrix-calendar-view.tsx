@@ -409,11 +409,22 @@ function NavButton({
   onDragLeave: () => void;
   isActive: boolean;
 }) {
+  const handleDragLeave = (e: React.DragEvent) => {
+    // 只有当离开按钮本身时才触发 onDragLeave
+    // 避免进入子元素时误触发
+    const relatedTarget = e.relatedTarget as Node;
+    if (e.currentTarget.contains(relatedTarget)) {
+      return;
+    }
+    onDragLeave();
+  };
+
   return (
     <button
       onClick={onClick}
       onDragEnter={onDragEnter}
-      onDragLeave={onDragLeave}
+      onDragLeave={handleDragLeave}
+      onDragOver={(e) => e.preventDefault()} // 允许拖拽经过
       className={`
         inline-flex items-center justify-center rounded-md text-sm font-medium
         transition-colors focus-visible:outline-none focus-visible:ring-1
