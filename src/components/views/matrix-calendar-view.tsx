@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Task, Resource, ResourceWorkType } from '@/types/schedule';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,7 +26,6 @@ import {
   addMonths, 
   subMonths, 
   addDays,
-  subDays,
   isSameDay, 
   isWeekend,
   getWeek,
@@ -100,7 +99,6 @@ function TaskDetailDialog({
     onClose();
   }, [task, editedTask, onSave, onClose]);
 
-  // 快速移动日期
   const handleMoveDate = (days: number) => {
     if (!task || !onMoveDate) return;
     onMoveDate(task.id, days);
@@ -115,7 +113,7 @@ function TaskDetailDialog({
         <DialogHeader>
           <DialogTitle>任务详情</DialogTitle>
           <DialogDescription>
-            查看和编辑任务信息。跨月移动请使用下方快速移动按钮或直接修改日期。
+            查看和编辑任务信息
           </DialogDescription>
         </DialogHeader>
 
@@ -208,7 +206,7 @@ function TaskDetailDialog({
             </div>
           </div>
 
-          {/* 日期范围 - 支持跨月修改 */}
+          {/* 日期范围 */}
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <label className="text-sm font-medium flex items-center gap-1">
@@ -254,7 +252,7 @@ function TaskDetailDialog({
   );
 }
 
-// 任务卡片组件 - 根据类型显示不同颜色，支持拖拽
+// 任务卡片组件
 function TaskCard({
   task,
   onClick,
@@ -269,7 +267,6 @@ function TaskCard({
   const projectPrefix = task.projectName ? `【${task.projectName}】` : '';
   const displayName = projectPrefix + task.name;
 
-  // 根据任务类型获取颜色
   const getTypeStyle = (taskType?: ResourceWorkType) => {
     switch (taskType) {
       case '脚本':
@@ -294,7 +291,7 @@ function TaskCard({
         ${getTypeStyle(task.taskType)}
         ${isDragging ? 'opacity-50 ring-2 ring-blue-400' : ''}
       `}
-      title={`${displayName}\n拖拽移动日期（同月内）\n点击打开详情（跨月移动）`}
+      title={`${displayName}\n拖拽移动日期\n拖到翻页按钮可跨月`}
     >
       {displayName}
     </div>
@@ -331,7 +328,6 @@ function WeekTable({
 
   return (
     <div className="mb-4">
-      {/* 周标题 */}
       <div className="bg-slate-700 text-white px-3 py-2 rounded-t-lg flex items-center justify-between">
         <span className="font-medium">第{weekNumber}周</span>
         <span className="text-sm opacity-80">
@@ -339,9 +335,7 @@ function WeekTable({
         </span>
       </div>
 
-      {/* 表格 */}
       <div className="border border-t-0 border-slate-300 rounded-b-lg overflow-hidden">
-        {/* 表头 - 日期行 */}
         <div className="flex bg-slate-100 border-b border-slate-300">
           <div className="w-20 min-w-20 p-2 border-r border-slate-300 text-center font-medium text-sm bg-slate-200">
             类型
@@ -371,20 +365,12 @@ function WeekTable({
           })}
         </div>
 
-        {/* 数据行 - 每种任务类型一行 */}
         {TASK_TYPE_CONFIG.map((taskType) => (
           <div key={taskType.key} className="flex border-b last:border-b-0 border-slate-200">
-            {/* 类型标签 */}
-            <div
-              className={`
-                w-20 min-w-20 p-2 border-r border-slate-300 text-center font-medium text-sm
-                ${taskType.bgColor}
-              `}
-            >
+            <div className={`w-20 min-w-20 p-2 border-r border-slate-300 text-center font-medium text-sm ${taskType.bgColor}`}>
               {taskType.label}
             </div>
 
-            {/* 日期单元格 */}
             {weekDays.map((day, dayIdx) => {
               const dateKey = format(day, 'yyyy-MM-dd');
               const cellTasks = tasksByDateAndType[`${dateKey}-${taskType.key}`] || [];
@@ -419,9 +405,7 @@ function WeekTable({
                       />
                     ))}
                     {cellTasks.length === 0 && (
-                      <div className="h-8 flex items-center justify-center text-slate-300 text-xs">
-                        -
-                      </div>
+                      <div className="h-8 flex items-center justify-center text-slate-300 text-xs">-</div>
                     )}
                   </div>
                 </div>
@@ -445,6 +429,10 @@ export function MatrixCalendarView({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
   const [dragOverCell, setDragOverCell] = useState<{ date: Date; taskType: ResourceWorkType } | null>(null);
+  
+  // 拖拽翻页相关状态
+  const [isDragOverNav, setIsDragOverNav] = useState<'prev' | 'next' | null>(null);
+  const navTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // 获取当前月的所有周
   const monthWeeks = useMemo(() => {
@@ -459,7 +447,6 @@ export function MatrixCalendarView({
     while (currentWeekStart <= calendarEnd) {
       const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
       const weekDays = eachDayOfInterval({ start: currentWeekStart, end: weekEnd });
-
       const hasDayInMonth = weekDays.some(day => isSameMonth(day, currentDate));
 
       if (hasDayInMonth) {
@@ -516,36 +503,83 @@ export function MatrixCalendarView({
     return grouped;
   }, [scheduledTasks]);
 
-  // 拖拽处理 - 只用于同月内
+  // 拖拽开始
   const handleDragStart = useCallback((e: React.DragEvent, task: Task) => {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', task.id);
     setDraggedTask(task);
   }, []);
 
+  // 拖拽结束 - 清理所有状态
+  const handleDragEnd = useCallback(() => {
+    setDraggedTask(null);
+    setDragOverCell(null);
+    setIsDragOverNav(null);
+    if (navTimerRef.current) {
+      clearTimeout(navTimerRef.current);
+      navTimerRef.current = null;
+    }
+  }, []);
+
+  // 拖拽到翻页按钮上 - 自动翻页
+  const handleNavDragOver = useCallback((direction: 'prev' | 'next') => (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    
+    if (!draggedTask) return;
+    
+    setIsDragOverNav(direction);
+    
+    // 清除之前的定时器
+    if (navTimerRef.current) {
+      clearTimeout(navTimerRef.current);
+    }
+    
+    // 延迟触发翻页（避免太快）
+    navTimerRef.current = setTimeout(() => {
+      setCurrentDate(prev => direction === 'prev' ? subMonths(prev, 1) : addMonths(prev, 1));
+      // 重置定时器，允许连续翻页
+      navTimerRef.current = null;
+    }, 500);
+  }, [draggedTask]);
+
+  // 离开翻页按钮
+  const handleNavDragLeave = useCallback(() => {
+    setIsDragOverNav(null);
+    if (navTimerRef.current) {
+      clearTimeout(navTimerRef.current);
+      navTimerRef.current = null;
+    }
+  }, []);
+
+  // 在日历单元格上拖拽
   const handleDragOver = useCallback((e: React.DragEvent, date: Date, taskType: ResourceWorkType) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     
-    // 只允许同类型拖拽
+    // 清除翻页按钮的悬停状态
+    setIsDragOverNav(null);
+    if (navTimerRef.current) {
+      clearTimeout(navTimerRef.current);
+      navTimerRef.current = null;
+    }
+    
     if (draggedTask && draggedTask.taskType === taskType) {
       setDragOverCell({ date, taskType });
     }
   }, [draggedTask]);
 
+  // 放置任务
   const handleDrop = useCallback((e: React.DragEvent, targetDate: Date, targetTaskType: ResourceWorkType) => {
     e.preventDefault();
 
     if (!draggedTask) return;
 
-    // 检查任务类型是否匹配
     if (draggedTask.taskType !== targetTaskType) {
-      setDraggedTask(null);
-      setDragOverCell(null);
+      handleDragEnd();
       return;
     }
 
-    // 计算新的日期范围
     const originalStartDate = draggedTask.startDate ? new Date(draggedTask.startDate) : new Date();
     const originalEndDate = draggedTask.endDate ? new Date(draggedTask.endDate) : originalStartDate;
     const durationDays = differenceInDays(originalEndDate, originalStartDate);
@@ -555,7 +589,6 @@ export function MatrixCalendarView({
     const newEndDate = new Date(newStartDate);
     newEndDate.setDate(newEndDate.getDate() + durationDays);
 
-    // 更新任务
     if (onTaskUpdate) {
       onTaskUpdate(draggedTask.id, {
         startDate: newStartDate,
@@ -563,9 +596,8 @@ export function MatrixCalendarView({
       });
     }
 
-    setDraggedTask(null);
-    setDragOverCell(null);
-  }, [draggedTask, onTaskUpdate]);
+    handleDragEnd();
+  }, [draggedTask, onTaskUpdate, handleDragEnd]);
 
   const handleTaskClick = useCallback((task: Task) => {
     setSelectedTask(task);
@@ -578,7 +610,6 @@ export function MatrixCalendarView({
     }
   }, [onTaskUpdate]);
 
-  // 快速移动日期（用于跨月移动）
   const handleMoveDate = useCallback((taskId: string, days: number) => {
     const task = scheduledTasks.find(t => t.id === taskId);
     if (!task) return;
@@ -598,28 +629,44 @@ export function MatrixCalendarView({
     }
   }, [scheduledTasks, onTaskUpdate]);
 
-  // 切换月份
-  const handlePrevMonth = () => {
-    setCurrentDate(prev => subMonths(prev, 1));
-  };
+  const handlePrevMonth = () => setCurrentDate(prev => subMonths(prev, 1));
+  const handleNextMonth = () => setCurrentDate(prev => addMonths(prev, 1));
+  const handleThisMonth = () => setCurrentDate(new Date());
 
-  const handleNextMonth = () => {
-    setCurrentDate(prev => addMonths(prev, 1));
-  };
-
-  const handleThisMonth = () => {
-    setCurrentDate(new Date());
-  };
+  // 组件卸载时清理定时器
+  useEffect(() => {
+    return () => {
+      if (navTimerRef.current) {
+        clearTimeout(navTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="flex flex-col h-full">
       {/* 月份切换控制 */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handlePrevMonth}>
+          {/* 上一月按钮 - 支持拖拽翻页 */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePrevMonth}
+            onDragOver={handleNavDragOver('prev')}
+            onDragLeave={handleNavDragLeave}
+            className={isDragOverNav === 'prev' ? 'ring-2 ring-blue-400 bg-blue-50' : ''}
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={handleNextMonth}>
+          {/* 下一月按钮 - 支持拖拽翻页 */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleNextMonth}
+            onDragOver={handleNavDragOver('next')}
+            onDragLeave={handleNavDragLeave}
+            className={isDragOverNav === 'next' ? 'ring-2 ring-blue-400 bg-blue-50' : ''}
+          >
             <ChevronRight className="h-4 w-4" />
           </Button>
           <Button variant="outline" size="sm" onClick={handleThisMonth}>
@@ -630,11 +677,30 @@ export function MatrixCalendarView({
           {format(currentDate, 'yyyy年 M月', { locale: zhCN })}
         </div>
         <div className="text-sm text-muted-foreground">
-          拖拽移动日期 | 点击跨月调整
+          {draggedTask ? (
+            <span className="text-blue-600">
+              拖到翻页按钮可跨月 | 正在移动: {draggedTask.name}
+            </span>
+          ) : (
+            '拖拽任务卡片移动日期'
+          )}
         </div>
       </div>
 
-      {/* 周表格列表 - 滚动区域 */}
+      {/* 拖拽提示条 */}
+      {draggedTask && (
+        <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+          <span className="text-sm text-blue-700">
+            正在移动: <strong>{draggedTask.name}</strong>
+            {draggedTask.projectName && <span className="text-blue-500">（{draggedTask.projectName}）</span>}
+          </span>
+          <span className="text-xs text-blue-600">
+            拖到 ◀ ▶ 按钮上可翻页
+          </span>
+        </div>
+      )}
+
+      {/* 周表格列表 */}
       <div className="flex-1 overflow-y-auto">
         {monthWeeks.map((week) => (
           <WeekTable
