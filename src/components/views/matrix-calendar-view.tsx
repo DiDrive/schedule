@@ -253,19 +253,25 @@ function TaskCard({
     }
   };
 
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    e.dataTransfer.setData('text/plain', task.id);
+    e.dataTransfer.effectAllowed = 'move';
+    onDragStart(e, task);
+  };
+
   return (
     <div
-      draggable
-      onDragStart={(e) => onDragStart(e, task)}
+      draggable={true}
+      onDragStart={handleDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
       className={`
-        px-2 py-1 rounded text-xs cursor-pointer
-        border transition-all truncate
+        px-2 py-1 rounded text-xs cursor-grab
+        border transition-all truncate select-none
         ${getTypeStyle(task.taskType)}
         ${isDragging ? 'opacity-50 ring-2 ring-blue-400' : ''}
       `}
-      title={`${displayName}\n拖拽移动日期\n拖到翻页按钮可跨月`}
+      title={`${displayName}\n拖拽移动日期`}
     >
       {displayName}
     </div>
@@ -356,6 +362,11 @@ function WeekTable({
               const isDragOver = dragOverCell && 
                 isSameDay(dragOverCell.date, day) && 
                 dragOverCell.taskType === taskType.key;
+              
+              // 调试日志：检查任务是否正确分组
+              if (cellTasks.length > 0) {
+                console.log(`[WeekTable] ${dateKey} ${taskType.key}: ${cellTasks.length} 个任务`);
+              }
 
               return (
                 <div
@@ -370,7 +381,7 @@ function WeekTable({
                   onDragOver={(e) => onDragOver(e, day, taskType.key)}
                   onDrop={(e) => onDrop(e, day, taskType.key)}
                 >
-                  <div className="space-y-1 max-h-[120px] overflow-y-auto">
+                  <div className="space-y-1 min-h-[40px]">
                     {cellTasks.map(task => (
                       <TaskCard
                         key={task.id}
@@ -455,6 +466,11 @@ export function MatrixCalendarView({
   const [hoverNav, setHoverNav] = useState<'prev' | 'next' | null>(null);
   const navTimerRef = useRef<NodeJS.Timeout | null>(null);
   const dragOverNavRef = useRef<'prev' | 'next' | null>(null);
+
+  // 组件挂载日志
+  useEffect(() => {
+    console.log('[矩阵日历] 组件已挂载');
+  }, []);
 
   // 获取当前月的所有周
   const monthWeeks = useMemo(() => {
