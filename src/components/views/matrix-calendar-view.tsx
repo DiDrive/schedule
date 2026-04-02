@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Task, Resource, ResourceWorkType } from '@/types/schedule';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,15 +28,15 @@ import {
   isSameDay, 
   isWeekend,
   getWeek,
-  differenceInDays
+  isSameMonth
 } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
-// 任务类型配置
-const TASK_TYPES: { key: ResourceWorkType; label: string }[] = [
-  { key: '脚本', label: '脚本' },
-  { key: '平面', label: '平面节点' },
-  { key: '后期', label: '后期节点' },
+// 任务类型配置 - 不同颜色
+const TASK_TYPE_CONFIG: { key: ResourceWorkType; label: string; bgColor: string; borderColor: string }[] = [
+  { key: '脚本', label: '脚本', bgColor: 'bg-indigo-100', borderColor: 'border-indigo-300' },
+  { key: '平面', label: '平面节点', bgColor: 'bg-emerald-100', borderColor: 'border-emerald-300' },
+  { key: '后期', label: '后期节点', bgColor: 'bg-amber-100', borderColor: 'border-amber-300' },
 ];
 
 interface MatrixCalendarViewProps {
@@ -138,9 +138,7 @@ function TaskDetailDialog({
           <div className="grid gap-2">
             <label className="text-sm font-medium">任务类型</label>
             <div className="flex items-center gap-2">
-              <Badge variant="outline">
-                {task.taskType || '未指定'}
-              </Badge>
+              <Badge variant="outline">{task.taskType || '未指定'}</Badge>
             </div>
           </div>
 
@@ -216,34 +214,38 @@ function TaskDetailDialog({
   );
 }
 
-// 任务卡片组件 - 统一白色背景
+// 任务卡片组件 - 根据类型显示不同颜色
 function TaskCard({
   task,
   onClick,
-  onDragStart,
-  onDragEnd,
-  isDragging,
 }: {
   task: Task;
   onClick: () => void;
-  onDragStart: (e: React.DragEvent, task: Task) => void;
-  onDragEnd: () => void;
-  isDragging: boolean;
 }) {
   const projectPrefix = task.projectName ? `【${task.projectName}】` : '';
   const displayName = projectPrefix + task.name;
 
+  // 根据任务类型获取颜色
+  const getTypeStyle = (taskType?: ResourceWorkType) => {
+    switch (taskType) {
+      case '脚本':
+        return 'bg-indigo-100 border-indigo-300 hover:bg-indigo-200';
+      case '平面':
+        return 'bg-emerald-100 border-emerald-300 hover:bg-emerald-200';
+      case '后期':
+        return 'bg-amber-100 border-amber-300 hover:bg-amber-200';
+      default:
+        return 'bg-white border-gray-200 hover:bg-gray-50';
+    }
+  };
+
   return (
     <div
-      draggable
-      onDragStart={(e) => onDragStart(e, task)}
-      onDragEnd={onDragEnd}
       onClick={onClick}
       className={`
         px-2 py-1 rounded text-xs cursor-pointer
-        bg-white border hover:shadow-sm transition-all
-        truncate
-        ${isDragging ? 'opacity-50' : ''}
+        border transition-all truncate
+        ${getTypeStyle(task.taskType)}
       `}
       title={displayName}
     >
@@ -252,68 +254,115 @@ function TaskCard({
   );
 }
 
-// 任务单元格组件
-function TaskCell({
-  date,
-  taskType,
+// 单周表格组件
+function WeekTable({
   weekNumber,
-  tasks,
+  weekDays,
+  tasksByDateAndType,
+  currentMonth,
   onTaskClick,
-  onDragStart,
-  onDragEnd,
-  draggedTask,
-  isDragOver,
-  onDragOver,
-  onDragLeave,
-  onDrop,
 }: {
-  date: Date;
-  taskType: ResourceWorkType;
   weekNumber: number;
-  tasks: Task[];
+  weekDays: Date[];
+  tasksByDateAndType: Record<string, Task[]>;
+  currentMonth: Date;
   onTaskClick: (task: Task) => void;
-  onDragStart: (e: React.DragEvent, task: Task) => void;
-  onDragEnd: () => void;
-  draggedTask: Task | null;
-  isDragOver: boolean;
-  onDragOver: (e: React.DragEvent, date: Date, taskType: ResourceWorkType) => void;
-  onDragLeave: () => void;
-  onDrop: (e: React.DragEvent, date: Date, taskType: ResourceWorkType) => void;
 }) {
-  const isToday = isSameDay(date, new Date());
-  const isWeekendDay = isWeekend(date);
+  const today = new Date();
+  const weekStart = weekDays[0];
+  const weekEnd = weekDays[weekDays.length - 1];
 
   return (
-    <div
-      className={`
-        w-28 min-w-28 min-h-[80px] border-r border-b flex flex-col
-        ${isToday ? 'bg-blue-50' : isWeekendDay ? 'bg-slate-50' : 'bg-white'}
-        ${isDragOver ? 'bg-green-100 ring-2 ring-green-400 ring-inset' : ''}
-        transition-colors
-      `}
-      onDragOver={(e) => onDragOver(e, date, taskType)}
-      onDragLeave={onDragLeave}
-      onDrop={(e) => onDrop(e, date, taskType)}
-    >
-      <div
-        className="flex-1 p-1 overflow-y-auto space-y-1"
-        style={{ maxHeight: '150px' }}
-      >
-        {tasks.map(task => (
-          <TaskCard
-            key={task.id}
-            task={task}
-            onClick={() => onTaskClick(task)}
-            onDragStart={onDragStart}
-            onDragEnd={onDragEnd}
-            isDragging={draggedTask?.id === task.id}
-          />
-        ))}
-        {tasks.length === 0 && (
-          <div className="h-full flex items-center justify-center text-slate-300 text-xs">
-            -
+    <div className="mb-4">
+      {/* 周标题 */}
+      <div className="bg-slate-700 text-white px-3 py-2 rounded-t-lg flex items-center justify-between">
+        <span className="font-medium">第{weekNumber}周</span>
+        <span className="text-sm opacity-80">
+          {format(weekStart, 'M.d')} - {format(weekEnd, 'M.d')}
+        </span>
+      </div>
+
+      {/* 表格 */}
+      <div className="border border-t-0 border-slate-300 rounded-b-lg overflow-hidden">
+        {/* 表头 - 日期行 */}
+        <div className="flex bg-slate-100 border-b border-slate-300">
+          <div className="w-20 min-w-20 p-2 border-r border-slate-300 text-center font-medium text-sm bg-slate-200">
+            类型
           </div>
-        )}
+          {weekDays.map((day, idx) => {
+            const isToday = isSameDay(day, today);
+            const isWeekendDay = isWeekend(day);
+            const isInMonth = isSameMonth(day, currentMonth);
+
+            return (
+              <div
+                key={idx}
+                className={`
+                  flex-1 min-w-24 p-2 border-r last:border-r-0 border-slate-300 text-center
+                  ${isToday ? 'bg-blue-100' : isWeekendDay ? 'bg-slate-50' : ''}
+                  ${!isInMonth ? 'opacity-40' : ''}
+                `}
+              >
+                <div className="text-xs text-slate-500">
+                  {format(day, 'E', { locale: zhCN })}
+                </div>
+                <div className={`font-medium text-sm ${isToday ? 'text-blue-600' : ''}`}>
+                  {format(day, 'M.d')}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 数据行 - 每种任务类型一行 */}
+        {TASK_TYPE_CONFIG.map((taskType) => (
+          <div key={taskType.key} className="flex border-b last:border-b-0 border-slate-200">
+            {/* 类型标签 */}
+            <div
+              className={`
+                w-20 min-w-20 p-2 border-r border-slate-300 text-center font-medium text-sm
+                ${taskType.bgColor}
+              `}
+            >
+              {taskType.label}
+            </div>
+
+            {/* 日期单元格 */}
+            {weekDays.map((day, dayIdx) => {
+              const dateKey = format(day, 'yyyy-MM-dd');
+              const cellTasks = tasksByDateAndType[`${dateKey}-${taskType.key}`] || [];
+              const isToday = isSameDay(day, today);
+              const isWeekendDay = isWeekend(day);
+              const isInMonth = isSameMonth(day, currentMonth);
+
+              return (
+                <div
+                  key={dayIdx}
+                  className={`
+                    flex-1 min-w-24 min-h-[60px] p-1 border-r last:border-r-0 border-slate-200
+                    ${isToday ? 'bg-blue-50' : isWeekendDay ? 'bg-slate-50/50' : 'bg-white'}
+                    ${!isInMonth ? 'opacity-40' : ''}
+                  `}
+                >
+                  <div className="space-y-1 max-h-[120px] overflow-y-auto">
+                    {cellTasks.map(task => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        onClick={() => onTaskClick(task)}
+                      />
+                    ))}
+                    {cellTasks.length === 0 && (
+                      <div className="h-8 flex items-center justify-center text-slate-300 text-xs">
+                        -
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -323,14 +372,11 @@ export function MatrixCalendarView({
   scheduledTasks,
   resources,
   tasks,
-  onTaskClick,
   onTaskUpdate,
 }: MatrixCalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [draggedTask, setDraggedTask] = useState<Task | null>(null);
-  const [dragOverCell, setDragOverCell] = useState<{ date: Date; taskType: ResourceWorkType } | null>(null);
 
   // 获取当前月的所有周
   const monthWeeks = useMemo(() => {
@@ -338,35 +384,29 @@ export function MatrixCalendarView({
     const monthEnd = endOfMonth(currentDate);
     const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
     const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
-    
+
     const weeks: { weekNumber: number; days: Date[] }[] = [];
     let currentWeekStart = calendarStart;
-    
+
     while (currentWeekStart <= calendarEnd) {
       const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
       const weekDays = eachDayOfInterval({ start: currentWeekStart, end: weekEnd });
-      
-      // 只包含在当前月内的周（至少有一天在月内）
-      const hasDayInMonth = weekDays.some(day => {
-        const month = currentDate.getMonth();
-        return day.getMonth() === month;
-      });
-      
+
+      // 只包含至少有一天在当前月内的周
+      const hasDayInMonth = weekDays.some(day => isSameMonth(day, currentDate));
+
       if (hasDayInMonth) {
         weeks.push({
           weekNumber: getWeek(currentWeekStart, { weekStartsOn: 1 }),
           days: weekDays,
         });
       }
-      
+
       currentWeekStart = new Date(currentWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
     }
-    
+
     return weeks;
   }, [currentDate]);
-
-  // 星期几标签（固定7列）
-  const weekDayLabels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
   // 获取项目列表
   const projects = useMemo(() => {
@@ -383,7 +423,6 @@ export function MatrixCalendarView({
   const tasksByDateAndType = useMemo(() => {
     const grouped: Record<string, Task[]> = {};
 
-    // 分配任务到对应日期和类型
     scheduledTasks.forEach(task => {
       if (!task.startDate) return;
 
@@ -410,73 +449,6 @@ export function MatrixCalendarView({
     return grouped;
   }, [scheduledTasks]);
 
-  // 生成所有行：任务类型 × 周数
-  const rows = useMemo(() => {
-    const result: { taskType: ResourceWorkType; weekNumber: number; label: string }[] = [];
-    
-    // 先按周分组，再按任务类型分组
-    monthWeeks.forEach(week => {
-      TASK_TYPES.forEach(taskType => {
-        result.push({
-          taskType: taskType.key,
-          weekNumber: week.weekNumber,
-          label: `${taskType.label}-第${week.weekNumber}周`,
-        });
-      });
-    });
-    
-    return result;
-  }, [monthWeeks]);
-
-  // 处理拖拽
-  const handleDragStart = useCallback((e: React.DragEvent, task: Task) => {
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', task.id);
-    setDraggedTask(task);
-  }, []);
-
-  const handleDragEnd = useCallback(() => {
-    setDraggedTask(null);
-    setDragOverCell(null);
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent, date: Date, taskType: ResourceWorkType) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (draggedTask && draggedTask.taskType === taskType) {
-      setDragOverCell({ date, taskType });
-    }
-  }, [draggedTask]);
-
-  const handleDragLeave = useCallback(() => {
-    setDragOverCell(null);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent, targetDate: Date, targetTaskType: ResourceWorkType) => {
-    e.preventDefault();
-    if (!draggedTask) return;
-    if (draggedTask.taskType !== targetTaskType) return;
-
-    const originalStartDate = draggedTask.startDate ? new Date(draggedTask.startDate) : new Date();
-    const originalEndDate = draggedTask.endDate ? new Date(draggedTask.endDate) : originalStartDate;
-    const durationDays = differenceInDays(originalEndDate, originalStartDate);
-
-    const newStartDate = new Date(targetDate);
-    newStartDate.setHours(0, 0, 0, 0);
-    const newEndDate = new Date(newStartDate);
-    newEndDate.setDate(newEndDate.getDate() + durationDays);
-
-    if (onTaskUpdate) {
-      onTaskUpdate(draggedTask.id, {
-        startDate: newStartDate,
-        endDate: newEndDate,
-      });
-    }
-
-    setDraggedTask(null);
-    setDragOverCell(null);
-  }, [draggedTask, onTaskUpdate]);
-
   const handleTaskClick = useCallback((task: Task) => {
     setSelectedTask(task);
     setDialogOpen(true);
@@ -501,8 +473,6 @@ export function MatrixCalendarView({
     setCurrentDate(new Date());
   };
 
-  const today = new Date();
-
   return (
     <div className="flex flex-col h-full">
       {/* 月份切换控制 */}
@@ -522,75 +492,22 @@ export function MatrixCalendarView({
           {format(currentDate, 'yyyy年 M月', { locale: zhCN })}
         </div>
         <div className="text-sm text-muted-foreground">
-          拖拽任务卡片可调整日期（同类型内）
+          点击任务卡片查看详情
         </div>
       </div>
 
-      {/* 矩阵表格 */}
-      <div className="flex-1 overflow-auto border rounded-lg">
-        <div className="min-w-max">
-          {/* 表头 - 类型列标签 + 星期行 */}
-          <div className="sticky top-0 z-20 flex bg-slate-700 text-white">
-            {/* 左侧固定列 - 类型标签 */}
-            <div className="w-32 min-w-32 p-2 border-r border-slate-600 font-medium text-center sticky left-0 z-30 bg-slate-700">
-              类型\日期
-            </div>
-            {/* 星期列头 - 固定7列 */}
-            {weekDayLabels.map((label, idx) => (
-              <div
-                key={idx}
-                className="w-28 min-w-28 p-2 border-r border-slate-600 text-center"
-              >
-                <div className="font-medium">{label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* 数据行 - 任务类型 × 周数 */}
-          {rows.map((row, rowIdx) => {
-            // 找到这一周对应的日期
-            const weekData = monthWeeks.find(w => w.weekNumber === row.weekNumber);
-            if (!weekData) return null;
-
-            return (
-              <div key={`${row.taskType}-${row.weekNumber}`} className="flex border-b last:border-b-0">
-                {/* 行标签 - 任务类型 + 周数 */}
-                <div
-                  className="w-32 min-w-32 p-2 border-r font-medium text-center sticky left-0 z-10 bg-slate-100 flex items-center justify-center"
-                >
-                  {row.label}
-                </div>
-
-                {/* 日期单元格 - 一周7天 */}
-                {weekData.days.map((day, dayIdx) => {
-                  const dateKey = format(day, 'yyyy-MM-dd');
-                  const cellTasks = tasksByDateAndType[`${dateKey}-${row.taskType}`] || [];
-                  const isDragOver = dragOverCell &&
-                    isSameDay(dragOverCell.date, day) &&
-                    dragOverCell.taskType === row.taskType;
-
-                  return (
-                    <TaskCell
-                      key={dayIdx}
-                      date={day}
-                      taskType={row.taskType}
-                      weekNumber={row.weekNumber}
-                      tasks={cellTasks}
-                      onTaskClick={handleTaskClick}
-                      onDragStart={handleDragStart}
-                      onDragEnd={handleDragEnd}
-                      draggedTask={draggedTask}
-                      isDragOver={!!isDragOver}
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                    />
-                  );
-                })}
-              </div>
-            );
-          })}
-        </div>
+      {/* 周表格列表 - 滚动区域 */}
+      <div className="flex-1 overflow-y-auto">
+        {monthWeeks.map((week) => (
+          <WeekTable
+            key={week.weekNumber}
+            weekNumber={week.weekNumber}
+            weekDays={week.days}
+            tasksByDateAndType={tasksByDateAndType}
+            currentMonth={currentDate}
+            onTaskClick={handleTaskClick}
+          />
+        ))}
       </div>
 
       {/* 任务详情弹窗 */}
