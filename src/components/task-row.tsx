@@ -331,20 +331,24 @@ const TaskRow = memo(function TaskRow({
       
       {/* 细分类 */}
       <TableCell className="p-1">
-        <Select
-          value={task.subType || 'none'}
-          onValueChange={handleSubTypeChange}
-        >
-          <SelectTrigger className="h-8 w-full text-sm">
-            <SelectValue placeholder="细分类" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">-</SelectItem>
-            {SUB_TYPE_OPTIONS.map(opt => (
-              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {task.taskType === '脚本' ? (
+          <span className="text-slate-400 text-sm">-</span>
+        ) : (
+          <Select
+            value={task.subType || 'none'}
+            onValueChange={handleSubTypeChange}
+          >
+            <SelectTrigger className="h-8 w-full text-sm">
+              <SelectValue placeholder="细分类" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">-</SelectItem>
+              {SUB_TYPE_OPTIONS.map(opt => (
+                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </TableCell>
       
       {/* 语言 */}
@@ -448,7 +452,7 @@ const TaskRow = memo(function TaskRow({
       
       {/* 平面工时 */}
       <TableCell className="p-1">
-        {task.taskType === '物料' ? (
+        {task.taskType === '物料' || task.taskType === '脚本' ? (
           <span className="text-slate-400 text-sm">-</span>
         ) : (
           <Input
@@ -464,7 +468,7 @@ const TaskRow = memo(function TaskRow({
       
       {/* 后期工时 */}
       <TableCell className="p-1">
-        {task.taskType === '物料' ? (
+        {task.taskType === '物料' || task.taskType === '脚本' ? (
           <span className="text-slate-400 text-sm">-</span>
         ) : (
           <Input

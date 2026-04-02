@@ -14,31 +14,41 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         id: 'task-1',
         sequence: 1,
         name: '创意策划',
-        description: '分析产品卖点，确定广告创意方向',
+        description: '分析产品卖点，确定广告创意方向，撰写脚本大纲',
         estimatedHours: 8,
         priority: 'high',
-        taskType: '平面',
-        workType: '平面',
+        taskType: '脚本',
+        workType: '脚本',
         dependencies: [],
-
         notes: '需明确核心卖点和目标用户'
       },
       {
         id: 'task-2',
         sequence: 2,
-        name: '分镜设计',
+        name: '分镜脚本',
         description: '绘制详细的分镜脚本和画面规划',
         estimatedHours: 16,
         priority: 'high',
-        taskType: '平面',
-        workType: '平面',
+        taskType: '脚本',
+        workType: '脚本',
         dependencies: [1],
-
         notes: '包含画面构图、镜头运动、时长预估'
       },
       {
         id: 'task-3',
         sequence: 3,
+        name: '平面设计',
+        description: '设计广告所需平面素材',
+        estimatedHours: 8,
+        priority: 'high',
+        taskType: '平面',
+        workType: '平面',
+        dependencies: [2],
+        notes: '需与脚本风格统一'
+      },
+      {
+        id: 'task-4',
+        sequence: 4,
         name: '道具准备',
         description: '采购或准备拍摄所需的道具、服装',
         estimatedHours: 4,
@@ -46,58 +56,54 @@ export const defaultProjectTemplates: ProjectTemplate[] = [
         taskType: '物料',
         workType: '物料',
         dependencies: [2],
-
         notes: '提前3天准备完成'
       },
       {
-        id: 'task-4',
-        sequence: 4,
+        id: 'task-5',
+        sequence: 5,
         name: '拍摄制作',
         description: '完成视频拍摄工作',
         estimatedHours: 24,
         priority: 'high',
         taskType: '后期',
         workType: '后期',
-        dependencies: [2, 3],
-
+        dependencies: [3, 4],
         notes: '需协调演员、场地、设备'
       },
       {
-        id: 'task-5',
-        sequence: 5,
+        id: 'task-6',
+        sequence: 6,
         name: '粗剪',
         description: '根据分镜进行初步剪辑',
         estimatedHours: 16,
         priority: 'normal',
         taskType: '后期',
         workType: '后期',
-        dependencies: [4],
-
+        dependencies: [5],
         notes: '确认故事线和基本节奏'
       },
       {
-        id: 'task-6',
-        sequence: 6,
+        id: 'task-7',
+        sequence: 7,
         name: '精剪',
         description: '精细剪辑，调整画面和节奏',
         estimatedHours: 12,
         priority: 'normal',
         taskType: '后期',
         workType: '后期',
-        dependencies: [5],
-
+        dependencies: [6],
         notes: '优化转场和镜头衔接'
       },
       {
-        id: 'task-7',
-        sequence: 7,
+        id: 'task-8',
+        sequence: 8,
         name: '特效制作',
         description: '添加必要的视觉特效',
         estimatedHours: 8,
         priority: 'normal',
         taskType: '后期',
         workType: '后期',
-        dependencies: [6],
+        dependencies: [7],
 
         notes: '根据需求添加字幕、贴纸等'
       },
