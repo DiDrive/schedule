@@ -2621,23 +2621,6 @@ export default function ComplexScenario() {
                 </SelectContent>
               </Select>
             </div>
-            {/* Resource Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-600">负责人筛选：</span>
-              <Select value={activeResource} onValueChange={handleSetActiveResource}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="选择负责人" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  <SelectItem value="all">全部人员</SelectItem>
-                  {sharedResources.filter(r => r.type === 'human').map(resource => (
-                    <SelectItem key={resource.id} value={resource.id}>
-                      {resource.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -2880,10 +2863,31 @@ export default function ComplexScenario() {
             {activeView === 'gantt' ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>多项目综合甘特图</CardTitle>
-                  <CardDescription>
-                    {activeProject === 'all' ? '所有项目时间线' : getProjectById(activeProject)?.name} 可视化（工作时间：9:30 - 18:30）
-                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>多项目综合甘特图</CardTitle>
+                      <CardDescription>
+                        {activeProject === 'all' ? '所有项目时间线' : getProjectById(activeProject)?.name} 可视化（工作时间：9:30 - 18:30）
+                      </CardDescription>
+                    </div>
+                    {/* Resource Filter for Gantt */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-600">负责人：</span>
+                      <Select value={activeResource} onValueChange={handleSetActiveResource}>
+                        <SelectTrigger className="w-[140px]">
+                          <SelectValue placeholder="选择负责人" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                          <SelectItem value="all">全部人员</SelectItem>
+                          {sharedResources.filter(r => r.type === 'human').map(resource => (
+                            <SelectItem key={resource.id} value={resource.id}>
+                              {resource.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <GanttChart
@@ -2904,10 +2908,31 @@ export default function ComplexScenario() {
             ) : (
               <Card>
                 <CardHeader>
-                  <CardTitle>日历视图</CardTitle>
-                  <CardDescription>
-                    {activeProject === 'all' ? '所有项目时间线' : getProjectById(activeProject)?.name} 日历展示
-                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>日历视图</CardTitle>
+                      <CardDescription>
+                        {activeProject === 'all' ? '所有项目时间线' : getProjectById(activeProject)?.name} 日历展示
+                      </CardDescription>
+                    </div>
+                    {/* Resource Filter for Calendar */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-600">负责人：</span>
+                      <Select value={activeResource} onValueChange={handleSetActiveResource}>
+                        <SelectTrigger className="w-[140px]">
+                          <SelectValue placeholder="选择负责人" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                          <SelectItem value="all">全部人员</SelectItem>
+                          {sharedResources.filter(r => r.type === 'human').map(resource => (
+                            <SelectItem key={resource.id} value={resource.id}>
+                              {resource.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <CalendarView
