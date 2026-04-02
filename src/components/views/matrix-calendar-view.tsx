@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChevronLeft, ChevronRight, GripVertical } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isWeekend } from 'date-fns';
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isSameDay, isWeekend } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
 // 任务类型配置（固定3行）
@@ -287,7 +287,7 @@ function TaskCell({
   return (
     <div
       className={`
-        w-24 min-w-24 min-h-[80px] border-r border-b flex flex-col
+        w-32 min-w-32 min-h-[120px] border-r border-b flex flex-col
         ${isToday ? 'bg-blue-50' : isWeekendDay ? 'bg-slate-50' : 'bg-white'}
         ${isDragOver ? 'bg-green-100 ring-2 ring-green-400 ring-inset' : ''}
         transition-colors
@@ -300,7 +300,7 @@ function TaskCell({
       <div
         ref={scrollRef}
         className="flex-1 p-1 overflow-y-auto space-y-1"
-        style={{ maxHeight: '120px' }}
+        style={{ maxHeight: '200px' }}
       >
         {tasks.map(task => (
           <TaskCard
@@ -335,10 +335,10 @@ export function MatrixCalendarView({
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
   const [dragOverCell, setDragOverCell] = useState<{ date: Date; taskType: ResourceWorkType } | null>(null);
 
-  // 获取当前月的所有日期
-  const monthDays = useMemo(() => {
-    const start = startOfMonth(currentDate);
-    const end = endOfMonth(currentDate);
+  // 获取当前周的所有日期（周一到周日）
+  const weekDays = useMemo(() => {
+    const start = startOfWeek(currentDate, { weekStartsOn: 1 }); // 周一开始
+    const end = endOfWeek(currentDate, { weekStartsOn: 1 });
     return eachDayOfInterval({ start, end });
   }, [currentDate]);
 
@@ -358,7 +358,7 @@ export function MatrixCalendarView({
     const grouped: Record<string, Task[]> = {};
 
     // 初始化所有日期和类型的任务数组
-    monthDays.forEach(day => {
+    weekDays.forEach(day => {
       const dateKey = format(day, 'yyyy-MM-dd');
       TASK_TYPE_ROWS.forEach(type => {
         grouped[`${dateKey}-${type.key}`] = [];
@@ -388,7 +388,7 @@ export function MatrixCalendarView({
     });
 
     return grouped;
-  }, [scheduledTasks, monthDays]);
+  }, [scheduledTasks, weekDays]);
 
   // 处理拖拽开始
   const handleDragStart = useCallback((e: React.DragEvent, task: Task) => {
@@ -470,45 +470,52 @@ export function MatrixCalendarView({
     }
   }, [onTaskUpdate]);
 
-  // 切换月份
-  const handlePrevMonth = () => {
-    setCurrentDate(prev => subMonths(prev, 1));
+  // 切换周
+  const handlePrevWeek = () => {
+    setCurrentDate(prev => subWeeks(prev, 1));
   };
 
-  const handleNextMonth = () => {
-    setCurrentDate(prev => addMonths(prev, 1));
+  const handleNextWeek = () => {
+    setCurrentDate(prev => addWeeks(prev, 1));
   };
 
   const handleToday = () => {
     setCurrentDate(new Date());
   };
 
+  // 计算当前周的范围文本
+  const weekRangeText = useMemo(() => {
+    const start = weekDays[0];
+    const end = weekDays[weekDays.length - 1];
+    return `${format(start, 'M.d')} - ${format(end, 'M.d')}`;
+  }, [weekDays]);
+
   const today = new Date();
 
   return (
     <div className="flex flex-col h-full">
-      {/* 月份切换控制 */}
+      {/* 周切换控制 */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handlePrevMonth}>
+          <Button variant="outline" size="sm" onClick={handlePrevWeek}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={handleNextMonth}>
+          <Button variant="outline" size="sm" onClick={handleNextWeek}>
             <ChevronRight className="h-4 w-4" />
           </Button>
           <Button variant="outline" size="sm" onClick={handleToday}>
-            今天
+            本周
           </Button>
         </div>
         <div className="text-lg font-semibold">
-          {format(currentDate, 'yyyy年 M月', { locale: zhCN })}
+          {format(currentDate, 'yyyy年 M月')} (第 {format(currentDate, 'w')} 周)
         </div>
         <div className="text-sm text-muted-foreground">
-          拖拽任务卡片可调整日期（同类型内）
+          {weekRangeText} · 拖拽任务卡片可调整日期（同类型内）
         </div>
       </div>
 
-      {/* 矩阵表格 - 横向滚动 */}
+      {/* 矩阵表格 */}
       <div className="flex-1 overflow-auto border rounded-lg">
         <div className="min-w-max">
           {/* 表头 - 类型列标签 + 日期行 */}
@@ -517,23 +524,23 @@ export function MatrixCalendarView({
             <div className="w-24 min-w-24 p-2 border-r border-slate-600 font-medium text-center sticky left-0 z-30 bg-slate-800">
               类型\日期
             </div>
-            {/* 日期列头 */}
-            {monthDays.map((day, idx) => {
+            {/* 日期列头 - 一周7天 */}
+            {weekDays.map((day, idx) => {
               const isToday = isSameDay(day, today);
               const isWeekendDay = isWeekend(day);
               return (
                 <div
                   key={idx}
                   className={`
-                    w-24 min-w-24 p-2 border-r border-slate-600 text-center
+                    w-32 min-w-32 p-2 border-r border-slate-600 text-center
                     ${isToday ? 'bg-blue-600' : isWeekendDay ? 'bg-slate-700' : ''}
                   `}
                 >
                   <div className="text-xs opacity-80">
-                    {format(day, 'E', { locale: zhCN })}
+                    {format(day, 'EEEE', { locale: zhCN })}
                   </div>
                   <div className="font-medium">
-                    {format(day, 'M.d')}
+                    {format(day, 'M月d日')}
                   </div>
                 </div>
               );
@@ -551,8 +558,8 @@ export function MatrixCalendarView({
                 {taskType.label}
               </div>
 
-              {/* 日期单元格 */}
-              {monthDays.map((day, dayIdx) => {
+              {/* 日期单元格 - 一周7天 */}
+              {weekDays.map((day, dayIdx) => {
                 const dateKey = format(day, 'yyyy-MM-dd');
                 const cellTasks = tasksByDateAndType[`${dateKey}-${taskType.key}`] || [];
                 const isDragOver = dragOverCell &&
