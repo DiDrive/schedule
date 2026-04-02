@@ -20,10 +20,8 @@ import { ChevronLeft, ChevronRight, GripVertical } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, subMonths, isSameDay, isSameMonth, isWeekend } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
-// 任务类型配置（矩阵日历专用）
-type MatrixTaskType = ResourceWorkType | '脚本';
-
-const TASK_TYPES: { key: MatrixTaskType; label: string; color: string; bgColor: string }[] = [
+// 任务类型配置（矩阵日历专用，只显示脚本/平面/后期三类）
+const TASK_TYPES: { key: ResourceWorkType; label: string; color: string; bgColor: string }[] = [
   { key: '脚本', label: '脚本', color: '#6366f1', bgColor: 'bg-indigo-100' },
   { key: '平面', label: '平面节点', color: '#10b981', bgColor: 'bg-emerald-100' },
   { key: '后期', label: '后期节点', color: '#f59e0b', bgColor: 'bg-amber-100' },
@@ -297,11 +295,16 @@ function DateCell({
   isDragOver: boolean;
 }) {
   const dateKey = format(date, 'yyyy-MM-dd');
+  
+  // 计算当天所有任务数量
+  const totalTasks = TASK_TYPES.reduce((sum, type) => {
+    return sum + (tasksByType[`${dateKey}-${type.key}`]?.length || 0);
+  }, 0);
 
   return (
     <div
       className={`
-        min-h-[100px] p-1 border-r border-b
+        min-h-[120px] h-full p-1 border-r border-b flex flex-col
         ${isCurrentMonth ? 'bg-white' : 'bg-slate-50'}
         ${isToday ? 'ring-2 ring-blue-400 ring-inset' : ''}
         ${isDragOver ? 'bg-green-50' : ''}
@@ -313,42 +316,49 @@ function DateCell({
     >
       {/* 日期数字 */}
       <div className={`
-        text-sm font-medium mb-1
+        text-sm font-medium mb-1 flex-shrink-0
         ${isToday ? 'text-blue-600' : isCurrentMonth ? 'text-slate-900' : 'text-slate-400'}
       `}>
         {format(date, 'd')}
       </div>
 
       {/* 按类型分组的任务 */}
-      {TASK_TYPES.map(taskType => {
-        const typeTasks = tasksByType[`${dateKey}-${taskType.key}`] || [];
-        if (typeTasks.length === 0) return null;
+      <div className="flex-1 overflow-y-auto space-y-1">
+        {TASK_TYPES.map(taskType => {
+          const typeTasks = tasksByType[`${dateKey}-${taskType.key}`] || [];
+          if (typeTasks.length === 0) return null;
 
-        return (
-          <div key={taskType.key} className="mb-1">
-            {/* 类型标签 */}
-            <div className="text-[10px] text-slate-500 mb-0.5">{taskType.label}</div>
-            {/* 任务列表 */}
-            <div className="space-y-0.5">
-              {typeTasks.slice(0, 3).map(task => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  onClick={() => onTaskClick(task)}
-                  onDragStart={onDragStart}
-                  onDragEnd={onDragEnd}
-                  isDragging={draggedTask?.id === task.id}
-                />
-              ))}
-              {typeTasks.length > 3 && (
-                <div className="text-[10px] text-slate-500 pl-1">
-                  +{typeTasks.length - 3} 更多
-                </div>
-              )}
+          return (
+            <div key={taskType.key}>
+              {/* 类型标签 */}
+              <div 
+                className="text-[10px] font-medium mb-0.5 px-1 rounded"
+                style={{ color: taskType.color, backgroundColor: taskType.bgColor }}
+              >
+                {taskType.label}
+              </div>
+              {/* 任务列表 */}
+              <div className="space-y-0.5">
+                {typeTasks.slice(0, 5).map(task => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    onClick={() => onTaskClick(task)}
+                    onDragStart={onDragStart}
+                    onDragEnd={onDragEnd}
+                    isDragging={draggedTask?.id === task.id}
+                  />
+                ))}
+                {typeTasks.length > 5 && (
+                  <div className="text-[10px] text-slate-500 pl-1">
+                    +{typeTasks.length - 5} 更多
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -490,14 +500,12 @@ export function MatrixCalendarView({
     setDragOverDate(null);
   }, [draggedTask, onTaskUpdate]);
 
-  // 处理任务点击
+  // 处理任务点击 - 只显示内部详情弹窗，不触发外部 onTaskClick
   const handleTaskClick = useCallback((task: Task) => {
     setSelectedTask(task);
     setDialogOpen(true);
-    if (onTaskClick) {
-      onTaskClick(task);
-    }
-  }, [onTaskClick]);
+    // 不调用外部的 onTaskClick，避免弹出拆分任务弹窗
+  }, []);
 
   // 处理任务保存
   const handleTaskSave = useCallback((taskId: string, updates: Partial<Task>) => {

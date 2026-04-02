@@ -294,7 +294,7 @@ export default function ComplexScenario() {
   const [scheduleResult, setScheduleResult] = useState<ScheduleResult | null>(null);
   const [isComputing, setIsComputing] = useState(false);
   const [activeProject, setActiveProject] = useState<string>('all');
-  const [activeTaskType, setActiveTaskType] = useState<'all' | '平面' | '后期' | '物料'>('all');
+  const [activeTaskType, setActiveTaskType] = useState<'all' | '脚本' | '平面' | '后期' | '物料'>('all');
   const [activeResource, setActiveResource] = useState<string>('all'); // 新增：负责人筛选
   const [activeView, setActiveView] = useState<'gantt' | 'calendar' | 'matrix'>('gantt');
   
@@ -598,6 +598,7 @@ export default function ComplexScenario() {
     const baseFilter = (task: Task) => activeProject === 'all' || task.projectId === activeProject;
     return {
       all: tasks.filter(baseFilter).length,
+      jiaoben: tasks.filter(t => baseFilter(t) && t.taskType === '脚本').length,
       pingmian: tasks.filter(t => baseFilter(t) && t.taskType === '平面').length,
       houqi: tasks.filter(t => baseFilter(t) && t.taskType === '后期').length,
       wuliao: tasks.filter(t => baseFilter(t) && t.taskType === '物料').length,
@@ -624,10 +625,11 @@ export default function ComplexScenario() {
   
   // 缓存排期结果的统计
   const scheduleTaskTypeStats = useMemo(() => {
-    if (!scheduleResult) return { all: 0, pingmian: 0, houqi: 0, wuliao: 0 };
+    if (!scheduleResult) return { all: 0, jiaoben: 0, pingmian: 0, houqi: 0, wuliao: 0 };
     const baseFilter = (task: Task) => activeProject === 'all' || task.projectId === activeProject;
     return {
       all: scheduleResult.tasks.filter(baseFilter).length,
+      jiaoben: scheduleResult.tasks.filter(t => baseFilter(t) && t.taskType === '脚本').length,
       pingmian: scheduleResult.tasks.filter(t => baseFilter(t) && t.taskType === '平面').length,
       houqi: scheduleResult.tasks.filter(t => baseFilter(t) && t.taskType === '后期').length,
       wuliao: scheduleResult.tasks.filter(t => baseFilter(t) && t.taskType === '物料').length,
@@ -708,7 +710,7 @@ export default function ComplexScenario() {
   // 使用 startTransition 优化任务类型切换
   const handleSetActiveTaskType = useCallback((value: string) => {
     startTransition(() => {
-      setActiveTaskType(value as 'all' | '平面' | '后期' | '物料');
+      setActiveTaskType(value as 'all' | '脚本' | '平面' | '后期' | '物料');
     });
   }, []);
   
@@ -1192,7 +1194,7 @@ export default function ComplexScenario() {
     setShowTaskSplitDialog(true);
   };
 
-  const handleAddTask = (taskType: '平面' | '后期' | '物料' = '平面') => {
+  const handleAddTask = (taskType: '脚本' | '平面' | '后期' | '物料' = '平面') => {
     setJustResolvedConflict(false); // 任务变更，重置冲突解决标记
     setSavedResolutions(null); // 重置保存的解决方案
     setPendingConflicts(new Map()); // 清除待处理的冲突
@@ -2521,9 +2523,12 @@ export default function ComplexScenario() {
 
       {/* Task Type Tabs */}
       <Tabs value={activeTaskType} onValueChange={handleSetActiveTaskType} className="mb-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="all">
             全部 ({taskTypeStats.all})
+          </TabsTrigger>
+          <TabsTrigger value="脚本">
+            脚本 ({taskTypeStats.jiaoben})
           </TabsTrigger>
           <TabsTrigger value="平面">
             平面 ({taskTypeStats.pingmian})
@@ -2559,6 +2564,10 @@ export default function ComplexScenario() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => handleAddTask('脚本')}>
+                <span className="mr-2">📝</span>
+                添加脚本任务
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleAddTask('平面')}>
                 <span className="mr-2">🎨</span>
                 添加平面任务
@@ -2881,8 +2890,9 @@ export default function ComplexScenario() {
 
             {/* Task Type Filter for Gantt/Calendar View */}
             <Tabs value={activeTaskType} onValueChange={handleSetActiveTaskType} className="mb-4">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="all">全部 ({scheduleTaskTypeStats.all})</TabsTrigger>
+                <TabsTrigger value="脚本">脚本 ({scheduleTaskTypeStats.jiaoben})</TabsTrigger>
                 <TabsTrigger value="平面">平面 ({scheduleTaskTypeStats.pingmian})</TabsTrigger>
                 <TabsTrigger value="后期">后期 ({scheduleTaskTypeStats.houqi})</TabsTrigger>
                 <TabsTrigger value="物料">物料 ({scheduleTaskTypeStats.wuliao})</TabsTrigger>
@@ -3044,9 +3054,12 @@ export default function ComplexScenario() {
                   </div>
                   {/* Task Type Filter */}
                   <Tabs value={activeTaskType} onValueChange={handleSetActiveTaskType} className="w-full">
-                    <TabsList className="grid w-full grid-cols-4">
+                    <TabsList className="grid w-full grid-cols-5">
                       <TabsTrigger value="all">
                         全部 ({scheduleTaskTypeStats.all})
+                      </TabsTrigger>
+                      <TabsTrigger value="脚本">
+                        脚本 ({scheduleTaskTypeStats.jiaoben})
                       </TabsTrigger>
                       <TabsTrigger value="平面">
                         平面 ({scheduleTaskTypeStats.pingmian})

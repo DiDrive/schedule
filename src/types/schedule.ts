@@ -3,7 +3,7 @@ export type ResourceLevel = 'assistant' | 'junior' | 'senior';
 
 // 资源类型
 export type ResourceType = 'human' | 'material' | 'equipment';
-export type ResourceWorkType = '平面' | '后期' | '物料' | '复合';
+export type ResourceWorkType = '脚本' | '平面' | '后期' | '物料' | '复合';
 
 // 资源冲突处理策略
 export type ResourceConflictStrategy = 'auto-switch' | 'delay-only' | 'ask-each';

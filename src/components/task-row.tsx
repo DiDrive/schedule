@@ -320,6 +320,7 @@ const TaskRow = memo(function TaskRow({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">-</SelectItem>
+              <SelectItem value="脚本">脚本</SelectItem>
               <SelectItem value="平面">平面</SelectItem>
               <SelectItem value="后期">后期</SelectItem>
               <SelectItem value="物料">物料</SelectItem>
