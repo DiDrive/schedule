@@ -573,21 +573,29 @@ export function MatrixCalendarView({
     setCurrentDate(new Date());
   };
 
-  // 拖拽时快速切换月份
-  const handlePrevWeek = () => {
-    setCurrentDate(prev => subWeeks(prev, 1));
-  };
+  // 键盘事件处理 - 拖拽时可用左右方向键切换月份
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isDragging) return;
+      
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setCurrentDate(prev => subMonths(prev, 1));
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setCurrentDate(prev => addMonths(prev, 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setCurrentDate(prev => subWeeks(prev, 1));
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setCurrentDate(prev => addWeeks(prev, 1));
+      }
+    };
 
-  const handleNextWeek = () => {
-    setCurrentDate(prev => addWeeks(prev, 1));
-  };
-
-  // 跳转到任务的月份
-  const jumpToTaskMonth = useCallback((task: Task) => {
-    if (task.startDate) {
-      setCurrentDate(new Date(task.startDate));
-    }
-  }, []);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDragging]);
 
   return (
     <div className="flex flex-col h-full">
@@ -607,34 +615,26 @@ export function MatrixCalendarView({
         <div className="text-lg font-semibold">
           {format(currentDate, 'yyyy年 M月', { locale: zhCN })}
         </div>
-        <div className="flex items-center gap-2">
-          {isDragging && (
-            <>
-              <Button variant="outline" size="sm" onClick={handlePrevWeek} className="text-blue-600">
-                <ChevronLeft className="h-4 w-4 mr-1" />上一周
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleNextWeek} className="text-blue-600">
-                下一周<ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            </>
-          )}
-          <span className="text-sm text-muted-foreground">
-            {isDragging ? '拖拽中...点击按钮切换周' : '拖拽任务卡片移动日期'}
-          </span>
+        <div className="text-sm text-muted-foreground">
+          拖拽任务卡片移动日期
         </div>
       </div>
 
-      {/* 跨月提示 */}
+      {/* 拖拽提示 */}
       {isDragging && draggedTask && (
-        <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
-          <Move className="h-4 w-4 text-blue-600" />
-          <span className="text-sm text-blue-700">
-            正在移动: <strong>{draggedTask.name}</strong>
-            {draggedTask.projectName && <span className="text-blue-500">（{draggedTask.projectName}）</span>}
-          </span>
-          <span className="text-xs text-blue-500 ml-auto">
-            可点击上方按钮切换周/月，或点击任务打开弹窗修改日期
-          </span>
+        <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Move className="h-4 w-4 text-blue-600" />
+              <span className="text-sm text-blue-700">
+                正在移动: <strong>{draggedTask.name}</strong>
+                {draggedTask.projectName && <span className="text-blue-500">（{draggedTask.projectName}）</span>}
+              </span>
+            </div>
+            <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+              按 <kbd className="px-1 bg-white rounded border">←</kbd> <kbd className="px-1 bg-white rounded border">→</kbd> 切换月份
+            </div>
+          </div>
         </div>
       )}
 
