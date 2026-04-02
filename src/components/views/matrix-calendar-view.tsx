@@ -55,6 +55,14 @@ function TaskDetailDialog({
 }) {
   const [editedTask, setEditedTask] = useState<Partial<Task>>({});
 
+  // 根据任务类型筛选可用资源 - 必须在条件返回之前调用
+  const availableResources = useMemo(() => {
+    if (!task) return resources.filter(r => r.type === 'human');
+    const taskType = task.taskType;
+    if (!taskType) return resources.filter(r => r.type === 'human');
+    return resources.filter(r => r.type === 'human' && r.workType === taskType);
+  }, [resources, task]);
+
   useEffect(() => {
     if (task) {
       setEditedTask({
@@ -72,19 +80,13 @@ function TaskDetailDialog({
     }
   }, [task]);
 
-  if (!task) return null;
-
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
+    if (!task) return;
     onSave(task.id, editedTask);
     onClose();
-  };
+  }, [task, editedTask, onSave, onClose]);
 
-  // 根据任务类型筛选可用资源
-  const availableResources = useMemo(() => {
-    const taskType = task.taskType;
-    if (!taskType) return resources.filter(r => r.type === 'human');
-    return resources.filter(r => r.type === 'human' && r.workType === taskType);
-  }, [resources, task.taskType]);
+  if (!task) return null;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
