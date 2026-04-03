@@ -253,19 +253,38 @@ function TaskCard({
     }
   };
 
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    console.log('[拖拽] 开始拖拽:', task.name, '类型:', task.taskType);
+    // 设置拖拽数据
+    e.dataTransfer.setData('text/plain', task.id);
+    e.dataTransfer.setData('application/json', JSON.stringify({
+      id: task.id,
+      taskType: task.taskType
+    }));
+    e.dataTransfer.effectAllowed = 'move';
+    // 设置拖拽图像（可选）
+    const target = e.target as HTMLElement;
+    e.dataTransfer.setDragImage(target, 0, 0);
+    // 通知父组件
+    onDragStart(e, task);
+  };
+
+  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
+    console.log('[拖拽] 结束拖拽:', task.name);
+    onDragEnd();
+  };
+
   return (
     <div
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.setData('text/plain', task.id);
-        e.dataTransfer.effectAllowed = 'move';
-        e.stopPropagation();
-        onDragStart(e, task);
-      }}
-      onDragEnd={onDragEnd}
+      draggable={true}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       onClick={onClick}
       style={{ 
         userSelect: 'none',
+        WebkitUserSelect: 'none',
+        KhtmlUserSelect: 'none',
+        MozUserSelect: 'none',
       }}
       className={`
         px-2 py-1 rounded text-xs cursor-grab active:cursor-grabbing
@@ -380,8 +399,20 @@ function WeekTable({
                     ${isDragOver ? 'bg-green-100 ring-2 ring-green-400 ring-inset' : ''}
                     transition-colors
                   `}
-                  onDragOver={(e) => onDragOver(e, day, taskType.key)}
-                  onDrop={(e) => onDrop(e, day, taskType.key)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    onDragOver(e, day, taskType.key);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    console.log('[WeekTable] onDrop:', format(day, 'yyyy-MM-dd'), taskType.key);
+                    onDrop(e, day, taskType.key);
+                  }}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    console.log('[WeekTable] onDragEnter:', format(day, 'yyyy-MM-dd'), taskType.key);
+                  }}
                 >
                   <div className="space-y-1 min-h-[40px]">
                     {cellTasks.map(task => (
@@ -564,12 +595,14 @@ export function MatrixCalendarView({
 
   // 拖拽开始
   const handleDragStart = useCallback((e: React.DragEvent, task: Task) => {
+    console.log('[矩阵日历] handleDragStart:', task.name, task.taskType);
     setDraggedTask(task);
     dragOverNavRef.current = null;
   }, []);
 
   // 拖拽结束
   const handleDragEnd = useCallback(() => {
+    console.log('[矩阵日历] handleDragEnd');
     setDraggedTask(null);
     setDragOverCell(null);
     setHoverNav(null);
@@ -626,10 +659,18 @@ export function MatrixCalendarView({
   const handleDrop = useCallback((e: React.DragEvent, targetDate: Date, targetTaskType: ResourceWorkType) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    console.log('[矩阵日历] handleDrop - 目标日期:', format(targetDate, 'yyyy-MM-dd'), '目标类型:', targetTaskType);
+    console.log('[矩阵日历] handleDrop - 拖拽中的任务:', draggedTask?.name, draggedTask?.taskType);
 
-    if (!draggedTask) return;
+    if (!draggedTask) {
+      console.log('[矩阵日历] handleDrop - 没有拖拽中的任务');
+      handleDragEnd();
+      return;
+    }
 
     if (draggedTask.taskType !== targetTaskType) {
+      console.log('[矩阵日历] handleDrop - 类型不匹配:', draggedTask.taskType, 'vs', targetTaskType);
       handleDragEnd();
       return;
     }
@@ -642,6 +683,13 @@ export function MatrixCalendarView({
     newStartDate.setHours(0, 0, 0, 0);
     const newEndDate = new Date(newStartDate);
     newEndDate.setDate(newEndDate.getDate() + durationDays);
+
+    console.log('[矩阵日历] handleDrop - 更新任务日期:', {
+      taskName: draggedTask.name,
+      originalStart: format(originalStartDate, 'yyyy-MM-dd'),
+      newStart: format(newStartDate, 'yyyy-MM-dd'),
+      durationDays
+    });
 
     if (onTaskUpdate) {
       onTaskUpdate(draggedTask.id, {
@@ -701,24 +749,24 @@ export function MatrixCalendarView({
         </div>
         <div className="text-sm text-muted-foreground">
           {draggedTask ? (
-            <span className="text-blue-600">
-              拖到 ◀ ▶ 按钮可翻页
+            <span className="text-blue-600 font-medium">
+              🔄 正在移动: {draggedTask.name}
             </span>
           ) : (
-            '拖拽任务卡片移动日期'
+            <span>💡 提示: 拖拽任务卡片可移动日期，同类型任务间可互换位置</span>
           )}
         </div>
       </div>
 
       {/* 拖拽提示条 */}
       {draggedTask && (
-        <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+        <div className="mb-2 p-3 bg-blue-50 border border-blue-300 rounded-lg flex items-center justify-between shadow-sm">
           <span className="text-sm text-blue-700">
-            正在移动: <strong>{draggedTask.name}</strong>
-            {draggedTask.projectName && <span className="text-blue-500">（{draggedTask.projectName}）</span>}
+            正在移动: <strong className="text-blue-900">{draggedTask.name}</strong>
+            {draggedTask.projectName && <span className="text-blue-500 ml-1">（{draggedTask.projectName}）</span>}
           </span>
-          <span className="text-xs text-blue-600">
-            {hoverNav ? '松开鼠标取消翻页，保持悬停 0.4 秒自动翻页' : '拖到 ◀ ▶ 按钮上可跨月'}
+          <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+            放开鼠标放置任务
           </span>
         </div>
       )}
