@@ -730,7 +730,7 @@ export function MatrixCalendarView({
     return Array.from(projectMap.values());
   }, [tasks]);
 
-  // 按日期和类型分组任务
+  // 按日期和类型分组任务（只在工作日显示，排除周末和节假日）
   const tasksByDateAndType = useMemo(() => {
     const grouped: Record<string, Task[]> = {};
 
@@ -744,13 +744,16 @@ export function MatrixCalendarView({
       while (currentDateIter <= endDate) {
         const dateKey = format(currentDateIter, 'yyyy-MM-dd');
         const taskType = task.taskType || '平面';
-
-        const key = `${dateKey}-${taskType}`;
-        if (!grouped[key]) {
-          grouped[key] = [];
-        }
-        if (!grouped[key].find(t => t.id === task.id)) {
-          grouped[key].push(task);
+        
+        // 只在工作日显示任务（不考虑调休日，因为调休是用户手动设置的）
+        if (isWorkingDay(currentDateIter, undefined)) {
+          const key = `${dateKey}-${taskType}`;
+          if (!grouped[key]) {
+            grouped[key] = [];
+          }
+          if (!grouped[key].find(t => t.id === task.id)) {
+            grouped[key].push(task);
+          }
         }
 
         currentDateIter.setDate(currentDateIter.getDate() + 1);
