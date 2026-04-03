@@ -55,6 +55,71 @@ const TASK_TYPE_CONFIG: { key: ResourceWorkType; label: string; bgColor: string;
   { key: '后期', label: '后期节点', bgColor: 'bg-amber-100', borderColor: 'border-amber-300' },
 ];
 
+// 2025年法定节假日配置（可根据需要扩展）
+const HOLIDAYS_2025: Set<string> = new Set([
+  // 元旦
+  '2025-01-01',
+  // 春节
+  '2025-01-28', '2025-01-29', '2025-01-30', '2025-01-31', '2025-02-01', '2025-02-02', '2025-02-03', '2025-02-04',
+  // 清明节
+  '2025-04-04', '2025-04-05', '2025-04-06',
+  // 劳动节
+  '2025-05-01', '2025-05-02', '2025-05-03', '2025-05-04', '2025-05-05',
+  // 端午节
+  '2025-05-31', '2025-06-01', '2025-06-02',
+  // 中秋节+国庆节
+  '2025-10-01', '2025-10-02', '2025-10-03', '2025-10-04', '2025-10-05', '2025-10-06', '2025-10-07', '2025-10-08',
+]);
+
+// 2026年法定节假日配置（预估，可根据官方公布调整）
+const HOLIDAYS_2026: Set<string> = new Set([
+  // 元旦
+  '2026-01-01', '2026-01-02', '2026-01-03',
+  // 春节（预估）
+  '2026-02-17', '2026-02-18', '2026-02-19', '2026-02-20', '2026-02-21', '2026-02-22', '2026-02-23',
+  // 清明节（预估）
+  '2026-04-04', '2026-04-05', '2026-04-06',
+  // 劳动节（预估）
+  '2026-05-01', '2026-05-02', '2026-05-03', '2026-05-04', '2026-05-05',
+  // 端午节（预估）
+  '2026-05-31', '2026-06-01', '2026-06-02',
+  // 中秋节+国庆节（预估）
+  '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08',
+]);
+
+// 合并所有节假日
+const ALL_HOLIDAYS = new Set([...HOLIDAYS_2025, ...HOLIDAYS_2026]);
+
+// 检查是否是工作日（排除周末和法定节假日）
+function isWorkingDay(date: Date): boolean {
+  const dateStr = format(date, 'yyyy-MM-dd');
+  // 检查是否是周末
+  if (isWeekend(date)) return false;
+  // 检查是否是法定节假日
+  if (ALL_HOLIDAYS.has(dateStr)) return false;
+  return true;
+}
+
+// 获取下一个工作日
+function getNextWorkingDay(date: Date): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() + 1);
+  while (!isWorkingDay(result)) {
+    result.setDate(result.getDate() + 1);
+  }
+  return result;
+}
+
+// 获取上一个工作日
+function getPrevWorkingDay(date: Date): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() - 1);
+  while (!isWorkingDay(result)) {
+    result.setDate(result.getDate() - 1);
+  }
+  return result;
+}
+
 interface MatrixCalendarViewProps {
   scheduledTasks: Task[];
   resources: Resource[];
@@ -338,40 +403,62 @@ function DroppableCell({
   const today = new Date();
   const isToday = isSameDay(day, today);
   const isWeekendDay = isWeekend(day);
-  const cellId = `cell-${format(day, 'yyyy-MM-dd')}-${taskType}`;
+  const dateStr = format(day, 'yyyy-MM-dd');
+  const isHoliday = ALL_HOLIDAYS.has(dateStr);
+  const isWorkDay = isWorkingDay(day);
+  const cellId = `cell-${dateStr}-${taskType}`;
   
+  // 非工作日不允许放置，但仍然可以接收拖拽事件（用于判断是否是工作日）
   const { setNodeRef, isOver } = useDroppable({
     id: cellId,
     data: {
       date: day,
       taskType,
+      isWorkingDay: isWorkDay, // 传递是否是工作日的信息
     },
+    disabled: !isWorkDay, // 非工作日禁用拖放
   });
 
-  const isDragOver = isOver && draggedTask && draggedTask.taskType === taskType;
+  const isDragOver = isOver && draggedTask && draggedTask.taskType === taskType && isWorkDay;
+
+  // 非工作日的样式
+  const getNonWorkingDayStyle = () => {
+    if (isHoliday) return 'bg-red-50 text-red-400'; // 法定节假日
+    if (isWeekendDay) return 'bg-slate-100 text-slate-400'; // 周末
+    return '';
+  };
 
   return (
     <div
       ref={setNodeRef}
       className={`
         flex-1 min-w-24 min-h-[60px] p-1 border-r last:border-r-0 border-slate-200
-        ${isToday ? 'bg-blue-50' : isWeekendDay ? 'bg-slate-50/50' : 'bg-white'}
+        ${isToday && isWorkDay ? 'bg-blue-50' : ''}
+        ${!isWorkDay ? getNonWorkingDayStyle() : ''}
         ${isDragOver ? 'bg-green-100 ring-2 ring-green-400 ring-inset' : ''}
         ${!isInMonth ? 'opacity-40' : ''}
         transition-colors
       `}
     >
       <div className="space-y-1 min-h-[40px]">
-        {cellTasks.map(task => (
-          <DraggableTaskCard
-            key={task.id}
-            task={task}
-            onClick={() => onTaskClick(task)}
-            isDragging={draggedTask?.id === task.id}
-          />
-        ))}
-        {cellTasks.length === 0 && (
-          <div className="h-8 flex items-center justify-center text-slate-300 text-xs">-</div>
+        {isWorkDay ? (
+          <>
+            {cellTasks.map(task => (
+              <DraggableTaskCard
+                key={task.id}
+                task={task}
+                onClick={() => onTaskClick(task)}
+                isDragging={draggedTask?.id === task.id}
+              />
+            ))}
+            {cellTasks.length === 0 && (
+              <div className="h-8 flex items-center justify-center text-slate-300 text-xs">-</div>
+            )}
+          </>
+        ) : (
+          <div className="h-8 flex items-center justify-center text-xs opacity-60">
+            {isHoliday ? '🏛️ 休' : '休息'}
+          </div>
         )}
       </div>
     </div>
@@ -416,22 +503,29 @@ function WeekTable({
             const isToday = isSameDay(day, today);
             const isWeekendDay = isWeekend(day);
             const isInMonth = isSameMonth(day, currentMonth);
+            const dateStr = format(day, 'yyyy-MM-dd');
+            const isHoliday = ALL_HOLIDAYS.has(dateStr);
+            const isWorkDay = isWorkingDay(day);
 
             return (
               <div
                 key={idx}
                 className={`
                   flex-1 min-w-24 p-2 border-r last:border-r-0 border-slate-300 text-center
-                  ${isToday ? 'bg-blue-100' : isWeekendDay ? 'bg-slate-50' : ''}
+                  ${isToday && isWorkDay ? 'bg-blue-100' : ''}
+                  ${!isWorkDay ? (isHoliday ? 'bg-red-50' : 'bg-slate-100') : ''}
                   ${!isInMonth ? 'opacity-40' : ''}
                 `}
               >
-                <div className="text-xs text-slate-500">
+                <div className={`text-xs ${!isWorkDay ? 'text-slate-400' : 'text-slate-500'}`}>
                   {format(day, 'E', { locale: zhCN })}
                 </div>
-                <div className={`font-medium text-sm ${isToday ? 'text-blue-600' : ''}`}>
+                <div className={`font-medium text-sm ${isToday ? 'text-blue-600' : !isWorkDay ? 'text-slate-400' : ''}`}>
                   {format(day, 'M.d')}
                 </div>
+                {isHoliday && (
+                  <div className="text-xs text-red-400">休</div>
+                )}
               </div>
             );
           })}
@@ -639,8 +733,9 @@ export function MatrixCalendarView({
 
     const targetDate = overData.date as Date;
     const targetTaskType = overData.taskType as ResourceWorkType;
+    const targetIsWorkingDay = overData.isWorkingDay as boolean;
 
-    console.log('[矩阵日历] 目标日期:', targetDate ? format(targetDate, 'yyyy-MM-dd') : 'null', '目标类型:', targetTaskType);
+    console.log('[矩阵日历] 目标日期:', targetDate ? format(targetDate, 'yyyy-MM-dd') : 'null', '目标类型:', targetTaskType, '是否工作日:', targetIsWorkingDay);
 
     // 检查类型是否匹配
     if (currentDraggedTask.taskType !== targetTaskType) {
@@ -649,21 +744,48 @@ export function MatrixCalendarView({
       return;
     }
 
+    // 检查目标日期是否是工作日
+    let finalStartDate = new Date(targetDate);
+    if (!targetIsWorkingDay) {
+      // 如果不是工作日，找到下一个工作日
+      finalStartDate = getNextWorkingDay(targetDate);
+      console.log('[矩阵日历] 目标日期是非工作日，调整为下一个工作日:', format(finalStartDate, 'yyyy-MM-dd'));
+    }
+
     // 计算新的日期范围
     const originalStartDate = currentDraggedTask.startDate ? new Date(currentDraggedTask.startDate) : new Date();
     const originalEndDate = currentDraggedTask.endDate ? new Date(currentDraggedTask.endDate) : originalStartDate;
-    const durationDays = differenceInDays(originalEndDate, originalStartDate);
-
-    const newStartDate = new Date(targetDate);
+    
+    // 计算工作日天数（而非自然日）
+    let workDays = 0;
+    let iterDate = new Date(originalStartDate);
+    while (iterDate <= originalEndDate) {
+      if (isWorkingDay(iterDate)) {
+        workDays++;
+      }
+      iterDate.setDate(iterDate.getDate() + 1);
+    }
+    
+    // 从新的开始日期计算结束日期（只计算工作日）
+    const newStartDate = new Date(finalStartDate);
     newStartDate.setHours(0, 0, 0, 0);
     const newEndDate = new Date(newStartDate);
-    newEndDate.setDate(newEndDate.getDate() + durationDays);
+    
+    // 添加工作日天数
+    let addedDays = 0;
+    while (addedDays < workDays - 1) {
+      newEndDate.setDate(newEndDate.getDate() + 1);
+      if (isWorkingDay(newEndDate)) {
+        addedDays++;
+      }
+    }
 
     console.log('[矩阵日历] 更新任务日期:', {
       taskName: currentDraggedTask.name,
       originalStart: format(originalStartDate, 'yyyy-MM-dd'),
       newStart: format(newStartDate, 'yyyy-MM-dd'),
-      durationDays
+      newEnd: format(newEndDate, 'yyyy-MM-dd'),
+      workDays
     });
 
     if (onTaskUpdate) {
