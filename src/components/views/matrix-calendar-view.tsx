@@ -90,9 +90,13 @@ const HOLIDAYS_2026: Set<string> = new Set([
 // 合并所有节假日
 const ALL_HOLIDAYS = new Set([...HOLIDAYS_2025, ...HOLIDAYS_2026]);
 
-// 检查是否是工作日（排除周末和法定节假日）
-function isWorkingDay(date: Date): boolean {
+// 检查是否是工作日（排除周末和法定节假日，支持调休日）
+function isWorkingDay(date: Date, extraWorkDays?: Set<string>): boolean {
   const dateStr = format(date, 'yyyy-MM-dd');
+  
+  // 如果是调休日（加班日），视为工作日
+  if (extraWorkDays?.has(dateStr)) return true;
+  
   // 检查是否是周末
   if (isWeekend(date)) return false;
   // 检查是否是法定节假日
@@ -100,21 +104,29 @@ function isWorkingDay(date: Date): boolean {
   return true;
 }
 
+// 检查日期原本是否是休息日（周末或节假日）
+function isOriginallyRestDay(date: Date): boolean {
+  const dateStr = format(date, 'yyyy-MM-dd');
+  if (isWeekend(date)) return true;
+  if (ALL_HOLIDAYS.has(dateStr)) return true;
+  return false;
+}
+
 // 获取下一个工作日
-function getNextWorkingDay(date: Date): Date {
+function getNextWorkingDay(date: Date, extraWorkDays?: Set<string>): Date {
   const result = new Date(date);
   result.setDate(result.getDate() + 1);
-  while (!isWorkingDay(result)) {
+  while (!isWorkingDay(result, extraWorkDays)) {
     result.setDate(result.getDate() + 1);
   }
   return result;
 }
 
 // 获取上一个工作日
-function getPrevWorkingDay(date: Date): Date {
+function getPrevWorkingDay(date: Date, extraWorkDays?: Set<string>): Date {
   const result = new Date(date);
   result.setDate(result.getDate() - 1);
-  while (!isWorkingDay(result)) {
+  while (!isWorkingDay(result, extraWorkDays)) {
     result.setDate(result.getDate() - 1);
   }
   return result;
@@ -392,6 +404,8 @@ function DroppableCell({
   draggedTask,
   onTaskClick,
   isInMonth,
+  extraWorkDays,
+  onToggleExtraWorkDay,
 }: {
   day: Date;
   taskType: ResourceWorkType;
@@ -399,13 +413,17 @@ function DroppableCell({
   draggedTask: Task | null;
   onTaskClick: (task: Task) => void;
   isInMonth: boolean;
+  extraWorkDays: Set<string>;
+  onToggleExtraWorkDay: (date: Date) => void;
 }) {
   const today = new Date();
   const isToday = isSameDay(day, today);
   const isWeekendDay = isWeekend(day);
   const dateStr = format(day, 'yyyy-MM-dd');
   const isHoliday = ALL_HOLIDAYS.has(dateStr);
-  const isWorkDay = isWorkingDay(day);
+  const isOriginallyRest = isOriginallyRestDay(day);
+  const isExtraWorkDay = extraWorkDays.has(dateStr);
+  const isWorkDay = isWorkingDay(day, extraWorkDays);
   const cellId = `cell-${dateStr}-${taskType}`;
   
   // 非工作日不允许放置，但仍然可以接收拖拽事件（用于判断是否是工作日）
@@ -421,24 +439,34 @@ function DroppableCell({
 
   const isDragOver = isOver && draggedTask && draggedTask.taskType === taskType && isWorkDay;
 
+  // 处理点击非工作日单元格
+  const handleCellClick = () => {
+    if (isOriginallyRest) {
+      onToggleExtraWorkDay(day);
+    }
+  };
+
   // 非工作日的样式
   const getNonWorkingDayStyle = () => {
-    if (isHoliday) return 'bg-red-50 text-red-400'; // 法定节假日
-    if (isWeekendDay) return 'bg-slate-100 text-slate-400'; // 周末
+    if (isExtraWorkDay) return 'bg-green-50 text-green-600 cursor-pointer hover:bg-green-100'; // 调休加班日
+    if (isHoliday) return 'bg-red-50 text-red-400 cursor-pointer hover:bg-red-100'; // 法定节假日
+    if (isWeekendDay) return 'bg-slate-100 text-slate-400 cursor-pointer hover:bg-slate-200'; // 周末
     return '';
   };
 
   return (
     <div
       ref={setNodeRef}
+      onClick={handleCellClick}
       className={`
         flex-1 min-w-24 min-h-[60px] p-1 border-r last:border-r-0 border-slate-200
         ${isToday && isWorkDay ? 'bg-blue-50' : ''}
-        ${!isWorkDay ? getNonWorkingDayStyle() : ''}
+        ${!isWorkDay || isExtraWorkDay ? getNonWorkingDayStyle() : ''}
         ${isDragOver ? 'bg-green-100 ring-2 ring-green-400 ring-inset' : ''}
         ${!isInMonth ? 'opacity-40' : ''}
         transition-colors
       `}
+      title={isOriginallyRest ? (isExtraWorkDay ? '点击取消加班/调休' : '点击设置为加班/调休日') : undefined}
     >
       <div className="space-y-1 min-h-[40px]">
         {isWorkDay ? (
@@ -473,6 +501,8 @@ function WeekTable({
   currentMonth,
   draggedTask,
   onTaskClick,
+  extraWorkDays,
+  onToggleExtraWorkDay,
 }: {
   weekNumber: number;
   weekDays: Date[];
@@ -480,6 +510,8 @@ function WeekTable({
   currentMonth: Date;
   draggedTask: Task | null;
   onTaskClick: (task: Task) => void;
+  extraWorkDays: Set<string>;
+  onToggleExtraWorkDay: (date: Date) => void;
 }) {
   const today = new Date();
   const weekStart = weekDays[0];
@@ -505,7 +537,9 @@ function WeekTable({
             const isInMonth = isSameMonth(day, currentMonth);
             const dateStr = format(day, 'yyyy-MM-dd');
             const isHoliday = ALL_HOLIDAYS.has(dateStr);
-            const isWorkDay = isWorkingDay(day);
+            const isExtraWorkDay = extraWorkDays.has(dateStr);
+            const isWorkDay = isWorkingDay(day, extraWorkDays);
+            const isOriginallyRest = isOriginallyRestDay(day);
 
             return (
               <div
@@ -513,17 +547,23 @@ function WeekTable({
                 className={`
                   flex-1 min-w-24 p-2 border-r last:border-r-0 border-slate-300 text-center
                   ${isToday && isWorkDay ? 'bg-blue-100' : ''}
-                  ${!isWorkDay ? (isHoliday ? 'bg-red-50' : 'bg-slate-100') : ''}
+                  ${isExtraWorkDay ? 'bg-green-100' : !isWorkDay ? (isHoliday ? 'bg-red-50' : 'bg-slate-100') : ''}
                   ${!isInMonth ? 'opacity-40' : ''}
+                  ${isOriginallyRest ? 'cursor-pointer hover:opacity-80' : ''}
                 `}
+                onClick={() => isOriginallyRest && onToggleExtraWorkDay(day)}
+                title={isOriginallyRest ? (isExtraWorkDay ? '点击取消加班/调休' : '点击设置为加班/调休日') : undefined}
               >
-                <div className={`text-xs ${!isWorkDay ? 'text-slate-400' : 'text-slate-500'}`}>
+                <div className={`text-xs ${!isWorkDay && !isExtraWorkDay ? 'text-slate-400' : 'text-slate-500'}`}>
                   {format(day, 'E', { locale: zhCN })}
                 </div>
-                <div className={`font-medium text-sm ${isToday ? 'text-blue-600' : !isWorkDay ? 'text-slate-400' : ''}`}>
+                <div className={`font-medium text-sm ${isToday ? 'text-blue-600' : !isWorkDay && !isExtraWorkDay ? 'text-slate-400' : ''}`}>
                   {format(day, 'M.d')}
                 </div>
-                {isHoliday && (
+                {isExtraWorkDay && (
+                  <div className="text-xs text-green-600">💼</div>
+                )}
+                {isHoliday && !isExtraWorkDay && (
                   <div className="text-xs text-red-400">休</div>
                 )}
               </div>
@@ -551,6 +591,8 @@ function WeekTable({
                   draggedTask={draggedTask}
                   onTaskClick={onTaskClick}
                   isInMonth={isInMonth}
+                  extraWorkDays={extraWorkDays}
+                  onToggleExtraWorkDay={onToggleExtraWorkDay}
                 />
               );
             })}
@@ -598,6 +640,25 @@ export function MatrixCalendarView({
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
+  
+  // 调休/加班日状态
+  const [extraWorkDays, setExtraWorkDays] = useState<Set<string>>(() => new Set());
+  
+  // 切换调休/加班日
+  const toggleExtraWorkDay = useCallback((date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    setExtraWorkDays(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(dateStr)) {
+        newSet.delete(dateStr);
+        console.log('[矩阵日历] 取消加班/调休日:', dateStr);
+      } else {
+        newSet.add(dateStr);
+        console.log('[矩阵日历] 设置加班/调休日:', dateStr);
+      }
+      return newSet;
+    });
+  }, []);
   
   // 使用 ref 保存最新的 draggedTask，解决闭包问题
   const draggedTaskRef = useRef<Task | null>(null);
@@ -744,11 +805,11 @@ export function MatrixCalendarView({
       return;
     }
 
-    // 检查目标日期是否是工作日
+    // 检查目标日期是否是工作日（考虑调休日）
     let finalStartDate = new Date(targetDate);
     if (!targetIsWorkingDay) {
-      // 如果不是工作日，找到下一个工作日
-      finalStartDate = getNextWorkingDay(targetDate);
+      // 如果不是工作日，找到下一个工作日（考虑调休日）
+      finalStartDate = getNextWorkingDay(targetDate, extraWorkDays);
       console.log('[矩阵日历] 目标日期是非工作日，调整为下一个工作日:', format(finalStartDate, 'yyyy-MM-dd'));
     }
 
@@ -756,17 +817,17 @@ export function MatrixCalendarView({
     const originalStartDate = currentDraggedTask.startDate ? new Date(currentDraggedTask.startDate) : new Date();
     const originalEndDate = currentDraggedTask.endDate ? new Date(currentDraggedTask.endDate) : originalStartDate;
     
-    // 计算工作日天数（而非自然日）
+    // 计算工作日天数（而非自然日，考虑调休日）
     let workDays = 0;
     let iterDate = new Date(originalStartDate);
     while (iterDate <= originalEndDate) {
-      if (isWorkingDay(iterDate)) {
+      if (isWorkingDay(iterDate, extraWorkDays)) {
         workDays++;
       }
       iterDate.setDate(iterDate.getDate() + 1);
     }
     
-    // 从新的开始日期计算结束日期（只计算工作日）
+    // 从新的开始日期计算结束日期（只计算工作日，考虑调休日）
     const newStartDate = new Date(finalStartDate);
     newStartDate.setHours(0, 0, 0, 0);
     const newEndDate = new Date(newStartDate);
@@ -775,7 +836,7 @@ export function MatrixCalendarView({
     let addedDays = 0;
     while (addedDays < workDays - 1) {
       newEndDate.setDate(newEndDate.getDate() + 1);
-      if (isWorkingDay(newEndDate)) {
+      if (isWorkingDay(newEndDate, extraWorkDays)) {
         addedDays++;
       }
     }
@@ -796,7 +857,7 @@ export function MatrixCalendarView({
     }
 
     setDraggedTask(null);
-  }, [onTaskUpdate]);
+  }, [onTaskUpdate, extraWorkDays]);
 
   // 拖拽取消
   const handleDragCancel = useCallback(() => {
@@ -854,7 +915,7 @@ export function MatrixCalendarView({
                 🔄 正在移动: {draggedTask.name}
               </span>
             ) : (
-              <span>💡 提示: 拖拽任务卡片可移动日期</span>
+              <span>💡 提示: 拖拽任务卡片移动日期 | 点击休息日设为加班日</span>
             )}
           </div>
         </div>
@@ -883,6 +944,8 @@ export function MatrixCalendarView({
               currentMonth={currentDate}
               draggedTask={draggedTask}
               onTaskClick={handleTaskClick}
+              extraWorkDays={extraWorkDays}
+              onToggleExtraWorkDay={toggleExtraWorkDay}
             />
           ))}
         </div>
