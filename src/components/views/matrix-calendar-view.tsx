@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
 import { Task, Resource, ResourceWorkType } from '@/types/schedule';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -160,7 +160,7 @@ interface MatrixCalendarViewProps {
 }
 
 // 任务详情弹窗组件
-function TaskDetailDialog({
+const TaskDetailDialog = memo(function TaskDetailDialog({
   task,
   open,
   onClose,
@@ -331,7 +331,7 @@ function TaskDetailDialog({
       </DialogContent>
     </Dialog>
   );
-}
+});
 
 // 获取任务类型样式
 function getTypeStyle(taskType?: ResourceWorkType): string {
@@ -348,7 +348,7 @@ function getTypeStyle(taskType?: ResourceWorkType): string {
 }
 
 // 可拖拽的任务卡片组件
-function DraggableTaskCard({
+const DraggableTaskCard = memo(function DraggableTaskCard({
   task,
   onClick,
   isDragging,
@@ -394,10 +394,10 @@ function DraggableTaskCard({
       <span className="truncate">{displayName}</span>
     </div>
   );
-}
+});
 
 // 拖拽覆盖层卡片
-function DragOverlayCard({ task }: { task: Task }) {
+const DragOverlayCard = memo(function DragOverlayCard({ task }: { task: Task }) {
   const projectPrefix = task.projectName ? `【${task.projectName}】` : '';
   const displayName = projectPrefix + task.name;
 
@@ -413,10 +413,10 @@ function DragOverlayCard({ task }: { task: Task }) {
       <span className="truncate">{displayName}</span>
     </div>
   );
-}
+});
 
 // 可放置的单元格组件
-function DroppableCell({
+const DroppableCell = memo(function DroppableCell({
   day,
   taskType,
   cellTasks,
@@ -435,10 +435,9 @@ function DroppableCell({
   extraWorkDays: Set<string>;
   onToggleExtraWorkDay: (date: Date) => void;
 }) {
-  const today = new Date();
-  const isToday = isSameDay(day, today);
-  const isWeekendDay = isWeekend(day);
   const dateStr = format(day, 'yyyy-MM-dd');
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const isToday = dateStr === todayStr;
   const isHoliday = ALL_HOLIDAYS.has(dateStr);
   const isOriginallyRest = isOriginallyRestDay(day);
   const isExtraWorkDay = extraWorkDays.has(dateStr);
@@ -510,10 +509,10 @@ function DroppableCell({
       </div>
     </div>
   );
-}
+});
 
 // 单周表格组件
-function WeekTable({
+const WeekTable = memo(function WeekTable({
   weekNumber,
   weekDays,
   tasksByDateAndType,
@@ -532,7 +531,7 @@ function WeekTable({
   extraWorkDays: Set<string>;
   onToggleExtraWorkDay: (date: Date) => void;
 }) {
-  const today = new Date();
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
   const weekStart = weekDays[0];
   const weekEnd = weekDays[weekDays.length - 1];
 
@@ -551,10 +550,10 @@ function WeekTable({
             类型
           </div>
           {weekDays.map((day, idx) => {
-            const isToday = isSameDay(day, today);
+            const dateStr = format(day, 'yyyy-MM-dd');
+            const isToday = dateStr === todayStr;
             const isWeekendDay = isWeekend(day);
             const isInMonth = isSameMonth(day, currentMonth);
-            const dateStr = format(day, 'yyyy-MM-dd');
             const isHoliday = ALL_HOLIDAYS.has(dateStr);
             const isExtraWorkDay = extraWorkDays.has(dateStr);
             const isWorkDay = isWorkingDay(day, extraWorkDays);
@@ -620,7 +619,7 @@ function WeekTable({
       </div>
     </div>
   );
-}
+});
 
 // 翻页按钮组件
 function NavButton({
