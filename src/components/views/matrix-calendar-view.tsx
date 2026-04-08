@@ -399,15 +399,18 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
       ref={setNodeRef}
       className={`
         w-48 min-w-48 bg-slate-50 border-r-2 border-dashed border-slate-400
-        rounded-lg p-2 flex flex-col gap-2 h-full
+        rounded-lg flex flex-col
         ${isOver && draggedTask?.taskType ? 'bg-green-50 border-green-400' : ''}
       `}
     >
-      <div className="flex items-center gap-2 pb-2 border-b border-slate-300">
+      {/* 固定头部 */}
+      <div className="flex items-center gap-2 px-2 py-2 border-b border-slate-300 bg-slate-100 rounded-t-lg">
         <span className="text-sm font-medium text-slate-600">📋 未分配任务</span>
         <Badge variant="secondary" className="text-xs">{tasks.length}</Badge>
       </div>
-      <div className="flex-1 overflow-y-auto space-y-1">
+      
+      {/* 可滚动的内容区域 */}
+      <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {tasks.length === 0 ? (
           <div className="text-center text-slate-400 text-xs py-4">
             暂无未分配任务
@@ -423,8 +426,12 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
           ))
         )}
       </div>
-      <div className="text-xs text-slate-400 text-center pt-1 border-t border-slate-200">
-        拖拽到这里取消分配
+      
+      {/* 固定底部提示 */}
+      <div className="px-2 py-2 border-t border-slate-200 bg-slate-100 rounded-b-lg">
+        <div className="text-xs text-slate-400 text-center">
+          拖到这里取消分配
+        </div>
       </div>
     </div>
   );
@@ -1031,7 +1038,7 @@ export function MatrixCalendarView({
         )}
 
         {/* 未分配任务池 + 周表格 */}
-        <div className="flex gap-2 flex-1 overflow-hidden">
+        <div className="flex gap-2 h-full overflow-hidden">
           {/* 未分配任务池 */}
           <UnassignedTaskPool
             tasks={unassignedTasks}
@@ -1040,7 +1047,7 @@ export function MatrixCalendarView({
           />
 
           {/* 周表格列表 */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto h-full">
             {monthWeeks.map((week) => (
               <WeekTable
                 key={week.weekNumber}
