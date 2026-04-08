@@ -398,13 +398,13 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
     <div
       ref={setNodeRef}
       className={`
-        flex flex-col h-full rounded-lg overflow-hidden
-        bg-slate-50 border-2 border-dashed
-        ${isOver && draggedTask?.taskType ? 'border-green-400 bg-green-50' : 'border-slate-400'}
+        w-48 min-w-48 bg-slate-50 border-r-2 border-dashed border-slate-400
+        rounded-lg flex flex-col
+        ${isOver && draggedTask?.taskType ? 'bg-green-50 border-green-400' : ''}
       `}
     >
       {/* 固定头部 */}
-      <div className="flex items-center gap-2 px-2 py-2 border-b border-slate-300 bg-slate-100 flex-shrink-0">
+      <div className="flex items-center gap-2 px-2 py-2 border-b border-slate-300 bg-slate-100 rounded-t-lg">
         <span className="text-sm font-medium text-slate-600">📋 未分配任务</span>
         <Badge variant="secondary" className="text-xs">{tasks.length}</Badge>
       </div>
@@ -428,7 +428,7 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
       </div>
       
       {/* 固定底部提示 */}
-      <div className="px-2 py-2 border-t border-slate-200 bg-slate-100 flex-shrink-0">
+      <div className="px-2 py-2 border-t border-slate-200 bg-slate-100 rounded-b-lg">
         <div className="text-xs text-slate-400 text-center">
           拖到这里取消分配
         </div>
@@ -992,7 +992,7 @@ export function MatrixCalendarView({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="flex flex-col">
+      <div className="flex flex-col h-full">
         {/* 月份切换控制 */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -1038,18 +1038,16 @@ export function MatrixCalendarView({
         )}
 
         {/* 未分配任务池 + 周表格 */}
-        <div className="grid grid-cols-[192px_1fr] gap-2">
-          {/* 未分配任务池 - 高度与右侧表格对齐，内容超出时内部滚动 */}
-          <div className="flex flex-col h-full max-h-full overflow-hidden">
-            <UnassignedTaskPool
-              tasks={unassignedTasks}
-              draggedTask={deferredDraggedTask}
-              onTaskClick={handleTaskClick}
-            />
-          </div>
+        <div className="flex gap-2 h-full overflow-hidden">
+          {/* 未分配任务池 */}
+          <UnassignedTaskPool
+            tasks={unassignedTasks}
+            draggedTask={deferredDraggedTask}
+            onTaskClick={handleTaskClick}
+          />
 
-          {/* 周表格列表 - 固定高度，无滚动 */}
-          <div className="flex flex-col">
+          {/* 周表格列表 */}
+          <div className="flex-1 overflow-y-auto h-full">
             {monthWeeks.map((week) => (
               <WeekTable
                 key={week.weekNumber}
