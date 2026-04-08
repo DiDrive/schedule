@@ -730,33 +730,26 @@ export function MatrixCalendarView({
     return Array.from(projectMap.values());
   }, [tasks]);
 
-  // 按日期和类型分组任务（只在工作日显示，排除周末和节假日）
+  // 按日期和类型分组任务（只在结束日期显示，排除周末和节假日）
   const tasksByDateAndType = useMemo(() => {
     const grouped: Record<string, Task[]> = {};
 
     scheduledTasks.forEach(task => {
       if (!task.startDate) return;
 
-      const startDate = new Date(task.startDate);
-      const endDate = task.endDate ? new Date(task.endDate) : startDate;
-
-      let currentDateIter = new Date(startDate);
-      while (currentDateIter <= endDate) {
-        const dateKey = format(currentDateIter, 'yyyy-MM-dd');
-        const taskType = task.taskType || '平面';
-        
-        // 只在工作日显示任务（不考虑调休日，因为调休是用户手动设置的）
-        if (isWorkingDay(currentDateIter, undefined)) {
-          const key = `${dateKey}-${taskType}`;
-          if (!grouped[key]) {
-            grouped[key] = [];
-          }
-          if (!grouped[key].find(t => t.id === task.id)) {
-            grouped[key].push(task);
-          }
+      const endDate = task.endDate ? new Date(task.endDate) : new Date(task.startDate);
+      const dateKey = format(endDate, 'yyyy-MM-dd');
+      const taskType = task.taskType || '平面';
+      
+      // 只在工作日显示任务（不考虑调休日，因为调休是用户手动设置的）
+      if (isWorkingDay(endDate, undefined)) {
+        const key = `${dateKey}-${taskType}`;
+        if (!grouped[key]) {
+          grouped[key] = [];
         }
-
-        currentDateIter.setDate(currentDateIter.getDate() + 1);
+        if (!grouped[key].find(t => t.id === task.id)) {
+          grouped[key].push(task);
+        }
       }
     });
 
