@@ -377,6 +377,59 @@ function getCompletedTypeStyle(taskType?: ResourceWorkType): string {
   }
 }
 
+// 未分配任务池组件
+const UnassignedTaskPool = memo(function UnassignedTaskPool({
+  tasks,
+  draggedTask,
+  onTaskClick,
+}: {
+  tasks: Task[];
+  draggedTask: Task | null;
+  onTaskClick: (task: Task) => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: 'unassigned-task-pool',
+    data: {
+      isTaskPool: true,
+    },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`
+        w-48 min-w-48 bg-slate-50 border-r-2 border-dashed border-slate-400
+        rounded-lg p-2 flex flex-col gap-2 h-full
+        ${isOver && draggedTask?.taskType ? 'bg-green-50 border-green-400' : ''}
+      `}
+    >
+      <div className="flex items-center gap-2 pb-2 border-b border-slate-300">
+        <span className="text-sm font-medium text-slate-600">📋 未分配任务</span>
+        <Badge variant="secondary" className="text-xs">{tasks.length}</Badge>
+      </div>
+      <div className="flex-1 overflow-y-auto space-y-1">
+        {tasks.length === 0 ? (
+          <div className="text-center text-slate-400 text-xs py-4">
+            暂无未分配任务
+          </div>
+        ) : (
+          tasks.map(task => (
+            <DraggableTaskCard
+              key={task.id}
+              task={task}
+              onClick={() => onTaskClick(task)}
+              isDragging={draggedTask?.id === task.id}
+            />
+          ))
+        )}
+      </div>
+      <div className="text-xs text-slate-400 text-center pt-1 border-t border-slate-200">
+        拖拽到这里取消分配
+      </div>
+    </div>
+  );
+});
+
 // 可拖拽的任务卡片组件
 const DraggableTaskCard = memo(function DraggableTaskCard({
   task,
@@ -791,7 +844,12 @@ export function MatrixCalendarView({
     return Array.from(projectMap.values());
   }, [tasks]);
 
-  // 按日期和类型分组任务（只在结束日期显示，排除周末和节假日）
+  // 获取所有未分配类型的任务（用于任务池）
+  const unassignedTasks = useMemo(() => {
+    return scheduledTasks.filter(task => !task.taskType && task.startDate);
+  }, [scheduledTasks]);
+
+  // 按日期和类型分组任务（只在结束日期显示，排除周末和节假日，未分配类型的任务不显示）
   const tasksByDateAndType = useMemo(() => {
     const grouped: Record<string, Task[]> = Object.create(null);
     const addedIds = new Set<string>();
@@ -800,13 +858,15 @@ export function MatrixCalendarView({
       const task = scheduledTasks[i];
       if (!task.startDate || addedIds.has(task.id)) continue;
 
+      // 未分配类型的任务不显示在任何类型行，它们会在任务池中显示
+      if (!task.taskType) continue;
+
       const endDate = task.endDate ? new Date(task.endDate) : new Date(task.startDate);
       const dateKey = format(endDate, 'yyyy-MM-dd');
-      const taskType = task.taskType || '平面';
       
       // 只在工作日显示任务（不考虑调休日，因为调休是用户手动设置的）
       if (isWorkingDay(endDate, undefined)) {
-        const key = dateKey + '-' + taskType;
+        const key = dateKey + '-' + task.taskType;
         if (!grouped[key]) {
           grouped[key] = [];
         }
@@ -844,15 +904,20 @@ export function MatrixCalendarView({
       return;
     }
 
+    // 如果拖拽到任务池，清除类型
+    if (overData.isTaskPool) {
+      if (currentDraggedTask.taskType) {
+        // 清除类型，任务会消失（因为已修改分组逻辑）
+        if (onTaskUpdate) {
+          onTaskUpdate(currentDraggedTask.id, { taskType: undefined });
+        }
+      }
+      return;
+    }
+
     const targetDateStr = overData.dateStr as string;
     const targetTaskType = overData.taskType as ResourceWorkType;
     const targetIsWorkDay = overData.isWorkDay as boolean;
-
-    // 检查类型是否匹配（空类型的任务可以拖拽到任意类型）
-    const taskType = currentDraggedTask.taskType || '';
-    if (taskType && taskType !== targetTaskType) {
-      return;
-    }
 
     // 解析目标日期
     let finalTargetDate = new Date(targetDateStr);
@@ -866,8 +931,8 @@ export function MatrixCalendarView({
     originalEndDate.setHours(0, 0, 0, 0);
     const dayOffset = Math.round((finalTargetDate.getTime() - originalEndDate.getTime()) / (1000 * 60 * 60 * 24));
     
-    // 如果没有偏移，不需要更新
-    if (dayOffset === 0) {
+    // 如果没有偏移且类型不变，不需要更新
+    if (dayOffset === 0 && currentDraggedTask.taskType === targetTaskType) {
       return;
     }
 
@@ -882,7 +947,7 @@ export function MatrixCalendarView({
       startDate: newStartDate,
       endDate: newEndDate,
     };
-    if (!taskType) {
+    if (!currentDraggedTask.taskType) {
       updates.taskType = targetTaskType;
     }
 
@@ -965,21 +1030,31 @@ export function MatrixCalendarView({
           </div>
         )}
 
-        {/* 周表格列表 */}
-        <div className="flex-1 overflow-y-auto">
-          {monthWeeks.map((week) => (
-            <WeekTable
-              key={week.weekNumber}
-              weekNumber={week.weekNumber}
-              weekDays={week.days}
-              tasksByDateAndType={tasksByDateAndType}
-              currentMonth={currentDate}
-              draggedTask={deferredDraggedTask}
-              onTaskClick={handleTaskClick}
-              extraWorkDays={extraWorkDays}
-              onToggleExtraWorkDay={toggleExtraWorkDay}
-            />
-          ))}
+        {/* 未分配任务池 + 周表格 */}
+        <div className="flex gap-2 flex-1 overflow-hidden">
+          {/* 未分配任务池 */}
+          <UnassignedTaskPool
+            tasks={unassignedTasks}
+            draggedTask={deferredDraggedTask}
+            onTaskClick={handleTaskClick}
+          />
+
+          {/* 周表格列表 */}
+          <div className="flex-1 overflow-y-auto">
+            {monthWeeks.map((week) => (
+              <WeekTable
+                key={week.weekNumber}
+                weekNumber={week.weekNumber}
+                weekDays={week.days}
+                tasksByDateAndType={tasksByDateAndType}
+                currentMonth={currentDate}
+                draggedTask={deferredDraggedTask}
+                onTaskClick={handleTaskClick}
+                extraWorkDays={extraWorkDays}
+                onToggleExtraWorkDay={toggleExtraWorkDay}
+              />
+            ))}
+          </div>
         </div>
 
         {/* 任务详情弹窗 */}
