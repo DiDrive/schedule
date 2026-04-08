@@ -41,7 +41,7 @@ import {
   DragEndEvent,
   DragStartEvent,
   DragOverlayProps,
-  closestCenter,
+  pointerWithin,
   useSensor,
   useSensors,
   PointerSensor,
@@ -446,11 +446,11 @@ const DroppableCell = memo(function DroppableCell({
   const cellId = `cell-${dateStr}-${taskType}`;
   
   // 检查是否可以放置：无类型任务可放置到任意类型，或类型匹配
-  const canDrop = isWorkDay && draggedTask && 
-    (!draggedTask.taskType || draggedTask.taskType === taskType);
+  const canDrop = isWorkDay && 
+    (!draggedTask?.taskType || draggedTask.taskType === taskType);
   
-  // 非工作日不允许放置
-  const { setNodeRef } = useDroppable({
+  // 非工作日或类型不匹配时禁用
+  const { setNodeRef, isOver } = useDroppable({
     id: cellId,
     data: {
       dateStr,
@@ -459,6 +459,8 @@ const DroppableCell = memo(function DroppableCell({
     },
     disabled: !canDrop,
   });
+
+  const isDragOver = isOver && canDrop;
 
   // 处理点击非工作日单元格
   const handleCellClick = () => {
@@ -483,7 +485,7 @@ const DroppableCell = memo(function DroppableCell({
         flex-1 min-w-24 min-h-[60px] p-1 border-r last:border-r-0 border-slate-200
         ${isToday && isWorkDay ? 'bg-blue-50' : ''}
         ${!isWorkDay || isExtraWorkDay ? getNonWorkingDayStyle() : ''}
-        ${canDrop && draggedTask ? 'bg-green-100 ring-2 ring-green-400 ring-inset' : ''}
+        ${isDragOver ? 'bg-green-100 ring-2 ring-green-400 ring-inset' : ''}
         ${!isInMonth ? 'opacity-40' : ''}
         transition-colors
       `}
@@ -876,7 +878,7 @@ export function MatrixCalendarView({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={pointerWithin}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
