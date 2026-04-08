@@ -132,6 +132,25 @@ function getPrevWorkingDay(date: Date, extraWorkDays?: Set<string>): Date {
   return result;
 }
 
+// 计算两个日期之间的工作日天数（不考虑调休日）
+function getWorkingDaysBetween(startDate: Date, endDate: Date): number {
+  let count = 0;
+  let current = new Date(startDate);
+  current.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+  
+  while (current <= end) {
+    if (isOriginallyRestDay(current)) {
+      count++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  
+  // 返回自然日天数
+  return Math.round((end.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+}
+
 interface MatrixCalendarViewProps {
   scheduledTasks: Task[];
   resources: Resource[];
@@ -801,48 +820,39 @@ export function MatrixCalendarView({
       return;
     }
 
-    // 检查目标日期是否是工作日（考虑调休日）
-    let finalStartDate = new Date(targetDate);
+    // 检查目标日期是否是工作日（考虑调休日），如果不是则自动调整到下一个工作日
+    let finalTargetDate = new Date(targetDate);
+    finalTargetDate.setHours(0, 0, 0, 0);
     if (!targetIsWorkingDay) {
       // 如果不是工作日，找到下一个工作日（考虑调休日）
-      finalStartDate = getNextWorkingDay(targetDate, extraWorkDays);
-      console.log('[矩阵日历] 目标日期是非工作日，调整为下一个工作日:', format(finalStartDate, 'yyyy-MM-dd'));
+      const adjustedDate = getNextWorkingDay(targetDate, extraWorkDays);
+      finalTargetDate = adjustedDate;
+      console.log('[矩阵日历] 目标日期是非工作日，调整为下一个工作日:', format(finalTargetDate, 'yyyy-MM-dd'));
     }
 
-    // 计算新的日期范围
+    // 计算原始任务的持续天数
     const originalStartDate = currentDraggedTask.startDate ? new Date(currentDraggedTask.startDate) : new Date();
     const originalEndDate = currentDraggedTask.endDate ? new Date(currentDraggedTask.endDate) : originalStartDate;
     
-    // 计算工作日天数（而非自然日，考虑调休日）
-    let workDays = 0;
-    let iterDate = new Date(originalStartDate);
-    while (iterDate <= originalEndDate) {
-      if (isWorkingDay(iterDate, extraWorkDays)) {
-        workDays++;
-      }
-      iterDate.setDate(iterDate.getDate() + 1);
-    }
+    // 计算日期偏移量：目标日期 - 原始结束日期
+    const originalEndDateObj = new Date(originalEndDate);
+    originalEndDateObj.setHours(0, 0, 0, 0);
+    const dayOffset = Math.round((finalTargetDate.getTime() - originalEndDateObj.getTime()) / (1000 * 60 * 60 * 24));
     
-    // 从新的开始日期计算结束日期（只计算工作日，考虑调休日）
-    const newStartDate = new Date(finalStartDate);
-    newStartDate.setHours(0, 0, 0, 0);
-    const newEndDate = new Date(newStartDate);
+    // 新的开始日期 = 原始开始日期 + 偏移量
+    const newStartDate = new Date(originalStartDate);
+    newStartDate.setDate(newStartDate.getDate() + dayOffset);
     
-    // 添加工作日天数
-    let addedDays = 0;
-    while (addedDays < workDays - 1) {
-      newEndDate.setDate(newEndDate.getDate() + 1);
-      if (isWorkingDay(newEndDate, extraWorkDays)) {
-        addedDays++;
-      }
-    }
+    // 新的结束日期 = 原始结束日期 + 偏移量（与目标日期相同）
+    const newEndDate = new Date(finalTargetDate);
 
     console.log('[矩阵日历] 更新任务日期:', {
       taskName: currentDraggedTask.name,
       originalStart: format(originalStartDate, 'yyyy-MM-dd'),
+      originalEnd: format(originalEndDate, 'yyyy-MM-dd'),
       newStart: format(newStartDate, 'yyyy-MM-dd'),
       newEnd: format(newEndDate, 'yyyy-MM-dd'),
-      workDays
+      dayOffset
     });
 
     if (onTaskUpdate) {
