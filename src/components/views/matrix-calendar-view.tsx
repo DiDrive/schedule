@@ -50,9 +50,9 @@ import {
 
 // 任务类型配置 - 不同颜色
 const TASK_TYPE_CONFIG: { key: ResourceWorkType; label: string; bgColor: string; borderColor: string }[] = [
-  { key: '脚本', label: '脚本', bgColor: 'bg-indigo-100', borderColor: 'border-indigo-300' },
-  { key: '平面', label: '平面节点', bgColor: 'bg-emerald-100', borderColor: 'border-emerald-300' },
-  { key: '后期', label: '后期节点', bgColor: 'bg-amber-100', borderColor: 'border-amber-300' },
+  { key: '脚本', label: '脚本', bgColor: 'bg-indigo-100', borderColor: 'border-indigo-400' },
+  { key: '平面', label: '平面节点', bgColor: 'bg-teal-100', borderColor: 'border-teal-400' },
+  { key: '后期', label: '后期节点', bgColor: 'bg-orange-100', borderColor: 'border-orange-400' },
 ];
 
 // 2025年法定节假日配置（可根据需要扩展）
@@ -251,6 +251,7 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
             <label className="text-sm font-medium">任务类型</label>
             <div className="flex items-center gap-2">
               <Badge variant="outline">{task.taskType || '未指定'}</Badge>
+              {task.status === 'completed' && <Badge className="bg-green-100 text-green-700 border-green-300">✓ 已完成</Badge>}
             </div>
           </div>
 
@@ -325,6 +326,21 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
         </div>
 
         <DialogFooter>
+          {task.status === 'completed' ? (
+            <Button variant="outline" onClick={() => {
+              onSave(task.id, { ...editedTask, status: 'pending' });
+              onClose();
+            }}>
+              取消完成
+            </Button>
+          ) : (
+            <Button variant="default" className="bg-green-600 hover:bg-green-700" onClick={() => {
+              onSave(task.id, { ...editedTask, status: 'completed' });
+              onClose();
+            }}>
+              完成任务
+            </Button>
+          )}
           <Button variant="outline" onClick={onClose}>取消</Button>
           <Button onClick={handleSave}>保存更改</Button>
         </DialogFooter>
@@ -337,13 +353,27 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
 function getTypeStyle(taskType?: ResourceWorkType): string {
   switch (taskType) {
     case '脚本':
-      return 'bg-indigo-100 border-indigo-300 hover:bg-indigo-200';
+      return 'bg-indigo-100 border-indigo-400 hover:bg-indigo-200';
     case '平面':
-      return 'bg-emerald-100 border-emerald-300 hover:bg-emerald-200';
+      return 'bg-teal-100 border-teal-400 hover:bg-teal-200';
     case '后期':
-      return 'bg-amber-100 border-amber-300 hover:bg-amber-200';
+      return 'bg-orange-100 border-orange-400 hover:bg-orange-200';
     default:
-      return 'bg-white border-gray-200 hover:bg-gray-50';
+      return 'bg-gray-100 border-gray-400 hover:bg-gray-200';
+  }
+}
+
+// 获取已完成任务样式
+function getCompletedTypeStyle(taskType?: ResourceWorkType): string {
+  switch (taskType) {
+    case '脚本':
+      return 'bg-slate-300 border-green-500 border-l-4';
+    case '平面':
+      return 'bg-slate-300 border-green-500 border-l-4';
+    case '后期':
+      return 'bg-slate-300 border-green-500 border-l-4';
+    default:
+      return 'bg-slate-300 border-green-500 border-l-4';
   }
 }
 
@@ -357,6 +387,7 @@ const DraggableTaskCard = memo(function DraggableTaskCard({
   onClick: () => void;
   isDragging: boolean;
 }) {
+  const isCompleted = task.status === 'completed';
   const projectPrefix = task.projectName ? `【${task.projectName}】` : '';
   const displayName = projectPrefix + task.name;
 
@@ -372,6 +403,9 @@ const DraggableTaskCard = memo(function DraggableTaskCard({
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
   } : undefined;
 
+  // 根据完成状态选择样式
+  const typeStyle = isCompleted ? getCompletedTypeStyle(task.taskType) : getTypeStyle(task.taskType);
+
   return (
     <div
       ref={setNodeRef}
@@ -385,13 +419,14 @@ const DraggableTaskCard = memo(function DraggableTaskCard({
       className={`
         px-2 py-1 rounded text-xs cursor-grab active:cursor-grabbing
         border transition-all truncate flex items-center gap-1
-        ${getTypeStyle(task.taskType)}
+        ${typeStyle}
         ${isDragging || isBeingDragged ? 'opacity-30 scale-95' : 'hover:shadow-sm'}
       `}
-      title={`${displayName}\n拖拽移动日期`}
+      title={`${displayName}${isCompleted ? '\n✓ 已完成' : '\n拖拽移动日期'}`}
     >
       <GripVertical className="h-3 w-3 text-slate-400 flex-shrink-0" />
-      <span className="truncate">{displayName}</span>
+      <span className={`truncate ${isCompleted ? 'line-through text-slate-500' : ''}`}>{displayName}</span>
+      {isCompleted && <span className="text-green-600 font-bold">✓</span>}
     </div>
   );
 });
