@@ -41,7 +41,7 @@ import {
   DragEndEvent,
   DragStartEvent,
   DragOverlayProps,
-  pointerWithin,
+  closestCenter,
   useSensor,
   useSensors,
   PointerSensor,
@@ -445,21 +445,20 @@ const DroppableCell = memo(function DroppableCell({
   const isWorkDay = isWorkingDay(day, extraWorkDays);
   const cellId = `cell-${dateStr}-${taskType}`;
   
-  // 非工作日不允许放置，但仍然可以接收拖拽事件（用于判断是否是工作日）
-  const { setNodeRef, isOver } = useDroppable({
-    id: cellId,
-    data: {
-      date: day,
-      taskType,
-      isWorkingDay: isWorkDay, // 传递是否是工作日的信息
-    },
-    disabled: !isWorkDay, // 非工作日禁用拖放
-  });
-
   // 检查是否可以放置：无类型任务可放置到任意类型，或类型匹配
   const canDrop = isWorkDay && draggedTask && 
     (!draggedTask.taskType || draggedTask.taskType === taskType);
-  const isDragOver = isOver && canDrop;
+  
+  // 非工作日不允许放置
+  const { setNodeRef } = useDroppable({
+    id: cellId,
+    data: {
+      dateStr,
+      taskType,
+      isWorkDay,
+    },
+    disabled: !canDrop,
+  });
 
   // 处理点击非工作日单元格
   const handleCellClick = () => {
@@ -484,7 +483,7 @@ const DroppableCell = memo(function DroppableCell({
         flex-1 min-w-24 min-h-[60px] p-1 border-r last:border-r-0 border-slate-200
         ${isToday && isWorkDay ? 'bg-blue-50' : ''}
         ${!isWorkDay || isExtraWorkDay ? getNonWorkingDayStyle() : ''}
-        ${isDragOver ? 'bg-green-100 ring-2 ring-green-400 ring-inset' : ''}
+        ${canDrop && draggedTask ? 'bg-green-100 ring-2 ring-green-400 ring-inset' : ''}
         ${!isInMonth ? 'opacity-40' : ''}
         transition-colors
       `}
@@ -806,9 +805,9 @@ export function MatrixCalendarView({
       return;
     }
 
-    const targetDate = overData.date as Date;
+    const targetDateStr = overData.dateStr as string;
     const targetTaskType = overData.taskType as ResourceWorkType;
-    const targetIsWorkingDay = overData.isWorkingDay as boolean;
+    const targetIsWorkDay = overData.isWorkDay as boolean;
 
     // 检查类型是否匹配（空类型的任务可以拖拽到任意类型）
     const taskType = currentDraggedTask.taskType || '';
@@ -816,11 +815,11 @@ export function MatrixCalendarView({
       return;
     }
 
-    // 检查目标日期是否是工作日（考虑调休日），如果不是则自动调整到下一个工作日
-    let finalTargetDate = new Date(targetDate);
+    // 解析目标日期
+    let finalTargetDate = new Date(targetDateStr);
     finalTargetDate.setHours(0, 0, 0, 0);
-    if (!targetIsWorkingDay) {
-      finalTargetDate = getNextWorkingDay(targetDate, extraWorkDays);
+    if (!targetIsWorkDay) {
+      finalTargetDate = getNextWorkingDay(finalTargetDate, extraWorkDays);
     }
 
     // 计算日期偏移量
@@ -877,7 +876,7 @@ export function MatrixCalendarView({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={pointerWithin}
+      collisionDetection={closestCenter}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
