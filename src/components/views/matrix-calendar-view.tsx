@@ -752,6 +752,7 @@ export function MatrixCalendarView({
   // 按日期和类型分组任务（只在结束日期显示，排除周末和节假日）
   const tasksByDateAndType = useMemo(() => {
     const grouped: Record<string, Task[]> = {};
+    const addedIds = new Set<string>();
 
     scheduledTasks.forEach(task => {
       if (!task.startDate) return;
@@ -763,11 +764,12 @@ export function MatrixCalendarView({
       // 只在工作日显示任务（不考虑调休日，因为调休是用户手动设置的）
       if (isWorkingDay(endDate, undefined)) {
         const key = `${dateKey}-${taskType}`;
-        if (!grouped[key]) {
-          grouped[key] = [];
-        }
-        if (!grouped[key].find(t => t.id === task.id)) {
+        if (!addedIds.has(task.id)) {
+          if (!grouped[key]) {
+            grouped[key] = [];
+          }
           grouped[key].push(task);
+          addedIds.add(task.id);
         }
       }
     });
@@ -780,7 +782,6 @@ export function MatrixCalendarView({
     const { active } = event;
     const taskData = active.data.current;
     if (taskData?.task) {
-      console.log('[矩阵日历] 开始拖拽任务:', taskData.task.name);
       setDraggedTask(taskData.task);
     }
   }, []);
@@ -790,20 +791,15 @@ export function MatrixCalendarView({
     const { active, over } = event;
     const currentDraggedTask = draggedTaskRef.current;
     
-    console.log('[矩阵日历] 拖拽结束:', active.id, '->', over?.id);
+    // 立即清除拖拽状态，避免视觉延迟
+    setDraggedTask(null);
 
     if (!over || !currentDraggedTask) {
-      console.log('[矩阵日历] 没有目标或没有拖拽任务');
-      setDraggedTask(null);
       return;
     }
 
     const overData = over.data.current;
-    console.log('[矩阵日历] over.data:', overData);
-    
     if (!overData) {
-      console.log('[矩阵日历] 没有 overData');
-      setDraggedTask(null);
       return;
     }
 
@@ -811,12 +807,8 @@ export function MatrixCalendarView({
     const targetTaskType = overData.taskType as ResourceWorkType;
     const targetIsWorkingDay = overData.isWorkingDay as boolean;
 
-    console.log('[矩阵日历] 目标日期:', targetDate ? format(targetDate, 'yyyy-MM-dd') : 'null', '目标类型:', targetTaskType, '是否工作日:', targetIsWorkingDay);
-
     // 检查类型是否匹配
     if (currentDraggedTask.taskType !== targetTaskType) {
-      console.log('[矩阵日历] 类型不匹配:', currentDraggedTask.taskType, 'vs', targetTaskType);
-      setDraggedTask(null);
       return;
     }
 
@@ -824,36 +816,24 @@ export function MatrixCalendarView({
     let finalTargetDate = new Date(targetDate);
     finalTargetDate.setHours(0, 0, 0, 0);
     if (!targetIsWorkingDay) {
-      // 如果不是工作日，找到下一个工作日（考虑调休日）
-      const adjustedDate = getNextWorkingDay(targetDate, extraWorkDays);
-      finalTargetDate = adjustedDate;
-      console.log('[矩阵日历] 目标日期是非工作日，调整为下一个工作日:', format(finalTargetDate, 'yyyy-MM-dd'));
+      finalTargetDate = getNextWorkingDay(targetDate, extraWorkDays);
     }
 
-    // 计算原始任务的持续天数
-    const originalStartDate = currentDraggedTask.startDate ? new Date(currentDraggedTask.startDate) : new Date();
-    const originalEndDate = currentDraggedTask.endDate ? new Date(currentDraggedTask.endDate) : originalStartDate;
+    // 计算日期偏移量
+    const originalEndDate = currentDraggedTask.endDate ? new Date(currentDraggedTask.endDate) : new Date(currentDraggedTask.startDate!);
+    originalEndDate.setHours(0, 0, 0, 0);
+    const dayOffset = Math.round((finalTargetDate.getTime() - originalEndDate.getTime()) / (1000 * 60 * 60 * 24));
     
-    // 计算日期偏移量：目标日期 - 原始结束日期
-    const originalEndDateObj = new Date(originalEndDate);
-    originalEndDateObj.setHours(0, 0, 0, 0);
-    const dayOffset = Math.round((finalTargetDate.getTime() - originalEndDateObj.getTime()) / (1000 * 60 * 60 * 24));
-    
-    // 新的开始日期 = 原始开始日期 + 偏移量
+    // 如果没有偏移，不需要更新
+    if (dayOffset === 0) {
+      return;
+    }
+
+    // 计算新的日期
+    const originalStartDate = new Date(currentDraggedTask.startDate!);
     const newStartDate = new Date(originalStartDate);
     newStartDate.setDate(newStartDate.getDate() + dayOffset);
-    
-    // 新的结束日期 = 原始结束日期 + 偏移量（与目标日期相同）
     const newEndDate = new Date(finalTargetDate);
-
-    console.log('[矩阵日历] 更新任务日期:', {
-      taskName: currentDraggedTask.name,
-      originalStart: format(originalStartDate, 'yyyy-MM-dd'),
-      originalEnd: format(originalEndDate, 'yyyy-MM-dd'),
-      newStart: format(newStartDate, 'yyyy-MM-dd'),
-      newEnd: format(newEndDate, 'yyyy-MM-dd'),
-      dayOffset
-    });
 
     if (onTaskUpdate) {
       onTaskUpdate(currentDraggedTask.id, {
@@ -861,8 +841,6 @@ export function MatrixCalendarView({
         endDate: newEndDate,
       });
     }
-
-    setDraggedTask(null);
   }, [onTaskUpdate, extraWorkDays]);
 
   // 拖拽取消
