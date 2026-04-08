@@ -807,8 +807,9 @@ export function MatrixCalendarView({
     const targetTaskType = overData.taskType as ResourceWorkType;
     const targetIsWorkingDay = overData.isWorkingDay as boolean;
 
-    // 检查类型是否匹配
-    if (currentDraggedTask.taskType !== targetTaskType) {
+    // 检查类型是否匹配（空类型的任务可以拖拽到任意类型）
+    const taskType = currentDraggedTask.taskType || '';
+    if (taskType && taskType !== targetTaskType) {
       return;
     }
 
@@ -835,11 +836,17 @@ export function MatrixCalendarView({
     newStartDate.setDate(newStartDate.getDate() + dayOffset);
     const newEndDate = new Date(finalTargetDate);
 
+    // 如果任务没有类型，拖拽后自动设置类型
+    const updates: { startDate: Date; endDate: Date; taskType?: ResourceWorkType } = {
+      startDate: newStartDate,
+      endDate: newEndDate,
+    };
+    if (!taskType) {
+      updates.taskType = targetTaskType;
+    }
+
     if (onTaskUpdate) {
-      onTaskUpdate(currentDraggedTask.id, {
-        startDate: newStartDate,
-        endDate: newEndDate,
-      });
+      onTaskUpdate(currentDraggedTask.id, updates);
     }
   }, [onTaskUpdate, extraWorkDays]);
 
