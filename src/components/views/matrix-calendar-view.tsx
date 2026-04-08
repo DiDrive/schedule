@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef, memo, useDeferredValue } from 'react';
 import { Task, Resource, ResourceWorkType } from '@/types/schedule';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -664,6 +664,9 @@ export function MatrixCalendarView({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
   
+  // 延迟更新的 draggedTask，用于 UI 渲染，减少重渲染
+  const deferredDraggedTask = useDeferredValue(draggedTask);
+  
   // 调休/加班日状态
   const [extraWorkDays, setExtraWorkDays] = useState<Set<string>>(() => new Set());
   
@@ -755,11 +758,12 @@ export function MatrixCalendarView({
 
   // 按日期和类型分组任务（只在结束日期显示，排除周末和节假日）
   const tasksByDateAndType = useMemo(() => {
-    const grouped: Record<string, Task[]> = {};
+    const grouped: Record<string, Task[]> = Object.create(null);
     const addedIds = new Set<string>();
 
-    scheduledTasks.forEach(task => {
-      if (!task.startDate) return;
+    for (let i = 0; i < scheduledTasks.length; i++) {
+      const task = scheduledTasks[i];
+      if (!task.startDate || addedIds.has(task.id)) continue;
 
       const endDate = task.endDate ? new Date(task.endDate) : new Date(task.startDate);
       const dateKey = format(endDate, 'yyyy-MM-dd');
@@ -767,16 +771,14 @@ export function MatrixCalendarView({
       
       // 只在工作日显示任务（不考虑调休日，因为调休是用户手动设置的）
       if (isWorkingDay(endDate, undefined)) {
-        const key = `${dateKey}-${taskType}`;
-        if (!addedIds.has(task.id)) {
-          if (!grouped[key]) {
-            grouped[key] = [];
-          }
-          grouped[key].push(task);
-          addedIds.add(task.id);
+        const key = dateKey + '-' + taskType;
+        if (!grouped[key]) {
+          grouped[key] = [];
         }
+        grouped[key].push(task);
+        addedIds.add(task.id);
       }
-    });
+    }
 
     return grouped;
   }, [scheduledTasks]);
@@ -937,7 +939,7 @@ export function MatrixCalendarView({
               weekDays={week.days}
               tasksByDateAndType={tasksByDateAndType}
               currentMonth={currentDate}
-              draggedTask={draggedTask}
+              draggedTask={deferredDraggedTask}
               onTaskClick={handleTaskClick}
               extraWorkDays={extraWorkDays}
               onToggleExtraWorkDay={toggleExtraWorkDay}
