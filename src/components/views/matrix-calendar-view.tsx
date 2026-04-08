@@ -438,6 +438,7 @@ const DroppableCell = memo(function DroppableCell({
   const dateStr = format(day, 'yyyy-MM-dd');
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const isToday = dateStr === todayStr;
+  const isWeekendDay = isWeekend(day);
   const isHoliday = ALL_HOLIDAYS.has(dateStr);
   const isOriginallyRest = isOriginallyRestDay(day);
   const isExtraWorkDay = extraWorkDays.has(dateStr);
