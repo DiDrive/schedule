@@ -456,7 +456,10 @@ const DroppableCell = memo(function DroppableCell({
     disabled: !isWorkDay, // 非工作日禁用拖放
   });
 
-  const isDragOver = isOver && draggedTask && draggedTask.taskType === taskType && isWorkDay;
+  // 检查是否可以放置：无类型任务可放置到任意类型，或类型匹配
+  const canDrop = isWorkDay && draggedTask && 
+    (!draggedTask.taskType || draggedTask.taskType === taskType);
+  const isDragOver = isOver && canDrop;
 
   // 处理点击非工作日单元格
   const handleCellClick = () => {
