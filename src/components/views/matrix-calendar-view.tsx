@@ -413,12 +413,8 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
       </div>
       
       {/* 可滚动的内容区域 - 拖动时禁用滚动 */}
-      <div className="flex-1 p-2 space-y-1 overflow-y-auto" 
-           style={{ 
-             scrollbarGutter: 'stable',
-             overscrollBehavior: 'contain'
-           }}>
-        <div className={isDragging ? 'h-full overflow-hidden pointer-events-none' : ''}>
+      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        <div className={isDragging ? 'pointer-events-none select-none' : ''}>
         {tasks.length === 0 ? (
           <div className="text-center text-slate-400 text-xs py-4">
             暂无未分配任务
@@ -645,8 +641,8 @@ const WeekTable = memo(function WeekTable({
   const weekEnd = weekDays[weekDays.length - 1];
 
   return (
-    <div className="mb-2 flex-shrink-0">
-      <div className="bg-slate-700 text-white px-3 py-1.5 rounded-t-lg flex items-center justify-between text-sm">
+    <div className="mb-2 flex-shrink-0" style={{ height: '210px' }}>
+      <div className="bg-slate-700 text-white px-3 py-1 rounded-t-lg flex items-center justify-between text-sm h-8">
         <span className="font-medium">第{weekNumber}周</span>
         <span className="text-sm opacity-80">
           {format(weekStart, 'M.d')} - {format(weekEnd, 'M.d')}
@@ -654,7 +650,7 @@ const WeekTable = memo(function WeekTable({
       </div>
 
       <div className="border border-t-0 border-slate-300 rounded-b-lg overflow-hidden">
-        <div className="flex bg-slate-100 border-b border-slate-300" style={{ minHeight: '44px' }}>
+        <div className="flex bg-slate-100 border-b border-slate-300 h-10">
           <div className="w-20 min-w-20 p-2 border-r border-slate-300 text-center font-medium text-sm bg-slate-200">
             类型
           </div>
@@ -699,7 +695,7 @@ const WeekTable = memo(function WeekTable({
         </div>
 
         {TASK_TYPE_CONFIG.map((taskType) => (
-          <div key={taskType.key} className="flex border-b last:border-b-0 border-slate-200" style={{ minHeight: '70px' }}>
+          <div key={taskType.key} className="flex border-b last:border-b-0 border-slate-200 h-10">
             <div className={`w-20 min-w-20 p-2 border-r border-slate-300 text-center font-medium text-sm ${taskType.bgColor}`}>
               {taskType.label}
             </div>
@@ -1001,7 +997,11 @@ export function MatrixCalendarView({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="flex flex-col" style={{ height: `${monthWeeks.length * 200 + 140}px` }}>
+      {/* 外层固定高度容器 */}
+      <div 
+        className="flex flex-col" 
+        style={{ height: `${monthWeeks.length * 240 + 120}px` }}
+      >
         {/* 月份切换控制 */}
         <div className="flex items-center justify-between mb-2 flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -1035,7 +1035,7 @@ export function MatrixCalendarView({
 
         {/* 拖拽提示条 */}
         {draggedTask && (
-          <div className="mb-2 p-3 bg-blue-50 border border-blue-300 rounded-lg flex items-center justify-between shadow-sm">
+          <div className="mb-2 p-2 bg-blue-50 border border-blue-300 rounded-lg flex items-center justify-between shadow-sm flex-shrink-0">
             <span className="text-sm text-blue-700">
               正在移动: <strong className="text-blue-900">{draggedTask.name}</strong>
               {draggedTask.projectName && <span className="text-blue-500 ml-1">（{draggedTask.projectName}）</span>}
@@ -1046,10 +1046,10 @@ export function MatrixCalendarView({
           </div>
         )}
 
-        {/* 未分配任务池 + 周表格 */}
-        <div className="flex gap-2" style={{ height: `${monthWeeks.length * 200 + 50}px` }}>
-          {/* 未分配任务池 - 固定宽度高度 */}
-          <div className="w-48 min-w-48 h-full">
+        {/* 未分配任务池 + 周表格 - 固定高度 */}
+        <div className="flex gap-2" style={{ height: `${monthWeeks.length * 220}px` }}>
+          {/* 未分配任务池 */}
+          <div className="w-48 min-w-48 h-full flex flex-col">
             <UnassignedTaskPool
               tasks={unassignedTasks}
               draggedTask={deferredDraggedTask}
@@ -1057,7 +1057,7 @@ export function MatrixCalendarView({
             />
           </div>
 
-          {/* 周表格列表 - 固定高度显示完整一个月 */}
+          {/* 周表格列表 - 固定高度不滚动 */}
           <div className="flex-1 h-full overflow-hidden">
             {monthWeeks.map((week) => (
               <WeekTable

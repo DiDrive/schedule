@@ -3012,7 +3012,7 @@ export default function ComplexScenario() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-4 flex flex-col" style={{ height: 'calc(100vh - 250px)', minHeight: '700px' }}>
+                <CardContent className="p-4 flex flex-col h-full">
                   <MatrixCalendarView
                     scheduledTasks={filteredScheduleTasks}
                     resources={sharedResources}
