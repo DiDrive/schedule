@@ -399,7 +399,7 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
       ref={setNodeRef}
       className={`
         flex-1 bg-slate-50 border-2 border-dashed border-slate-400
-        rounded-lg flex flex-col h-full
+        rounded-lg flex flex-col overflow-hidden
         ${isOver && draggedTask?.taskType ? 'bg-green-50 border-green-400' : ''}
       `}
     >
@@ -637,7 +637,7 @@ const WeekTable = memo(function WeekTable({
 
   return (
     <div className="mb-4">
-      <div className="bg-slate-700 text-white px-3 py-2 rounded-t-lg flex items-center justify-between" style={{ height: '40px' }}>
+      <div className="bg-slate-700 text-white px-3 py-2 rounded-t-lg flex items-center justify-between">
         <span className="font-medium">第{weekNumber}周</span>
         <span className="text-sm opacity-80">
           {format(weekStart, 'M.d')} - {format(weekEnd, 'M.d')}
@@ -645,8 +645,8 @@ const WeekTable = memo(function WeekTable({
       </div>
 
       <div className="border border-t-0 border-slate-300 rounded-b-lg overflow-hidden">
-        <div className="flex bg-slate-100 border-b border-slate-300" style={{ height: '48px' }}>
-          <div className="w-20 min-w-20 p-1 border-r border-slate-300 text-center font-medium text-xs bg-slate-200 flex items-center justify-center">
+        <div className="flex bg-slate-100 border-b border-slate-300">
+          <div className="w-20 min-w-20 p-2 border-r border-slate-300 text-center font-medium text-sm bg-slate-200">
             类型
           </div>
           {weekDays.map((day, idx) => {
@@ -663,7 +663,7 @@ const WeekTable = memo(function WeekTable({
               <div
                 key={idx}
                 className={`
-                  flex-1 min-w-24 p-1 border-r last:border-r-0 border-slate-300 text-center flex flex-col justify-center
+                  flex-1 min-w-24 p-2 border-r last:border-r-0 border-slate-300 text-center
                   ${isToday && isWorkDay ? 'bg-blue-100' : ''}
                   ${isExtraWorkDay ? 'bg-green-100' : !isWorkDay ? (isHoliday ? 'bg-red-50' : 'bg-slate-100') : ''}
                   ${!isInMonth ? 'opacity-40' : ''}
@@ -675,7 +675,7 @@ const WeekTable = memo(function WeekTable({
                 <div className={`text-xs ${!isWorkDay && !isExtraWorkDay ? 'text-slate-400' : 'text-slate-500'}`}>
                   {format(day, 'E', { locale: zhCN })}
                 </div>
-                <div className={`font-medium text-xs ${isToday ? 'text-blue-600' : !isWorkDay && !isExtraWorkDay ? 'text-slate-400' : ''}`}>
+                <div className={`font-medium text-sm ${isToday ? 'text-blue-600' : !isWorkDay && !isExtraWorkDay ? 'text-slate-400' : ''}`}>
                   {format(day, 'M.d')}
                 </div>
                 {isExtraWorkDay && (
@@ -690,8 +690,8 @@ const WeekTable = memo(function WeekTable({
         </div>
 
         {TASK_TYPE_CONFIG.map((taskType) => (
-          <div key={taskType.key} className="flex border-b last:border-b-0 border-slate-200" style={{ height: '48px' }}>
-            <div className={`w-20 min-w-20 p-1 border-r border-slate-300 text-center font-medium text-xs ${taskType.bgColor} flex items-center justify-center`}>
+          <div key={taskType.key} className="flex border-b last:border-b-0 border-slate-200">
+            <div className={`w-20 min-w-20 p-2 border-r border-slate-300 text-center font-medium text-sm ${taskType.bgColor}`}>
               {taskType.label}
             </div>
 
@@ -1039,10 +1039,10 @@ export function MatrixCalendarView({
 
         {/* 未分配任务池 + 周表格 */}
         <div 
-          className="flex gap-2" 
-          style={{ height: `${monthWeeks.length * 200}px` }}
+          className="flex gap-2 h-full" 
+          style={{ maxHeight: `${monthWeeks.length * 160 + 90}px` }}
         >
-          {/* 未分配任务池 - 高度与右边表格同步，内容可滚动 */}
+          {/* 未分配任务池 - 高度与右边表格同步 */}
           <div className="w-48 min-w-48 h-full flex flex-col">
             <UnassignedTaskPool
               tasks={unassignedTasks}
@@ -1051,8 +1051,8 @@ export function MatrixCalendarView({
             />
           </div>
 
-          {/* 周表格列表 - 固定高度显示完整一个月，不滚动 */}
-          <div className="flex-1 h-full overflow-hidden">
+          {/* 周表格列表 */}
+          <div className="flex-1 overflow-hidden" style={{ maxHeight: `${monthWeeks.length * 160 + 90}px` }}>
             {monthWeeks.map((week) => (
               <WeekTable
                 key={week.weekNumber}
