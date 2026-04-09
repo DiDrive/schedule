@@ -394,6 +394,8 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
     },
   });
 
+  const isDragging = !!draggedTask;
+
   return (
     <div
       ref={setNodeRef}
@@ -401,6 +403,7 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
         flex-1 bg-slate-50 border-2 border-dashed border-slate-400
         rounded-lg flex flex-col overflow-hidden
         ${isOver && draggedTask?.taskType ? 'bg-green-50 border-green-400' : ''}
+        ${isDragging ? 'select-none' : ''}
       `}
     >
       {/* 固定头部 */}
@@ -409,8 +412,8 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
         <Badge variant="secondary" className="text-xs">{tasks.length}</Badge>
       </div>
       
-      {/* 可滚动的内容区域 */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+      {/* 可滚动的内容区域 - 拖动时禁用滚动 */}
+      <div className={`flex-1 overflow-y-auto p-2 space-y-1 ${isDragging ? 'overflow-hidden' : ''}`}>
         {tasks.length === 0 ? (
           <div className="text-center text-slate-400 text-xs py-4">
             暂无未分配任务
@@ -429,8 +432,8 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
       
       {/* 固定底部提示 */}
       <div className="px-2 py-2 border-t border-slate-200 bg-slate-100 rounded-b-lg flex-shrink-0">
-        <div className="text-xs text-slate-400 text-center">
-          拖到这里取消分配
+        <div className={`text-xs text-center ${isDragging ? 'text-blue-500 font-medium' : 'text-slate-400'}`}>
+          {isDragging ? '松开鼠标取消分配' : '拖到这里取消分配'}
         </div>
       </div>
     </div>
