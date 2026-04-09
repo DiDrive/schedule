@@ -400,18 +400,9 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
     <div
       ref={setNodeRef}
       className={`
-        bg-slate-50 border-2 border-dashed border-slate-400
-        rounded-lg flex flex-col overflow-hidden
-        ${isOver && draggedTask?.taskType ? 'bg-green-50 border-green-400' : ''}
+        flex flex-col h-full
+        ${isOver && draggedTask?.taskType ? 'bg-green-50' : ''}
       `}
-      style={{ 
-        width: '192px', 
-        minWidth: '192px',
-        maxWidth: '192px',
-        height: '100%',
-        overflowX: 'hidden',
-        overflowY: isDragging ? 'hidden' : 'auto'
-      }}
     >
       {/* 固定头部 */}
       <div className="flex items-center gap-2 px-2 py-2 border-b border-slate-300 bg-slate-100 rounded-t-lg flex-shrink-0">
@@ -422,10 +413,7 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
       {/* 可滚动的内容区域 */}
       <div 
         className="flex-1 p-2 space-y-1 overflow-y-auto"
-        style={{ 
-          overflowX: 'hidden',
-          overscrollBehavior: 'contain'
-        }}
+        style={{ overflowX: 'hidden' }}
       >
         {tasks.length === 0 ? (
           <div className="text-center text-slate-400 text-xs py-4">
@@ -652,7 +640,7 @@ const WeekTable = memo(function WeekTable({
   const weekEnd = weekDays[weekDays.length - 1];
 
   return (
-    <div className="mb-2 flex-shrink-0" style={{ height: '210px' }}>
+    <div className="flex-shrink-0" style={{ width: '500px' }}>
       <div className="bg-slate-700 text-white px-3 py-1 rounded-t-lg flex items-center justify-between text-sm h-8">
         <span className="font-medium">第{weekNumber}周</span>
         <span className="text-sm opacity-80">
@@ -1057,10 +1045,13 @@ export function MatrixCalendarView({
           </div>
         )}
 
-        {/* 未分配任务池 + 周表格 - 固定高度 */}
-        <div className="flex gap-2" style={{ height: `${monthWeeks.length * 220}px` }}>
-          {/* 未分配任务池 - 固定宽度 */}
-          <div style={{ width: '192px', minWidth: '192px', maxWidth: '192px', height: '100%' }}>
+        {/* 未分配任务栏 + 周表格 */}
+        <div className="flex gap-2" style={{ height: '500px' }}>
+          {/* 未分配任务栏 - 固定在左侧，不滑动 */}
+          <div 
+            className="flex-shrink-0 bg-slate-50 border-2 border-dashed border-slate-400 rounded-lg flex flex-col"
+            style={{ width: '180px' }}
+          >
             <UnassignedTaskPool
               tasks={unassignedTasks}
               draggedTask={deferredDraggedTask}
@@ -1068,21 +1059,24 @@ export function MatrixCalendarView({
             />
           </div>
 
-          {/* 周表格列表 - 固定高度不滚动 */}
-          <div className="flex-1 h-full overflow-auto">
-            {monthWeeks.map((week) => (
-              <WeekTable
-                key={week.weekNumber}
-                weekNumber={week.weekNumber}
-                weekDays={week.days}
-                tasksByDateAndType={tasksByDateAndType}
-                currentMonth={currentDate}
-                draggedTask={deferredDraggedTask}
-                onTaskClick={handleTaskClick}
-                extraWorkDays={extraWorkDays}
-                onToggleExtraWorkDay={toggleExtraWorkDay}
-              />
-            ))}
+          {/* 周表格区域 - 水平滚动显示多周 */}
+          <div className="flex-1 h-full overflow-x-auto overflow-y-hidden">
+            <div className="flex gap-4 h-full" style={{ minWidth: 'fit-content' }}>
+              {monthWeeks.slice(0, 2).map((week) => (
+                <div key={week.weekNumber} className="flex-shrink-0" style={{ width: '500px' }}>
+                  <WeekTable
+                    weekNumber={week.weekNumber}
+                    weekDays={week.days}
+                    tasksByDateAndType={tasksByDateAndType}
+                    currentMonth={currentDate}
+                    draggedTask={deferredDraggedTask}
+                    onTaskClick={handleTaskClick}
+                    extraWorkDays={extraWorkDays}
+                    onToggleExtraWorkDay={toggleExtraWorkDay}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
