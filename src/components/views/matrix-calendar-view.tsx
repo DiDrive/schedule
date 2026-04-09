@@ -640,7 +640,7 @@ const WeekTable = memo(function WeekTable({
   const weekEnd = weekDays[weekDays.length - 1];
 
   return (
-    <div className="flex-shrink-0" style={{ width: '500px' }}>
+    <div className="mb-2 flex-shrink-0">
       <div className="bg-slate-700 text-white px-3 py-1 rounded-t-lg flex items-center justify-between text-sm h-8">
         <span className="font-medium">第{weekNumber}周</span>
         <span className="text-sm opacity-80">
@@ -1045,12 +1045,12 @@ export function MatrixCalendarView({
           </div>
         )}
 
-        {/* 未分配任务栏 + 周表格 */}
-        <div className="flex gap-2" style={{ height: '500px' }}>
+        {/* 未分配任务栏 + 周表格 - 固定高度，显示2周 */}
+        <div className="flex gap-2" style={{ height: '420px' }}>
           {/* 未分配任务栏 - 固定在左侧，不滑动 */}
           <div 
             className="flex-shrink-0 bg-slate-50 border-2 border-dashed border-slate-400 rounded-lg flex flex-col"
-            style={{ width: '180px' }}
+            style={{ width: '180px', height: '100%' }}
           >
             <UnassignedTaskPool
               tasks={unassignedTasks}
@@ -1059,24 +1059,21 @@ export function MatrixCalendarView({
             />
           </div>
 
-          {/* 周表格区域 - 水平滚动显示多周 */}
-          <div className="flex-1 h-full overflow-x-auto overflow-y-hidden">
-            <div className="flex gap-4 h-full" style={{ minWidth: 'fit-content' }}>
-              {monthWeeks.slice(0, 2).map((week) => (
-                <div key={week.weekNumber} className="flex-shrink-0" style={{ width: '500px' }}>
-                  <WeekTable
-                    weekNumber={week.weekNumber}
-                    weekDays={week.days}
-                    tasksByDateAndType={tasksByDateAndType}
-                    currentMonth={currentDate}
-                    draggedTask={deferredDraggedTask}
-                    onTaskClick={handleTaskClick}
-                    extraWorkDays={extraWorkDays}
-                    onToggleExtraWorkDay={toggleExtraWorkDay}
-                  />
-                </div>
-              ))}
-            </div>
+          {/* 周表格区域 - 垂直方向显示2周 */}
+          <div className="flex-1 h-full overflow-y-auto overflow-x-hidden">
+            {monthWeeks.slice(0, 2).map((week) => (
+              <WeekTable
+                key={week.weekNumber}
+                weekNumber={week.weekNumber}
+                weekDays={week.days}
+                tasksByDateAndType={tasksByDateAndType}
+                currentMonth={currentDate}
+                draggedTask={deferredDraggedTask}
+                onTaskClick={handleTaskClick}
+                extraWorkDays={extraWorkDays}
+                onToggleExtraWorkDay={toggleExtraWorkDay}
+              />
+            ))}
           </div>
         </div>
 
