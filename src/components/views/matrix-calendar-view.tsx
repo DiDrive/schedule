@@ -406,7 +406,8 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
         ${isDragging ? 'select-none' : ''}
       `}
       style={{ 
-        overscrollBehaviorX: 'contain'
+        overscrollBehaviorX: 'contain',
+        touchAction: 'pan-y'
       }}
     >
       {/* 固定头部 */}
@@ -1050,9 +1051,12 @@ export function MatrixCalendarView({
         )}
 
         {/* 未分配任务栏 + 周表格 */}
-        <div className="flex gap-2 flex-1 min-h-0">
-          {/* 未分配任务栏 - 固定宽度 */}
-          <div className="w-48 min-w-48 flex flex-col">
+        <div className="flex gap-2" style={{ height: '420px' }}>
+          {/* 未分配任务栏 - 固定宽度，禁止水平滑动 */}
+          <div 
+            className="w-48 flex flex-col overflow-x-hidden"
+            style={{ touchAction: 'pan-y' }}
+          >
             <UnassignedTaskPool
               tasks={unassignedTasks}
               draggedTask={deferredDraggedTask}
@@ -1060,8 +1064,8 @@ export function MatrixCalendarView({
             />
           </div>
 
-          {/* 周表格列表 */}
-          <div className="flex-1 overflow-y-auto">
+          {/* 周表格列表 - 固定高度显示2周，多余垂直滚动 */}
+          <div className="flex-1 h-full overflow-y-auto overflow-x-hidden">
             {monthWeeks.map((week) => (
               <WeekTable
                 key={week.weekNumber}
