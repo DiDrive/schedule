@@ -3012,7 +3012,7 @@ export default function ComplexScenario() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-4 flex flex-col h-full">
+                <CardContent className="p-4 h-full">
                   <MatrixCalendarView
                     scheduledTasks={filteredScheduleTasks}
                     resources={sharedResources}
