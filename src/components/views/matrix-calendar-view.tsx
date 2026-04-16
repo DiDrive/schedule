@@ -157,6 +157,13 @@ interface MatrixCalendarViewProps {
   tasks: Task[];
   onTaskClick?: (task: Task) => void;
   onTaskUpdate?: (taskId: string, updates: Partial<Task>) => void;
+  feishuConfig?: {
+    appId: string;
+    appSecret: string;
+    appToken: string;
+    requirements2TableId: string;
+    viewId?: string;
+  };
 }
 
 // 任务详情弹窗组件
@@ -753,17 +760,71 @@ export function MatrixCalendarView({
   resources,
   tasks,
   onTaskUpdate,
+  feishuConfig,
 }: MatrixCalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
-  
+
+  // 从飞书视图加载的任务数据
+  const [viewTasks, setViewTasks] = useState<Task[]>([]);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [viewError, setViewError] = useState<string | null>(null);
+
   // 延迟更新的 draggedTask，用于 UI 渲染，减少重渲染
   const deferredDraggedTask = useDeferredValue(draggedTask);
-  
+
   // 调休/加班日状态
   const [extraWorkDays, setExtraWorkDays] = useState<Set<string>>(() => new Set());
+
+  // 从飞书视图加载数据
+  useEffect(() => {
+    if (!feishuConfig?.viewId) {
+      // 如果没有配置视图ID，使用传入的 tasks
+      setViewTasks(tasks);
+      return;
+    }
+
+    const loadViewData = async () => {
+      setViewLoading(true);
+      setViewError(null);
+
+      try {
+        const params = new URLSearchParams({
+          app_id: feishuConfig.appId,
+          app_secret: feishuConfig.appSecret,
+          app_token: feishuConfig.appToken,
+          requirements2_table_id: feishuConfig.requirements2TableId,
+          view_id: feishuConfig.viewId || '',
+        });
+
+        console.log('[矩阵日历] 正在加载视图数据...', feishuConfig.viewId);
+
+        const response = await fetch(`/api/feishu/load-requirements2-view?${params}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || '加载视图数据失败');
+        }
+
+        if (data.success) {
+          console.log('[矩阵日历] 视图数据加载成功:', data.tasks.length, '个任务');
+          setViewTasks(data.tasks);
+        } else {
+          throw new Error(data.error || '加载视图数据失败');
+        }
+      } catch (error) {
+        console.error('[矩阵日历] 加载视图数据失败:', error);
+        setViewError(String(error));
+        setViewTasks(tasks); // 失败时使用传入的任务
+      } finally {
+        setViewLoading(false);
+      }
+    };
+
+    loadViewData();
+  }, [feishuConfig?.viewId, feishuConfig?.appToken, tasks]);
   
   // 切换调休/加班日
   const toggleExtraWorkDay = useCallback((date: Date) => {
@@ -799,10 +860,10 @@ export function MatrixCalendarView({
 
   // 组件挂载日志
   useEffect(() => {
-    const dates = scheduledTasks
+    const dates = viewTasks
       .filter(t => t.startDate)
       .map(t => new Date(t.startDate!));
-    
+
     if (dates.length > 0) {
       const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
       const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
@@ -851,28 +912,40 @@ export function MatrixCalendarView({
     return Array.from(projectMap.values());
   }, [tasks]);
 
-  // 获取所有未分配类型的任务（用于任务池）
+  // 获取所有未分配类型的任务（用于任务池）- 使用视图数据
   const unassignedTasks = useMemo(() => {
-    return scheduledTasks.filter(task => !task.taskType && task.startDate);
-  }, [scheduledTasks]);
+    return viewTasks.filter(task => !task.taskType);
+  }, [viewTasks]);
 
-  // 按日期和类型分组任务（只在结束日期显示，排除周末和节假日，未分配类型的任务不显示）
+  // 按日期和类型分组任务
+  // 对于视图数据：有deadline的任务按deadline显示，没有日期的显示在任务池
   const tasksByDateAndType = useMemo(() => {
     const grouped: Record<string, Task[]> = Object.create(null);
     const addedIds = new Set<string>();
 
-    for (let i = 0; i < scheduledTasks.length; i++) {
-      const task = scheduledTasks[i];
-      if (!task.startDate || addedIds.has(task.id)) continue;
+    for (let i = 0; i < viewTasks.length; i++) {
+      const task = viewTasks[i];
+      if (addedIds.has(task.id)) continue;
 
       // 未分配类型的任务不显示在任何类型行，它们会在任务池中显示
       if (!task.taskType) continue;
 
-      const endDate = task.endDate ? new Date(task.endDate) : new Date(task.startDate);
-      const dateKey = format(endDate, 'yyyy-MM-dd');
-      
-      // 只在工作日显示任务（不考虑调休日，因为调休是用户手动设置的）
-      if (isWorkingDay(endDate, undefined)) {
+      // 确定任务日期：优先使用 endDate/startDate，否则使用 deadline
+      let taskDate: Date | undefined;
+      if (task.endDate) {
+        taskDate = new Date(task.endDate);
+      } else if (task.startDate) {
+        taskDate = new Date(task.startDate);
+      } else if (task.deadline) {
+        taskDate = new Date(task.deadline);
+      }
+
+      if (!taskDate) continue;
+
+      const dateKey = format(taskDate, 'yyyy-MM-dd');
+
+      // 只在工作日显示任务
+      if (isWorkingDay(taskDate, undefined)) {
         const key = dateKey + '-' + task.taskType;
         if (!grouped[key]) {
           grouped[key] = [];
@@ -883,7 +956,7 @@ export function MatrixCalendarView({
     }
 
     return grouped;
-  }, [scheduledTasks]);
+  }, [viewTasks]);
 
   // 拖拽开始
   const handleDragStart = useCallback((event: DragStartEvent) => {

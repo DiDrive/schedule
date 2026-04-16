@@ -38,6 +38,7 @@ import { TaskSplitDialog } from '@/components/task-split-dialog';
 import FeishuIntegrationDialog from '@/components/feishu-integration-dialog';
 import TemplateDialog from '@/components/template-dialog';
 import TaskRow from '@/components/task-row';
+import { loadFeishuConfig } from '@/lib/feishu-config';
 
 // 辅助函数：将 Date 或字符串转换为 YYYY-MM-DD 格式
 const formatDateToInputValue = (date: Date | string | undefined): string => {
@@ -320,7 +321,16 @@ export default function ComplexScenario() {
   const [isSyncingToFeishu, setIsSyncingToFeishu] = useState(false);
   const [isLoadingFromFeishu, setIsLoadingFromFeishu] = useState(false);
   const [showFeishuDialog, setShowFeishuDialog] = useState(false);
-  
+
+  // 飞书配置（用于矩阵日历加载筛选视图）
+  const [feishuConfig, setFeishuConfig] = useState<ReturnType<typeof loadFeishuConfig>>(null);
+
+  // 加载飞书配置
+  useEffect(() => {
+    const config = loadFeishuConfig();
+    setFeishuConfig(config);
+  }, []);
+
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50); // 每页50条
@@ -3019,6 +3029,13 @@ export default function ComplexScenario() {
                     tasks={filteredTasks}
                     onTaskClick={openTaskSplitDialog}
                     onTaskUpdate={handleTaskUpdate}
+                    feishuConfig={feishuConfig ? {
+                      appId: feishuConfig.appId,
+                      appSecret: feishuConfig.appSecret,
+                      appToken: feishuConfig.newMode.appToken,
+                      requirements2TableId: feishuConfig.newMode.tableIds.requirements2,
+                      viewId: feishuConfig.newMode.viewIds?.requirements2Matrix,
+                    } : undefined}
                   />
                 </CardContent>
               </Card>

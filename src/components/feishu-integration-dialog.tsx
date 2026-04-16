@@ -32,6 +32,9 @@ interface FeishuConfig {
       requirements2: string;
       schedules: string;
     };
+    viewIds?: {
+      requirements2Matrix?: string;
+    };
   };
   
   // 传统模式配置（独立的多维表）
@@ -68,6 +71,9 @@ const defaultConfig: FeishuConfig = {
       requirements1: '',
       requirements2: '',
       schedules: '',
+    },
+    viewIds: {
+      requirements2Matrix: '',
     },
   },
   legacyMode: {
@@ -117,6 +123,9 @@ export default function FeishuIntegrationDialog({
               requirements1: parsed.newMode?.tableIds?.requirements1 || '',
               requirements2: parsed.newMode?.tableIds?.requirements2 || '',
               schedules: parsed.newMode?.tableIds?.schedules || '',
+            },
+            viewIds: {
+              requirements2Matrix: parsed.newMode?.viewIds?.requirements2Matrix || '',
             },
           },
           legacyMode: {
@@ -446,7 +455,29 @@ export default function FeishuIntegrationDialog({
                   onChange={(e) => updateNewMode('requirements2', e.target.value)}
                 />
               </div>
-              
+
+              <div className="space-y-2">
+                <Label htmlFor="new-requirements2-view">矩阵日历视图 ID（可选）</Label>
+                <Input
+                  id="new-requirements2-view"
+                  placeholder="vewxxxxxxxx（用于矩阵日历筛选）"
+                  value={config.newMode.viewIds?.requirements2Matrix || ''}
+                  onChange={(e) => setConfig(prev => ({
+                    ...prev,
+                    newMode: {
+                      ...prev.newMode,
+                      viewIds: {
+                        ...prev.newMode.viewIds,
+                        requirements2Matrix: e.target.value
+                      }
+                    }
+                  }))}
+                />
+                <p className="text-xs text-slate-500">
+                  设置后，矩阵日历将只显示此视图筛选后的数据
+                </p>
+              </div>
+
               {/* 需求表加载选项 */}
               <div className="space-y-2">
                 <Label>数据加载选项</Label>

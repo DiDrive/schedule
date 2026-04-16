@@ -15,6 +15,9 @@ export interface FeishuConfig {
       requirements2: string;
       schedules: string;
     };
+    viewIds?: {
+      requirements2Matrix?: string;
+    };
   };
   legacyMode: {
     appToken: string;
