@@ -3014,7 +3014,7 @@ export default function ComplexScenario() {
                 </CardHeader>
                 <CardContent className="p-4 h-[calc(100vh-320px)] min-h-[500px]">
                   <MatrixCalendarView
-                    scheduledTasks={filteredScheduleTasks}
+                    scheduledTasks={filteredTasks}
                     resources={sharedResources}
                     tasks={filteredTasks}
                     onTaskClick={openTaskSplitDialog}
