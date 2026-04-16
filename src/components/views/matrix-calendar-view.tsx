@@ -340,30 +340,17 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
             </div>
           </div>
 
-          {/* 日期范围 */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <label className="text-sm font-medium flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                开始日期
-              </label>
-              <Input
-                type="date"
-                value={editedTask.startDate ? format(new Date(editedTask.startDate), 'yyyy-MM-dd') : ''}
-                onChange={(e) => setEditedTask({ ...editedTask, startDate: e.target.value ? new Date(e.target.value) : undefined })}
-              />
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                结束日期
-              </label>
-              <Input
-                type="date"
-                value={editedTask.endDate ? format(new Date(editedTask.endDate), 'yyyy-MM-dd') : ''}
-                onChange={(e) => setEditedTask({ ...editedTask, endDate: e.target.value ? new Date(e.target.value) : undefined })}
-              />
-            </div>
+          {/* 完成日期 */}
+          <div className="grid gap-2">
+            <label className="text-sm font-medium flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              完成日期
+            </label>
+            <Input
+              type="date"
+              value={editedTask.endDate ? format(new Date(editedTask.endDate), 'yyyy-MM-dd') : ''}
+              onChange={(e) => setEditedTask({ ...editedTask, endDate: e.target.value ? new Date(e.target.value) : undefined })}
+            />
           </div>
 
           <div className="grid gap-2">
@@ -816,7 +803,10 @@ export function MatrixCalendarView({
   const [viewTasks, setViewTasks] = useState<Task[]>([]);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewError, setViewError] = useState<string | null>(null);
-  const [lastTaskCount, setLastTaskCount] = useState(0);
+  // 用 ref 追踪任务数量变化，避免 useEffect 依赖数组不稳定
+  const lastTaskCountRef = useRef(0);
+  const feishuConfigRef = useRef(feishuConfig);
+  feishuConfigRef.current = feishuConfig;
 
   // 延迟更新的 draggedTask，用于 UI 渲染，减少重渲染
   const deferredDraggedTask = useDeferredValue(draggedTask);
@@ -824,26 +814,21 @@ export function MatrixCalendarView({
   // 调休/加班日状态
   const [extraWorkDays, setExtraWorkDays] = useState<Set<string>>(() => new Set());
 
-  // 加载视图数据函数
-  const loadViewData = useCallback(async () => {
-    if (!feishuConfig?.viewId) {
-      setViewTasks(tasks);
-      return;
-    }
-
+  // 内部函数：从飞书 API 加载视图数据并更新状态
+  const fetchAndSetViewTasks = useCallback(async (config: NonNullable<FeishuConfig>) => {
     setViewLoading(true);
     setViewError(null);
 
     try {
       const params = new URLSearchParams({
-        app_id: feishuConfig.appId,
-        app_secret: feishuConfig.appSecret,
-        app_token: feishuConfig.appToken,
-        requirements2_table_id: feishuConfig.requirements2TableId,
-        view_id: feishuConfig.viewId || '',
+        app_id: config.appId,
+        app_secret: config.appSecret,
+        app_token: config.appToken,
+        requirements2_table_id: config.requirements2TableId,
+        view_id: config.viewId || '',
       });
 
-      console.log('[矩阵日历] 正在加载视图数据...', feishuConfig.viewId);
+      console.log('[矩阵日历] 正在加载视图数据...', config.viewId);
 
       const response = await fetch(`/api/feishu/load-requirements2-view?${params}`);
       const data = await response.json();
@@ -855,35 +840,47 @@ export function MatrixCalendarView({
       if (data.success) {
         console.log('[矩阵日历] 视图数据加载成功:', data.tasks.length, '个任务');
         setViewTasks(data.tasks);
-        setLastTaskCount(data.tasks.length);
+        lastTaskCountRef.current = data.tasks.length;
       } else {
         throw new Error(data.error || '加载视图数据失败');
       }
     } catch (error) {
       console.error('[矩阵日历] 加载视图数据失败:', error);
       setViewError(String(error));
-      setViewTasks(tasks);
     } finally {
       setViewLoading(false);
     }
-  }, [feishuConfig, tasks]);
+  }, []);
 
-  // 从飞书视图加载数据 - 首次加载或 tasks 数量变化时重新加载
-  useEffect(() => {
+  // 加载视图数据函数（供外部按钮调用）
+  const loadViewData = useCallback(async () => {
     if (!feishuConfig?.viewId) {
       setViewTasks(tasks);
       return;
     }
+    await fetchAndSetViewTasks(feishuConfig);
+  }, [feishuConfig, tasks, fetchAndSetViewTasks]);
 
-    // 如果 tasks 数量变化（说明从飞书重新加载了数据），重新加载视图数据
-    if (tasks.length !== lastTaskCount && lastTaskCount > 0) {
-      console.log('[矩阵日历] 检测到任务数量变化，重新加载视图数据:', lastTaskCount, '->', tasks.length);
-      loadViewData();
-    } else if (lastTaskCount === 0) {
-      // 首次加载
-      loadViewData();
+  // 从飞书视图加载数据 - 仅在首次加载或 tasks 数量增加时重新加载
+  // 使用 ref 追踪状态，避免依赖数组变化
+  useEffect(() => {
+    const currentFeishuConfig = feishuConfigRef.current;
+    const prevCount = lastTaskCountRef.current;
+    
+    if (!currentFeishuConfig?.viewId) {
+      setViewTasks(tasks);
+      return;
     }
-  }, [tasks.length, feishuConfig, loadViewData, lastTaskCount, tasks]);
+
+    // 如果 tasks 数量增加（说明从飞书新加载了数据），重新加载视图数据
+    if (tasks.length > prevCount && prevCount > 0) {
+      console.log('[矩阵日历] 检测到任务数量增加，重新加载视图数据:', prevCount, '->', tasks.length);
+      fetchAndSetViewTasks(currentFeishuConfig);
+    } else if (prevCount === 0) {
+      // 首次加载
+      fetchAndSetViewTasks(currentFeishuConfig);
+    }
+  }, [tasks.length, fetchAndSetViewTasks, tasks]);
   
   // 切换调休/加班日
   const toggleExtraWorkDay = useCallback((date: Date) => {
