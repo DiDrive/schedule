@@ -1030,7 +1030,7 @@ export function MatrixCalendarView({
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     const currentDraggedTask = draggedTaskRef.current;
-    
+
     // 立即清除拖拽状态，避免视觉延迟
     setDraggedTask(null);
 
@@ -1046,7 +1046,12 @@ export function MatrixCalendarView({
     // 如果拖拽到任务池，清除类型
     if (overData.isTaskPool) {
       if (currentDraggedTask.taskType) {
-        // 清除类型，任务会消失（因为已修改分组逻辑）
+        // 直接更新 viewTasks
+        setViewTasks(prev => prev.map(t => {
+          if (t.id !== currentDraggedTask.id) return t;
+          return { ...t, taskType: undefined };
+        }));
+        // 同时通知父组件
         if (onTaskUpdate) {
           onTaskUpdate(currentDraggedTask.id, { taskType: undefined });
         }
@@ -1065,58 +1070,25 @@ export function MatrixCalendarView({
       finalTargetDate = getNextWorkingDay(finalTargetDate, extraWorkDays);
     }
 
-    // 计算日期偏移量
-    // 优先使用 endDate，其次 startDate，最后 deadline
-    const currentDate = currentDraggedTask.endDate || currentDraggedTask.startDate || currentDraggedTask.deadline;
-    if (!currentDate) {
-      // 如果任务没有任何日期，使用目标日期
-      const newEndDate = new Date(finalTargetDate);
-      const newStartDate = new Date(finalTargetDate);
-
-      const updates: { startDate: Date; endDate: Date; taskType?: ResourceWorkType } = {
-        startDate: newStartDate,
-        endDate: newEndDate,
-      };
-      if (!currentDraggedTask.taskType) {
-        updates.taskType = targetTaskType;
-      }
-
-      if (onTaskUpdate) {
-        onTaskUpdate(currentDraggedTask.id, updates);
-      }
-      return;
-    }
-
-    const originalEndDate = new Date(currentDate);
-    originalEndDate.setHours(0, 0, 0, 0);
-    const dayOffset = Math.round((finalTargetDate.getTime() - originalEndDate.getTime()) / (1000 * 60 * 60 * 24));
-
-    // 如果没有偏移且类型不变，不需要更新
-    if (dayOffset === 0 && currentDraggedTask.taskType === targetTaskType) {
-      return;
-    }
-
-    // 计算新的日期
-    const newEndDate = new Date(finalTargetDate);
-    // 如果有原始开始日期，偏移计算新开始日期
-    let newStartDate: Date;
-    if (currentDraggedTask.startDate) {
-      newStartDate = new Date(currentDraggedTask.startDate);
-      newStartDate.setDate(newStartDate.getDate() + dayOffset);
-    } else {
-      // 如果没有开始日期，设为与结束日期同一天
-      newStartDate = new Date(newEndDate);
-    }
+    // 简化逻辑：只需要设置 endDate（完成日期）
+    const updates: Partial<Task> = {
+      endDate: finalTargetDate,
+    };
 
     // 如果任务没有类型，拖拽后自动设置类型
-    const updates: { startDate: Date; endDate: Date; taskType?: ResourceWorkType } = {
-      startDate: newStartDate,
-      endDate: newEndDate,
-    };
     if (!currentDraggedTask.taskType) {
       updates.taskType = targetTaskType;
     }
 
+    console.log('[矩阵日历] 拖拽设置完成日期:', currentDraggedTask.name, '->', format(finalTargetDate, 'yyyy-MM-dd'));
+
+    // 直接更新 viewTasks（立即反映在日历上）
+    setViewTasks(prev => prev.map(t => {
+      if (t.id !== currentDraggedTask.id) return t;
+      return { ...t, ...updates };
+    }));
+
+    // 同时通知父组件同步更新
     if (onTaskUpdate) {
       onTaskUpdate(currentDraggedTask.id, updates);
     }
