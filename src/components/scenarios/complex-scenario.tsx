@@ -2788,8 +2788,69 @@ export default function ComplexScenario() {
         </CardContent>
       </Card>
 
+      {/* Matrix Calendar View - Always visible, no need for schedule result */}
+      {activeView === 'matrix' && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>矩阵日历视图</CardTitle>
+                <CardDescription>
+                  需求表2筛选视图数据（无需排期）
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-600">视图：</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveView('gantt')}
+                  className="gap-2"
+                >
+                  <GitBranch className="h-4 w-4" />
+                  甘特图
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveView('calendar')}
+                  className="gap-2"
+                >
+                  <Calendar className="h-4 w-4" />
+                  日历视图
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="gap-2"
+                >
+                  <Grid3X3 className="h-4 w-4" />
+                  矩阵日历
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 h-[calc(100vh-320px)] min-h-[500px]">
+            <MatrixCalendarView
+              scheduledTasks={filteredTasks}
+              resources={sharedResources}
+              tasks={filteredTasks}
+              onTaskClick={openTaskSplitDialog}
+              onTaskUpdate={handleTaskUpdate}
+              feishuConfig={feishuConfig ? {
+                appId: feishuConfig.appId,
+                appSecret: feishuConfig.appSecret,
+                appToken: feishuConfig.newMode.appToken,
+                requirements2TableId: feishuConfig.newMode.tableIds.requirements2,
+                viewId: feishuConfig.newMode.viewIds?.requirements2Matrix,
+              } : undefined}
+            />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Schedule Results */}
-      {scheduleResult && (
+      {scheduleResult && activeView !== 'matrix' && (
         <Tabs value={activeProject} onValueChange={handleSetActiveProject} className="space-y-4">
           <TabsList className="flex flex-wrap h-auto gap-2 bg-transparent p-0">
             <TabsTrigger 
@@ -2832,7 +2893,7 @@ export default function ComplexScenario() {
                   日历视图
                 </Button>
                 <Button
-                  variant={activeView === 'matrix' ? 'default' : 'outline'}
+                  variant="outline"
                   size="sm"
                   onClick={() => setActiveView('matrix')}
                   className="gap-2"
