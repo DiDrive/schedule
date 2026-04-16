@@ -55,6 +55,27 @@ const TASK_TYPE_CONFIG: { key: ResourceWorkType; label: string; bgColor: string;
   { key: '后期', label: '后期节点', bgColor: 'bg-orange-100', borderColor: 'border-orange-400' },
 ];
 
+// 子任务类型定义（本地存储，不同步到飞书）
+export interface LocalSubTask {
+  id: string;
+  name: string;
+  assignedResourceId?: string; // 负责人 ID
+  status: 'pending' | 'completed';
+}
+
+// 负责人来源追踪
+export interface ResourceAssignment {
+  resourceId: string;
+  source: 'subtask' | 'manual'; // 来源：子任务同步 / 手动选择
+  sourceSubTaskId?: string; // 如果是子任务来源，记录来源的子任务 ID
+}
+
+// 扩展的 Task 类型（用于本地状态）
+export interface ExtendedTask extends Task {
+  localSubTasks?: LocalSubTask[]; // 本地子任务
+  resourceAssignments?: ResourceAssignment[]; // 负责人及来源追踪
+}
+
 // 2025年法定节假日配置（可根据需要扩展）
 const HOLIDAYS_2025: Set<string> = new Set([
   // 元旦
@@ -183,6 +204,9 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
   projects: { id: string; name: string }[];
 }) {
   const [editedTask, setEditedTask] = useState<Partial<Task>>({});
+  const [localSubTasks, setLocalSubTasks] = useState<LocalSubTask[]>([]);
+  const [resourceAssignments, setResourceAssignments] = useState<ResourceAssignment[]>([]);
+  const [newSubTaskName, setNewSubTaskName] = useState('');
 
   const availableResources = useMemo(() => {
     if (!task) return resources.filter(r => r.type === 'human');
@@ -191,34 +215,199 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
     return resources.filter(r => r.type === 'human' && r.workType === taskType);
   }, [resources, task]);
 
+  // 获取资源名称
+  const getResourceName = useCallback((resourceId: string) => {
+    const resource = resources.find(r => r.id === resourceId);
+    return resource?.name || '未知';
+  }, [resources]);
+
+  // 初始化编辑状态
   useEffect(() => {
     if (task) {
+      // 从 task 中恢复本地数据
+      const taskExt = task as ExtendedTask;
+      setLocalSubTasks(taskExt.localSubTasks || []);
+      setResourceAssignments(taskExt.resourceAssignments || []);
       setEditedTask({
         name: task.name,
         description: task.description || '',
         projectId: task.projectId,
         estimatedHours: task.estimatedHours,
-        startDate: task.startDate,
         endDate: task.endDate,
         assignedResources: task.assignedResources,
         fixedResourceId: task.fixedResourceId,
-        fixedResourceIdGraphic: task.fixedResourceIdGraphic,
-        fixedResourceIdPost: task.fixedResourceIdPost,
       });
     }
   }, [task]);
 
+  // 添加子任务
+  const handleAddSubTask = useCallback((resourceId?: string) => {
+    if (!newSubTaskName.trim()) return;
+    
+    const newSubTask: LocalSubTask = {
+      id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name: newSubTaskName.trim(),
+      assignedResourceId: resourceId,
+      status: 'pending',
+    };
+    
+    const updatedSubTasks = [...localSubTasks, newSubTask];
+    setLocalSubTasks(updatedSubTasks);
+    setNewSubTaskName('');
+    
+    // 如果子任务有负责人，同步到父任务
+    if (resourceId) {
+      const newAssignment: ResourceAssignment = {
+        resourceId,
+        source: 'subtask',
+        sourceSubTaskId: newSubTask.id,
+      };
+      setResourceAssignments(prev => {
+        // 如果该负责人已存在，不重复添加
+        if (prev.some(a => a.resourceId === resourceId)) {
+          return prev;
+        }
+        return [...prev, newAssignment];
+      });
+    }
+  }, [newSubTaskName, localSubTasks]);
+
+  // 删除子任务
+  const handleDeleteSubTask = useCallback((subTaskId: string) => {
+    const subTaskToDelete = localSubTasks.find(st => st.id === subTaskId);
+    
+    // 删除子任务
+    const updatedSubTasks = localSubTasks.filter(st => st.id !== subTaskId);
+    setLocalSubTasks(updatedSubTasks);
+    
+    // 如果该子任务有负责人，检查是否需要从父任务中移除
+    if (subTaskToDelete?.assignedResourceId) {
+      const resourceId = subTaskToDelete.assignedResourceId;
+      
+      // 检查是否还有其他子任务使用该负责人
+      const otherSubTasksWithSameResource = updatedSubTasks.filter(
+        st => st.assignedResourceId === resourceId
+      );
+      
+      if (otherSubTasksWithSameResource.length === 0) {
+        // 没有其他子任务使用该负责人，从父任务中移除（仅移除来源为该子任务的）
+        setResourceAssignments(prev => 
+          prev.filter(a => 
+            !(a.resourceId === resourceId && a.sourceSubTaskId === subTaskId)
+          )
+        );
+      }
+    }
+  }, [localSubTasks]);
+
+  // 切换子任务完成状态
+  const handleToggleSubTaskStatus = useCallback((subTaskId: string) => {
+    setLocalSubTasks(prev => 
+      prev.map(st => 
+        st.id === subTaskId 
+          ? { ...st, status: st.status === 'completed' ? 'pending' : 'completed' }
+          : st
+      )
+    );
+  }, []);
+
+  // 更新子任务的负责人
+  const handleUpdateSubTaskResource = useCallback((subTaskId: string, newResourceId: string | undefined) => {
+    const oldSubTask = localSubTasks.find(st => st.id === subTaskId);
+    
+    // 更新子任务的负责人
+    setLocalSubTasks(prev => 
+      prev.map(st => 
+        st.id === subTaskId 
+          ? { ...st, assignedResourceId: newResourceId }
+          : st
+      )
+    );
+    
+    // 处理负责人变更逻辑
+    if (newResourceId) {
+      // 添加新负责人（如果还没有）
+      setResourceAssignments(prev => {
+        if (prev.some(a => a.resourceId === newResourceId)) {
+          return prev;
+        }
+        return [...prev, {
+          resourceId: newResourceId,
+          source: 'subtask',
+          sourceSubTaskId: subTaskId,
+        }];
+      });
+    }
+    
+    // 如果原来有负责人，需要检查是否需要移除
+    if (oldSubTask?.assignedResourceId && oldSubTask.assignedResourceId !== newResourceId) {
+      const oldResourceId = oldSubTask.assignedResourceId;
+      
+      // 检查是否还有其他子任务使用该负责人
+      const hasOtherSubTaskWithSameResource = localSubTasks.some(
+        st => st.id !== subTaskId && st.assignedResourceId === oldResourceId
+      );
+      
+      if (!hasOtherSubTaskWithSameResource) {
+        setResourceAssignments(prev => 
+          prev.filter(a => 
+            !(a.resourceId === oldResourceId && a.sourceSubTaskId === subTaskId)
+          )
+        );
+      }
+    }
+  }, [localSubTasks]);
+
+  // 手动添加负责人
+  const handleManualAddResource = useCallback((resourceId: string) => {
+    if (resourceAssignments.some(a => a.resourceId === resourceId)) {
+      return; // 已存在
+    }
+    setResourceAssignments(prev => [...prev, {
+      resourceId,
+      source: 'manual',
+    }]);
+  }, [resourceAssignments]);
+
+  // 移除负责人
+  const handleRemoveResource = useCallback((resourceId: string, source: 'subtask' | 'manual') => {
+    if (source === 'manual') {
+      // 手动添加的负责人，直接移除
+      setResourceAssignments(prev => prev.filter(a => a.resourceId !== resourceId));
+    } else {
+      // 子任务来源的负责人，检查是否需要移除
+      // 如果有其他子任务使用该负责人，则不移除
+      const hasOtherSubTaskWithSameResource = localSubTasks.some(
+        st => st.assignedResourceId === resourceId
+      );
+      if (!hasOtherSubTaskWithSameResource) {
+        setResourceAssignments(prev => prev.filter(a => a.resourceId !== resourceId));
+      }
+    }
+  }, [localSubTasks]);
+
   const handleSave = useCallback(() => {
     if (!task) return;
-    onSave(task.id, editedTask);
+    
+    // 构建保存的数据
+    const extendedTask: ExtendedTask = {
+      ...task,
+      ...editedTask,
+      localSubTasks,
+      resourceAssignments,
+      // 将 resourceAssignments 转换为 assignedResources 数组
+      assignedResources: resourceAssignments.map(a => a.resourceId),
+    };
+    
+    onSave(task.id, extendedTask);
     onClose();
-  }, [task, editedTask, onSave, onClose]);
+  }, [task, editedTask, localSubTasks, resourceAssignments, onSave, onClose]);
 
   if (!task) return null;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>任务详情</DialogTitle>
           <DialogDescription>查看和编辑任务信息</DialogDescription>
@@ -307,24 +496,50 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
             </div>
           )}
 
+          {/* 负责人多选 */}
           <div className="grid gap-2">
             <label className="text-sm font-medium">负责人</label>
-            <Select
-              value={editedTask.fixedResourceId || 'none'}
-              onValueChange={(value) => setEditedTask({ ...editedTask, fixedResourceId: value === 'none' ? undefined : value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="选择负责人" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">未分配</SelectItem>
-                {availableResources.map(resource => (
-                  <SelectItem key={resource.id} value={resource.id}>
-                    {resource.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              {/* 已选负责人列表 */}
+              {resourceAssignments.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {resourceAssignments.map(assignment => (
+                    <Badge 
+                      key={assignment.resourceId} 
+                      variant="outline"
+                      className="flex items-center gap-1 px-2 py-1"
+                    >
+                      {getResourceName(assignment.resourceId)}
+                      <span className={`text-xs ${assignment.source === 'manual' ? 'text-blue-500' : 'text-green-500'}`}>
+                        {assignment.source === 'manual' ? '(手动)' : '(子任务)'}
+                      </span>
+                      <button
+                        onClick={() => handleRemoveResource(assignment.resourceId, assignment.source)}
+                        className="ml-1 text-red-500 hover:text-red-700 font-bold"
+                      >
+                        ×
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              
+              {/* 手动添加负责人 */}
+              <Select onValueChange={handleManualAddResource}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="+ 添加负责人" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableResources
+                    .filter(r => !resourceAssignments.some(a => a.resourceId === r.id))
+                    .map(resource => (
+                      <SelectItem key={resource.id} value={resource.id}>
+                        {resource.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="grid gap-2">
@@ -351,6 +566,70 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
               value={editedTask.endDate ? format(new Date(editedTask.endDate), 'yyyy-MM-dd') : ''}
               onChange={(e) => setEditedTask({ ...editedTask, endDate: e.target.value ? new Date(e.target.value) : undefined })}
             />
+          </div>
+
+          {/* 子任务区域 */}
+          <div className="grid gap-2 border-t pt-4">
+            <label className="text-sm font-medium">子任务（仅本地可见）</label>
+            <div className="space-y-2">
+              {/* 子任务列表 */}
+              {localSubTasks.map(subTask => (
+                <div key={subTask.id} className="flex items-center gap-2 p-2 bg-slate-50 rounded">
+                  <input
+                    type="checkbox"
+                    checked={subTask.status === 'completed'}
+                    onChange={() => handleToggleSubTaskStatus(subTask.id)}
+                    className="w-4 h-4"
+                  />
+                  <span className={`flex-1 ${subTask.status === 'completed' ? 'line-through text-gray-400' : ''}`}>
+                    {subTask.name}
+                  </span>
+                  <Select 
+                    value={subTask.assignedResourceId || 'none'} 
+                    onValueChange={(value) => handleUpdateSubTaskResource(subTask.id, value === 'none' ? undefined : value)}
+                  >
+                    <SelectTrigger className="w-28 h-7 text-xs">
+                      <SelectValue placeholder="负责人" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">无</SelectItem>
+                      {availableResources.map(resource => (
+                        <SelectItem key={resource.id} value={resource.id}>
+                          {resource.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => handleDeleteSubTask(subTask.id)}
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50 px-2"
+                  >
+                    删除
+                  </Button>
+                </div>
+              ))}
+              
+              {/* 添加子任务 */}
+              <div className="flex items-center gap-2">
+                <Input
+                  value={newSubTaskName}
+                  onChange={(e) => setNewSubTaskName(e.target.value)}
+                  placeholder="输入子任务名称"
+                  className="flex-1"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddSubTask();
+                    }
+                  }}
+                />
+                <Button variant="outline" size="sm" onClick={() => handleAddSubTask()}>
+                  添加
+                </Button>
+              </div>
+            </div>
           </div>
 
           <div className="grid gap-2">
@@ -1103,6 +1382,13 @@ export function MatrixCalendarView({
   }, []);
 
   const handleTaskSave = useCallback((taskId: string, updates: Partial<Task>) => {
+    // 更新 viewTasks 中的任务
+    setViewTasks(prev => prev.map(t => {
+      if (t.id !== taskId) return t;
+      return { ...t, ...updates } as ExtendedTask;
+    }));
+    
+    // 同时通知父组件同步更新
     if (onTaskUpdate) {
       onTaskUpdate(taskId, updates);
     }
