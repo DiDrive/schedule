@@ -199,11 +199,10 @@ export async function GET(request: NextRequest) {
     const projectMap = new Map<string, any>();
     const projectNameToIdMap = new Map<string, string>();
 
-    // 先提取项目
+    // 先提取项目（使用"项目大分类"作为项目名称）
     req2Records.forEach((item: any) => {
       const fields = item.fields;
-      const categoryName = parseStringField(fields['需求类目'] || fields['客户名称'] || fields['customerName'], '');
-      const projectName = categoryName || '默认项目';
+      const projectName = parseStringField(fields['项目大分类'] || fields['项目分类'] || fields['category'], '默认项目');
       if (projectName && !projectMap.has(projectName)) {
         const projectId = `project-${projectName}`;
         projectMap.set(projectName, {
@@ -225,10 +224,12 @@ export async function GET(request: NextRequest) {
       const fields = item.fields;
       const taskId = parseStringField(fields['员工填报用索引编号'] || fields['需求ID'] || fields['任务ID'] || fields['id'] || fields['ID']) || `req2_${item.record_id.substring(0, 8)}`;
 
-      const categoryName = parseStringField(fields['需求类目'] || fields['客户名称'] || fields['customerName'], '');
       const taskName = parseStringField(fields['脚本名称'] || fields['需求项目'] || fields['需求名称'] || fields['任务名称'] || fields['name'], `需求2_${index + 1}`);
-      const projectName = categoryName || '默认项目';
+      // 项目大分类作为 projectName
+      const projectName = parseStringField(fields['项目大分类'] || fields['项目分类'] || fields['category'], '默认项目');
       const projectId = projectNameToIdMap.get(projectName) || '';
+      // 需求类目作为 category
+      const category = parseStringField(fields['需求类目'] || fields['客户名称'], '');
 
       const assigneeField = fields['对接人'] || fields['所属'] || fields['负责人'] || fields['指定人员'];
       const feishuPersonId = parsePersonId(assigneeField);
@@ -288,7 +289,7 @@ export async function GET(request: NextRequest) {
         status,
         deadlineType: deadline ? 'specified' as const : 'uncertain' as const,
         feishuRecordId: item.record_id,
-        category: parseStringField(fields['需求类目'] || fields['分类'], ''),
+        category,
         businessMonth: parseStringField(fields['商务月份'], ''),
         subType: parseStringField(fields['细分类'], ''),
         language: parseStringField(fields['语言'], ''),
