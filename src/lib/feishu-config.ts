@@ -77,6 +77,9 @@ export function normalizeConfig(config: any): FeishuConfig {
         requirements2: oldTableIds.requirements2 || '',
         schedules: oldTableIds.schedules || '',
       },
+      viewIds: {
+        requirements2Matrix: config.newMode?.viewIds?.requirements2Matrix || '',
+      },
     },
     legacyMode: {
       appToken: config.appToken || '',

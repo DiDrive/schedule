@@ -205,6 +205,9 @@ export default function FeishuIntegrationDialog({
           requirements2: config.newMode.tableIds.requirements2.trim(),
           schedules: config.newMode.tableIds.schedules.trim(),
         },
+        viewIds: {
+          requirements2Matrix: config.newMode.viewIds?.requirements2Matrix?.trim() || '',
+        },
       },
       legacyMode: {
         appToken: config.legacyMode.appToken.trim(),
