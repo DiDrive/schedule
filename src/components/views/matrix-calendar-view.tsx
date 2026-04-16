@@ -185,6 +185,8 @@ interface MatrixCalendarViewProps {
     requirements2TableId: string;
     viewId?: string;
   };
+  taskTypeFilter?: 'all' | '脚本' | '平面' | '后期';
+  resourceFilter?: string;
 }
 
 // 任务详情弹窗组件
@@ -1072,6 +1074,8 @@ export function MatrixCalendarView({
   tasks,
   onTaskUpdate,
   feishuConfig,
+  taskTypeFilter = 'all',
+  resourceFilter = 'all',
 }: MatrixCalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -1092,6 +1096,28 @@ export function MatrixCalendarView({
 
   // 调休/加班日状态
   const [extraWorkDays, setExtraWorkDays] = useState<Set<string>>(() => new Set());
+
+  // 根据筛选条件过滤任务
+  const filteredViewTasks = useMemo(() => {
+    return viewTasks.filter(task => {
+      // 任务类型筛选
+      if (taskTypeFilter !== 'all' && task.taskType !== taskTypeFilter) {
+        return false;
+      }
+      // 人员筛选
+      if (resourceFilter !== 'all') {
+        const extendedTask = task as ExtendedTask;
+        // 检查负责人（优先使用 resourceAssignments，其次使用 assignedResources）
+        const assignedIds = extendedTask.resourceAssignments 
+          ? extendedTask.resourceAssignments.map(a => a.resourceId)
+          : task.assignedResources || [];
+        if (!assignedIds.includes(resourceFilter)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [viewTasks, taskTypeFilter, resourceFilter]);
 
   // 内部函数：从飞书 API 加载视图数据并更新状态
   const fetchAndSetViewTasks = useCallback(async (config: NonNullable<FeishuConfig>) => {
@@ -1195,7 +1221,7 @@ export function MatrixCalendarView({
 
   // 组件挂载日志
   useEffect(() => {
-    const dates = viewTasks
+    const dates = filteredViewTasks
       .filter(t => t.startDate)
       .map(t => new Date(t.startDate!));
 
@@ -1236,21 +1262,21 @@ export function MatrixCalendarView({
     return weeks;
   }, [currentDate]);
 
-  // 获取项目列表（从 viewTasks 生成，确保与显示的任务一致）
+  // 获取项目列表（从 filteredViewTasks 生成，确保与显示的任务一致）
   const projects = useMemo(() => {
     const projectMap = new Map<string, { id: string; name: string }>();
-    viewTasks.forEach(task => {
+    filteredViewTasks.forEach(task => {
       if (task.projectId && task.projectName) {
         projectMap.set(task.projectId, { id: task.projectId, name: task.projectName });
       }
     });
     return Array.from(projectMap.values());
-  }, [viewTasks]);
+  }, [filteredViewTasks]);
 
   // 获取所有未分配类型的任务（用于任务池）- 使用视图数据
   const unassignedTasks = useMemo(() => {
-    return viewTasks.filter(task => !task.taskType);
-  }, [viewTasks]);
+    return filteredViewTasks.filter(task => !task.taskType);
+  }, [filteredViewTasks]);
 
   // 按日期和类型分组任务
   // 对于视图数据：有deadline的任务按deadline显示，没有日期的显示在任务池
@@ -1258,8 +1284,8 @@ export function MatrixCalendarView({
     const grouped: Record<string, Task[]> = Object.create(null);
     const addedIds = new Set<string>();
 
-    for (let i = 0; i < viewTasks.length; i++) {
-      const task = viewTasks[i];
+    for (let i = 0; i < filteredViewTasks.length; i++) {
+      const task = filteredViewTasks[i];
       if (addedIds.has(task.id)) continue;
 
       // 未分配类型的任务不显示在任何类型行，它们会在任务池中显示
@@ -1291,7 +1317,7 @@ export function MatrixCalendarView({
     }
 
     return grouped;
-  }, [viewTasks]);
+  }, [filteredViewTasks]);
 
   // 拖拽开始
   const handleDragStart = useCallback((event: DragStartEvent) => {

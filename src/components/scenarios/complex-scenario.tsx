@@ -297,7 +297,14 @@ export default function ComplexScenario() {
   const [activeProject, setActiveProject] = useState<string>('all');
   const [activeTaskType, setActiveTaskType] = useState<'all' | '脚本' | '平面' | '后期' | '物料'>('all');
   const [activeResource, setActiveResource] = useState<string>('all'); // 新增：负责人筛选
-  const [activeView, setActiveView] = useState<'gantt' | 'calendar' | 'matrix'>('gantt');
+  const [activeView, setActiveView] = useState<'gantt' | 'calendar'>('gantt');
+  
+  // 主栏目导航：排期管理 / 矩阵日历
+  const [mainView, setMainView] = useState<'schedule' | 'matrix'>('schedule');
+  
+  // 矩阵日历独立筛选状态
+  const [matrixTaskType, setMatrixTaskType] = useState<'all' | '脚本' | '平面' | '后期'>('all');
+  const [matrixResource, setMatrixResource] = useState<string>('all');
   
   // 使用 useTransition 优化状态更新
   const [isPending, startTransition] = useTransition();
@@ -2788,8 +2795,32 @@ export default function ComplexScenario() {
         </CardContent>
       </Card>
 
-      {/* Matrix Calendar View - Always visible, no need for schedule result */}
-      {activeView === 'matrix' && (
+      {/* 主栏目导航 */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-lg w-fit">
+          <Button
+            variant={mainView === 'schedule' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setMainView('schedule')}
+            className="gap-2"
+          >
+            <GitBranch className="h-4 w-4" />
+            排期管理
+          </Button>
+          <Button
+            variant={mainView === 'matrix' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setMainView('matrix')}
+            className="gap-2"
+          >
+            <Grid3X3 className="h-4 w-4" />
+            矩阵日历
+          </Button>
+        </div>
+      </div>
+
+      {/* 矩阵日历视图 */}
+      {mainView === 'matrix' && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -2799,38 +2830,45 @@ export default function ComplexScenario() {
                   需求表2筛选视图数据（无需排期）
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-600">视图：</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setActiveView('gantt')}
-                  className="gap-2"
-                >
-                  <GitBranch className="h-4 w-4" />
-                  甘特图
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setActiveView('calendar')}
-                  className="gap-2"
-                >
-                  <Calendar className="h-4 w-4" />
-                  日历视图
-                </Button>
-                <Button
-                  variant="default"
-                  size="sm"
-                  className="gap-2"
-                >
-                  <Grid3X3 className="h-4 w-4" />
-                  矩阵日历
-                </Button>
+              <div className="flex items-center gap-4">
+                {/* 任务类型筛选 */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-600">任务类型：</span>
+                  <Select value={matrixTaskType} onValueChange={(v: any) => setMatrixTaskType(v)}>
+                    <SelectTrigger className="w-[120px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部</SelectItem>
+                      <SelectItem value="脚本">脚本</SelectItem>
+                      <SelectItem value="平面">平面</SelectItem>
+                      <SelectItem value="后期">后期</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {/* 人员筛选 */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-600">人员：</span>
+                  <Select value={matrixResource} onValueChange={setMatrixResource}>
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部人员</SelectItem>
+                      {sharedResources
+                        .filter(r => r.type === 'human')
+                        .map(resource => (
+                          <SelectItem key={resource.id} value={resource.id}>
+                            {resource.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-4 h-[calc(100vh-320px)] min-h-[500px]">
+          <CardContent className="p-4 h-[calc(100vh-280px)] min-h-[500px]">
             <MatrixCalendarView
               scheduledTasks={filteredTasks}
               resources={sharedResources}
@@ -2844,13 +2882,15 @@ export default function ComplexScenario() {
                 requirements2TableId: feishuConfig.newMode.tableIds.requirements2,
                 viewId: feishuConfig.newMode.viewIds?.requirements2Matrix,
               } : undefined}
+              taskTypeFilter={matrixTaskType}
+              resourceFilter={matrixResource}
             />
           </CardContent>
         </Card>
       )}
 
-      {/* Schedule Results */}
-      {scheduleResult && activeView !== 'matrix' && (
+      {/* 排期管理视图 - 甘特图和日历 */}
+      {mainView === 'schedule' && scheduleResult && (
         <Tabs value={activeProject} onValueChange={handleSetActiveProject} className="space-y-4">
           <TabsList className="flex flex-wrap h-auto gap-2 bg-transparent p-0">
             <TabsTrigger 
@@ -2891,15 +2931,6 @@ export default function ComplexScenario() {
                 >
                   <Calendar className="h-4 w-4" />
                   日历视图
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setActiveView('matrix')}
-                  className="gap-2"
-                >
-                  <Grid3X3 className="h-4 w-4" />
-                  矩阵日历
                 </Button>
               </div>
             </div>
