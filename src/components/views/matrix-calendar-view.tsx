@@ -262,6 +262,51 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
             </div>
           </div>
 
+          {/* 需求表2相关字段 - 只读显示 */}
+          {(task.category || task.subType || task.language || task.dubbing || task.contactPerson || task.businessMonth) && (
+            <div className="grid gap-2 p-3 bg-slate-50 rounded-lg">
+              <label className="text-sm font-medium text-slate-600">需求信息</label>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                {task.category && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">需求类目:</span>
+                    <span className="font-medium">{task.category}</span>
+                  </div>
+                )}
+                {task.subType && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">细分类:</span>
+                    <span className="font-medium">{task.subType}</span>
+                  </div>
+                )}
+                {task.language && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">语言:</span>
+                    <span className="font-medium">{task.language}</span>
+                  </div>
+                )}
+                {task.dubbing && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">配音:</span>
+                    <span className="font-medium">{task.dubbing}</span>
+                  </div>
+                )}
+                {task.contactPerson && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">对接人:</span>
+                    <span className="font-medium">{task.contactPerson}</span>
+                  </div>
+                )}
+                {task.businessMonth && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">商务月份:</span>
+                    <span className="font-medium">{task.businessMonth}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-2">
             <label className="text-sm font-medium">负责人</label>
             <Select
@@ -901,16 +946,16 @@ export function MatrixCalendarView({
     return weeks;
   }, [currentDate]);
 
-  // 获取项目列表
+  // 获取项目列表（从 viewTasks 生成，确保与显示的任务一致）
   const projects = useMemo(() => {
     const projectMap = new Map<string, { id: string; name: string }>();
-    tasks.forEach(task => {
+    viewTasks.forEach(task => {
       if (task.projectId && task.projectName) {
         projectMap.set(task.projectId, { id: task.projectId, name: task.projectName });
       }
     });
     return Array.from(projectMap.values());
-  }, [tasks]);
+  }, [viewTasks]);
 
   // 获取所有未分配类型的任务（用于任务池）- 使用视图数据
   const unassignedTasks = useMemo(() => {
