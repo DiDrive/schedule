@@ -115,6 +115,18 @@ export interface Task {
   // 需求表扩展字段
   category?: string; // 分类
   requirementDate?: Date; // 需求日期
+
+  // 本地扩展字段（用于详情页的子任务和负责人管理）
+  localSubTasks?: Array<{
+    id: string;
+    name: string;
+    assignedResourceId?: string;
+    status: 'pending' | 'completed';
+  }>;
+  resourceAssignments?: Array<{
+    resourceId: string;
+    source: 'subtask' | 'manual';
+  }>;
 }
 
 export interface Project {

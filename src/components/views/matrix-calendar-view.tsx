@@ -2,6 +2,15 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef, memo, useDeferredValue } from 'react';
 import { Task, Resource, ResourceWorkType } from '@/types/schedule';
+
+// 矩阵日历专用的简化飞书配置接口
+interface MatrixCalendarFeishuConfig {
+  appId: string;
+  appSecret: string;
+  appToken?: string;
+  requirements2TableId?: string;
+  viewId?: string;
+}
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -1120,7 +1129,7 @@ export function MatrixCalendarView({
   }, [viewTasks, taskTypeFilter, resourceFilter]);
 
   // 内部函数：从飞书 API 加载视图数据并更新状态
-  const fetchAndSetViewTasks = useCallback(async (config: NonNullable<FeishuConfig>) => {
+  const fetchAndSetViewTasks = useCallback(async (config: NonNullable<MatrixCalendarFeishuConfig>) => {
     setViewLoading(true);
     setViewError(null);
 
@@ -1128,8 +1137,8 @@ export function MatrixCalendarView({
       const params = new URLSearchParams({
         app_id: config.appId,
         app_secret: config.appSecret,
-        app_token: config.appToken,
-        requirements2_table_id: config.requirements2TableId,
+        app_token: config.appToken || '',
+        requirements2_table_id: config.requirements2TableId || '',
         view_id: config.viewId || '',
       });
 

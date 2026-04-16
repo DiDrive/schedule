@@ -39,6 +39,7 @@ import FeishuIntegrationDialog from '@/components/feishu-integration-dialog';
 import TemplateDialog from '@/components/template-dialog';
 import TaskRow from '@/components/task-row';
 import { loadFeishuConfig } from '@/lib/feishu-config';
+import { loadAllData, syncTasks, syncResources } from '@/storage/database/db-service';
 
 // 辅助函数：将 Date 或字符串转换为 YYYY-MM-DD 格式
 const formatDateToInputValue = (date: Date | string | undefined): string => {
@@ -85,6 +86,37 @@ const formatDate = (date: Date | string): string => {
   if (isNaN(d.getTime())) return '';
   return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
 };
+
+// 同步单个任务到数据库
+async function syncTaskToDb(task: Task): Promise<void> {
+  const { syncTasks } = await import('@/storage/database/db-service');
+  
+  const dbTask = {
+    id: task.id,
+    name: task.name,
+    description: task.description,
+    estimated_hours: task.estimatedHours,
+    assigned_resources: task.assignedResources,
+    deadline: task.deadline?.toISOString(),
+    priority: task.priority,
+    status: task.status,
+    task_type: task.taskType,
+    project_id: task.projectId,
+    project_name: task.projectName,
+    start_date: task.startDate?.toISOString(),
+    end_date: task.endDate?.toISOString(),
+    category: task.category,
+    sub_type: task.subType,
+    language: task.language,
+    dubbing: task.dubbing,
+    contact_person: task.contactPerson,
+    business_month: task.businessMonth,
+    local_sub_tasks: task.localSubTasks,
+    resource_assignments: task.resourceAssignments,
+  };
+  
+  await syncTasks([dbTask as Parameters<typeof syncTasks>[0][number]]);
+}
 
 // 默认项目数据
 const defaultProjects: Project[] = [
@@ -336,6 +368,68 @@ export default function ComplexScenario() {
   useEffect(() => {
     const config = loadFeishuConfig();
     setFeishuConfig(config);
+  }, []);
+
+  // 从数据库加载数据
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const data = await loadAllData();
+        
+        // 如果数据库有数据，使用数据库数据
+        if (data.tasks.length > 0) {
+          // 转换数据库 Task 格式到前端 Task 格式
+          const convertedTasks = data.tasks.map(dbTask => ({
+            id: dbTask.id,
+            name: dbTask.name,
+            description: dbTask.description || '',
+            estimatedHours: dbTask.estimated_hours || 0,
+            assignedResources: (dbTask.assigned_resources as string[]) || [],
+            deadline: dbTask.deadline ? new Date(dbTask.deadline) : undefined,
+            priority: (dbTask.priority as Task['priority']) || 'normal',
+            status: (dbTask.status as Task['status']) || 'pending',
+            taskType: dbTask.task_type as Task['taskType'],
+            projectId: dbTask.project_id,
+            projectName: dbTask.project_name,
+            startDate: dbTask.start_date ? new Date(dbTask.start_date) : undefined,
+            endDate: dbTask.end_date ? new Date(dbTask.end_date) : undefined,
+            category: dbTask.category,
+            subType: dbTask.sub_type,
+            language: dbTask.language,
+            dubbing: dbTask.dubbing,
+            contactPerson: dbTask.contact_person,
+            businessMonth: dbTask.business_month,
+            // 本地扩展字段
+            localSubTasks: dbTask.local_sub_tasks as Task['localSubTasks'],
+            resourceAssignments: dbTask.assigned_resources as Task['resourceAssignments'],
+          }));
+          setTasks(convertedTasks);
+        }
+        
+        if (data.resources.length > 0) {
+          // 转换数据库 Resource 格式到前端 Resource 格式
+          const convertedResources = data.resources.map(dbRes => ({
+            id: dbRes.id,
+            name: dbRes.name,
+            type: dbRes.type as Resource['type'],
+            workType: dbRes.work_type as Resource['workType'],
+            level: dbRes.level as Resource['level'],
+            capacity: dbRes.capacity || 8,
+            efficiency: (dbRes.metadata as { efficiency?: number })?.efficiency || 1.0,
+            skills: (dbRes.metadata as { skills?: string[] })?.skills || [],
+            availability: (dbRes.metadata as { availability?: number })?.availability || 1.0,
+            isActive: dbRes.is_active ?? true,
+            color: (dbRes.metadata as { color?: string })?.color || '#6b7280',
+          }));
+          setSharedResources(convertedResources);
+        }
+        
+        console.log('[管理端] 从数据库加载数据完成:', data.tasks.length, '个任务,', data.resources.length, '个资源');
+      } catch (error) {
+        console.error('[管理端] 从数据库加载数据失败:', error);
+      }
+    }
+    loadData();
   }, []);
 
   // 分页状态
@@ -1095,10 +1189,15 @@ export default function ComplexScenario() {
 
   // 处理任务更新（用于矩阵日历视图拖拽等场景）
   const handleTaskUpdate = useCallback((taskId: string, updates: Partial<Task>) => {
-    setTasks(prevTasks => prevTasks.map(t => {
-      if (t.id !== taskId) return t;
-      return { ...t, ...updates };
-    }));
+    let updatedTasks: Task[] = [];
+    
+    setTasks(prevTasks => {
+      updatedTasks = prevTasks.map(t => {
+        if (t.id !== taskId) return t;
+        return { ...t, ...updates };
+      });
+      return updatedTasks;
+    });
     
     // 同步更新排期结果
     setScheduleResult(prev => {
@@ -1111,6 +1210,12 @@ export default function ComplexScenario() {
         })
       };
     });
+    
+    // 同步到数据库
+    const task = updatedTasks.find(t => t.id === taskId);
+    if (task) {
+      syncTaskToDb(task).catch(err => console.error('[管理端] 同步任务到数据库失败:', err));
+    }
   }, []);
 
   // 切换任务锁定状态
