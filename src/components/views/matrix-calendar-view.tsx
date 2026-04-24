@@ -858,7 +858,7 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
   }, [draggedTask]);
 
   return (
-    <div className="w-48 min-w-48 max-w-48 shrink-0">
+    <div className="w-48 min-w-48 max-w-48 shrink-0 h-full">
       <div
         ref={(node) => {
           setNodeRef(node);
@@ -866,7 +866,7 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
         }}
         className={`
           w-48 min-w-48 max-w-48 shrink-0 bg-slate-50 border-r-2 border-dashed border-slate-400
-          rounded-lg flex flex-col overflow-hidden
+          rounded-lg flex flex-col overflow-hidden h-full
           ${isOver && draggedTask?.taskType ? 'bg-green-50 border-green-400' : ''}
         `}
         style={{
@@ -1790,10 +1790,10 @@ export function MatrixCalendarView({
           </div>
         )}
 
-        {/* 未分配任务池 + 周表格（结构隔离：左右两区不共享横向位移上下文） */}
-        <div className="relative h-full min-h-0 overflow-hidden">
-          {/* 左侧固定层：未分配任务池 */}
-          <div className="absolute inset-y-0 left-0 z-20 w-48">
+        {/* 未分配任务池 + 周表格 */}
+        <div className="h-full min-h-0 overflow-hidden flex gap-2">
+          {/* 左侧未分配任务池 */}
+          <div className="w-48 min-w-48 max-w-48 shrink-0 h-full">
             <UnassignedTaskPool
               tasks={unassignedTasks}
               draggedTask={draggedTask}
@@ -1801,8 +1801,8 @@ export function MatrixCalendarView({
             />
           </div>
 
-          {/* 右侧网格层：给左侧预留 48 + 2 间距（12.5rem + 0.5rem） */}
-          <div className="h-full min-w-0 pl-[13rem]">
+          {/* 右侧周表格 */}
+          <div className="h-full min-w-0 flex-1">
             <div className="h-full overflow-y-auto overflow-x-hidden">
               {monthWeeks.map((week) => (
                 <WeekTable
