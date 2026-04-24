@@ -25,6 +25,9 @@ interface DbTask {
   business_month?: string;
   local_sub_tasks?: unknown[];
   resource_assignments?: unknown[];
+  feishu_record_id?: string;
+  task_source?: string;
+  source_view_id?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -54,6 +57,7 @@ interface DbProject {
 interface LoadDataResult {
   resources: DbResource[];
   tasks: DbTask[];
+  matrixTasks: DbTask[];
   projects: DbProject[];
   scheduleResult: unknown | null;
   calendarExtraWorkDays: string[];

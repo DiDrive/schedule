@@ -66,6 +66,8 @@ export const tasks = pgTable(
     
     // 飞书关联
     feishu_record_id: varchar("feishu_record_id", { length: 100 }),
+    task_source: varchar("task_source", { length: 30 }).default('schedule'),
+    source_view_id: varchar("source_view_id", { length: 100 }),
     
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updated_at: timestamp("updated_at", { withTimezone: true }),
@@ -75,6 +77,8 @@ export const tasks = pgTable(
     index("tasks_status_idx").on(table.status),
     index("tasks_end_date_idx").on(table.end_date),
     index("tasks_project_id_idx").on(table.project_id),
+    index("tasks_task_source_idx").on(table.task_source),
+    index("tasks_source_view_id_idx").on(table.source_view_id),
   ]
 );
 

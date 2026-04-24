@@ -39,7 +39,7 @@ import FeishuIntegrationDialog from '@/components/feishu-integration-dialog';
 import TemplateDialog from '@/components/template-dialog';
 import TaskRow from '@/components/task-row';
 import { loadFeishuConfig } from '@/lib/feishu-config';
-import { loadAllData, syncAllData } from '@/storage/database/db-service';
+import { loadAllData, syncAllData, syncTasks } from '@/storage/database/db-service';
 
 // 辅助函数：将 Date 或字符串转换为 YYYY-MM-DD 格式
 const formatDateToInputValue = (date: Date | string | undefined): string => {
@@ -110,6 +110,43 @@ function mapTaskToDbTask(task: Task) {
     business_month: task.businessMonth,
     local_sub_tasks: task.localSubTasks,
     resource_assignments: task.resourceAssignments,
+    feishu_record_id: task.feishuRecordId,
+    task_source: task.taskSource || 'schedule',
+    source_view_id: task.sourceViewId,
+  };
+}
+
+function getTaskPersistKey(task: Pick<Task, 'id' | 'feishuRecordId'>): string {
+  const recordId = (task.feishuRecordId || '').trim();
+  return recordId ? `record:${recordId}` : `id:${task.id}`;
+}
+
+function mapDbTaskToTask(dbTask: any): Task {
+  return {
+    id: dbTask.id,
+    name: dbTask.name,
+    description: dbTask.description || '',
+    estimatedHours: dbTask.estimated_hours || 0,
+    assignedResources: (dbTask.assigned_resources as string[]) || [],
+    deadline: dbTask.deadline ? new Date(dbTask.deadline) : undefined,
+    priority: (dbTask.priority as Task['priority']) || 'normal',
+    status: (dbTask.status as Task['status']) || 'pending',
+    taskType: dbTask.task_type as Task['taskType'],
+    projectId: dbTask.project_id,
+    projectName: dbTask.project_name,
+    startDate: dbTask.start_date ? new Date(dbTask.start_date) : undefined,
+    endDate: dbTask.end_date ? new Date(dbTask.end_date) : undefined,
+    category: dbTask.category,
+    subType: dbTask.sub_type,
+    language: dbTask.language,
+    dubbing: dbTask.dubbing,
+    contactPerson: dbTask.contact_person,
+    businessMonth: dbTask.business_month,
+    feishuRecordId: dbTask.feishu_record_id,
+    taskSource: dbTask.task_source || 'schedule',
+    sourceViewId: dbTask.source_view_id,
+    localSubTasks: dbTask.local_sub_tasks as Task['localSubTasks'],
+    resourceAssignments: dbTask.resource_assignments as Task['resourceAssignments'],
   };
 }
 
@@ -344,6 +381,7 @@ const defaultResources: Resource[] = [
 export default function ComplexScenario() {
   const [projects, setProjects] = useState<Project[]>(defaultProjects);
   const [tasks, setTasks] = useState<Task[]>(defaultTasks);
+  const [matrixPersistedTasks, setMatrixPersistedTasks] = useState<Task[]>([]);
   const [sharedResources, setSharedResources] = useState<Resource[]>(defaultResources);
   const [scheduleResult, setScheduleResult] = useState<ScheduleResult | null>(null);
   const [isComputing, setIsComputing] = useState(false);
@@ -458,30 +496,9 @@ export default function ComplexScenario() {
       let dbHasScheduleResult = false;
       try {
         const data = await loadAllData();
-        if (data.tasks.length > 0 || data.resources.length > 0) {
-          const convertedTasks: Task[] = data.tasks.map(dbTask => ({
-            id: dbTask.id,
-            name: dbTask.name,
-            description: dbTask.description || '',
-            estimatedHours: dbTask.estimated_hours || 0,
-            assignedResources: (dbTask.assigned_resources as string[]) || [],
-            deadline: dbTask.deadline ? new Date(dbTask.deadline) : undefined,
-            priority: (dbTask.priority as Task['priority']) || 'normal',
-            status: (dbTask.status as Task['status']) || 'pending',
-            taskType: dbTask.task_type as Task['taskType'],
-            projectId: dbTask.project_id,
-            projectName: dbTask.project_name,
-            startDate: dbTask.start_date ? new Date(dbTask.start_date) : undefined,
-            endDate: dbTask.end_date ? new Date(dbTask.end_date) : undefined,
-            category: dbTask.category,
-            subType: dbTask.sub_type,
-            language: dbTask.language,
-            dubbing: dbTask.dubbing,
-            contactPerson: dbTask.contact_person,
-            businessMonth: dbTask.business_month,
-            localSubTasks: dbTask.local_sub_tasks as Task['localSubTasks'],
-            resourceAssignments: dbTask.assigned_resources as Task['resourceAssignments'],
-          }));
+        if (data.tasks.length > 0 || data.resources.length > 0 || (data.matrixTasks?.length || 0) > 0) {
+          const convertedTasks: Task[] = data.tasks.map(mapDbTaskToTask);
+          const convertedMatrixTasks: Task[] = (data.matrixTasks || []).map(mapDbTaskToTask);
           const convertedResources: Resource[] = data.resources.map(dbRes => ({
             id: dbRes.id,
             name: dbRes.name,
@@ -502,6 +519,7 @@ export default function ComplexScenario() {
           if (convertedTasks.length > 0) {
             setTasks(convertedTasks);
           }
+          setMatrixPersistedTasks(convertedMatrixTasks);
           if (convertedResources.length > 0) {
             setSharedResources(convertedResources);
           }
@@ -1221,34 +1239,100 @@ export default function ComplexScenario() {
   }, []);
 
   // 处理任务更新（用于矩阵日历视图拖拽等场景）
-  const handleTaskUpdate = useCallback((taskId: string, updates: Partial<Task>) => {
+  const handleTaskUpdate = useCallback((taskId: string, updates: Partial<Task>, sourceTask?: Task) => {
+    const isMatrixTask =
+      sourceTask?.taskSource === 'matrix_view' ||
+      Boolean(sourceTask?.sourceViewId);
+
     let updatedTasks: Task[] = [];
-    
-    setTasks(prevTasks => {
+    let taskForSync: Task | undefined;
+
+    const updateTargetState = isMatrixTask ? setMatrixPersistedTasks : setTasks;
+
+    updateTargetState(prevTasks => {
+      const sourceKey = sourceTask ? getTaskPersistKey(sourceTask) : '';
+      let found = false;
+
       updatedTasks = prevTasks.map(t => {
-        if (t.id !== taskId) return t;
-        return { ...t, ...updates };
+        const isMatchById = t.id === taskId;
+        const isMatchByRecord = Boolean(sourceKey) && getTaskPersistKey(t) === sourceKey;
+        if (!isMatchById && !isMatchByRecord) return t;
+        found = true;
+        const merged = { ...t, ...updates };
+        taskForSync = merged;
+        return merged;
       });
+
+      if (!found && sourceTask) {
+        const inserted = { ...sourceTask, ...updates };
+        updatedTasks = [...updatedTasks, inserted];
+        taskForSync = inserted;
+      }
+
       return updatedTasks;
     });
-    
-    // 同步更新排期结果
-    setScheduleResult(prev => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        tasks: prev.tasks.map(t => {
-          if (t.id !== taskId) return t;
-          return { ...t, ...updates };
-        })
-      };
-    });
+
+    // 非矩阵任务才需要同步更新排期结果
+    if (!isMatrixTask) {
+      setScheduleResult(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          tasks: prev.tasks.map(t => {
+            if (t.id !== taskId) return t;
+            return { ...t, ...updates };
+          })
+        };
+      });
+    }
     
     // 同步到数据库
-    const task = updatedTasks.find(t => t.id === taskId);
+    const task = taskForSync || updatedTasks.find(t => t.id === taskId);
     if (task) {
       syncTaskToDb(task).catch(err => console.error('[管理端] 同步任务到数据库失败:', err));
     }
+  }, []);
+
+  // 矩阵视图任务入库：确保“来自矩阵视图的任务”在重载后可回放
+  const handleMatrixViewTasksLoaded = useCallback((viewTasks: Task[]) => {
+    if (!Array.isArray(viewTasks) || viewTasks.length === 0) return;
+
+    setMatrixPersistedTasks(prevTasks => {
+      const taskMap = new Map<string, Task>();
+      for (const task of prevTasks) {
+        taskMap.set(getTaskPersistKey(task), task);
+      }
+
+      for (const viewTask of viewTasks) {
+        const key = getTaskPersistKey(viewTask);
+        const existing = taskMap.get(key);
+        if (!existing) {
+          taskMap.set(key, viewTask);
+          continue;
+        }
+        // 保留本地排期字段，补齐飞书视图字段
+        taskMap.set(key, {
+          ...viewTask,
+            taskSource: 'matrix_view',
+          taskType: existing.taskType ?? viewTask.taskType,
+          startDate: existing.startDate ?? viewTask.startDate,
+          endDate: existing.endDate ?? viewTask.endDate,
+          deadline: existing.deadline ?? viewTask.deadline,
+          status: existing.status ?? viewTask.status,
+          assignedResources: existing.assignedResources?.length ? existing.assignedResources : viewTask.assignedResources,
+          fixedResourceId: existing.fixedResourceId ?? viewTask.fixedResourceId,
+          localSubTasks: existing.localSubTasks ?? viewTask.localSubTasks,
+          resourceAssignments: existing.resourceAssignments ?? viewTask.resourceAssignments,
+        });
+      }
+      return Array.from(taskMap.values());
+    });
+
+    const dbTasks = viewTasks.map(task => mapTaskToDbTask({
+      ...task,
+      taskSource: 'matrix_view',
+    }) as Parameters<typeof syncTasks>[0][number]);
+    syncTasks(dbTasks).catch(err => console.error('[管理端] 矩阵视图任务入库失败:', err));
   }, []);
 
   // 切换任务锁定状态
@@ -3010,9 +3094,10 @@ export default function ComplexScenario() {
             <MatrixCalendarView
               scheduledTasks={filteredTasks}
               resources={sharedResources}
-              tasks={filteredTasks}
+              tasks={matrixPersistedTasks}
               onTaskClick={openTaskSplitDialog}
               onTaskUpdate={handleTaskUpdate}
+              onViewTasksLoaded={handleMatrixViewTasksLoaded}
               feishuConfig={feishuConfig ? {
                 appId: feishuConfig.appId,
                 appSecret: feishuConfig.appSecret,
@@ -3256,9 +3341,10 @@ export default function ComplexScenario() {
                   <MatrixCalendarView
                     scheduledTasks={filteredTasks}
                     resources={sharedResources}
-                    tasks={filteredTasks}
+                    tasks={matrixPersistedTasks}
                     onTaskClick={openTaskSplitDialog}
                     onTaskUpdate={handleTaskUpdate}
+                    onViewTasksLoaded={handleMatrixViewTasksLoaded}
                     feishuConfig={feishuConfig ? {
                       appId: feishuConfig.appId,
                       appSecret: feishuConfig.appSecret,
