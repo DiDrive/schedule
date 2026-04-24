@@ -1581,10 +1581,9 @@ export function MatrixCalendarView({
         Boolean(task.taskType) &&
         Boolean(taskDate) &&
         Boolean(taskDate && isWorkingDay(taskDate, extraWorkDays));
-      const recordKey = normalizeKeyPart(task.feishuRecordId);
       // 只要该任务不能进矩阵格子，就放进未分配池
       return !canDisplayInMatrixGrid;
-
+    });
 
     // 未排期栏使用精确键去重，避免“同名同月”误杀
     const uniqueMap = new Map<string, Task>();
