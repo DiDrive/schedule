@@ -1555,20 +1555,32 @@ export function MatrixCalendarView({
 
   // 获取所有未分配类型的任务（用于任务池）- 使用视图数据
   const unassignedTasks = useMemo(() => {
-    const assignedDisplayKeys = new Set(
+    const assignedExactKeys = new Set(
       filteredViewTasks
         .filter(task => Boolean(task.taskType))
-        .map(task => getTaskDisplayKey(task))
+        .map(task => {
+          const recordKey = normalizeKeyPart(task.feishuRecordId);
+          return recordKey ? `record:${recordKey}` : `id:${task.id}`;
+        })
     );
 
     const candidates = filteredViewTasks.filter(task => {
       if (task.taskType) return false;
-      const displayKey = getTaskDisplayKey(task);
-      return !displayKey || !assignedDisplayKeys.has(displayKey);
+      const recordKey = normalizeKeyPart(task.feishuRecordId);
+      const exactKey = recordKey ? `record:${recordKey}` : `id:${task.id}`;
+      return !assignedExactKeys.has(exactKey);
     });
 
-    // 显示层再兜底去重，避免同一业务任务在未分配栏重复出现
-    return normalizeTasks(candidates);
+    // 未排期栏使用精确键去重，避免“同名同月”误杀
+    const uniqueMap = new Map<string, Task>();
+    for (const task of candidates) {
+      const recordKey = normalizeKeyPart(task.feishuRecordId);
+      const exactKey = recordKey ? `record:${recordKey}` : `id:${task.id}`;
+      if (!uniqueMap.has(exactKey)) {
+        uniqueMap.set(exactKey, task);
+      }
+    }
+    return Array.from(uniqueMap.values());
   }, [filteredViewTasks]);
 
   // 按日期和类型分组任务
