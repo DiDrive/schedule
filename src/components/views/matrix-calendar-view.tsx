@@ -1325,7 +1325,8 @@ export function MatrixCalendarView({
   // 加载视图数据函数（供外部按钮调用）
   const loadViewData = useCallback(async () => {
     if (!feishuConfig?.viewId) {
-      setViewTasks(normalizeTasks(tasks));
+      setViewTasks([]);
+      setViewError('未配置矩阵视图ID（requirements2Matrix），已停止回退全量任务数据');
       return;
     }
     await fetchAndSetViewTasks(feishuConfig);
@@ -1338,7 +1339,8 @@ export function MatrixCalendarView({
     const prevCount = lastTaskCountRef.current;
     
     if (!currentFeishuConfig?.viewId) {
-      setViewTasks(normalizeTasks(tasks));
+      setViewTasks([]);
+      setViewError('未配置矩阵视图ID（requirements2Matrix），矩阵日历仅支持视图数据源');
       return;
     }
 
