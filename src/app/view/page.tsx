@@ -307,6 +307,20 @@ export default function ViewPage() {
     return grouped;
   }, [filteredTasks, extraWorkDays]);
 
+  // 仅统计“当前月份、可在矩阵中实际展示”的任务数量
+  const currentMonthMatrixTaskCount = useMemo(() => {
+    const uniqueKeys = new Set<string>();
+    for (const task of filteredTasks) {
+      if (!task.taskType) continue;
+      const taskDate = getTaskDate(task);
+      if (!taskDate) continue;
+      if (!isSameMonth(taskDate, currentDate)) continue;
+      if (!isWorkingDay(taskDate, extraWorkDays)) continue;
+      uniqueKeys.add(getTaskUniqueKey(task));
+    }
+    return uniqueKeys.size;
+  }, [filteredTasks, currentDate, extraWorkDays]);
+
   const handlePrevMonth = () => setCurrentDate(prev => subMonths(prev, 1));
   const handleNextMonth = () => setCurrentDate(prev => addMonths(prev, 1));
   const handleThisMonth = () => setCurrentDate(new Date());
@@ -462,7 +476,7 @@ export default function ViewPage() {
             {/* 统计信息 */}
             <div className="p-4 border-t border-slate-200 bg-slate-50">
               <div className="flex items-center gap-6 text-sm text-slate-600">
-                <span>矩阵日历任务总数：<strong className="text-slate-800">{tasks.length}</strong></span>
+                <span>矩阵日历任务总数：<strong className="text-slate-800">{currentMonthMatrixTaskCount}</strong></span>
                 <span className="text-xs text-slate-400">
                   最后更新：{lastSyncedAt ? format(lastSyncedAt, 'yyyy-MM-dd HH:mm:ss') : '--'}
                 </span>
