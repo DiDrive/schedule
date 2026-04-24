@@ -1,4 +1,4 @@
-import { pgTable, varchar, text, timestamp, boolean, integer, jsonb, index, serial } from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, timestamp, boolean, integer, numeric, jsonb, index, serial } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 // 保留系统表
@@ -35,7 +35,7 @@ export const tasks = pgTable(
     id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
     name: varchar("name", { length: 256 }).notNull(),
     description: text("description"),
-    estimated_hours: integer("estimated_hours").default(0),
+    estimated_hours: numeric("estimated_hours", { precision: 10, scale: 2 }).default('0'),
     task_type: varchar("task_type", { length: 20 }), // 脚本, 平面, 后期, 物料
     priority: varchar("priority", { length: 20 }).default('normal'), // urgent, high, normal, low
     status: varchar("status", { length: 20 }).default('pending'), // pending, in-progress, to-confirm, completed, overdue, blocked
@@ -97,6 +97,9 @@ export const projects = pgTable(
     id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
     name: varchar("name", { length: 256 }).notNull(),
     description: text("description"),
+    priority: varchar("priority", { length: 20 }).default('normal'),
+    color: varchar("color", { length: 20 }),
+    resource_pool: jsonb("resource_pool").default(sql`'[]'::jsonb`),
     status: varchar("status", { length: 20 }).default('active'),
     start_date: timestamp("start_date", { withTimezone: true }),
     end_date: timestamp("end_date", { withTimezone: true }),
@@ -108,6 +111,17 @@ export const projects = pgTable(
   ]
 );
 
+// 排期结果快照表（用于多端共享排期结果）
+export const schedule_results = pgTable(
+  "schedule_results",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    result: jsonb("result").notNull().default(sql`'{}'::jsonb`),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp("updated_at", { withTimezone: true }),
+  }
+);
+
 // 类型导出
 export type Resource = typeof resources.$inferSelect;
 export type InsertResource = typeof resources.$inferInsert;
@@ -115,3 +129,4 @@ export type Task = typeof tasks.$inferSelect;
 export type InsertTask = typeof tasks.$inferInsert;
 export type CalendarConfig = typeof calendar_config.$inferSelect;
 export type Project = typeof projects.$inferSelect;
+export type ScheduleResult = typeof schedule_results.$inferSelect;

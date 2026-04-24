@@ -42,10 +42,20 @@ interface DbResource {
   updated_at?: string;
 }
 
+interface DbProject {
+  id: string;
+  name: string;
+  description?: string;
+  priority?: 'urgent' | 'normal';
+  resourcePool?: string[];
+  color?: string;
+}
+
 interface LoadDataResult {
   resources: DbResource[];
   tasks: DbTask[];
-  projects: DbResource[]; // 兼容格式
+  projects: DbProject[];
+  scheduleResult: unknown | null;
   calendarExtraWorkDays: string[];
 }
 
@@ -114,6 +124,8 @@ export async function syncCalendarExtraWorkDays(days: string[]): Promise<void> {
 export async function syncAllData(data: {
   resources?: Array<Partial<DbResource> & { id: string }>;
   tasks?: Array<Partial<DbTask> & { id: string }>;
+  projects?: Array<Partial<DbProject> & { id: string }>;
+  scheduleResult?: unknown | null;
   calendarExtraWorkDays?: string[];
 }): Promise<void> {
   const response = await fetch(API_BASE, {
@@ -126,6 +138,8 @@ export async function syncAllData(data: {
         ...t,
         // deadline/start_date/end_date 已经是 string 或 undefined，无需转换
       })),
+      projects: data.projects,
+      scheduleResult: data.scheduleResult,
       calendarExtraWorkDays: data.calendarExtraWorkDays,
     }),
   });

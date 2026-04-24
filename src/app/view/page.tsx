@@ -1,21 +1,21 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, memo } from 'react';
+import React, { useState, useMemo, useEffect, memo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Calendar, Grid3X3 } from 'lucide-react';
-import { 
-  format, 
-  startOfMonth, 
-  endOfMonth, 
-  startOfWeek, 
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
   endOfWeek,
-  eachDayOfInterval, 
-  addMonths, 
+  eachDayOfInterval,
+  addMonths,
   subMonths,
-  isSameDay, 
+  isSameDay,
   isWeekend,
   getWeek,
   isSameMonth,
@@ -48,6 +48,67 @@ function isWorkingDay(date: Date, extraWorkDays?: Set<string>): boolean {
   if (isWeekend(date)) return false;
   if (HOLIDAYS_2025.has(dateStr)) return false;
   return true;
+}
+
+function normalizeKeyPart(value?: string): string {
+  return (value || '').trim().toLowerCase();
+}
+
+function getTaskDisplayKey(task: Task): string {
+  const name = normalizeKeyPart(task.name);
+  const project = normalizeKeyPart(task.projectId || task.projectName);
+  const month = normalizeKeyPart(task.businessMonth);
+  if (!name) return '';
+  return [project, name, month].join('|');
+}
+
+function getTaskUniqueKey(task: Task): string {
+  const displayKey = getTaskDisplayKey(task);
+  if (displayKey) return `biz:${displayKey}`;
+  return `id:${task.id}`;
+}
+
+function getTaskCompletenessScore(task: Task): number {
+  let score = 0;
+  if (task.taskType) score += 4;
+  if (task.endDate || task.startDate || task.deadline) score += 3;
+  if (task.assignedResources?.length) score += 1;
+  if (task.status && task.status !== 'pending') score += 1;
+  return score;
+}
+
+function mergeDuplicateTask(a: Task, b: Task): Task {
+  const aScore = getTaskCompletenessScore(a);
+  const bScore = getTaskCompletenessScore(b);
+  const primary = bScore >= aScore ? b : a;
+  const secondary = bScore >= aScore ? a : b;
+  return {
+    ...secondary,
+    ...primary,
+    id: primary.id || secondary.id,
+    assignedResources: primary.assignedResources?.length ? primary.assignedResources : (secondary.assignedResources || []),
+  };
+}
+
+function normalizeTasks(tasks: Task[]): Task[] {
+  const taskMap = new Map<string, Task>();
+  for (const task of tasks) {
+    const key = getTaskUniqueKey(task);
+    const existing = taskMap.get(key);
+    if (!existing) {
+      taskMap.set(key, task);
+      continue;
+    }
+    taskMap.set(key, mergeDuplicateTask(existing, task));
+  }
+  return Array.from(taskMap.values());
+}
+
+function getTaskDate(task: Task): Date | undefined {
+  if (task.endDate) return new Date(task.endDate);
+  if (task.startDate) return new Date(task.startDate);
+  if (task.deadline) return new Date(task.deadline);
+  return undefined;
 }
 
 // 翻页按钮
@@ -111,54 +172,65 @@ export default function ViewPage() {
   const [taskTypeFilter, setTaskTypeFilter] = useState<'all' | '脚本' | '平面' | '后期'>('all');
   const [resourceFilter, setResourceFilter] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
 
-  // 从数据库加载数据
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setIsLoading(true);
-        const data = await loadAllData();
-        
-        // 转换任务
-        const convertedTasks: Task[] = data.tasks.map(dbTask => ({
-          id: dbTask.id,
-          name: dbTask.name,
-          description: dbTask.description || '',
-          estimatedHours: dbTask.estimated_hours || 0,
-          assignedResources: (dbTask.assigned_resources as string[]) || [],
-          deadline: dbTask.deadline ? new Date(dbTask.deadline) : undefined,
-          priority: (dbTask.priority as Task['priority']) || 'normal',
-          status: (dbTask.status as Task['status']) || 'pending',
-          taskType: dbTask.task_type as Task['taskType'],
-          projectId: dbTask.project_id,
-          projectName: dbTask.project_name,
-          startDate: dbTask.start_date ? new Date(dbTask.start_date) : undefined,
-          endDate: dbTask.end_date ? new Date(dbTask.end_date) : undefined,
-        }));
-        setTasks(convertedTasks);
-        
-        // 转换资源
-        const convertedResources: Resource[] = data.resources.map(dbRes => ({
-          id: dbRes.id,
-          name: dbRes.name,
-          type: dbRes.type as Resource['type'],
-          workType: dbRes.work_type as Resource['workType'],
-          availability: 1, // 默认可用性为 100%
-        }));
-        setResources(convertedResources);
-        
-        // 设置调休/加班日
-        setExtraWorkDays(new Set(data.calendarExtraWorkDays || []));
-        
-        console.log('[展示端] 加载数据完成:', convertedTasks.length, '个任务');
-      } catch (error) {
-        console.error('[展示端] 加载数据失败:', error);
-      } finally {
-        setIsLoading(false);
-      }
+  const loadData = useCallback(async (showLoading: boolean) => {
+    try {
+      if (showLoading) setIsLoading(true);
+      const data = await loadAllData();
+
+      // 转换任务
+      const convertedTasks: Task[] = data.tasks.map(dbTask => ({
+        id: dbTask.id,
+        name: dbTask.name,
+        description: dbTask.description || '',
+        estimatedHours: dbTask.estimated_hours || 0,
+        assignedResources: (dbTask.assigned_resources as string[]) || [],
+        deadline: dbTask.deadline ? new Date(dbTask.deadline) : undefined,
+        priority: (dbTask.priority as Task['priority']) || 'normal',
+        status: (dbTask.status as Task['status']) || 'pending',
+        taskType: dbTask.task_type as Task['taskType'],
+        projectId: dbTask.project_id,
+        projectName: dbTask.project_name,
+        startDate: dbTask.start_date ? new Date(dbTask.start_date) : undefined,
+        endDate: dbTask.end_date ? new Date(dbTask.end_date) : undefined,
+        category: dbTask.category,
+        subType: dbTask.sub_type,
+        language: dbTask.language,
+        dubbing: dbTask.dubbing,
+        contactPerson: dbTask.contact_person,
+        businessMonth: dbTask.business_month,
+      }));
+      setTasks(normalizeTasks(convertedTasks));
+
+      // 转换资源
+      const convertedResources: Resource[] = data.resources.map(dbRes => ({
+        id: dbRes.id,
+        name: dbRes.name,
+        type: dbRes.type as Resource['type'],
+        workType: dbRes.work_type as Resource['workType'],
+        availability: 1,
+      }));
+      setResources(convertedResources);
+      setExtraWorkDays(new Set(data.calendarExtraWorkDays || []));
+      setLastSyncedAt(new Date());
+    } catch (error) {
+      console.error('[展示端] 加载数据失败:', error);
+    } finally {
+      if (showLoading) setIsLoading(false);
     }
-    loadData();
   }, []);
+
+  // 初次加载 + 实时轮询
+  useEffect(() => {
+    loadData(true);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        loadData(false);
+      }
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [loadData]);
 
   // 筛选后的任务
   const filteredTasks = useMemo(() => {
@@ -176,13 +248,32 @@ export default function ViewPage() {
     });
   }, [tasks, taskTypeFilter, resourceFilter]);
 
-  // 计算日历周
-  const weeks = useMemo(() => {
+  // 计算当前月份所有周（每周 7 天）
+  const monthWeeks = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(currentDate);
     const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
     const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
-    return eachDayOfInterval({ start: calStart, end: calEnd });
+
+    const weeks: { weekNumber: number; days: Date[] }[] = [];
+    let currentWeekStart = calStart;
+
+    while (currentWeekStart <= calEnd) {
+      const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
+      const weekDays = eachDayOfInterval({ start: currentWeekStart, end: weekEnd });
+      const hasDayInMonth = weekDays.some((day) => isSameMonth(day, currentDate));
+
+      if (hasDayInMonth) {
+        weeks.push({
+          weekNumber: getWeek(currentWeekStart, { weekStartsOn: 1 }),
+          days: weekDays,
+        });
+      }
+
+      currentWeekStart = new Date(currentWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+    }
+
+    return weeks;
   }, [currentDate]);
 
   // 按日期和类型分组任务
@@ -260,6 +351,9 @@ export default function ViewPage() {
 
               {/* 筛选 */}
               <div className="flex items-center gap-4">
+                <Button variant="outline" size="sm" onClick={() => loadData(false)}>
+                  立即刷新
+                </Button>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-slate-600">任务类型：</span>
                   <Select value={taskTypeFilter} onValueChange={(v: any) => setTaskTypeFilter(v)}>
@@ -297,65 +391,70 @@ export default function ViewPage() {
           </CardHeader>
 
           <CardContent className="p-0">
-            {/* 日历头部 */}
-            <div className="flex border-b border-slate-200">
-              <div className="w-20 min-w-20"></div>
-              {weeks.slice(0, 7).map((day, idx) => {
-                const isToday = isSameDay(day, new Date());
-                return (
-                  <div
-                    key={idx}
-                    className={`flex-1 min-w-24 p-2 border-r last:border-r-0 border-slate-300 text-center ${isToday ? 'bg-blue-50' : ''}`}
-                  >
-                    <div className="text-xs text-slate-500">
-                      {format(day, 'E', { locale: zhCN })}
-                    </div>
-                    <div className={`font-medium text-sm ${isToday ? 'text-blue-600' : ''}`}>
-                      {format(day, 'M.d')}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* 日历内容 */}
             <div>
-              {TASK_TYPE_CONFIG.map((taskType) => (
-                <div key={taskType.key} className="flex border-b last:border-b-0 border-slate-200">
-                  <div className={`w-20 min-w-20 p-2 border-r border-slate-300 text-center font-medium text-sm ${taskType.bgColor}`}>
-                    {taskType.label}
+              {monthWeeks.map((week) => (
+                <div key={week.weekNumber} className="border-b border-slate-200 last:border-b-0">
+                  {/* 每周头部 */}
+                  <div className="flex border-b border-slate-200 bg-slate-50/60">
+                    <div className="w-20 min-w-20 p-2 border-r border-slate-300 text-center text-xs font-medium text-slate-600">
+                      第{week.weekNumber}周
+                    </div>
+                    {week.days.map((day, idx) => {
+                      const isToday = isSameDay(day, new Date());
+                      return (
+                        <div
+                          key={idx}
+                          className={`flex-1 min-w-24 p-2 border-r last:border-r-0 border-slate-300 text-center ${isToday ? 'bg-blue-50' : ''}`}
+                        >
+                          <div className="text-xs text-slate-500">
+                            {format(day, 'E', { locale: zhCN })}
+                          </div>
+                          <div className={`font-medium text-sm ${isToday ? 'text-blue-600' : ''}`}>
+                            {format(day, 'M.d')}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
 
-                  {weeks.slice(0, 7).map((day, dayIdx) => {
-                    const dateKey = format(day, 'yyyy-MM-dd');
-                    const cellTasks = tasksByDateAndType[`${dateKey}-${taskType.key}`] || [];
-                    const isInMonth = isSameMonth(day, currentDate);
-                    const isToday = isSameDay(day, new Date());
-                    const isWorkDay = isWorkingDay(day, extraWorkDays);
-                    const isHoliday = isWeekend(day) || HOLIDAYS_2025.has(dateKey);
-
-                    return (
-                      <div
-                        key={dayIdx}
-                        className={`
-                          flex-1 min-w-24 min-h-[80px] p-1 border-r last:border-r-0 border-slate-300
-                          ${isToday ? 'bg-blue-50' : !isWorkDay ? 'bg-slate-50' : ''}
-                          ${!isInMonth ? 'opacity-40' : ''}
-                        `}
-                      >
-                        <div className="space-y-1">
-                          {cellTasks.slice(0, 3).map((task) => (
-                            <ReadonlyTaskCard key={task.id} task={task} />
-                          ))}
-                          {cellTasks.length > 3 && (
-                            <div className="text-xs text-slate-500 text-center">
-                              +{cellTasks.length - 3} 更多
-                            </div>
-                          )}
-                        </div>
+                  {/* 每周内容 */}
+                  {TASK_TYPE_CONFIG.map((taskType) => (
+                    <div key={taskType.key} className="flex border-b last:border-b-0 border-slate-200">
+                      <div className={`w-20 min-w-20 p-2 border-r border-slate-300 text-center font-medium text-sm ${taskType.bgColor}`}>
+                        {taskType.label}
                       </div>
-                    );
-                  })}
+
+                      {week.days.map((day, dayIdx) => {
+                        const dateKey = format(day, 'yyyy-MM-dd');
+                        const cellTasks = tasksByDateAndType[`${dateKey}-${taskType.key}`] || [];
+                        const isInMonth = isSameMonth(day, currentDate);
+                        const isToday = isSameDay(day, new Date());
+                        const isWorkDay = isWorkingDay(day, extraWorkDays);
+
+                        return (
+                          <div
+                            key={dayIdx}
+                            className={`
+                              flex-1 min-w-24 min-h-[80px] p-1 border-r last:border-r-0 border-slate-300
+                              ${isToday ? 'bg-blue-50' : !isWorkDay ? 'bg-slate-50' : ''}
+                              ${!isInMonth ? 'opacity-40' : ''}
+                            `}
+                          >
+                            <div className="space-y-1">
+                              {cellTasks.slice(0, 3).map((task) => (
+                                <ReadonlyTaskCard key={task.id} task={task} />
+                              ))}
+                              {cellTasks.length > 3 && (
+                                <div className="text-xs text-slate-500 text-center">
+                                  +{cellTasks.length - 3} 更多
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
@@ -363,10 +462,9 @@ export default function ViewPage() {
             {/* 统计信息 */}
             <div className="p-4 border-t border-slate-200 bg-slate-50">
               <div className="flex items-center gap-6 text-sm text-slate-600">
-                <span>任务总数：<strong className="text-slate-800">{filteredTasks.length}</strong></span>
-                <span>本周有日期任务：<strong className="text-slate-800">{Object.keys(tasksByDateAndType).length}</strong></span>
+                <span>矩阵日历任务总数：<strong className="text-slate-800">{tasks.length}</strong></span>
                 <span className="text-xs text-slate-400">
-                  最后更新：{format(new Date(), 'yyyy-MM-dd HH:mm')}
+                  最后更新：{lastSyncedAt ? format(lastSyncedAt, 'yyyy-MM-dd HH:mm:ss') : '--'}
                 </span>
               </div>
             </div>

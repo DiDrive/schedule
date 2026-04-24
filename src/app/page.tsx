@@ -9,11 +9,62 @@ import FeishuConfigHelper from '@/components/feishu-config-helper';
 import { SyncLoadingOverlay, LoadingOverlay } from '@/components/sync-loading-overlay';
 import { loadFeishuConfig, validateConfig } from '@/lib/feishu-config';
 import { Task } from '@/types/schedule';
+import { loadAllData, syncAllData } from '@/storage/database/db-service';
 
 interface SyncProgress {
   current: number;
   total: number;
   currentPhase: string;
+}
+
+function toIsoStringOrUndefined(value: unknown): string | undefined {
+  if (!value) return undefined;
+  const date = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function mapTaskToDbPayload(task: any) {
+  return {
+    id: task.id,
+    name: task.name || '',
+    description: task.description || '',
+    estimated_hours: task.estimatedHours || 0,
+    assigned_resources: Array.isArray(task.assignedResources) ? task.assignedResources : [],
+    deadline: toIsoStringOrUndefined(task.deadline),
+    priority: task.priority || 'normal',
+    status: task.status || 'pending',
+    task_type: task.taskType || undefined,
+    project_id: task.projectId || undefined,
+    project_name: task.projectName || undefined,
+    start_date: toIsoStringOrUndefined(task.startDate),
+    end_date: toIsoStringOrUndefined(task.endDate),
+    category: task.category || undefined,
+    sub_type: task.subType || undefined,
+    language: task.language || undefined,
+    dubbing: task.dubbing || undefined,
+    contact_person: task.contactPerson || undefined,
+    business_month: task.businessMonth || undefined,
+    local_sub_tasks: task.localSubTasks || undefined,
+    resource_assignments: task.resourceAssignments || undefined,
+  };
+}
+
+function mapResourceToDbPayload(resource: any) {
+  return {
+    id: resource.id,
+    name: resource.name || '',
+    type: resource.type || 'human',
+    work_type: resource.workType || undefined,
+    level: resource.level || undefined,
+    capacity: resource.capacity || 8,
+    is_active: resource.isActive ?? true,
+    metadata: {
+      efficiency: resource.efficiency ?? 1,
+      skills: resource.skills ?? [],
+      availability: resource.availability ?? 1,
+      color: resource.color,
+    },
+  };
 }
 
 export default function ProjectScheduleSystem() {
@@ -93,6 +144,19 @@ export default function ProjectScheduleSystem() {
         timestamp: Date.now()
       }));
 
+      // 写入数据库，确保多端读取一致（失败时不阻塞飞书加载）
+      let dbSyncWarning = '';
+      try {
+        await syncAllData({
+          resources: resources.map((r: any) => mapResourceToDbPayload(r)),
+          tasks: tasks.map((t: any) => mapTaskToDbPayload(t)),
+          projects: projects.map((p: any) => ({ ...p })),
+        });
+      } catch (dbError) {
+        console.warn('[飞书加载] 数据库同步失败，已回落本地缓存模式:', dbError);
+        dbSyncWarning = '\n\n⚠️ 数据库未配置或不可用，当前仅保存在本浏览器。';
+      }
+
       const modeText = dataSourceMode === 'new' ? '需求表模式' : '传统模式';
       const loadModeText = config.requirementsLoadMode === 'all' ? '全部' : 
                           config.requirementsLoadMode === 'requirements1' ? '仅需求表1' : '仅需求表2';
@@ -102,6 +166,9 @@ export default function ProjectScheduleSystem() {
       
       // 延迟刷新，让用户看到成功消息
       setTimeout(() => {
+        if (dbSyncWarning) {
+          alert(`飞书数据已加载到本地缓存。${dbSyncWarning}`);
+        }
         window.location.reload();
       }, 500);
       
@@ -130,17 +197,58 @@ export default function ProjectScheduleSystem() {
     const resourcesStr = localStorage.getItem('complex-scenario-resources');
     const projectsStr = localStorage.getItem('complex-scenario-projects');
 
-    const localTasks = tasksStr ? JSON.parse(tasksStr) : [];
-    const scheduleResult = scheduleResultStr ? JSON.parse(scheduleResultStr) : null;
-    const sharedResources = resourcesStr ? JSON.parse(resourcesStr) : [];
-    const localProjects = projectsStr ? JSON.parse(projectsStr) : [];
+    let localTasks = tasksStr ? JSON.parse(tasksStr) : [];
+    let scheduleResult = scheduleResultStr ? JSON.parse(scheduleResultStr) : null;
+    let sharedResources = resourcesStr ? JSON.parse(resourcesStr) : [];
+    let localProjects = projectsStr ? JSON.parse(projectsStr) : [];
     
+    // 本地无排期结果时，回退到数据库任务（跨设备一致）
+    if (!scheduleResult || !scheduleResult.tasks || scheduleResult.tasks.length === 0) {
+      try {
+        const dbData = await loadAllData();
+        const dbTasks = (dbData.tasks || []).map((dbTask: any) => ({
+          id: dbTask.id,
+          name: dbTask.name,
+          estimatedHours: dbTask.estimated_hours || 0,
+          priority: dbTask.priority || 'normal',
+          status: dbTask.status || 'pending',
+          taskType: dbTask.task_type || '',
+          projectId: dbTask.project_id || '',
+          projectName: dbTask.project_name || '',
+          assignedResources: (dbTask.assigned_resources as string[]) || [],
+          startDate: dbTask.start_date || '',
+          endDate: dbTask.end_date || '',
+          deadline: dbTask.deadline || '',
+          subType: dbTask.sub_type || '',
+          language: dbTask.language || '',
+        }));
+        if (dbTasks.length > 0) {
+          localTasks = dbTasks;
+          scheduleResult = { tasks: dbTasks };
+        }
+
+        const dbResources = (dbData.resources || []).map((dbRes: any) => ({
+          id: dbRes.id,
+          name: dbRes.name,
+        }));
+        if (dbResources.length > 0) {
+          sharedResources = dbResources;
+        }
+
+        if (Array.isArray(dbData.projects) && dbData.projects.length > 0) {
+          localProjects = dbData.projects;
+        }
+      } catch (error) {
+        console.error('[同步调试] 数据库回退读取失败:', error);
+      }
+    }
+
     // 创建 projectId -> projectName 的映射
     const projectIdToName = new Map(localProjects.map((p: any) => [p.id, p.name]));
 
     // 检查是否有排期数据
     if (!scheduleResult || !scheduleResult.tasks || scheduleResult.tasks.length === 0) {
-      alert('⚠️ 没有排期数据可同步\n\n请先点击"生成排期"按钮生成排期结果，然后再同步到飞书。');
+      alert('⚠️ 没有排期数据可同步\n\n请先点击"生成排期"按钮，或确认数据库中已有排期任务数据。');
       return;
     }
 
@@ -294,7 +402,7 @@ export default function ProjectScheduleSystem() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950">
+    <div className="min-h-screen max-w-full overflow-x-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950">
       {/* 同步蒙版 - 阻止用户操作 */}
       <SyncLoadingOverlay 
         isVisible={isSyncingToFeishu} 
@@ -376,7 +484,7 @@ export default function ProjectScheduleSystem() {
       </header>
 
       {/* Main Content */}
-      <main className="w-full px-4 py-6">
+      <main className="w-full max-w-full overflow-x-hidden px-4 py-6">
         <ComplexScenario />
       </main>
 

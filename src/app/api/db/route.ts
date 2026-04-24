@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllData, syncTasksBatch, syncResourcesBatch, setCalendarExtraWorkDays } from '@/storage/database/server-client';
+import {
+  getAllData,
+  syncTasksBatch,
+  syncResourcesBatch,
+  setCalendarExtraWorkDays,
+  setProjectsData,
+  setScheduleResult,
+} from '@/storage/database/server-client';
 
 export async function GET() {
   try {
@@ -20,7 +27,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, tasks, resources, calendarExtraWorkDays } = body;
+    const { action, tasks, resources, projects, scheduleResult, calendarExtraWorkDays } = body;
 
     switch (action) {
       case 'sync_tasks':
@@ -40,8 +47,24 @@ export async function POST(request: NextRequest) {
         if (resources && Array.isArray(resources)) {
           await syncResourcesBatch(resources);
         }
+        if (projects && Array.isArray(projects)) {
+          await setProjectsData(projects);
+        }
+        if (scheduleResult !== undefined) {
+          await setScheduleResult(scheduleResult);
+        }
         if (calendarExtraWorkDays) {
           await setCalendarExtraWorkDays(calendarExtraWorkDays);
+        }
+        break;
+      case 'sync_projects':
+        if (projects && Array.isArray(projects)) {
+          await setProjectsData(projects);
+        }
+        break;
+      case 'sync_schedule_result':
+        if (scheduleResult !== undefined) {
+          await setScheduleResult(scheduleResult);
         }
         break;
       case 'sync_calendar':

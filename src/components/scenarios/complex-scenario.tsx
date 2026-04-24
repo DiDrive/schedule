@@ -39,7 +39,7 @@ import FeishuIntegrationDialog from '@/components/feishu-integration-dialog';
 import TemplateDialog from '@/components/template-dialog';
 import TaskRow from '@/components/task-row';
 import { loadFeishuConfig } from '@/lib/feishu-config';
-import { loadAllData, syncTasks, syncResources } from '@/storage/database/db-service';
+import { loadAllData, syncAllData } from '@/storage/database/db-service';
 
 // 辅助函数：将 Date 或字符串转换为 YYYY-MM-DD 格式
 const formatDateToInputValue = (date: Date | string | undefined): string => {
@@ -87,11 +87,8 @@ const formatDate = (date: Date | string): string => {
   return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
 };
 
-// 同步单个任务到数据库
-async function syncTaskToDb(task: Task): Promise<void> {
-  const { syncTasks } = await import('@/storage/database/db-service');
-  
-  const dbTask = {
+function mapTaskToDbTask(task: Task) {
+  return {
     id: task.id,
     name: task.name,
     description: task.description,
@@ -114,7 +111,31 @@ async function syncTaskToDb(task: Task): Promise<void> {
     local_sub_tasks: task.localSubTasks,
     resource_assignments: task.resourceAssignments,
   };
-  
+}
+
+function mapResourceToDbResource(resource: Resource) {
+  return {
+    id: resource.id,
+    name: resource.name,
+    type: resource.type,
+    work_type: resource.workType,
+    level: resource.level,
+    capacity: (resource as Resource & { capacity?: number }).capacity ?? 8,
+    is_active: (resource as Resource & { isActive?: boolean }).isActive ?? true,
+    metadata: {
+      efficiency: resource.efficiency ?? 1,
+      skills: resource.skills ?? [],
+      availability: resource.availability,
+      color: resource.color,
+    },
+  };
+}
+
+// 同步单个任务到数据库
+async function syncTaskToDb(task: Task): Promise<void> {
+  const { syncTasks } = await import('@/storage/database/db-service');
+
+  const dbTask = mapTaskToDbTask(task);
   await syncTasks([dbTask as Parameters<typeof syncTasks>[0][number]]);
 }
 
@@ -370,16 +391,75 @@ export default function ComplexScenario() {
     setFeishuConfig(config);
   }, []);
 
-  // 从数据库加载数据
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50); // 每页50条
+  const [isPageLoading, setIsPageLoading] = useState(false); // 分页加载状态
+  
+  // 增量排期相关状态
+  const [forceFullReschedule, setForceFullReschedule] = useState(false); // 强制完全重新排期
+
+  // 标记是否需要强制生成排期（用于任务拆分后立即生成）
+  const forceGenerateSchedule = useRef(false);
+
+  // 全局任务ID计数器，确保ID唯一
+  const taskIdCounter = useRef(Date.now());
+
+  // 使用 ref 跟踪是否已经加载过数据，避免重复加载
+  const hasLoadedData = useRef(false);
+  const hasInitializedData = useRef(false);
+
+  // 数据加载：只在组件首次挂载时执行
   useEffect(() => {
-    async function loadData() {
+    if (hasLoadedData.current) return;
+    hasLoadedData.current = true;
+
+    const applyScheduleResultFromStorage = (rawSchedule: any) => {
+      if (!rawSchedule) return;
+      if (typeof rawSchedule === 'object' && Object.keys(rawSchedule).length === 0) return;
+      setTimeout(() => {
+        const scheduleResultWithDates = {
+          ...rawSchedule,
+          tasks: rawSchedule.tasks.map((t: Task) => ({
+            ...t,
+            deadline: t.deadline ? new Date(t.deadline) : undefined,
+            startDate: t.startDate ? new Date(t.startDate) : undefined,
+            endDate: t.endDate ? new Date(t.endDate) : undefined
+          })),
+          resourceConflicts: rawSchedule.resourceConflicts.map((rc: any) => ({
+            ...rc,
+            timeRange: {
+              start: new Date(rc.timeRange.start),
+              end: new Date(rc.timeRange.end)
+            }
+          })),
+          projects: rawSchedule.projects
+        };
+        setScheduleResult(scheduleResultWithDates);
+      }, 0);
+    };
+
+    const initializeData = async () => {
+      console.log('[数据加载] 开始加载数据...');
+
+      const savedProjects = localStorage.getItem('complex-scenario-projects');
+      const savedTasks = localStorage.getItem('complex-scenario-tasks');
+      const savedResources = localStorage.getItem('complex-scenario-resources');
+      const savedScheduleResult = localStorage.getItem('complex-scenario-schedule-result');
+
+      const parsedProjects: Project[] = savedProjects ? JSON.parse(savedProjects) : defaultProjects;
+      const parsedTasks = savedTasks ? JSON.parse(savedTasks) : [];
+      const parsedResources = savedResources ? JSON.parse(savedResources) : defaultResources;
+      const parsedScheduleResult = savedScheduleResult ? JSON.parse(savedScheduleResult) : null;
+
+      setProjects(parsedProjects);
+
+      let loadedFromDb = false;
+      let dbHasScheduleResult = false;
       try {
         const data = await loadAllData();
-        
-        // 如果数据库有数据，使用数据库数据
-        if (data.tasks.length > 0) {
-          // 转换数据库 Task 格式到前端 Task 格式
-          const convertedTasks = data.tasks.map(dbTask => ({
+        if (data.tasks.length > 0 || data.resources.length > 0) {
+          const convertedTasks: Task[] = data.tasks.map(dbTask => ({
             id: dbTask.id,
             name: dbTask.name,
             description: dbTask.description || '',
@@ -399,16 +479,10 @@ export default function ComplexScenario() {
             dubbing: dbTask.dubbing,
             contactPerson: dbTask.contact_person,
             businessMonth: dbTask.business_month,
-            // 本地扩展字段
             localSubTasks: dbTask.local_sub_tasks as Task['localSubTasks'],
             resourceAssignments: dbTask.assigned_resources as Task['resourceAssignments'],
           }));
-          setTasks(convertedTasks);
-        }
-        
-        if (data.resources.length > 0) {
-          // 转换数据库 Resource 格式到前端 Resource 格式
-          const convertedResources = data.resources.map(dbRes => ({
+          const convertedResources: Resource[] = data.resources.map(dbRes => ({
             id: dbRes.id,
             name: dbRes.name,
             type: dbRes.type as Resource['type'],
@@ -421,62 +495,42 @@ export default function ComplexScenario() {
             isActive: dbRes.is_active ?? true,
             color: (dbRes.metadata as { color?: string })?.color || '#6b7280',
           }));
-          setSharedResources(convertedResources);
+
+          if (Array.isArray(data.projects) && data.projects.length > 0) {
+            setProjects(data.projects as Project[]);
+          }
+          if (convertedTasks.length > 0) {
+            setTasks(convertedTasks);
+          }
+          if (convertedResources.length > 0) {
+            setSharedResources(convertedResources);
+          }
+          dbHasScheduleResult = Boolean(
+            data.scheduleResult &&
+            typeof data.scheduleResult === 'object' &&
+            Object.keys(data.scheduleResult as Record<string, unknown>).length > 0
+          );
+          applyScheduleResultFromStorage(data.scheduleResult);
+          loadedFromDb = true;
+          console.log('[管理端] 使用数据库数据:', convertedTasks.length, '个任务,', convertedResources.length, '个资源');
         }
-        
-        console.log('[管理端] 从数据库加载数据完成:', data.tasks.length, '个任务,', data.resources.length, '个资源');
       } catch (error) {
-        console.error('[管理端] 从数据库加载数据失败:', error);
+        console.error('[管理端] 读取数据库失败，回落本地缓存:', error);
       }
-    }
-    loadData();
-  }, []);
 
-  // 分页状态
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50); // 每页50条
-  const [isPageLoading, setIsPageLoading] = useState(false); // 分页加载状态
-  
-  // 增量排期相关状态
-  const [forceFullReschedule, setForceFullReschedule] = useState(false); // 强制完全重新排期
+      if (loadedFromDb) {
+        // 数据库数据优先，排期结果仅在数据库缺失时回落本地缓存
+        if (!dbHasScheduleResult && parsedScheduleResult) {
+          applyScheduleResultFromStorage(parsedScheduleResult);
+        }
+        hasInitializedData.current = true;
+        return;
+      }
 
-  // 标记是否需要强制生成排期（用于任务拆分后立即生成）
-  const forceGenerateSchedule = useRef(false);
+      console.log(`[数据加载] 使用本地缓存，项目: ${parsedProjects.length}, 任务: ${parsedTasks.length}, 资源: ${parsedResources.length}`);
+      setSharedResources(parsedResources);
 
-  // 全局任务ID计数器，确保ID唯一
-  const taskIdCounter = useRef(Date.now());
-
-  // 使用 ref 跟踪是否已经加载过数据，避免重复加载
-  const hasLoadedData = useRef(false);
-
-  // 数据加载：只在组件首次挂载时执行
-  useEffect(() => {
-    if (hasLoadedData.current) return;
-    hasLoadedData.current = true;
-
-    console.log('[数据加载] 开始加载数据...');
-    
-    // 一次性解析所有数据
-    const savedProjects = localStorage.getItem('complex-scenario-projects');
-    const savedTasks = localStorage.getItem('complex-scenario-tasks');
-    const savedResources = localStorage.getItem('complex-scenario-resources');
-    const savedScheduleResult = localStorage.getItem('complex-scenario-schedule-result');
-
-    // 解析数据
-    const parsedProjects = savedProjects ? JSON.parse(savedProjects) : defaultProjects;
-    const parsedTasks = savedTasks ? JSON.parse(savedTasks) : [];
-    const parsedResources = savedResources ? JSON.parse(savedResources) : defaultResources;
-    const parsedScheduleResult = savedScheduleResult ? JSON.parse(savedScheduleResult) : null;
-
-    console.log(`[数据加载] 项目: ${parsedProjects.length}, 任务: ${parsedTasks.length}, 资源: ${parsedResources.length}`);
-
-    // 快速设置项目、资源（让 UI 先显示）
-    setProjects(parsedProjects);
-    setSharedResources(parsedResources);
-
-    // 使用 requestIdleCallback 或 setTimeout 分批处理大量任务
-    const processDataInBatches = () => {
-      const BATCH_SIZE = 50; // 每批处理 50 个
+      const BATCH_SIZE = 50;
       let currentIndex = 0;
       const processedTasks: Task[] = [];
       const taskIdSet = new Set(parsedTasks.map((t: Task) => t.id));
@@ -484,14 +538,10 @@ export default function ComplexScenario() {
 
       const processBatch = () => {
         const endIndex = Math.min(currentIndex + BATCH_SIZE, parsedTasks.length);
-        
         for (let i = currentIndex; i < endIndex; i++) {
           const t = parsedTasks[i];
           const deadline = t.deadline ? new Date(t.deadline) : undefined;
-          if (deadline) {
-            deadline.setHours(18, 30, 0, 0);
-          }
-
+          if (deadline) deadline.setHours(18, 30, 0, 0);
           processedTasks.push({
             ...t,
             deadline,
@@ -502,66 +552,39 @@ export default function ComplexScenario() {
             assignedResources: (t.assignedResources || []).filter((id: string) => resourceIds.has(id))
           });
         }
-
         currentIndex = endIndex;
 
         if (currentIndex < parsedTasks.length) {
-          // 还有更多数据，使用 requestIdleCallback 或 setTimeout 继续处理
           if ('requestIdleCallback' in window) {
             (window as any).requestIdleCallback(processBatch, { timeout: 100 });
           } else {
             setTimeout(processBatch, 0);
           }
-        } else {
-          // 所有数据处理完成
-          setTasks(processedTasks);
-          console.log(`[数据加载] 任务处理完成: ${processedTasks.length} 个`);
-
-          // 处理排期结果
-          if (parsedScheduleResult) {
-            setTimeout(() => {
-              const scheduleResultWithDates = {
-                ...parsedScheduleResult,
-                tasks: parsedScheduleResult.tasks.map((t: Task) => ({
-                  ...t,
-                  deadline: t.deadline ? new Date(t.deadline) : undefined,
-                  startDate: t.startDate ? new Date(t.startDate) : undefined,
-                  endDate: t.endDate ? new Date(t.endDate) : undefined
-                })),
-                resourceConflicts: parsedScheduleResult.resourceConflicts.map((rc: any) => ({
-                  ...rc,
-                  timeRange: {
-                    start: new Date(rc.timeRange.start),
-                    end: new Date(rc.timeRange.end)
-                  }
-                })),
-                projects: parsedScheduleResult.projects
-              };
-              setScheduleResult(scheduleResultWithDates);
-              console.log('[数据加载] 排期结果处理完成');
-            }, 0);
-          }
+          return;
         }
+
+        setTasks(processedTasks);
+        applyScheduleResultFromStorage(parsedScheduleResult);
+        hasInitializedData.current = true;
       };
 
-      // 开始处理
       if (parsedTasks.length > 0) {
         processBatch();
+      } else {
+        applyScheduleResultFromStorage(parsedScheduleResult);
+        hasInitializedData.current = true;
       }
     };
 
-    // 延迟处理，让 UI 先渲染
-    if ('requestIdleCallback' in window) {
-      (window as any).requestIdleCallback(processDataInBatches, { timeout: 500 });
-    } else {
-      setTimeout(processDataInBatches, 100);
-    }
+    void initializeData();
   }, []);
 
-  // 防抖保存到 localStorage - 避免每次输入都触发大量序列化操作
+  // 防抖保存：本地缓存 + 数据库（多端共享）
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
+    if (!hasInitializedData.current) return;
+
     // 清除之前的定时器
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -576,6 +599,16 @@ export default function ComplexScenario() {
         if (scheduleResult) {
           localStorage.setItem('complex-scenario-schedule-result', JSON.stringify(scheduleResult));
         }
+
+        // 数据库作为跨设备共享的主数据源
+        void syncAllData({
+          tasks: tasks.map(task => mapTaskToDbTask(task) as { id: string }),
+          resources: sharedResources.map(resource => mapResourceToDbResource(resource) as { id: string }),
+          projects: projects.map(project => ({ ...project })),
+          scheduleResult: scheduleResult ? JSON.parse(JSON.stringify(scheduleResult)) : null,
+        }).catch(err => {
+          console.error('[管理端] 批量同步数据库失败:', err);
+        });
       } catch (e: any) {
         // localStorage 存储空间不足时，尝试清理旧数据
         if (e.name === 'QuotaExceededError' || e.code === 22) {
@@ -2386,7 +2419,7 @@ export default function ComplexScenario() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       {/* 页面标题 */}
       <div>
         <h1 className="text-2xl font-bold">复杂场景</h1>
@@ -2973,7 +3006,7 @@ export default function ComplexScenario() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-4 h-[calc(100vh-280px)] min-h-[500px]">
+          <CardContent className="p-4 h-[calc(100vh-220px)] min-h-[640px] overflow-x-hidden">
             <MatrixCalendarView
               scheduledTasks={filteredTasks}
               resources={sharedResources}
@@ -3219,7 +3252,7 @@ export default function ComplexScenario() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-4 h-[calc(100vh-320px)] min-h-[500px]">
+                <CardContent className="p-4 h-[calc(100vh-240px)] min-h-[640px] overflow-x-hidden">
                   <MatrixCalendarView
                     scheduledTasks={filteredTasks}
                     resources={sharedResources}

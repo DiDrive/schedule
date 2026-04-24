@@ -44,17 +44,16 @@ import {
 import { zhCN } from 'date-fns/locale';
 import {
   DndContext,
-  DragOverlay,
   useDraggable,
   useDroppable,
   DragEndEvent,
   DragStartEvent,
-  DragOverlayProps,
-  pointerWithin,
+  rectIntersection,
   useSensor,
   useSensors,
   PointerSensor,
   KeyboardSensor,
+  Modifier,
 } from '@dnd-kit/core';
 
 // 任务类型配置 - 不同颜色
@@ -706,6 +705,100 @@ function getCompletedTypeStyle(taskType?: ResourceWorkType): string {
   }
 }
 
+function mergeViewTasksWithLocalState(viewTasks: Task[], localTasks: Task[]): Task[] {
+  const mergedViewTasks = normalizeTasks(viewTasks);
+  const normalizedLocalTasks = normalizeTasks(localTasks);
+  const localTaskMap = new Map(normalizedLocalTasks.map((task) => [getTaskUniqueKey(task), task]));
+
+  return normalizeTasks(mergedViewTasks.map((viewTask) => {
+    const localTask = localTaskMap.get(getTaskUniqueKey(viewTask));
+    if (!localTask) return viewTask;
+    return {
+      ...viewTask,
+      taskType: localTask.taskType,
+      startDate: localTask.startDate,
+      endDate: localTask.endDate,
+      deadline: localTask.deadline,
+      status: localTask.status,
+      assignedResources: localTask.assignedResources,
+      fixedResourceId: localTask.fixedResourceId,
+    };
+  }));
+}
+
+function normalizeKeyPart(value?: string): string {
+  return (value || '').trim().toLowerCase();
+}
+
+function getTaskDisplayKey(task: Task): string {
+  const name = normalizeKeyPart(task.name);
+  const project = normalizeKeyPart(task.projectId || task.projectName);
+  const month = normalizeKeyPart(task.businessMonth);
+  if (!name) return '';
+  return [project, name, month].join('|');
+}
+
+function getTaskBusinessFingerprint(task: Task): string {
+  return getTaskDisplayKey(task);
+}
+
+function getTaskUniqueKey(task: Task): string {
+  const recordKey = normalizeKeyPart(task.feishuRecordId);
+  if (recordKey) return `record:${recordKey}`;
+
+  const displayKey = getTaskDisplayKey(task);
+  if (displayKey) return `biz:${displayKey}`;
+
+  const fingerprint = getTaskBusinessFingerprint(task);
+  if (fingerprint) return `fp:${fingerprint}`;
+
+  return `id:${task.id}`;
+}
+
+function getTaskCompletenessScore(task: Task): number {
+  let score = 0;
+  if (task.taskType) score += 4;
+  if (task.endDate || task.startDate || task.deadline) score += 3;
+  if (task.fixedResourceId) score += 2;
+  if (task.assignedResources?.length) score += 1;
+  if (task.status && task.status !== 'pending') score += 1;
+  return score;
+}
+
+function mergeDuplicateTask(a: Task, b: Task): Task {
+  const aScore = getTaskCompletenessScore(a);
+  const bScore = getTaskCompletenessScore(b);
+  const primary = bScore >= aScore ? b : a;
+  const secondary = bScore >= aScore ? a : b;
+
+  return {
+    ...secondary,
+    ...primary,
+    id: primary.id || secondary.id,
+    feishuRecordId: primary.feishuRecordId || secondary.feishuRecordId,
+    assignedResources: primary.assignedResources?.length ? primary.assignedResources : (secondary.assignedResources || []),
+    resourceAssignments: primary.resourceAssignments?.length ? primary.resourceAssignments : secondary.resourceAssignments,
+  };
+}
+
+function normalizeTasks(tasks: Task[]): Task[] {
+  const taskMap = new Map<string, Task>();
+  for (const task of tasks) {
+    const key = getTaskUniqueKey(task);
+    const existing = taskMap.get(key);
+    if (!existing) {
+      taskMap.set(key, task);
+      continue;
+    }
+    taskMap.set(key, mergeDuplicateTask(existing, task));
+  }
+  return Array.from(taskMap.values());
+}
+
+function isSameLogicalTask(a: Task, b: Task): boolean {
+  return getTaskUniqueKey(a) === getTaskUniqueKey(b);
+}
+
 // 未分配任务池组件
 const UnassignedTaskPool = memo(function UnassignedTaskPool({
   tasks,
@@ -716,6 +809,14 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
   draggedTask: Task | null;
   onTaskClick: (task: Task) => void;
 }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const [dragFixedRect, setDragFixedRect] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const { setNodeRef, isOver } = useDroppable({
     id: 'unassigned-task-pool',
     data: {
@@ -723,15 +824,75 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
     },
   });
 
+  useEffect(() => {
+    if (!draggedTask) {
+      setDragFixedRect(null);
+      return;
+    }
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    setDragFixedRect({
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    });
+  }, [draggedTask]);
+
+  useEffect(() => {
+    if (!draggedTask) return;
+
+    let rafId = 0;
+    const keepHorizontalLocked = () => {
+      if (containerRef.current && containerRef.current.scrollLeft !== 0) {
+        containerRef.current.scrollLeft = 0;
+      }
+      if (listRef.current && listRef.current.scrollLeft !== 0) {
+        listRef.current.scrollLeft = 0;
+      }
+      rafId = window.requestAnimationFrame(keepHorizontalLocked);
+    };
+
+    rafId = window.requestAnimationFrame(keepHorizontalLocked);
+    return () => window.cancelAnimationFrame(rafId);
+  }, [draggedTask]);
+
   return (
-    <div
-      ref={setNodeRef}
-      className={`
-        w-48 min-w-48 bg-slate-50 border-r-2 border-dashed border-slate-400
-        rounded-lg flex flex-col
-        ${isOver && draggedTask?.taskType ? 'bg-green-50 border-green-400' : ''}
-      `}
-    >
+    <div className="w-48 min-w-48 max-w-48 shrink-0">
+      <div
+        ref={(node) => {
+          setNodeRef(node);
+          containerRef.current = node;
+        }}
+        className={`
+          w-48 min-w-48 max-w-48 shrink-0 bg-slate-50 border-r-2 border-dashed border-slate-400
+          rounded-lg flex flex-col overflow-hidden
+          ${isOver && draggedTask?.taskType ? 'bg-green-50 border-green-400' : ''}
+        `}
+        style={{
+          touchAction: 'pan-y',
+          contain: 'layout paint size',
+          ...(dragFixedRect
+            ? {
+                position: 'fixed',
+                left: `${dragFixedRect.left}px`,
+                top: `${dragFixedRect.top}px`,
+                width: `${dragFixedRect.width}px`,
+                height: `${dragFixedRect.height}px`,
+                zIndex: 60,
+              }
+            : {}),
+        }}
+        onWheelCapture={(e) => {
+          if (Math.abs(e.deltaX) > 0) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+          if (containerRef.current && containerRef.current.scrollLeft !== 0) {
+            containerRef.current.scrollLeft = 0;
+          }
+        }}
+      >
       {/* 固定头部 */}
       <div className="flex items-center gap-2 px-2 py-2 border-b border-slate-300 bg-slate-100 rounded-t-lg">
         <span className="text-sm font-medium text-slate-600">📋 未分配任务</span>
@@ -739,7 +900,21 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
       </div>
       
       {/* 可滚动的内容区域 */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+      <div
+        ref={listRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-1"
+        style={{ overflowX: 'clip', overscrollBehaviorX: 'none' }}
+        onWheel={(e) => {
+          if (Math.abs(e.deltaX) > 0) {
+            e.preventDefault();
+          }
+        }}
+        onScroll={(e) => {
+          if (e.currentTarget.scrollLeft !== 0) {
+            e.currentTarget.scrollLeft = 0;
+          }
+        }}
+      >
         {tasks.length === 0 ? (
           <div className="text-center text-slate-400 text-xs py-4">
             暂无未分配任务
@@ -747,7 +922,7 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
         ) : (
           tasks.map(task => (
             <DraggableTaskCard
-              key={task.id}
+              key={getTaskUniqueKey(task)}
               task={task}
               onClick={() => onTaskClick(task)}
               isDragging={draggedTask?.id === task.id}
@@ -761,6 +936,7 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
         <div className="text-xs text-slate-400 text-center">
           拖到这里取消分配
         </div>
+      </div>
       </div>
     </div>
   );
@@ -780,17 +956,13 @@ const DraggableTaskCard = memo(function DraggableTaskCard({
   const projectPrefix = task.projectName ? `【${task.projectName}】` : '';
   const displayName = projectPrefix + task.name;
 
-  const { attributes, listeners, setNodeRef, transform, isDragging: isBeingDragged } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging: isBeingDragged } = useDraggable({
     id: `task-${task.id}`,
     data: {
       task,
       taskType: task.taskType,
     },
   });
-
-  const style = transform ? {
-    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-  } : undefined;
 
   // 根据完成状态选择样式
   const typeStyle = isCompleted ? getCompletedTypeStyle(task.taskType) : getTypeStyle(task.taskType);
@@ -799,42 +971,23 @@ const DraggableTaskCard = memo(function DraggableTaskCard({
     <div
       ref={setNodeRef}
       style={{
-        ...style,
         userSelect: 'none',
+        touchAction: 'none',
       }}
       {...listeners}
       {...attributes}
       onClick={onClick}
       className={`
-        px-2 py-1 rounded text-xs cursor-grab active:cursor-grabbing
-        border transition-all truncate flex items-center gap-1
+        w-full max-w-full min-w-0 px-2 py-1 rounded text-xs cursor-grab active:cursor-grabbing
+        border transition-all flex items-center gap-1 overflow-hidden
         ${typeStyle}
         ${isDragging || isBeingDragged ? 'opacity-30 scale-95' : 'hover:shadow-sm'}
       `}
       title={`${displayName}${isCompleted ? '\n✓ 已完成' : '\n拖拽移动日期'}`}
     >
       <GripVertical className="h-3 w-3 text-slate-400 flex-shrink-0" />
-      <span className={`truncate ${isCompleted ? 'line-through text-slate-500' : ''}`}>{displayName}</span>
+      <span className={`flex-1 min-w-0 block truncate ${isCompleted ? 'line-through text-slate-500' : ''}`}>{displayName}</span>
       {isCompleted && <span className="text-green-600 font-bold">✓</span>}
-    </div>
-  );
-});
-
-// 拖拽覆盖层卡片
-const DragOverlayCard = memo(function DragOverlayCard({ task }: { task: Task }) {
-  const projectPrefix = task.projectName ? `【${task.projectName}】` : '';
-  const displayName = projectPrefix + task.name;
-
-  return (
-    <div
-      className={`
-        px-2 py-1 rounded text-xs cursor-grabbing
-        border shadow-lg truncate flex items-center gap-1
-        ${getTypeStyle(task.taskType)}
-      `}
-    >
-      <GripVertical className="h-3 w-3 text-slate-400" />
-      <span className="truncate">{displayName}</span>
     </div>
   );
 });
@@ -1086,6 +1239,7 @@ export function MatrixCalendarView({
   taskTypeFilter = 'all',
   resourceFilter = 'all',
 }: MatrixCalendarViewProps) {
+  const calendarRootRef = useRef<HTMLDivElement | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -1108,7 +1262,8 @@ export function MatrixCalendarView({
 
   // 根据筛选条件过滤任务
   const filteredViewTasks = useMemo(() => {
-    return viewTasks.filter(task => {
+    const normalizedViewTasks = normalizeTasks(viewTasks);
+    return normalizedViewTasks.filter(task => {
       // 任务类型筛选
       if (taskTypeFilter !== 'all' && task.taskType !== taskTypeFilter) {
         return false;
@@ -1153,7 +1308,8 @@ export function MatrixCalendarView({
 
       if (data.success) {
         console.log('[矩阵日历] 视图数据加载成功:', data.tasks.length, '个任务');
-        setViewTasks(data.tasks);
+        // 使用任务主状态覆盖视图快照字段，避免拖拽更新在切页后被飞书视图数据覆盖
+        setViewTasks(mergeViewTasksWithLocalState(data.tasks, tasks));
         lastTaskCountRef.current = data.tasks.length;
       } else {
         throw new Error(data.error || '加载视图数据失败');
@@ -1164,12 +1320,12 @@ export function MatrixCalendarView({
     } finally {
       setViewLoading(false);
     }
-  }, []);
+  }, [tasks]);
 
   // 加载视图数据函数（供外部按钮调用）
   const loadViewData = useCallback(async () => {
     if (!feishuConfig?.viewId) {
-      setViewTasks(tasks);
+      setViewTasks(normalizeTasks(tasks));
       return;
     }
     await fetchAndSetViewTasks(feishuConfig);
@@ -1182,7 +1338,7 @@ export function MatrixCalendarView({
     const prevCount = lastTaskCountRef.current;
     
     if (!currentFeishuConfig?.viewId) {
-      setViewTasks(tasks);
+      setViewTasks(normalizeTasks(tasks));
       return;
     }
 
@@ -1218,6 +1374,102 @@ export function MatrixCalendarView({
     draggedTaskRef.current = draggedTask;
   }, [draggedTask]);
 
+  // 拖拽过程中锁定页面横向滚动，避免出现无限向右滑动
+  useEffect(() => {
+    if (!draggedTask) return;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+
+    const prevDocOverflow = document.documentElement.style.overflow;
+    const prevBodyPosition = document.body.style.position;
+    const prevBodyTop = document.body.style.top;
+    const prevBodyLeft = document.body.style.left;
+    const prevBodyWidth = document.body.style.width;
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevBodyOverflowX = document.body.style.overflowX;
+    const prevDocOverflowX = document.documentElement.style.overflowX;
+
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = `-${scrollX}px`;
+    document.body.style.width = '100%';
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflowX = 'hidden';
+    document.documentElement.style.overflowX = 'hidden';
+
+    // 锁定矩阵容器及其祖先的横向滚动，避免未分配栏在拖拽时被任何父级带着向右滑
+    const lockTargets = new Set<HTMLElement>();
+    const addIfScrollableX = (el: HTMLElement | null) => {
+      if (!el) return;
+      if (el.scrollWidth > el.clientWidth || el.scrollLeft !== 0) {
+        lockTargets.add(el);
+      }
+    };
+
+    let cursor: HTMLElement | null = calendarRootRef.current;
+    while (cursor) {
+      addIfScrollableX(cursor);
+      cursor = cursor.parentElement;
+    }
+    addIfScrollableX(document.scrollingElement as HTMLElement | null);
+
+    let rafId = 0;
+    const lockAllHorizontal = () => {
+      lockTargets.forEach((el) => {
+        if (el.scrollLeft !== 0) {
+          el.scrollLeft = 0;
+        }
+      });
+      if (window.scrollX !== 0) {
+        window.scrollTo({ left: 0, top: window.scrollY, behavior: 'auto' });
+      }
+      rafId = window.requestAnimationFrame(lockAllHorizontal);
+    };
+    rafId = window.requestAnimationFrame(lockAllHorizontal);
+
+    const lockHorizontalScroll = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return;
+      if (target.scrollLeft !== 0) {
+        target.scrollLeft = 0;
+      }
+    };
+
+    const handleScrollCapture = (event: Event) => {
+      lockHorizontalScroll(event.target);
+      if (window.scrollX !== 0) {
+        window.scrollTo({ left: 0, top: window.scrollY, behavior: 'auto' });
+      }
+    };
+
+    const handleWheel = (event: WheelEvent) => {
+      if (event.deltaX !== 0) {
+        event.preventDefault();
+      }
+    };
+
+    document.addEventListener('scroll', handleScrollCapture, true);
+    document.addEventListener('wheel', handleWheel, { passive: false });
+    if (window.scrollX !== 0) {
+      window.scrollTo({ left: 0, top: window.scrollY, behavior: 'auto' });
+    }
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      document.removeEventListener('scroll', handleScrollCapture, true);
+      document.removeEventListener('wheel', handleWheel);
+      document.documentElement.style.overflow = prevDocOverflow;
+      document.body.style.position = prevBodyPosition;
+      document.body.style.top = prevBodyTop;
+      document.body.style.left = prevBodyLeft;
+      document.body.style.width = prevBodyWidth;
+      document.body.style.overflow = prevBodyOverflow;
+      document.body.style.overflowX = prevBodyOverflowX;
+      document.documentElement.style.overflowX = prevDocOverflowX;
+      window.scrollTo({ left: scrollX, top: scrollY, behavior: 'auto' });
+    };
+  }, [draggedTask]);
+
   // 配置拖拽传感器
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1227,6 +1479,25 @@ export function MatrixCalendarView({
     }),
     useSensor(KeyboardSensor),
   );
+
+  // 限制拖拽在矩阵日历可视容器内，防止在未分配栏拖拽时无限向右
+  const restrictDragToCalendarRoot = useCallback<Modifier>((args) => {
+    const { transform } = args;
+    const nodeRect = args.draggingNodeRect ?? (args as typeof args & { activeNodeRect?: DOMRect }).activeNodeRect;
+    const rootRect = calendarRootRef.current?.getBoundingClientRect();
+    if (!nodeRect || !rootRect) return transform;
+
+    const minX = rootRect.left - nodeRect.left;
+    const maxX = rootRect.right - nodeRect.right;
+    const minY = rootRect.top - nodeRect.top;
+    const maxY = rootRect.bottom - nodeRect.bottom;
+
+    return {
+      ...transform,
+      x: Math.min(Math.max(transform.x, minX), maxX),
+      y: Math.min(Math.max(transform.y, minY), maxY),
+    };
+  }, []);
 
   // 组件挂载日志
   useEffect(() => {
@@ -1284,18 +1555,32 @@ export function MatrixCalendarView({
 
   // 获取所有未分配类型的任务（用于任务池）- 使用视图数据
   const unassignedTasks = useMemo(() => {
-    return filteredViewTasks.filter(task => !task.taskType);
+    const assignedDisplayKeys = new Set(
+      filteredViewTasks
+        .filter(task => Boolean(task.taskType))
+        .map(task => getTaskDisplayKey(task))
+    );
+
+    const candidates = filteredViewTasks.filter(task => {
+      if (task.taskType) return false;
+      const displayKey = getTaskDisplayKey(task);
+      return !displayKey || !assignedDisplayKeys.has(displayKey);
+    });
+
+    // 显示层再兜底去重，避免同一业务任务在未分配栏重复出现
+    return normalizeTasks(candidates);
   }, [filteredViewTasks]);
 
   // 按日期和类型分组任务
   // 对于视图数据：有deadline的任务按deadline显示，没有日期的显示在任务池
   const tasksByDateAndType = useMemo(() => {
     const grouped: Record<string, Task[]> = Object.create(null);
-    const addedIds = new Set<string>();
+    const addedKeys = new Set<string>();
 
     for (let i = 0; i < filteredViewTasks.length; i++) {
       const task = filteredViewTasks[i];
-      if (addedIds.has(task.id)) continue;
+      const taskKey = getTaskUniqueKey(task);
+      if (addedKeys.has(taskKey)) continue;
 
       // 未分配类型的任务不显示在任何类型行，它们会在任务池中显示
       if (!task.taskType) continue;
@@ -1314,19 +1599,19 @@ export function MatrixCalendarView({
 
       const dateKey = format(taskDate, 'yyyy-MM-dd');
 
-      // 只在工作日显示任务
-      if (isWorkingDay(taskDate, undefined)) {
+      // 只在工作日显示任务（考虑调休/加班日）
+      if (isWorkingDay(taskDate, extraWorkDays)) {
         const key = dateKey + '-' + task.taskType;
         if (!grouped[key]) {
           grouped[key] = [];
         }
         grouped[key].push(task);
-        addedIds.add(task.id);
+        addedKeys.add(taskKey);
       }
     }
 
     return grouped;
-  }, [filteredViewTasks]);
+  }, [filteredViewTasks, extraWorkDays]);
 
   // 拖拽开始
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -1357,11 +1642,12 @@ export function MatrixCalendarView({
     // 如果拖拽到任务池，清除类型
     if (overData.isTaskPool) {
       if (currentDraggedTask.taskType) {
+        const draggedTaskKey = getTaskUniqueKey(currentDraggedTask);
         // 直接更新 viewTasks
-        setViewTasks(prev => prev.map(t => {
-          if (t.id !== currentDraggedTask.id) return t;
+        setViewTasks(prev => normalizeTasks(prev.map(t => {
+          if (!isSameLogicalTask(t, currentDraggedTask) && getTaskUniqueKey(t) !== draggedTaskKey) return t;
           return { ...t, taskType: undefined };
-        }));
+        })));
         // 同时通知父组件
         if (onTaskUpdate) {
           onTaskUpdate(currentDraggedTask.id, { taskType: undefined });
@@ -1394,10 +1680,10 @@ export function MatrixCalendarView({
     console.log('[矩阵日历] 拖拽设置完成日期:', currentDraggedTask.name, '->', format(finalTargetDate, 'yyyy-MM-dd'));
 
     // 直接更新 viewTasks（立即反映在日历上）
-    setViewTasks(prev => prev.map(t => {
-      if (t.id !== currentDraggedTask.id) return t;
+    setViewTasks(prev => normalizeTasks(prev.map(t => {
+      if (!isSameLogicalTask(t, currentDraggedTask)) return t;
       return { ...t, ...updates };
-    }));
+    })));
 
     // 同时通知父组件同步更新
     if (onTaskUpdate) {
@@ -1436,15 +1722,21 @@ export function MatrixCalendarView({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={pointerWithin}
+      collisionDetection={rectIntersection}
+      modifiers={[restrictDragToCalendarRoot]}
+      autoScroll={false}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="flex flex-col h-full">
+      <div
+        ref={calendarRootRef}
+        className="flex flex-col h-full min-h-0 max-w-full overflow-x-hidden"
+        style={{ contain: 'layout paint size', isolation: 'isolate' }}
+      >
         {/* 月份切换控制 */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-3 mb-4 min-w-0">
+          <div className="flex items-center gap-2 shrink-0">
             <NavButton
               direction="prev"
               onClick={handlePrevMonth}
@@ -1459,57 +1751,61 @@ export function MatrixCalendarView({
               本月
             </Button>
           </div>
-          <div className="text-lg font-semibold">
+          <div className="text-lg font-semibold shrink-0">
             {format(currentDate, 'yyyy年 M月', { locale: zhCN })}
           </div>
-          <div className="text-sm text-muted-foreground">
+          <div className="text-sm text-muted-foreground min-w-0 flex-1 text-right">
             {draggedTask ? (
-              <span className="text-blue-600 font-medium">
+              <span className="text-blue-600 font-medium block truncate">
                 🔄 正在移动: {draggedTask.name}
               </span>
             ) : (
-              <span>💡 提示: 拖拽任务卡片移动日期 | 点击休息日设为加班日</span>
+              <span className="block truncate">💡 提示: 拖拽任务卡片移动日期 | 点击休息日设为加班日</span>
             )}
           </div>
         </div>
 
         {/* 拖拽提示条 */}
         {draggedTask && (
-          <div className="mb-2 p-3 bg-blue-50 border border-blue-300 rounded-lg flex items-center justify-between shadow-sm">
-            <span className="text-sm text-blue-700">
+          <div className="mb-2 p-3 bg-blue-50 border border-blue-300 rounded-lg flex items-center justify-between gap-3 min-w-0 shadow-sm">
+            <span className="text-sm text-blue-700 min-w-0 flex-1 truncate">
               正在移动: <strong className="text-blue-900">{draggedTask.name}</strong>
               {draggedTask.projectName && <span className="text-blue-500 ml-1">（{draggedTask.projectName}）</span>}
             </span>
-            <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+            <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded shrink-0">
               放开鼠标放置任务
             </span>
           </div>
         )}
 
-        {/* 未分配任务池 + 周表格 */}
-        <div className="flex gap-2 h-full overflow-hidden">
-          {/* 未分配任务池 */}
-          <UnassignedTaskPool
-            tasks={unassignedTasks}
-            draggedTask={deferredDraggedTask}
-            onTaskClick={handleTaskClick}
-          />
+        {/* 未分配任务池 + 周表格（结构隔离：左右两区不共享横向位移上下文） */}
+        <div className="relative h-full min-h-0 overflow-hidden">
+          {/* 左侧固定层：未分配任务池 */}
+          <div className="absolute inset-y-0 left-0 z-20 w-48">
+            <UnassignedTaskPool
+              tasks={unassignedTasks}
+              draggedTask={draggedTask}
+              onTaskClick={handleTaskClick}
+            />
+          </div>
 
-          {/* 周表格列表 */}
-          <div className="flex-1 overflow-y-auto h-full">
-            {monthWeeks.map((week) => (
-              <WeekTable
-                key={week.weekNumber}
-                weekNumber={week.weekNumber}
-                weekDays={week.days}
-                tasksByDateAndType={tasksByDateAndType}
-                currentMonth={currentDate}
-                draggedTask={deferredDraggedTask}
-                onTaskClick={handleTaskClick}
-                extraWorkDays={extraWorkDays}
-                onToggleExtraWorkDay={toggleExtraWorkDay}
-              />
-            ))}
+          {/* 右侧网格层：给左侧预留 48 + 2 间距（12.5rem + 0.5rem） */}
+          <div className="h-full min-w-0 pl-[13rem]">
+            <div className="h-full overflow-y-auto overflow-x-hidden">
+              {monthWeeks.map((week) => (
+                <WeekTable
+                  key={week.weekNumber}
+                  weekNumber={week.weekNumber}
+                  weekDays={week.days}
+                  tasksByDateAndType={tasksByDateAndType}
+                  currentMonth={currentDate}
+                  draggedTask={deferredDraggedTask}
+                  onTaskClick={handleTaskClick}
+                  extraWorkDays={extraWorkDays}
+                  onToggleExtraWorkDay={toggleExtraWorkDay}
+                />
+              ))}
+            </div>
           </div>
         </div>
 
@@ -1526,12 +1822,6 @@ export function MatrixCalendarView({
         />
       </div>
 
-      {/* 拖拽覆盖层 */}
-      <DragOverlay>
-        {draggedTask ? (
-          <DragOverlayCard task={draggedTask} />
-        ) : null}
-      </DragOverlay>
     </DndContext>
   );
 }
