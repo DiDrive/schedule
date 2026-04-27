@@ -44,6 +44,7 @@ import {
 import { zhCN } from 'date-fns/locale';
 import {
   DndContext,
+  DragOverlay,
   useDraggable,
   useDroppable,
   DragEndEvent,
@@ -747,6 +748,9 @@ function getTaskUniqueKey(task: Task): string {
   const recordKey = normalizeKeyPart(task.feishuRecordId);
   if (recordKey) return `record:${recordKey}`;
 
+  const idKey = normalizeKeyPart(task.id);
+  if (idKey) return `id:${idKey}`;
+
   const displayKey = getTaskDisplayKey(task);
   if (displayKey) return `biz:${displayKey}`;
 
@@ -812,33 +816,12 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
-  const [dragFixedRect, setDragFixedRect] = useState<{
-    left: number;
-    top: number;
-    width: number;
-    height: number;
-  } | null>(null);
   const { setNodeRef, isOver } = useDroppable({
     id: 'unassigned-task-pool',
     data: {
       isTaskPool: true,
     },
   });
-
-  useEffect(() => {
-    if (!draggedTask) {
-      setDragFixedRect(null);
-      return;
-    }
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    setDragFixedRect({
-      left: rect.left,
-      top: rect.top,
-      width: rect.width,
-      height: rect.height,
-    });
-  }, [draggedTask]);
 
   useEffect(() => {
     if (!draggedTask) return;
@@ -873,16 +856,6 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
         style={{
           touchAction: 'pan-y',
           contain: 'layout paint size',
-          ...(dragFixedRect
-            ? {
-                position: 'fixed',
-                left: `${dragFixedRect.left}px`,
-                top: `${dragFixedRect.top}px`,
-                width: `${dragFixedRect.width}px`,
-                height: `${dragFixedRect.height}px`,
-                zIndex: 60,
-              }
-            : {}),
         }}
         onWheelCapture={(e) => {
           if (Math.abs(e.deltaX) > 0) {
@@ -1841,7 +1814,22 @@ export function MatrixCalendarView({
           projects={projects}
         />
       </div>
-
+      <DragOverlay>
+        {draggedTask ? (
+          <div
+            className="px-2 py-1 rounded text-xs border shadow-lg bg-white/95 border-blue-300 text-slate-800 max-w-64"
+            style={{ pointerEvents: 'none' }}
+          >
+            <div className="flex items-center gap-1">
+              <GripVertical className="h-3 w-3 text-slate-400 flex-shrink-0" />
+              <span className="truncate">
+                {draggedTask.projectName ? `【${draggedTask.projectName}】` : ''}
+                {draggedTask.name}
+              </span>
+            </div>
+          </div>
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }

@@ -87,6 +87,17 @@ const formatDate = (date: Date | string): string => {
   return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
 };
 
+const toISOStringSafe = (date: Date | string | undefined | null): string | undefined => {
+  if (!date) return undefined;
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return undefined;
+  return d.toISOString();
+};
+
+const toISOStringOrEmpty = (date: Date | string | undefined | null): string => {
+  return toISOStringSafe(date) || '';
+};
+
 function mapTaskToDbTask(task: Task) {
   return {
     id: task.id,
@@ -94,14 +105,14 @@ function mapTaskToDbTask(task: Task) {
     description: task.description,
     estimated_hours: task.estimatedHours,
     assigned_resources: task.assignedResources,
-    deadline: task.deadline?.toISOString(),
+    deadline: toISOStringSafe(task.deadline),
     priority: task.priority,
     status: task.status,
     task_type: task.taskType,
     project_id: task.projectId,
     project_name: task.projectName,
-    start_date: task.startDate?.toISOString(),
-    end_date: task.endDate?.toISOString(),
+    start_date: toISOStringSafe(task.startDate),
+    end_date: toISOStringSafe(task.endDate),
     category: task.category,
     sub_type: task.subType,
     language: task.language,
@@ -1868,13 +1879,13 @@ export default function ComplexScenario() {
             projectName: project?.name || '',
             assignedResourceId: task.assignedResources[0] || '',
             assignedResourceName: resource?.name || '',
-            startDate: task.startDate ? task.startDate.toISOString() : '',
-            endDate: task.endDate ? task.endDate.toISOString() : '',
+            startDate: toISOStringOrEmpty(task.startDate),
+            endDate: toISOStringOrEmpty(task.endDate),
             estimatedHours: task.estimatedHours,
             estimatedHoursGraphic: originalTask?.estimatedHoursGraphic,
             estimatedHoursPost: originalTask?.estimatedHoursPost,
             subTaskDependencyMode: originalTask?.subTaskDependencyMode,
-            suggestedDeadline: task.suggestedDeadline ? task.suggestedDeadline.toISOString() : undefined,
+            suggestedDeadline: toISOStringSafe(task.suggestedDeadline),
             status: task.status,
             priority: task.priority,
             taskType: task.taskType || '',
@@ -2360,8 +2371,8 @@ export default function ComplexScenario() {
           assignedResourceId: task.assignedResources[0] || '',
           assignedResourceName: resource?.name || '',
           // 排期信息
-          startDate: task.startDate ? task.startDate.toISOString() : '',
-          endDate: task.endDate ? task.endDate.toISOString() : '',
+          startDate: toISOStringOrEmpty(task.startDate),
+          endDate: toISOStringOrEmpty(task.endDate),
           estimatedHours: task.estimatedHours,
           estimatedHoursGraphic: task.estimatedHoursGraphic || 0,
           estimatedHoursPost: task.estimatedHoursPost || 0,
@@ -2375,8 +2386,8 @@ export default function ComplexScenario() {
           subType: task.subType || '',
           language: task.language || '',
           // 截止日期
-          deadline: task.deadline ? task.deadline.toISOString() : '',
-          suggestedDeadline: task.suggestedDeadline ? task.suggestedDeadline.toISOString() : '',
+          deadline: toISOStringOrEmpty(task.deadline),
+          suggestedDeadline: toISOStringOrEmpty(task.suggestedDeadline),
           // 父任务名称
           parentTaskName: '',
         };
