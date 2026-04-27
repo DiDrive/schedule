@@ -748,6 +748,9 @@ function getTaskUniqueKey(task: Task): string {
   const recordKey = normalizeKeyPart(task.feishuRecordId);
   if (recordKey) return `record:${recordKey}`;
 
+  const idKey = normalizeKeyPart(task.id);
+  if (idKey) return `id:${idKey}`;
+
   const displayKey = getTaskDisplayKey(task);
   if (displayKey) return `biz:${displayKey}`;
 
