@@ -63,6 +63,10 @@ function getTaskDisplayKey(task: Task): string {
 }
 
 function getTaskUniqueKey(task: Task): string {
+  const recordKey = normalizeKeyPart(task.feishuRecordId);
+  if (recordKey) return `record:${recordKey}`;
+  const idKey = normalizeKeyPart(task.id);
+  if (idKey) return `id:${idKey}`;
   const displayKey = getTaskDisplayKey(task);
   if (displayKey) return `biz:${displayKey}`;
   return `id:${task.id}`;
@@ -179,8 +183,9 @@ export default function ViewPage() {
       if (showLoading) setIsLoading(true);
       const data = await loadAllData();
 
-      // 转换任务
-      const convertedTasks: Task[] = data.tasks.map(dbTask => ({
+      // 同时读取排期任务 + 矩阵任务，员工页展示以最新去重结果为准
+      const allDbTasks = [...(data.tasks || []), ...(data.matrixTasks || [])];
+      const convertedTasks: Task[] = allDbTasks.map(dbTask => ({
         id: dbTask.id,
         name: dbTask.name,
         description: dbTask.description || '',
@@ -200,6 +205,9 @@ export default function ViewPage() {
         dubbing: dbTask.dubbing,
         contactPerson: dbTask.contact_person,
         businessMonth: dbTask.business_month,
+        feishuRecordId: dbTask.feishu_record_id,
+        taskSource: dbTask.task_source === 'matrix_view' ? 'matrix_view' : 'schedule',
+        sourceViewId: dbTask.source_view_id,
       }));
       setTasks(normalizeTasks(convertedTasks));
 

@@ -59,11 +59,11 @@ except Exception as e:
 function getSupabaseCredentials(): SupabaseCredentials {
   loadEnv();
 
-  const url = process.env.COZE_SUPABASE_URL;
-  const anonKey = process.env.COZE_SUPABASE_ANON_KEY;
+  const url = process.env.COZE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.COZE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !anonKey) {
-    throw new Error('Supabase environment variables are not configured. Please ensure Supabase service is enabled.');
+    throw new Error('Supabase environment variables are not configured. Set COZE_SUPABASE_* or NEXT_PUBLIC_SUPABASE_*.');
   }
 
   return { url, anonKey };
