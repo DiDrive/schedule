@@ -92,6 +92,8 @@ export interface Task {
   fixedResourceIdPost?: string; // 指定的后期负责人ID
   
   feishuRecordId?: string; // 飞书记录ID（用于同步时更新记录）
+  taskSource?: 'schedule' | 'matrix_view'; // 任务来源
+  sourceViewId?: string; // 来源视图ID（矩阵视图专用）
 
   // 排期结果（精确到小时）
   startDate?: Date;

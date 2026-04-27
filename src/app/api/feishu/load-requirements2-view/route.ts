@@ -295,6 +295,8 @@ export async function GET(request: NextRequest) {
         language: parseStringField(fields['语言'], ''),
         dubbing: parseStringField(fields['配音'], ''),
         contactPerson: parseStringField(fields['对接人'], ''),
+        taskSource: 'matrix_view',
+        sourceViewId: viewId,
       };
     });
 

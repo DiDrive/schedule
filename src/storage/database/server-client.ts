@@ -144,9 +144,14 @@ export async function getAllData() {
       ? null
       : rawScheduleResult || null;
 
+  const allTasks = (tasksResult.data || []) as Array<Record<string, unknown>>;
+  const scheduleTasks = allTasks.filter((task) => task.task_source !== 'matrix_view');
+  const matrixTasks = allTasks.filter((task) => task.task_source === 'matrix_view');
+
   return {
     resources: resourcesResult.data,
-    tasks: tasksResult.data,
+    tasks: scheduleTasks,
+    matrixTasks,
     projects,
     scheduleResult,
     calendarExtraWorkDays: (calendarExtraWorkDaysResult.data?.config_value as string[]) || [],
@@ -271,6 +276,10 @@ function normalizeTaskRecord(task: Record<string, unknown>): Record<string, unkn
     } else {
       normalized.estimated_hours = 0;
     }
+  }
+
+  if (!normalized.task_source) {
+    normalized.task_source = 'schedule';
   }
 
   return normalized;

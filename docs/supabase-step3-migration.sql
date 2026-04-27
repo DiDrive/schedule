@@ -52,3 +52,16 @@ where config_key = 'schedule_result'
 on conflict (id) do update set
   result = excluded.result,
   updated_at = now();
+
+-- 5) tasks 表按来源分层（矩阵视图 / 排期主任务）
+alter table if exists public.tasks
+  add column if not exists task_source varchar(30) default 'schedule',
+  add column if not exists source_view_id varchar(100);
+
+create index if not exists tasks_task_source_idx on public.tasks(task_source);
+create index if not exists tasks_source_view_id_idx on public.tasks(source_view_id);
+
+-- 矩阵视图任务以飞书记录ID去重（同一来源+同一视图下唯一）
+create unique index if not exists tasks_matrix_view_record_unique_idx
+  on public.tasks(task_source, source_view_id, feishu_record_id)
+  where task_source = 'matrix_view' and feishu_record_id is not null;

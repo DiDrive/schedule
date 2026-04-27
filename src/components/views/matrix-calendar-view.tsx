@@ -185,7 +185,8 @@ interface MatrixCalendarViewProps {
   resources: Resource[];
   tasks: Task[];
   onTaskClick?: (task: Task) => void;
-  onTaskUpdate?: (taskId: string, updates: Partial<Task>) => void;
+  onTaskUpdate?: (taskId: string, updates: Partial<Task>, sourceTask?: Task) => void;
+  onViewTasksLoaded?: (viewTasks: Task[]) => void;
   feishuConfig?: {
     appId: string;
     appSecret: string;
@@ -858,7 +859,7 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
   }, [draggedTask]);
 
   return (
-    <div className="w-48 min-w-48 max-w-48 shrink-0">
+    <div className="w-48 min-w-48 max-w-48 shrink-0 h-full">
       <div
         ref={(node) => {
           setNodeRef(node);
@@ -866,7 +867,7 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
         }}
         className={`
           w-48 min-w-48 max-w-48 shrink-0 bg-slate-50 border-r-2 border-dashed border-slate-400
-          rounded-lg flex flex-col overflow-hidden
+          rounded-lg flex flex-col overflow-hidden h-full
           ${isOver && draggedTask?.taskType ? 'bg-green-50 border-green-400' : ''}
         `}
         style={{
@@ -1236,9 +1237,10 @@ export function MatrixCalendarView({
   tasks,
   onTaskUpdate,
   feishuConfig,
+  onViewTasksLoaded,
   taskTypeFilter = 'all',
   resourceFilter = 'all',
-}: MatrixCalendarViewProps) {
+}: MatrixCalendarViewProps): React.JSX.Element {
   const calendarRootRef = useRef<HTMLDivElement | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -1308,8 +1310,17 @@ export function MatrixCalendarView({
 
       if (data.success) {
         console.log('[矩阵日历] 视图数据加载成功:', data.tasks.length, '个任务');
+        const sourceStampedTasks: Task[] = normalizeTasks(
+          (data.tasks as Task[]).map((task) => ({
+            ...task,
+            taskSource: 'matrix_view',
+            sourceViewId: config.viewId,
+          }))
+        );
         // 使用任务主状态覆盖视图快照字段，避免拖拽更新在切页后被飞书视图数据覆盖
-        setViewTasks(mergeViewTasksWithLocalState(data.tasks, tasks));
+        const mergedViewTasks = mergeViewTasksWithLocalState(sourceStampedTasks, tasks);
+        setViewTasks(mergedViewTasks);
+        onViewTasksLoaded?.(mergedViewTasks);
         lastTaskCountRef.current = data.tasks.length;
       } else {
         throw new Error(data.error || '加载视图数据失败');
@@ -1320,12 +1331,13 @@ export function MatrixCalendarView({
     } finally {
       setViewLoading(false);
     }
-  }, [tasks]);
+  }, [tasks, onViewTasksLoaded]);
 
   // 加载视图数据函数（供外部按钮调用）
   const loadViewData = useCallback(async () => {
     if (!feishuConfig?.viewId) {
-      setViewTasks(normalizeTasks(tasks));
+      setViewTasks([]);
+      setViewError('未配置矩阵视图ID（requirements2Matrix），已停止回退全量任务数据');
       return;
     }
     await fetchAndSetViewTasks(feishuConfig);
@@ -1338,7 +1350,8 @@ export function MatrixCalendarView({
     const prevCount = lastTaskCountRef.current;
     
     if (!currentFeishuConfig?.viewId) {
-      setViewTasks(normalizeTasks(tasks));
+      setViewTasks([]);
+      setViewError('未配置矩阵视图ID（requirements2Matrix），矩阵日历仅支持视图数据源');
       return;
     }
 
@@ -1553,23 +1566,36 @@ export function MatrixCalendarView({
     return Array.from(projectMap.values());
   }, [filteredViewTasks]);
 
+  const resolveTaskDate = useCallback((task: Task): Date | undefined => {
+    if (task.endDate) return new Date(task.endDate);
+    if (task.startDate) return new Date(task.startDate);
+    if (task.deadline) return new Date(task.deadline);
+    return undefined;
+  }, []);
+
   // 获取所有未分配类型的任务（用于任务池）- 使用视图数据
   const unassignedTasks = useMemo(() => {
-    const assignedDisplayKeys = new Set(
-      filteredViewTasks
-        .filter(task => Boolean(task.taskType))
-        .map(task => getTaskDisplayKey(task))
-    );
-
     const candidates = filteredViewTasks.filter(task => {
-      if (task.taskType) return false;
-      const displayKey = getTaskDisplayKey(task);
-      return !displayKey || !assignedDisplayKeys.has(displayKey);
+      const taskDate = resolveTaskDate(task);
+      const canDisplayInMatrixGrid =
+        Boolean(task.taskType) &&
+        Boolean(taskDate) &&
+        Boolean(taskDate && isWorkingDay(taskDate, extraWorkDays));
+      // 只要该任务不能进矩阵格子，就放进未分配池
+      return !canDisplayInMatrixGrid;
     });
 
-    // 显示层再兜底去重，避免同一业务任务在未分配栏重复出现
-    return normalizeTasks(candidates);
-  }, [filteredViewTasks]);
+    // 未排期栏使用精确键去重，避免“同名同月”误杀
+    const uniqueMap = new Map<string, Task>();
+    for (const task of candidates) {
+      const recordKey = normalizeKeyPart(task.feishuRecordId);
+      const exactKey = recordKey ? `record:${recordKey}` : `id:${task.id}`;
+      if (!uniqueMap.has(exactKey)) {
+        uniqueMap.set(exactKey, task);
+      }
+    }
+    return Array.from(uniqueMap.values());
+  }, [filteredViewTasks, resolveTaskDate, extraWorkDays]);
 
   // 按日期和类型分组任务
   // 对于视图数据：有deadline的任务按deadline显示，没有日期的显示在任务池
@@ -1586,14 +1612,7 @@ export function MatrixCalendarView({
       if (!task.taskType) continue;
 
       // 确定任务日期：优先使用 endDate/startDate，否则使用 deadline
-      let taskDate: Date | undefined;
-      if (task.endDate) {
-        taskDate = new Date(task.endDate);
-      } else if (task.startDate) {
-        taskDate = new Date(task.startDate);
-      } else if (task.deadline) {
-        taskDate = new Date(task.deadline);
-      }
+      const taskDate = resolveTaskDate(task);
 
       if (!taskDate) continue;
 
@@ -1611,7 +1630,7 @@ export function MatrixCalendarView({
     }
 
     return grouped;
-  }, [filteredViewTasks, extraWorkDays]);
+  }, [filteredViewTasks, extraWorkDays, resolveTaskDate]);
 
   // 拖拽开始
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -1650,7 +1669,7 @@ export function MatrixCalendarView({
         })));
         // 同时通知父组件
         if (onTaskUpdate) {
-          onTaskUpdate(currentDraggedTask.id, { taskType: undefined });
+          onTaskUpdate(currentDraggedTask.id, { taskType: undefined }, currentDraggedTask);
         }
       }
       return;
@@ -1687,7 +1706,7 @@ export function MatrixCalendarView({
 
     // 同时通知父组件同步更新
     if (onTaskUpdate) {
-      onTaskUpdate(currentDraggedTask.id, updates);
+      onTaskUpdate(currentDraggedTask.id, updates, currentDraggedTask);
     }
   }, [onTaskUpdate, extraWorkDays]);
 
@@ -1711,9 +1730,10 @@ export function MatrixCalendarView({
     
     // 同时通知父组件同步更新
     if (onTaskUpdate) {
-      onTaskUpdate(taskId, updates);
+      const sourceTask = viewTasks.find(t => t.id === taskId);
+      onTaskUpdate(taskId, updates, sourceTask);
     }
-  }, [onTaskUpdate]);
+  }, [onTaskUpdate, viewTasks]);
 
   const handlePrevMonth = () => setCurrentDate(prev => subMonths(prev, 1));
   const handleNextMonth = () => setCurrentDate(prev => addMonths(prev, 1));
@@ -1778,10 +1798,10 @@ export function MatrixCalendarView({
           </div>
         )}
 
-        {/* 未分配任务池 + 周表格（结构隔离：左右两区不共享横向位移上下文） */}
-        <div className="relative h-full min-h-0 overflow-hidden">
-          {/* 左侧固定层：未分配任务池 */}
-          <div className="absolute inset-y-0 left-0 z-20 w-48">
+        {/* 未分配任务池 + 周表格 */}
+        <div className="h-full min-h-0 overflow-hidden flex gap-2">
+          {/* 左侧未分配任务池 */}
+          <div className="w-48 min-w-48 max-w-48 shrink-0 h-full">
             <UnassignedTaskPool
               tasks={unassignedTasks}
               draggedTask={draggedTask}
@@ -1789,8 +1809,8 @@ export function MatrixCalendarView({
             />
           </div>
 
-          {/* 右侧网格层：给左侧预留 48 + 2 间距（12.5rem + 0.5rem） */}
-          <div className="h-full min-w-0 pl-[13rem]">
+          {/* 右侧周表格 */}
+          <div className="h-full min-w-0 flex-1">
             <div className="h-full overflow-y-auto overflow-x-hidden">
               {monthWeeks.map((week) => (
                 <WeekTable
