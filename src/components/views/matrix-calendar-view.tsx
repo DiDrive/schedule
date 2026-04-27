@@ -711,10 +711,13 @@ function mergeViewTasksWithLocalState(viewTasks: Task[], localTasks: Task[]): Ta
   const mergedViewTasks = normalizeTasks(viewTasks);
   const normalizedLocalTasks = normalizeTasks(localTasks);
   const localTaskMap = new Map(normalizedLocalTasks.map((task) => [getTaskMergeKey(task), task]));
+  const matchedKeys = new Set<string>();
 
-  return normalizeTasks(mergedViewTasks.map((viewTask) => {
-    const localTask = localTaskMap.get(getTaskMergeKey(viewTask));
+  const mergedFromView = mergedViewTasks.map((viewTask) => {
+    const mergeKey = getTaskMergeKey(viewTask);
+    const localTask = localTaskMap.get(mergeKey);
     if (!localTask) return viewTask;
+    matchedKeys.add(mergeKey);
     return {
       ...viewTask,
       taskType: localTask.taskType,
@@ -725,7 +728,12 @@ function mergeViewTasksWithLocalState(viewTasks: Task[], localTasks: Task[]): Ta
       assignedResources: localTask.assignedResources,
       fixedResourceId: localTask.fixedResourceId,
     };
-  }));
+  });
+
+  // 飞书重导有时只返回子集，这里保留未命中的本地矩阵任务，避免“排期被清空”
+  const preservedLocalTasks = normalizedLocalTasks.filter((task) => !matchedKeys.has(getTaskMergeKey(task)));
+
+  return normalizeTasks([...mergedFromView, ...preservedLocalTasks]);
 }
 
 function normalizeKeyPart(value?: string): string {

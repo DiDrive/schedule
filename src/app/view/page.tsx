@@ -5,6 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { ChevronLeft, ChevronRight, Calendar, Grid3X3 } from 'lucide-react';
 import {
   format,
@@ -136,8 +142,12 @@ function NavButton({
 // 任务卡片（只读，无拖拽）
 const ReadonlyTaskCard = memo(function ReadonlyTaskCard({
   task,
+  ownerNames,
+  onClick,
 }: {
   task: Task;
+  ownerNames: string;
+  onClick: () => void;
 }) {
   const getTypeStyle = () => {
     switch (task.taskType) {
@@ -153,18 +163,65 @@ const ReadonlyTaskCard = memo(function ReadonlyTaskCard({
   };
 
   const isCompleted = task.status === 'completed';
+  const projectPrefix = task.projectName ? `【${task.projectName}】` : '';
+  const tooltipLines = [
+    `${projectPrefix}${task.name}`,
+    `负责人: ${ownerNames || '-'}`,
+    `类目: ${task.category || '-'}`,
+    `语言: ${task.language || '-'}`,
+    `细分: ${task.subType || '-'}`,
+    '点击查看详情',
+  ];
 
   return (
     <div
+      onClick={onClick}
       className={`
-        px-1 py-0.5 rounded text-xs border cursor-default
+        px-1 py-0.5 rounded text-xs border cursor-pointer
         ${getTypeStyle()}
-        ${isCompleted ? 'opacity-60 line-through' : ''}
+        ${isCompleted ? 'opacity-60 line-through' : 'hover:shadow-sm'}
       `}
-      title={`${task.name}${task.endDate ? '\n完成日期: ' + format(new Date(task.endDate), 'yyyy-MM-dd') : ''}`}
+      title={tooltipLines.join('\n')}
     >
       <span className="truncate block">{task.name}</span>
     </div>
+  );
+});
+
+const TaskReadonlyDialog = memo(function TaskReadonlyDialog({
+  task,
+  ownerNames,
+  open,
+  onClose,
+}: {
+  task: Task | null;
+  ownerNames: string;
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!task) return null;
+
+  const dateText = task.endDate || task.startDate || task.deadline
+    ? format(new Date(task.endDate || task.startDate || task.deadline as Date | string), 'yyyy-MM-dd')
+    : '-';
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>{task.name}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2 text-sm">
+          <div><span className="text-slate-500">负责人：</span><span className="font-semibold text-amber-700">{ownerNames || '-'}</span></div>
+          <div><span className="text-slate-500">类目：</span>{task.category || '-'}</div>
+          <div><span className="text-slate-500">语言：</span>{task.language || '-'}</div>
+          <div><span className="text-slate-500">细分：</span>{task.subType || '-'}</div>
+          <div><span className="text-slate-500">项目：</span>{task.projectName || '-'}</div>
+          <div><span className="text-slate-500">日期：</span>{dateText}</div>
+          <div><span className="text-slate-500">描述：</span>{task.description || '-'}</div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 });
 
@@ -175,8 +232,11 @@ export default function ViewPage() {
   const [extraWorkDays, setExtraWorkDays] = useState<Set<string>>(new Set());
   const [taskTypeFilter, setTaskTypeFilter] = useState<'all' | '脚本' | '平面' | '后期'>('all');
   const [resourceFilter, setResourceFilter] = useState<string>('all');
+  const [tableMode, setTableMode] = useState<'type' | 'resource'>('type');
   const [isLoading, setIsLoading] = useState(true);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
 
   const loadData = useCallback(async (showLoading: boolean) => {
     try {
@@ -315,6 +375,37 @@ export default function ViewPage() {
     return grouped;
   }, [filteredTasks, extraWorkDays]);
 
+  const resourceNameMap = useMemo(() => {
+    return new Map(resources.map((r) => [r.id, r.name]));
+  }, [resources]);
+
+  const getTaskOwnerNames = useCallback((task: Task) => {
+    const owners = (task.assignedResources || []).map((id) => resourceNameMap.get(id) || id).filter(Boolean);
+    return owners.length ? owners.join('、') : '-';
+  }, [resourceNameMap]);
+
+  const displayResources = useMemo(() => {
+    const humans = resources.filter((r) => r.type === 'human');
+    return resourceFilter === 'all' ? humans : humans.filter((r) => r.id === resourceFilter);
+  }, [resources, resourceFilter]);
+
+  const tasksByDateAndResource = useMemo(() => {
+    const grouped: Record<string, Task[]> = Object.create(null);
+    for (const task of filteredTasks) {
+      const taskDate = getTaskDate(task);
+      if (!taskDate) continue;
+      if (!isWorkingDay(taskDate, extraWorkDays)) continue;
+      const dateKey = format(taskDate, 'yyyy-MM-dd');
+      const assigned = task.assignedResources || [];
+      for (const resourceId of assigned) {
+        const key = `${dateKey}-${resourceId}`;
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(task);
+      }
+    }
+    return grouped;
+  }, [filteredTasks, extraWorkDays]);
+
   // 仅统计“当前月份、可在矩阵中实际展示”的任务数量
   const currentMonthMatrixTaskCount = useMemo(() => {
     const uniqueKeys = new Set<string>();
@@ -373,6 +464,14 @@ export default function ViewPage() {
 
               {/* 筛选 */}
               <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Button variant={tableMode === 'type' ? 'default' : 'outline'} size="sm" onClick={() => setTableMode('type')}>
+                    按类型
+                  </Button>
+                  <Button variant={tableMode === 'resource' ? 'default' : 'outline'} size="sm" onClick={() => setTableMode('resource')}>
+                    按负责人
+                  </Button>
+                </div>
                 <Button variant="outline" size="sm" onClick={() => loadData(false)}>
                   立即刷新
                 </Button>
@@ -414,7 +513,7 @@ export default function ViewPage() {
 
           <CardContent className="p-0">
             <div>
-              {monthWeeks.map((week) => (
+              {tableMode === 'type' && monthWeeks.map((week) => (
                 <div key={week.weekNumber} className="border-b border-slate-200 last:border-b-0">
                   {/* 每周头部 */}
                   <div className="flex border-b border-slate-200 bg-slate-50/60">
@@ -464,12 +563,80 @@ export default function ViewPage() {
                           >
                             <div className="space-y-1">
                               {cellTasks.slice(0, 3).map((task) => (
-                                <ReadonlyTaskCard key={task.id} task={task} />
+                                <ReadonlyTaskCard
+                                  key={task.id}
+                                  task={task}
+                                  ownerNames={getTaskOwnerNames(task)}
+                                  onClick={() => {
+                                    setSelectedTask(task);
+                                    setTaskDialogOpen(true);
+                                  }}
+                                />
                               ))}
                               {cellTasks.length > 3 && (
                                 <div className="text-xs text-slate-500 text-center">
                                   +{cellTasks.length - 3} 更多
                                 </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              ))}
+              {tableMode === 'resource' && monthWeeks.map((week) => (
+                <div key={`res-${week.weekNumber}`} className="border-b border-slate-200 last:border-b-0">
+                  <div className="flex border-b border-slate-200 bg-slate-50/60">
+                    <div className="w-24 min-w-24 p-2 border-r border-slate-300 text-center text-xs font-medium text-slate-600">
+                      第{week.weekNumber}周
+                    </div>
+                    {week.days.map((day, idx) => {
+                      const isToday = isSameDay(day, new Date());
+                      return (
+                        <div key={idx} className={`flex-1 min-w-24 p-2 border-r last:border-r-0 border-slate-300 text-center ${isToday ? 'bg-blue-50' : ''}`}>
+                          <div className="text-xs text-slate-500">{format(day, 'E', { locale: zhCN })}</div>
+                          <div className={`font-medium text-sm ${isToday ? 'text-blue-600' : ''}`}>{format(day, 'M.d')}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {displayResources.map((resource) => (
+                    <div key={resource.id} className="flex border-b last:border-b-0 border-slate-200">
+                      <div className="w-24 min-w-24 p-2 border-r border-slate-300 text-center font-medium text-sm bg-amber-50 truncate" title={resource.name}>
+                        {resource.name}
+                      </div>
+                      {week.days.map((day, dayIdx) => {
+                        const dateKey = format(day, 'yyyy-MM-dd');
+                        const cellTasks = tasksByDateAndResource[`${dateKey}-${resource.id}`] || [];
+                        const isInMonth = isSameMonth(day, currentDate);
+                        const isToday = isSameDay(day, new Date());
+                        const isWorkDay = isWorkingDay(day, extraWorkDays);
+                        return (
+                          <div
+                            key={dayIdx}
+                            className={`
+                              flex-1 min-w-24 min-h-[80px] p-1 border-r last:border-r-0 border-slate-300
+                              ${isToday ? 'bg-blue-50' : !isWorkDay ? 'bg-slate-50' : ''}
+                              ${!isInMonth ? 'opacity-40' : ''}
+                            `}
+                          >
+                            <div className="space-y-1">
+                              {cellTasks.slice(0, 3).map((task) => (
+                                <ReadonlyTaskCard
+                                  key={`${task.id}-${resource.id}`}
+                                  task={task}
+                                  ownerNames={getTaskOwnerNames(task)}
+                                  onClick={() => {
+                                    setSelectedTask(task);
+                                    setTaskDialogOpen(true);
+                                  }}
+                                />
+                              ))}
+                              {cellTasks.length > 3 && (
+                                <div className="text-xs text-slate-500 text-center">+{cellTasks.length - 3} 更多</div>
                               )}
                             </div>
                           </div>
@@ -492,6 +659,12 @@ export default function ViewPage() {
             </div>
           </CardContent>
         </Card>
+        <TaskReadonlyDialog
+          task={selectedTask}
+          ownerNames={selectedTask ? getTaskOwnerNames(selectedTask) : '-'}
+          open={taskDialogOpen}
+          onClose={() => setTaskDialogOpen(false)}
+        />
       </div>
     </div>
   );
