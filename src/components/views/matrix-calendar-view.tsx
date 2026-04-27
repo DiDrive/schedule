@@ -710,10 +710,10 @@ function getCompletedTypeStyle(taskType?: ResourceWorkType): string {
 function mergeViewTasksWithLocalState(viewTasks: Task[], localTasks: Task[]): Task[] {
   const mergedViewTasks = normalizeTasks(viewTasks);
   const normalizedLocalTasks = normalizeTasks(localTasks);
-  const localTaskMap = new Map(normalizedLocalTasks.map((task) => [getTaskUniqueKey(task), task]));
+  const localTaskMap = new Map(normalizedLocalTasks.map((task) => [getTaskMergeKey(task), task]));
 
   return normalizeTasks(mergedViewTasks.map((viewTask) => {
-    const localTask = localTaskMap.get(getTaskUniqueKey(viewTask));
+    const localTask = localTaskMap.get(getTaskMergeKey(viewTask));
     if (!localTask) return viewTask;
     return {
       ...viewTask,
@@ -742,6 +742,17 @@ function getTaskDisplayKey(task: Task): string {
 
 function getTaskBusinessFingerprint(task: Task): string {
   return getTaskDisplayKey(task);
+}
+
+// 合并飞书重载数据时优先按 record，其次按业务键，最后按 id，避免重导后 id 变化导致排期丢失
+function getTaskMergeKey(task: Task): string {
+  const recordKey = normalizeKeyPart(task.feishuRecordId);
+  if (recordKey) return `record:${recordKey}`;
+
+  const displayKey = getTaskDisplayKey(task);
+  if (displayKey) return `biz:${displayKey}`;
+
+  return `id:${normalizeKeyPart(task.id)}`;
 }
 
 function getTaskUniqueKey(task: Task): string {
@@ -929,6 +940,14 @@ const DraggableTaskCard = memo(function DraggableTaskCard({
   const isCompleted = task.status === 'completed';
   const projectPrefix = task.projectName ? `【${task.projectName}】` : '';
   const displayName = projectPrefix + task.name;
+  const tooltipLines = [
+    displayName,
+    `类目: ${task.category || '-'}`,
+    `细分: ${task.subType || '-'}`,
+    `语言: ${task.language || '-'}`,
+    `对接人: ${task.contactPerson || '-'}`,
+    isCompleted ? '✓ 已完成' : '拖拽移动日期',
+  ];
 
   const { attributes, listeners, setNodeRef, isDragging: isBeingDragged } = useDraggable({
     id: `task-${task.id}`,
@@ -957,7 +976,7 @@ const DraggableTaskCard = memo(function DraggableTaskCard({
         ${typeStyle}
         ${isDragging || isBeingDragged ? 'opacity-30 scale-95' : 'hover:shadow-sm'}
       `}
-      title={`${displayName}${isCompleted ? '\n✓ 已完成' : '\n拖拽移动日期'}`}
+      title={tooltipLines.join('\n')}
     >
       <GripVertical className="h-3 w-3 text-slate-400 flex-shrink-0" />
       <span className={`flex-1 min-w-0 block truncate ${isCompleted ? 'line-through text-slate-500' : ''}`}>{displayName}</span>

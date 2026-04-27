@@ -127,9 +127,16 @@ function mapTaskToDbTask(task: Task) {
   };
 }
 
-function getTaskPersistKey(task: Pick<Task, 'id' | 'feishuRecordId'>): string {
+function getTaskPersistKey(task: Pick<Task, 'id' | 'feishuRecordId' | 'name' | 'projectId' | 'projectName' | 'businessMonth'>): string {
   const recordId = (task.feishuRecordId || '').trim();
-  return recordId ? `record:${recordId}` : `id:${task.id}`;
+  if (recordId) return `record:${recordId}`;
+
+  const name = (task.name || '').trim().toLowerCase();
+  const project = (task.projectId || task.projectName || '').trim().toLowerCase();
+  const month = (task.businessMonth || '').trim().toLowerCase();
+  if (name) return `biz:${project}|${name}|${month}`;
+
+  return `id:${task.id}`;
 }
 
 function mapDbTaskToTask(dbTask: any): Task {
