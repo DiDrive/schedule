@@ -828,10 +828,12 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
   tasks,
   draggedTask,
   onTaskClick,
+  getOwnerNames,
 }: {
   tasks: Task[];
   draggedTask: Task | null;
   onTaskClick: (task: Task) => void;
+  getOwnerNames: (task: Task) => string;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -917,6 +919,7 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
             <DraggableTaskCard
               key={getTaskUniqueKey(task)}
               task={task}
+              ownerNames={getOwnerNames(task)}
               onClick={() => onTaskClick(task)}
               isDragging={draggedTask?.id === task.id}
             />
@@ -938,10 +941,12 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
 // 可拖拽的任务卡片组件
 const DraggableTaskCard = memo(function DraggableTaskCard({
   task,
+  ownerNames,
   onClick,
   isDragging,
 }: {
   task: Task;
+  ownerNames: string;
   onClick: () => void;
   isDragging: boolean;
 }) {
@@ -950,6 +955,7 @@ const DraggableTaskCard = memo(function DraggableTaskCard({
   const displayName = projectPrefix + task.name;
   const tooltipLines = [
     displayName,
+    `负责人: ${ownerNames || '-'}`,
     `类目: ${task.category || '-'}`,
     `细分: ${task.subType || '-'}`,
     `语言: ${task.language || '-'}`,
@@ -1000,6 +1006,7 @@ const DroppableCell = memo(function DroppableCell({
   cellTasks,
   draggedTask,
   onTaskClick,
+  getOwnerNames,
   isInMonth,
   extraWorkDays,
   onToggleExtraWorkDay,
@@ -1009,6 +1016,7 @@ const DroppableCell = memo(function DroppableCell({
   cellTasks: Task[];
   draggedTask: Task | null;
   onTaskClick: (task: Task) => void;
+  getOwnerNames: (task: Task) => string;
   isInMonth: boolean;
   extraWorkDays: Set<string>;
   onToggleExtraWorkDay: (date: Date) => void;
@@ -1076,6 +1084,7 @@ const DroppableCell = memo(function DroppableCell({
               <DraggableTaskCard
                 key={task.id}
                 task={task}
+                ownerNames={getOwnerNames(task)}
                 onClick={() => onTaskClick(task)}
                 isDragging={draggedTask?.id === task.id}
               />
@@ -1102,6 +1111,7 @@ const WeekTable = memo(function WeekTable({
   currentMonth,
   draggedTask,
   onTaskClick,
+  getOwnerNames,
   extraWorkDays,
   onToggleExtraWorkDay,
 }: {
@@ -1111,6 +1121,7 @@ const WeekTable = memo(function WeekTable({
   currentMonth: Date;
   draggedTask: Task | null;
   onTaskClick: (task: Task) => void;
+  getOwnerNames: (task: Task) => string;
   extraWorkDays: Set<string>;
   onToggleExtraWorkDay: (date: Date) => void;
 }) {
@@ -1191,6 +1202,7 @@ const WeekTable = memo(function WeekTable({
                   cellTasks={cellTasks}
                   draggedTask={draggedTask}
                   onTaskClick={onTaskClick}
+                  getOwnerNames={getOwnerNames}
                   isInMonth={isInMonth}
                   extraWorkDays={extraWorkDays}
                   onToggleExtraWorkDay={onToggleExtraWorkDay}
@@ -1722,18 +1734,35 @@ export function MatrixCalendarView({
   }, []);
 
   const handleTaskSave = useCallback((taskId: string, updates: Partial<Task>) => {
+    const sourceTask = selectedTask || viewTasks.find(t => t.id === taskId);
+
     // 更新 viewTasks 中的任务
-    setViewTasks(prev => prev.map(t => {
-      if (t.id !== taskId) return t;
-      return { ...t, ...updates } as ExtendedTask;
-    }));
+    let updatedTask: Task | undefined;
+    setViewTasks(prev => normalizeTasks(prev.map(t => {
+      const matchedById = t.id === taskId;
+      const matchedByLogical = sourceTask ? isSameLogicalTask(t, sourceTask) : false;
+      if (!matchedById && !matchedByLogical) return t;
+      updatedTask = { ...t, ...updates } as ExtendedTask;
+      return updatedTask;
+    })));
     
     // 同时通知父组件同步更新
     if (onTaskUpdate) {
-      const sourceTask = viewTasks.find(t => t.id === taskId);
-      onTaskUpdate(taskId, updates, sourceTask);
+      const syncTask = updatedTask || sourceTask;
+      onTaskUpdate(syncTask?.id || taskId, updates, syncTask);
     }
-  }, [onTaskUpdate, viewTasks]);
+  }, [onTaskUpdate, viewTasks, selectedTask]);
+
+  const resourceNameMap = useMemo(() => {
+    return new Map(resources.map((r) => [r.id, r.name]));
+  }, [resources]);
+
+  const getOwnerNames = useCallback((task: Task) => {
+    const owners = (task.assignedResources || [])
+      .map((id) => resourceNameMap.get(id) || id)
+      .filter(Boolean);
+    return owners.length ? owners.join('、') : '-';
+  }, [resourceNameMap]);
 
   const handlePrevMonth = () => setCurrentDate(prev => subMonths(prev, 1));
   const handleNextMonth = () => setCurrentDate(prev => addMonths(prev, 1));
@@ -1806,6 +1835,7 @@ export function MatrixCalendarView({
               tasks={unassignedTasks}
               draggedTask={draggedTask}
               onTaskClick={handleTaskClick}
+              getOwnerNames={getOwnerNames}
             />
           </div>
 
@@ -1821,6 +1851,7 @@ export function MatrixCalendarView({
                   currentMonth={currentDate}
                   draggedTask={deferredDraggedTask}
                   onTaskClick={handleTaskClick}
+                  getOwnerNames={getOwnerNames}
                   extraWorkDays={extraWorkDays}
                   onToggleExtraWorkDay={toggleExtraWorkDay}
                 />
