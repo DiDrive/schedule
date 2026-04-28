@@ -69,6 +69,7 @@ export interface LocalSubTask {
   id: string;
   name: string;
   assignedResourceId?: string; // 负责人 ID
+  taskType?: ResourceWorkType;
   status: 'pending' | 'completed';
 }
 
@@ -219,6 +220,7 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
   const [localSubTasks, setLocalSubTasks] = useState<LocalSubTask[]>([]);
   const [resourceAssignments, setResourceAssignments] = useState<ResourceAssignment[]>([]);
   const [newSubTaskName, setNewSubTaskName] = useState('');
+  const [newSubTaskType, setNewSubTaskType] = useState<ResourceWorkType | 'none'>('none');
 
   const availableResources = useMemo(() => {
     if (!task) return resources.filter(r => r.type === 'human');
@@ -260,12 +262,14 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
       id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       name: newSubTaskName.trim(),
       assignedResourceId: resourceId,
+      taskType: newSubTaskType === 'none' ? undefined : newSubTaskType,
       status: 'pending',
     };
     
     const updatedSubTasks = [...localSubTasks, newSubTask];
     setLocalSubTasks(updatedSubTasks);
     setNewSubTaskName('');
+    setNewSubTaskType('none');
     
     // 如果子任务有负责人，同步到父任务
     if (resourceId) {
@@ -282,7 +286,7 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
         return [...prev, newAssignment];
       });
     }
-  }, [newSubTaskName, localSubTasks]);
+  }, [newSubTaskName, localSubTasks, newSubTaskType]);
 
   // 删除子任务
   const handleDeleteSubTask = useCallback((subTaskId: string) => {
@@ -369,6 +373,16 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
       }
     }
   }, [localSubTasks]);
+
+  const handleUpdateSubTaskType = useCallback((subTaskId: string, newTaskType: ResourceWorkType | undefined) => {
+    setLocalSubTasks(prev =>
+      prev.map(st =>
+        st.id === subTaskId
+          ? { ...st, taskType: newTaskType }
+          : st
+      )
+    );
+  }, []);
 
   // 手动添加负责人
   const handleManualAddResource = useCallback((resourceId: string) => {
@@ -612,6 +626,20 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
                       ))}
                     </SelectContent>
                   </Select>
+                  <Select
+                    value={subTask.taskType || 'none'}
+                    onValueChange={(value) => handleUpdateSubTaskType(subTask.id, value === 'none' ? undefined : value as ResourceWorkType)}
+                  >
+                    <SelectTrigger className="w-24 h-7 text-xs">
+                      <SelectValue placeholder="类型" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">无类型</SelectItem>
+                      <SelectItem value="脚本">脚本</SelectItem>
+                      <SelectItem value="平面">平面</SelectItem>
+                      <SelectItem value="后期">后期</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Button 
                     variant="ghost" 
                     size="sm" 
@@ -637,6 +665,17 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
                     }
                   }}
                 />
+                <Select value={newSubTaskType} onValueChange={(value) => setNewSubTaskType(value as ResourceWorkType | 'none')}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">无类型</SelectItem>
+                    <SelectItem value="脚本">脚本</SelectItem>
+                    <SelectItem value="平面">平面</SelectItem>
+                    <SelectItem value="后期">后期</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button variant="outline" size="sm" onClick={() => handleAddSubTask()}>
                   添加
                 </Button>

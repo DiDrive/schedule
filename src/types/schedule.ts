@@ -123,6 +123,7 @@ export interface Task {
     id: string;
     name: string;
     assignedResourceId?: string;
+    taskType?: ResourceWorkType;
     status: 'pending' | 'completed';
   }>;
   resourceAssignments?: Array<{

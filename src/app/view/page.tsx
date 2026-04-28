@@ -191,11 +191,13 @@ const ReadonlyTaskCard = memo(function ReadonlyTaskCard({
 const TaskReadonlyDialog = memo(function TaskReadonlyDialog({
   task,
   ownerNames,
+  getResourceName,
   open,
   onClose,
 }: {
   task: Task | null;
   ownerNames: string;
+  getResourceName: (id?: string) => string;
   open: boolean;
   onClose: () => void;
 }) {
@@ -211,14 +213,40 @@ const TaskReadonlyDialog = memo(function TaskReadonlyDialog({
         <DialogHeader>
           <DialogTitle>{task.name}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-2 text-sm">
-          <div><span className="text-slate-500">负责人：</span><span className="font-semibold text-amber-700">{ownerNames || '-'}</span></div>
-          <div><span className="text-slate-500">类目：</span>{task.category || '-'}</div>
-          <div><span className="text-slate-500">语言：</span>{task.language || '-'}</div>
-          <div><span className="text-slate-500">细分：</span>{task.subType || '-'}</div>
-          <div><span className="text-slate-500">项目：</span>{task.projectName || '-'}</div>
-          <div><span className="text-slate-500">日期：</span>{dateText}</div>
-          <div><span className="text-slate-500">描述：</span>{task.description || '-'}</div>
+        <div className="space-y-3 text-sm">
+          <div className="rounded-md border bg-amber-50 px-3 py-2">
+            <span className="text-slate-500">负责人：</span>
+            <span className="font-semibold text-amber-700">{ownerNames || '-'}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 rounded-md border bg-slate-50 px-3 py-2">
+            <div><span className="text-slate-500">类目：</span>{task.category || '-'}</div>
+            <div><span className="text-slate-500">语言：</span>{task.language || '-'}</div>
+            <div><span className="text-slate-500">细分：</span>{task.subType || '-'}</div>
+            <div><span className="text-slate-500">项目：</span>{task.projectName || '-'}</div>
+            <div><span className="text-slate-500">日期：</span>{dateText}</div>
+            <div><span className="text-slate-500">状态：</span>{task.status}</div>
+          </div>
+          <div className="rounded-md border bg-white px-3 py-2">
+            <div className="text-slate-500 mb-1">描述</div>
+            <div className="text-slate-700 whitespace-pre-wrap">{task.description || '-'}</div>
+          </div>
+          {Array.isArray(task.localSubTasks) && task.localSubTasks.length > 0 && (
+            <div className="rounded-md border bg-blue-50/50 px-3 py-2">
+              <div className="text-slate-700 font-medium mb-2">子任务</div>
+              <div className="space-y-2">
+                {task.localSubTasks.map((subTask) => (
+                  <div key={subTask.id} className="rounded border bg-white px-2 py-1.5 text-xs">
+                    <div className="font-medium text-slate-800">{subTask.name}</div>
+                    <div className="text-slate-600 mt-1">
+                      负责人：<span className="font-semibold text-amber-700">{getResourceName(subTask.assignedResourceId)}</span>
+                      {' | '}类型：{subTask.taskType || '-'}
+                      {' | '}状态：{subTask.status === 'completed' ? '已完成' : '待处理'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -265,6 +293,8 @@ export default function ViewPage() {
         dubbing: dbTask.dubbing,
         contactPerson: dbTask.contact_person,
         businessMonth: dbTask.business_month,
+        localSubTasks: (dbTask.local_sub_tasks as Task['localSubTasks']) || [],
+        resourceAssignments: (dbTask.resource_assignments as Task['resourceAssignments']) || [],
         feishuRecordId: dbTask.feishu_record_id,
         taskSource: dbTask.task_source === 'matrix_view' ? 'matrix_view' : 'schedule',
         sourceViewId: dbTask.source_view_id,
@@ -384,14 +414,54 @@ export default function ViewPage() {
     return owners.length ? owners.join('、') : '-';
   }, [resourceNameMap]);
 
+  const getResourceName = useCallback((resourceId?: string) => {
+    if (!resourceId) return '-';
+    return resourceNameMap.get(resourceId) || resourceId;
+  }, [resourceNameMap]);
+
   const displayResources = useMemo(() => {
     const humans = resources.filter((r) => r.type === 'human');
     return resourceFilter === 'all' ? humans : humans.filter((r) => r.id === resourceFilter);
   }, [resources, resourceFilter]);
 
+  const tasksForResourceMatrix = useMemo(() => {
+    const expanded: Task[] = [];
+    for (const task of filteredTasks) {
+      const subTasksWithOwner = (task.localSubTasks || []).filter((st) => Boolean(st.assignedResourceId));
+      if (subTasksWithOwner.length === 0) {
+        expanded.push(task);
+        continue;
+      }
+
+      const coveredOwners = new Set<string>();
+      for (const subTask of subTasksWithOwner) {
+        const ownerId = subTask.assignedResourceId as string;
+        coveredOwners.add(ownerId);
+        expanded.push({
+          ...task,
+          id: `${task.id}::sub::${subTask.id}`,
+          name: `${task.name} - ${subTask.name}`,
+          assignedResources: [ownerId],
+          taskType: subTask.taskType || task.taskType,
+          status: subTask.status === 'completed' ? 'completed' : task.status,
+        });
+      }
+
+      const parentOwners = (task.assignedResources || []).filter((id) => !coveredOwners.has(id));
+      for (const ownerId of parentOwners) {
+        expanded.push({
+          ...task,
+          id: `${task.id}::parent::${ownerId}`,
+          assignedResources: [ownerId],
+        });
+      }
+    }
+    return expanded;
+  }, [filteredTasks]);
+
   const tasksByDateAndResource = useMemo(() => {
     const grouped: Record<string, Task[]> = Object.create(null);
-    for (const task of filteredTasks) {
+    for (const task of tasksForResourceMatrix) {
       const taskDate = getTaskDate(task);
       if (!taskDate) continue;
       if (!isWorkingDay(taskDate, extraWorkDays)) continue;
@@ -404,7 +474,7 @@ export default function ViewPage() {
       }
     }
     return grouped;
-  }, [filteredTasks, extraWorkDays]);
+  }, [tasksForResourceMatrix, extraWorkDays]);
 
   // 仅统计“当前月份、可在矩阵中实际展示”的任务数量
   const currentMonthMatrixTaskCount = useMemo(() => {
@@ -662,6 +732,7 @@ export default function ViewPage() {
         <TaskReadonlyDialog
           task={selectedTask}
           ownerNames={selectedTask ? getTaskOwnerNames(selectedTask) : '-'}
+          getResourceName={getResourceName}
           open={taskDialogOpen}
           onClose={() => setTaskDialogOpen(false)}
         />
