@@ -2087,10 +2087,45 @@ export default function ComplexScenario() {
       }
 
       const { resources, projects, tasks } = result.data;
+      const importedMatrixTasks = (tasks as Task[]).filter((t) => t.taskSource === 'matrix_view');
+      const importedScheduleTasks = (tasks as Task[]).filter((t) => t.taskSource !== 'matrix_view');
+
+      const mergeImportedTasks = (prevTasks: Task[], incomingTasks: Task[], targetSource: 'schedule' | 'matrix_view') => {
+        const taskMap = new Map<string, Task>();
+        for (const task of prevTasks) {
+          taskMap.set(getTaskPersistKey(task), task);
+        }
+        for (const incoming of incomingTasks) {
+          const normalizedIncoming: Task = { ...incoming, taskSource: targetSource };
+          const key = getTaskPersistKey(normalizedIncoming);
+          const existing = taskMap.get(key);
+          if (!existing) {
+            taskMap.set(key, normalizedIncoming);
+            continue;
+          }
+          taskMap.set(key, {
+            ...normalizedIncoming,
+            taskSource: targetSource,
+            taskType: existing.taskType ?? normalizedIncoming.taskType,
+            startDate: existing.startDate ?? normalizedIncoming.startDate,
+            endDate: existing.endDate ?? normalizedIncoming.endDate,
+            deadline: existing.deadline ?? normalizedIncoming.deadline,
+            status: existing.status ?? normalizedIncoming.status,
+            assignedResources: existing.assignedResources?.length ? existing.assignedResources : normalizedIncoming.assignedResources,
+            fixedResourceId: existing.fixedResourceId ?? normalizedIncoming.fixedResourceId,
+            localSubTasks: existing.localSubTasks ?? normalizedIncoming.localSubTasks,
+            resourceAssignments: existing.resourceAssignments ?? normalizedIncoming.resourceAssignments,
+          });
+        }
+        return Array.from(taskMap.values());
+      };
       
       setSharedResources([...resources]);
       setProjects([...projects]);
-      setTasks([...tasks]);
+      setTasks(prevTasks => mergeImportedTasks(prevTasks, importedScheduleTasks, 'schedule'));
+      if (importedMatrixTasks.length > 0) {
+        setMatrixPersistedTasks(prevTasks => mergeImportedTasks(prevTasks, importedMatrixTasks, 'matrix_view'));
+      }
       
       // 保存到localStorage，添加数据来源标记
       const dataWithSource = {
@@ -2103,7 +2138,7 @@ export default function ComplexScenario() {
       };
       localStorage.setItem('complex-scenario-resources', JSON.stringify(resources));
       localStorage.setItem('complex-scenario-projects', JSON.stringify(projects));
-      localStorage.setItem('complex-scenario-tasks', JSON.stringify(tasks));
+      localStorage.setItem('complex-scenario-tasks', JSON.stringify(importedScheduleTasks));
       localStorage.setItem('complex-scenario-data-source', JSON.stringify({
         source: 'feishu',
         loadMode: requirementsLoadMode,

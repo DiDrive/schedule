@@ -644,6 +644,7 @@ export async function GET(request: NextRequest) {
               subType,
               language,
               dubbing,
+              taskSource: 'schedule' as const,
             };
           });
           log(`[飞书加载] ✅ 使用需求表模式从需求表1加载了 ${result.tasks.length} 个任务`);
@@ -766,6 +767,8 @@ export async function GET(request: NextRequest) {
                   language: parseStringField(fields['语言'], ''),
                   dubbing: parseStringField(fields['配音'], ''),
                   contactPerson: parseStringField(fields['对接人'], ''),
+                  taskSource: 'matrix_view' as const,
+                  sourceViewId: requirements2TableId,
                 };
               });
               
