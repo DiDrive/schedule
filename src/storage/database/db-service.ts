@@ -2,6 +2,16 @@
 // 由于客户端不能直接访问 Supabase，所有数据库操作都通过 /api/db 路由
 
 const API_BASE = '/api/db';
+const TASK_BATCH_SIZE = 200;
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+  if (items.length === 0) return [];
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
 
 interface DbTask {
   id: string;
@@ -75,21 +85,36 @@ export async function loadAllData(): Promise<LoadDataResult> {
 }
 
 export async function syncTasks(tasks: Array<Partial<DbTask> & { id: string }>): Promise<void> {
-  const response = await fetch(API_BASE, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action: 'sync_tasks',
-      tasks: tasks.map(t => ({
-        ...t,
-        // deadline/start_date/end_date 已经是 string 或 undefined，无需转换
-      })),
-    }),
-  });
-  const result = await response.json();
-  
-  if (!result.success) {
-    throw new Error(result.error || '同步任务失败');
+  const normalizedTasks = tasks.map(t => ({
+    ...t,
+    // deadline/start_date/end_date 已经是 string 或 undefined，无需转换
+  }));
+  const batches = chunkArray(normalizedTasks, TASK_BATCH_SIZE);
+  if (batches.length > 1) {
+    console.info(`[DB同步] 任务分批写入开始: total=${normalizedTasks.length}, batches=${batches.length}, batchSize=${TASK_BATCH_SIZE}`);
+  }
+
+  for (const [index, batch] of batches.entries()) {
+    if (batches.length > 1) {
+      console.info(`[DB同步] 任务分批写入: batch ${index + 1}/${batches.length}, size=${batch.length}`);
+    }
+    const response = await fetch(API_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'sync_tasks',
+        tasks: batch,
+      }),
+    });
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || '同步任务失败');
+    }
+  }
+
+  if (batches.length > 1) {
+    console.info('[DB同步] 任务分批写入完成');
   }
 }
 
@@ -132,16 +157,18 @@ export async function syncAllData(data: {
   scheduleResult?: unknown | null;
   calendarExtraWorkDays?: string[];
 }): Promise<void> {
+  // 任务量大时分批同步，避免单请求过大导致网络中断或网关超时
+  if (data.tasks && data.tasks.length > 0) {
+    await syncTasks(data.tasks);
+  }
+
   const response = await fetch(API_BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       action: 'sync_all',
       resources: data.resources,
-      tasks: data.tasks?.map(t => ({
-        ...t,
-        // deadline/start_date/end_date 已经是 string 或 undefined，无需转换
-      })),
+      // tasks 已由 syncTasks 分批完成
       projects: data.projects,
       scheduleResult: data.scheduleResult,
       calendarExtraWorkDays: data.calendarExtraWorkDays,

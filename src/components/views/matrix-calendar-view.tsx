@@ -1309,9 +1309,13 @@ export function MatrixCalendarView({
   // 调休/加班日状态
   const [extraWorkDays, setExtraWorkDays] = useState<Set<string>>(() => new Set());
 
-  // 仅在父级矩阵持久任务变更时同步，避免自动重拉飞书导致“回刷/清空”
+  // 仅在父级矩阵持久任务变更时同步，且强制只保留矩阵来源任务
+  // 防止上游误传入“需求表1+需求表2”混合数据导致未分配池数量异常
   useEffect(() => {
-    setViewTasks(normalizeTasks(tasks));
+    const matrixOnlyTasks = tasks.filter(
+      (task) => task.taskSource === 'matrix_view' || Boolean(task.sourceViewId)
+    );
+    setViewTasks(normalizeTasks(matrixOnlyTasks));
   }, [tasks]);
 
   // 根据筛选条件过滤任务

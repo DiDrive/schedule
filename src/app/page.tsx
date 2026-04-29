@@ -159,7 +159,8 @@ export default function ProjectScheduleSystem() {
         });
       } catch (dbError) {
         console.warn('[飞书加载] 数据库同步失败，已回落本地缓存模式:', dbError);
-        dbSyncWarning = '\n\n⚠️ 数据库未配置或不可用，当前仅保存在本浏览器。';
+        const dbErrorMessage = dbError instanceof Error ? dbError.message : String(dbError);
+        dbSyncWarning = `\n\n⚠️ 数据库同步失败（可能是网络中断/请求超时），当前仅保存在本浏览器。\n失败信息: ${dbErrorMessage}`;
       }
 
       const modeText = dataSourceMode === 'new' ? '需求表模式' : '传统模式';
