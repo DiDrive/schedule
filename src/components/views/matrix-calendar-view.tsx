@@ -1414,6 +1414,17 @@ export function MatrixCalendarView({
       fetchAndSetViewTasks(currentFeishuConfig);
     }
   }, [fetchAndSetViewTasks]);
+
+  // 当父组件里的矩阵持久任务变化时，将本地排期字段并入当前视图，避免重载后表格被“空快照”覆盖
+  useEffect(() => {
+    if (!Array.isArray(tasks) || tasks.length === 0) return;
+    setViewTasks((prev) => {
+      if (!Array.isArray(prev) || prev.length === 0) {
+        return normalizeTasks(tasks);
+      }
+      return mergeViewTasksWithLocalState(prev, tasks);
+    });
+  }, [tasks]);
   
   // 切换调休/加班日
   const toggleExtraWorkDay = useCallback((date: Date) => {
