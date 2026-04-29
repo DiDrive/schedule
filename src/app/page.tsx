@@ -24,6 +24,7 @@ function toIsoStringOrUndefined(value: unknown): string | undefined {
 }
 
 function mapTaskToDbPayload(task: any) {
+  const taskSource = task.taskSource === 'matrix_view' ? 'matrix_view' : 'schedule';
   return {
     id: task.id,
     name: task.name || '',
@@ -46,6 +47,10 @@ function mapTaskToDbPayload(task: any) {
     business_month: task.businessMonth || undefined,
     local_sub_tasks: task.localSubTasks || undefined,
     resource_assignments: task.resourceAssignments || undefined,
+    feishu_record_id: task.feishuRecordId || undefined,
+    task_source: taskSource,
+    source_view_id: task.sourceViewId || undefined,
+    fixed_resource_id: task.fixedResourceId || undefined,
   };
 }
 
