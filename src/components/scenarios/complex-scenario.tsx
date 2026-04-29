@@ -637,8 +637,13 @@ export default function ComplexScenario() {
         }
 
         // 数据库作为跨设备共享的主数据源
+        // 注意：必须同时同步 schedule + matrix 任务，避免导入后同 ID 记录互相覆盖导致矩阵“被清空”
+        const allTasksForSync = [
+          ...tasks,
+          ...matrixPersistedTasks.map((task) => ({ ...task, taskSource: 'matrix_view' as const })),
+        ];
         void syncAllData({
-          tasks: tasks.map(task => mapTaskToDbTask(task) as { id: string }),
+          tasks: allTasksForSync.map(task => mapTaskToDbTask(task) as { id: string }),
           resources: sharedResources.map(resource => mapResourceToDbResource(resource) as { id: string }),
           projects: projects.map(project => ({ ...project })),
           scheduleResult: scheduleResult ? JSON.parse(JSON.stringify(scheduleResult)) : null,
@@ -670,7 +675,7 @@ export default function ComplexScenario() {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [projects, tasks, sharedResources, scheduleResult]);
+  }, [projects, tasks, matrixPersistedTasks, sharedResources, scheduleResult]);
 
   // 计算快到截止日期的任务数量
   useEffect(() => {
@@ -2087,8 +2092,15 @@ export default function ComplexScenario() {
       }
 
       const { resources, projects, tasks } = result.data;
-      const importedMatrixTasks = (tasks as Task[]).filter((t) => t.taskSource === 'matrix_view');
-      const importedScheduleTasks = (tasks as Task[]).filter((t) => t.taskSource !== 'matrix_view');
+      const isMatrixImportedTask = (task: Task) => {
+        if (task.taskSource === 'matrix_view') return true;
+        if (task.sourceViewId) return true;
+        if (requirementsLoadMode === 'requirements2' && dataSourceMode === 'new') return true;
+        return false;
+      };
+
+      const importedMatrixTasks = (tasks as Task[]).filter(isMatrixImportedTask);
+      const importedScheduleTasks = (tasks as Task[]).filter((t) => !isMatrixImportedTask(t));
 
       const mergeImportedTasks = (prevTasks: Task[], incomingTasks: Task[], targetSource: 'schedule' | 'matrix_view') => {
         const taskMap = new Map<string, Task>();
