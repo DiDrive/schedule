@@ -1302,8 +1302,9 @@ export function MatrixCalendarView({
   const [viewTasks, setViewTasks] = useState<Task[]>([]);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewError, setViewError] = useState<string | null>(null);
-  // 用 ref 追踪任务数量变化，避免 useEffect 依赖数组不稳定
-  const lastTaskCountRef = useRef(0);
+  // 仅在首次进入或切换视图 ID 时加载，避免本地乐观更新被异步回刷覆盖
+  const hasInitialLoadedRef = useRef(false);
+  const lastLoadedViewIdRef = useRef<string | undefined>(undefined);
   const feishuConfigRef = useRef(feishuConfig);
   feishuConfigRef.current = feishuConfig;
 
@@ -1372,7 +1373,6 @@ export function MatrixCalendarView({
         const mergedViewTasks = mergeViewTasksWithLocalState(sourceStampedTasks, tasks);
         setViewTasks(mergedViewTasks);
         onViewTasksLoaded?.(mergedViewTasks);
-        lastTaskCountRef.current = data.tasks.length;
       } else {
         throw new Error(data.error || '加载视图数据失败');
       }
@@ -1394,27 +1394,26 @@ export function MatrixCalendarView({
     await fetchAndSetViewTasks(feishuConfig);
   }, [feishuConfig, tasks, fetchAndSetViewTasks]);
 
-  // 从飞书视图加载数据 - 仅在首次加载或 tasks 数量增加时重新加载
-  // 使用 ref 追踪状态，避免依赖数组变化
+  // 从飞书视图加载数据 - 仅首次加载或切换 viewId 时触发
   useEffect(() => {
     const currentFeishuConfig = feishuConfigRef.current;
-    const prevCount = lastTaskCountRef.current;
     
     if (!currentFeishuConfig?.viewId) {
       setViewTasks([]);
       setViewError('未配置矩阵视图ID（requirements2Matrix），矩阵日历仅支持视图数据源');
+      hasInitialLoadedRef.current = false;
+      lastLoadedViewIdRef.current = undefined;
       return;
     }
 
-    // 如果 tasks 数量增加（说明从飞书新加载了数据），重新加载视图数据
-    if (tasks.length > prevCount && prevCount > 0) {
-      console.log('[矩阵日历] 检测到任务数量增加，重新加载视图数据:', prevCount, '->', tasks.length);
-      fetchAndSetViewTasks(currentFeishuConfig);
-    } else if (prevCount === 0) {
-      // 首次加载
+    const currentViewId = currentFeishuConfig.viewId;
+    const viewChanged = lastLoadedViewIdRef.current !== currentViewId;
+    if (!hasInitialLoadedRef.current || viewChanged) {
+      hasInitialLoadedRef.current = true;
+      lastLoadedViewIdRef.current = currentViewId;
       fetchAndSetViewTasks(currentFeishuConfig);
     }
-  }, [tasks.length, fetchAndSetViewTasks, tasks]);
+  }, [fetchAndSetViewTasks]);
   
   // 切换调休/加班日
   const toggleExtraWorkDay = useCallback((date: Date) => {
