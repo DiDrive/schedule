@@ -1320,6 +1320,7 @@ export default function ComplexScenario() {
   const handleMatrixViewTasksLoaded = useCallback((viewTasks: Task[]) => {
     if (!Array.isArray(viewTasks) || viewTasks.length === 0) return;
 
+    let mergedTasksForSync: Task[] = [];
     setMatrixPersistedTasks(prevTasks => {
       const taskMap = new Map<string, Task>();
       for (const task of prevTasks) {
@@ -1348,10 +1349,13 @@ export default function ComplexScenario() {
           resourceAssignments: existing.resourceAssignments ?? viewTask.resourceAssignments,
         });
       }
-      return Array.from(taskMap.values());
+      const mergedTasks = Array.from(taskMap.values());
+      mergedTasksForSync = mergedTasks;
+      return mergedTasks;
     });
 
-    const dbTasks = viewTasks.map(task => mapTaskToDbTask({
+    // 关键修复：入库必须使用“合并后的任务”，避免飞书视图快照覆盖本地已排期字段导致重导后清空
+    const dbTasks = (mergedTasksForSync.length > 0 ? mergedTasksForSync : viewTasks).map(task => mapTaskToDbTask({
       ...task,
       taskSource: 'matrix_view',
     }) as Parameters<typeof syncTasks>[0][number]);
