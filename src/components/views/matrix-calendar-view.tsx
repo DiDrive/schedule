@@ -1298,21 +1298,21 @@ export function MatrixCalendarView({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
 
-  // 从飞书视图加载的任务数据
-  const [viewTasks, setViewTasks] = useState<Task[]>([]);
+  // 矩阵任务以数据库持久态为主数据源
+  const [viewTasks, setViewTasks] = useState<Task[]>(() => normalizeTasks(tasks));
   const [viewLoading, setViewLoading] = useState(false);
   const [viewError, setViewError] = useState<string | null>(null);
-  // 仅在首次进入或切换视图 ID 时加载，避免本地乐观更新被异步回刷覆盖
-  const hasInitialLoadedRef = useRef(false);
-  const lastLoadedViewIdRef = useRef<string | undefined>(undefined);
-  const feishuConfigRef = useRef(feishuConfig);
-  feishuConfigRef.current = feishuConfig;
 
   // 延迟更新的 draggedTask，用于 UI 渲染，减少重渲染
   const deferredDraggedTask = useDeferredValue(draggedTask);
 
   // 调休/加班日状态
   const [extraWorkDays, setExtraWorkDays] = useState<Set<string>>(() => new Set());
+
+  // 仅在父级矩阵持久任务变更时同步，避免自动重拉飞书导致“回刷/清空”
+  useEffect(() => {
+    setViewTasks(normalizeTasks(tasks));
+  }, [tasks]);
 
   // 根据筛选条件过滤任务
   const filteredViewTasks = useMemo(() => {
@@ -1369,7 +1369,7 @@ export function MatrixCalendarView({
             sourceViewId: config.viewId,
           }))
         );
-        // 使用任务主状态覆盖视图快照字段，避免拖拽更新在切页后被飞书视图数据覆盖
+        // 数据库优先：飞书重载仅做增量更新，和当前持久任务做合并
         const mergedViewTasks = mergeViewTasksWithLocalState(sourceStampedTasks, tasks);
         setViewTasks(mergedViewTasks);
         onViewTasksLoaded?.(mergedViewTasks);
@@ -1394,38 +1394,6 @@ export function MatrixCalendarView({
     await fetchAndSetViewTasks(feishuConfig);
   }, [feishuConfig, tasks, fetchAndSetViewTasks]);
 
-  // 从飞书视图加载数据 - 仅首次加载或切换 viewId 时触发
-  useEffect(() => {
-    const currentFeishuConfig = feishuConfigRef.current;
-    
-    if (!currentFeishuConfig?.viewId) {
-      setViewTasks([]);
-      setViewError('未配置矩阵视图ID（requirements2Matrix），矩阵日历仅支持视图数据源');
-      hasInitialLoadedRef.current = false;
-      lastLoadedViewIdRef.current = undefined;
-      return;
-    }
-
-    const currentViewId = currentFeishuConfig.viewId;
-    const viewChanged = lastLoadedViewIdRef.current !== currentViewId;
-    if (!hasInitialLoadedRef.current || viewChanged) {
-      hasInitialLoadedRef.current = true;
-      lastLoadedViewIdRef.current = currentViewId;
-      fetchAndSetViewTasks(currentFeishuConfig);
-    }
-  }, [fetchAndSetViewTasks]);
-
-  // 当父组件里的矩阵持久任务变化时，将本地排期字段并入当前视图，避免重载后表格被“空快照”覆盖
-  useEffect(() => {
-    if (!Array.isArray(tasks) || tasks.length === 0) return;
-    setViewTasks((prev) => {
-      if (!Array.isArray(prev) || prev.length === 0) {
-        return normalizeTasks(tasks);
-      }
-      return mergeViewTasksWithLocalState(prev, tasks);
-    });
-  }, [tasks]);
-  
   // 切换调休/加班日
   const toggleExtraWorkDay = useCallback((date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
