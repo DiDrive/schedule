@@ -693,7 +693,7 @@ export async function GET(request: NextRequest) {
           const req2Tasks = req2Records.map((item: any, index: number) => {
                 const fields = item.fields;
                 const rawTaskId = parseStringField(fields['员工填报用索引编号'] || fields['需求ID'] || fields['任务ID'] || fields['id'] || fields['ID']);
-                const taskId = rawTaskId ? `req2_${rawTaskId}` : `req2_${item.record_id.substring(0, 8)}`;
+                const taskId = rawTaskId ? `req2all_${rawTaskId}` : `req2all_${item.record_id.substring(0, 8)}`;
                 
                 const categoryName = parseStringField(fields['需求类目'] || fields['客户名称'] || fields['customerName'], '');
                 const taskName = parseStringField(fields['脚本名称'] || fields['需求项目'] || fields['需求名称'] || fields['任务名称'] || fields['name'], `需求2_${index + 1}`);
