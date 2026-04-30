@@ -769,8 +769,8 @@ export async function GET(request: NextRequest) {
                   language: parseStringField(fields['语言'], ''),
                   dubbing: parseStringField(fields['配音'], ''),
                   contactPerson: parseStringField(fields['对接人'], ''),
-                  taskSource: 'matrix_view' as const,
-                  sourceViewId: requirements2TableId,
+                  // 需求表2全量导入属于“需求主数据”，不直接作为矩阵视图数据源
+                  taskSource: 'schedule' as const,
                 };
               });
               
