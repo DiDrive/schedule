@@ -1302,6 +1302,7 @@ export function MatrixCalendarView({
   const [viewTasks, setViewTasks] = useState<Task[]>(() => normalizeTasks(tasks));
   const [viewLoading, setViewLoading] = useState(false);
   const [viewError, setViewError] = useState<string | null>(null);
+  const autoHydratedViewIdRef = useRef<string | null>(null);
 
   // 延迟更新的 draggedTask，用于 UI 渲染，减少重渲染
   const deferredDraggedTask = useDeferredValue(draggedTask);
@@ -1399,6 +1400,18 @@ export function MatrixCalendarView({
     }
     await fetchAndSetViewTasks(feishuConfig);
   }, [feishuConfig, tasks, fetchAndSetViewTasks]);
+
+  // 兜底：当前 viewId 在数据库无任务时，自动拉取一次该视图并入库（仅触发一次，避免回刷）
+  useEffect(() => {
+    const activeViewId = (feishuConfig?.viewId || '').trim();
+    if (!activeViewId) return;
+    if (viewLoading) return;
+    if (viewTasks.length > 0) return;
+    if (autoHydratedViewIdRef.current === activeViewId) return;
+
+    autoHydratedViewIdRef.current = activeViewId;
+    void loadViewData();
+  }, [feishuConfig?.viewId, viewTasks.length, viewLoading, loadViewData]);
 
   // 切换调休/加班日
   const toggleExtraWorkDay = useCallback((date: Date) => {
