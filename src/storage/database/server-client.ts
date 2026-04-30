@@ -162,12 +162,7 @@ export async function getAllData() {
 export async function syncTask(taskData: Record<string, unknown>) {
   const client = getSupabaseClient();
   const normalized = normalizeTaskRecord(taskData);
-  const isMatrixTask = normalized.task_source === 'matrix_view';
-  const hasMatrixUniqueKey = Boolean(normalized.source_view_id) && Boolean(normalized.feishu_record_id);
-  const onConflict = isMatrixTask && hasMatrixUniqueKey
-    ? 'source_view_id,feishu_record_id'
-    : 'id';
-  const { error } = await client.from('tasks').upsert(normalized, { onConflict });
+  const { error } = await client.from('tasks').upsert(normalized, { onConflict: 'id' });
   if (error) throw new Error(`同步任务失败: ${error.message}`);
 }
 
@@ -200,10 +195,54 @@ export async function syncTasksBatch(tasks: Record<string, unknown>[]) {
 
   const matrixTasks = Array.from(matrixTaskMap.values());
   if (matrixTasks.length > 0) {
-    const { error } = await client
-      .from('tasks')
-      .upsert(matrixTasks, { onConflict: 'source_view_id,feishu_record_id' });
-    if (error) throw new Error(`批量同步任务失败(矩阵任务): ${error.message}`);
+    const sourceViewIds = Array.from(
+      new Set(matrixTasks.map((task) => String(task.source_view_id || '').trim()).filter(Boolean))
+    );
+    const recordIds = Array.from(
+      new Set(matrixTasks.map((task) => String(task.feishu_record_id || '').trim()).filter(Boolean))
+    );
+
+    const existingKeyToId = new Map<string, string>();
+    if (sourceViewIds.length > 0 && recordIds.length > 0) {
+      const { data: existingRows, error: lookupError } = await client
+        .from('tasks')
+        .select('id,source_view_id,feishu_record_id')
+        .eq('task_source', 'matrix_view')
+        .in('source_view_id', sourceViewIds)
+        .in('feishu_record_id', recordIds);
+      if (lookupError) {
+        throw new Error(`批量同步任务失败(矩阵任务查重): ${lookupError.message}`);
+      }
+      for (const row of existingRows || []) {
+        const rowSourceViewId = String((row as { source_view_id?: string }).source_view_id || '').trim();
+        const rowRecordId = String((row as { feishu_record_id?: string }).feishu_record_id || '').trim();
+        const rowId = String((row as { id?: string }).id || '').trim();
+        if (!rowSourceViewId || !rowRecordId || !rowId) continue;
+        existingKeyToId.set(`${rowSourceViewId}::${rowRecordId}`, rowId);
+      }
+    }
+
+    const matrixUpdates: Record<string, unknown>[] = [];
+    const matrixInserts: Record<string, unknown>[] = [];
+    for (const task of matrixTasks) {
+      const key = `${String(task.source_view_id || '').trim()}::${String(task.feishu_record_id || '').trim()}`;
+      const existingId = existingKeyToId.get(key);
+      if (existingId) {
+        matrixUpdates.push({ ...task, id: existingId });
+      } else {
+        matrixInserts.push(task);
+      }
+    }
+
+    if (matrixUpdates.length > 0) {
+      const { error } = await client.from('tasks').upsert(matrixUpdates, { onConflict: 'id' });
+      if (error) throw new Error(`批量同步任务失败(矩阵任务更新): ${error.message}`);
+    }
+
+    if (matrixInserts.length > 0) {
+      const { error } = await client.from('tasks').insert(matrixInserts);
+      if (error) throw new Error(`批量同步任务失败(矩阵任务新增): ${error.message}`);
+    }
   }
 }
 
