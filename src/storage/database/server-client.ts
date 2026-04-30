@@ -162,7 +162,12 @@ export async function getAllData() {
 export async function syncTask(taskData: Record<string, unknown>) {
   const client = getSupabaseClient();
   const normalized = normalizeTaskRecord(taskData);
-  const { error } = await client.from('tasks').upsert(normalized, { onConflict: 'id' });
+  const isMatrixTask = normalized.task_source === 'matrix_view';
+  const hasMatrixUniqueKey = Boolean(normalized.source_view_id) && Boolean(normalized.feishu_record_id);
+  const onConflict = isMatrixTask && hasMatrixUniqueKey
+    ? 'source_view_id,feishu_record_id'
+    : 'id';
+  const { error } = await client.from('tasks').upsert(normalized, { onConflict });
   if (error) throw new Error(`同步任务失败: ${error.message}`);
 }
 
@@ -172,8 +177,34 @@ export async function syncTasksBatch(tasks: Record<string, unknown>[]) {
   
   const client = getSupabaseClient();
   const normalizedTasks = tasks.map(normalizeTaskRecord);
-  const { error } = await client.from('tasks').upsert(normalizedTasks, { onConflict: 'id' });
-  if (error) throw new Error(`批量同步任务失败: ${error.message}`);
+
+  // 矩阵任务按 (source_view_id, feishu_record_id) 去重并 upsert，避免与历史不同 id 记录冲突
+  const matrixTaskMap = new Map<string, Record<string, unknown>>();
+  const normalTasks: Record<string, unknown>[] = [];
+
+  for (const task of normalizedTasks) {
+    const isMatrixTask = task.task_source === 'matrix_view';
+    const sourceViewId = String(task.source_view_id || '').trim();
+    const recordId = String(task.feishu_record_id || '').trim();
+    if (isMatrixTask && sourceViewId && recordId) {
+      matrixTaskMap.set(`${sourceViewId}::${recordId}`, task);
+      continue;
+    }
+    normalTasks.push(task);
+  }
+
+  if (normalTasks.length > 0) {
+    const { error } = await client.from('tasks').upsert(normalTasks, { onConflict: 'id' });
+    if (error) throw new Error(`批量同步任务失败(普通任务): ${error.message}`);
+  }
+
+  const matrixTasks = Array.from(matrixTaskMap.values());
+  if (matrixTasks.length > 0) {
+    const { error } = await client
+      .from('tasks')
+      .upsert(matrixTasks, { onConflict: 'source_view_id,feishu_record_id' });
+    if (error) throw new Error(`批量同步任务失败(矩阵任务): ${error.message}`);
+  }
 }
 
 // 批量同步资源
