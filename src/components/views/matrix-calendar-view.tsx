@@ -42,6 +42,7 @@ import {
   differenceInDays
 } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import { loadAllData, syncCalendarExtraWorkDays } from '@/storage/database/db-service';
 import {
   DndContext,
   DragOverlay,
@@ -1310,6 +1311,22 @@ export function MatrixCalendarView({
   // 调休/加班日状态
   const [extraWorkDays, setExtraWorkDays] = useState<Set<string>>(() => new Set());
 
+  // 读取已保存的加班/调休日配置，确保管理端与展示端一致
+  useEffect(() => {
+    let mounted = true;
+    void loadAllData()
+      .then((data) => {
+        if (!mounted) return;
+        setExtraWorkDays(new Set(data.calendarExtraWorkDays || []));
+      })
+      .catch((error) => {
+        console.warn('[矩阵日历] 读取加班/调休日配置失败:', error);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   // 仅在父级矩阵持久任务变更时同步，且强制只保留矩阵来源任务
   // 防止上游误传入“需求表1+需求表2”混合数据导致未分配池数量异常
   useEffect(() => {
@@ -1425,6 +1442,10 @@ export function MatrixCalendarView({
         newSet.add(dateStr);
         console.log('[矩阵日历] 设置加班/调休日:', dateStr);
       }
+      const days = Array.from(newSet);
+      void syncCalendarExtraWorkDays(days).catch((error) => {
+        console.error('[矩阵日历] 同步加班/调休日失败:', error);
+      });
       return newSet;
     });
   }, []);
