@@ -2099,7 +2099,6 @@ export default function ComplexScenario() {
       const isMatrixImportedTask = (task: Task) => {
         if (task.taskSource === 'matrix_view') return true;
         if (task.sourceViewId) return true;
-        if (requirementsLoadMode === 'requirements2' && dataSourceMode === 'new') return true;
         return false;
       };
 
