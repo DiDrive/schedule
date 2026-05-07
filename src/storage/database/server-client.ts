@@ -167,7 +167,10 @@ export async function syncTask(taskData: Record<string, unknown>) {
 }
 
 // 批量同步任务
-export async function syncTasksBatch(tasks: Record<string, unknown>[]) {
+export async function syncTasksBatch(
+  tasks: Record<string, unknown>[],
+  options?: { replaceMatrixViews?: string[] }
+) {
   if (tasks.length === 0) return;
   
   const client = getSupabaseClient();
@@ -242,6 +245,51 @@ export async function syncTasksBatch(tasks: Record<string, unknown>[]) {
     if (matrixInserts.length > 0) {
       const { error } = await client.from('tasks').insert(matrixInserts);
       if (error) throw new Error(`批量同步任务失败(矩阵任务新增): ${error.message}`);
+    }
+  }
+
+  // 可选：按视图做“全量替换”删除（用于飞书重载后同步删除本地已被飞书删掉的任务）
+  const replaceMatrixViews = Array.from(new Set((options?.replaceMatrixViews || []).map(v => String(v || '').trim()).filter(Boolean)));
+  if (replaceMatrixViews.length > 0) {
+    for (const viewId of replaceMatrixViews) {
+      const incomingRecordIds = new Set(
+        matrixTasks
+          .filter((task) => String(task.source_view_id || '').trim() === viewId)
+          .map((task) => String(task.feishu_record_id || '').trim())
+          .filter(Boolean)
+      );
+
+      const { data: existingRows, error: existingError } = await client
+        .from('tasks')
+        .select('id,feishu_record_id')
+        .eq('task_source', 'matrix_view')
+        .eq('source_view_id', viewId);
+      if (existingError) {
+        throw new Error(`矩阵任务替换失败(读取现有记录): ${existingError.message}`);
+      }
+
+      const idsToDelete = (existingRows || [])
+        .filter((row) => {
+          const recordId = String((row as { feishu_record_id?: string }).feishu_record_id || '').trim();
+          // 飞书视图里不存在的记录应删除
+          return !recordId || !incomingRecordIds.has(recordId);
+        })
+        .map((row) => String((row as { id?: string }).id || '').trim())
+        .filter(Boolean);
+
+      if (idsToDelete.length === 0) continue;
+
+      const batchSize = 200;
+      for (let i = 0; i < idsToDelete.length; i += batchSize) {
+        const chunk = idsToDelete.slice(i, i + batchSize);
+        const { error: deleteError } = await client
+          .from('tasks')
+          .delete()
+          .in('id', chunk);
+        if (deleteError) {
+          throw new Error(`矩阵任务替换失败(删除旧记录): ${deleteError.message}`);
+        }
+      }
     }
   }
 }

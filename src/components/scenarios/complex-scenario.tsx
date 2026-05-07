@@ -2165,7 +2165,19 @@ export default function ComplexScenario() {
       setSharedResources([...resources]);
       setProjects([...projects]);
       setTasks(prevTasks => mergeImportedTasks(prevTasks, importedScheduleTasks, 'schedule'));
-      if (importedMatrixTasks.length > 0) {
+      const matrixViewId = (config.newMode?.viewIds?.requirements2Matrix || '').trim();
+      if (dataSourceMode === 'new' && matrixViewId) {
+        // 对当前矩阵视图做“全量替换”：飞书已删除的任务需要同步删除
+        const incomingForView = importedMatrixTasks.filter(
+          task => (task.sourceViewId || '').trim() === matrixViewId
+        );
+        setMatrixPersistedTasks(prevTasks => {
+          const preservedOtherViews = prevTasks.filter(
+            task => (task.sourceViewId || '').trim() !== matrixViewId
+          );
+          return mergeImportedTasks(preservedOtherViews, incomingForView, 'matrix_view');
+        });
+      } else if (importedMatrixTasks.length > 0) {
         setMatrixPersistedTasks(prevTasks => mergeImportedTasks(prevTasks, importedMatrixTasks, 'matrix_view'));
       }
       

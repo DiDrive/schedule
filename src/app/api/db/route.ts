@@ -27,12 +27,14 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, tasks, resources, projects, scheduleResult, calendarExtraWorkDays } = body;
+    const { action, tasks, resources, projects, scheduleResult, calendarExtraWorkDays, replaceMatrixViews } = body;
 
     switch (action) {
       case 'sync_tasks':
         if (tasks && Array.isArray(tasks)) {
-          await syncTasksBatch(tasks);
+          await syncTasksBatch(tasks, {
+            replaceMatrixViews: Array.isArray(replaceMatrixViews) ? replaceMatrixViews : [],
+          });
         }
         break;
       case 'sync_resources':
@@ -42,7 +44,9 @@ export async function POST(request: NextRequest) {
         break;
       case 'sync_all':
         if (tasks && Array.isArray(tasks)) {
-          await syncTasksBatch(tasks);
+          await syncTasksBatch(tasks, {
+            replaceMatrixViews: Array.isArray(replaceMatrixViews) ? replaceMatrixViews : [],
+          });
         }
         if (resources && Array.isArray(resources)) {
           await syncResourcesBatch(resources);
