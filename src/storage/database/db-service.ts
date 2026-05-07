@@ -84,7 +84,10 @@ export async function loadAllData(): Promise<LoadDataResult> {
   return result.data;
 }
 
-export async function syncTasks(tasks: Array<Partial<DbTask> & { id: string }>): Promise<void> {
+export async function syncTasks(
+  tasks: Array<Partial<DbTask> & { id: string }>,
+  options?: { replaceMatrixViews?: string[] }
+): Promise<void> {
   const normalizedTasks = tasks.map(t => ({
     ...t,
     // deadline/start_date/end_date 已经是 string 或 undefined，无需转换
@@ -104,6 +107,7 @@ export async function syncTasks(tasks: Array<Partial<DbTask> & { id: string }>):
       body: JSON.stringify({
         action: 'sync_tasks',
         tasks: batch,
+        replaceMatrixViews: options?.replaceMatrixViews,
       }),
     });
     const result = await response.json();
@@ -156,10 +160,11 @@ export async function syncAllData(data: {
   projects?: Array<Partial<DbProject> & { id: string }>;
   scheduleResult?: unknown | null;
   calendarExtraWorkDays?: string[];
+  replaceMatrixViews?: string[];
 }): Promise<void> {
   // 任务量大时分批同步，避免单请求过大导致网络中断或网关超时
   if (data.tasks && data.tasks.length > 0) {
-    await syncTasks(data.tasks);
+    await syncTasks(data.tasks, { replaceMatrixViews: data.replaceMatrixViews });
   }
 
   const response = await fetch(API_BASE, {
@@ -172,6 +177,7 @@ export async function syncAllData(data: {
       projects: data.projects,
       scheduleResult: data.scheduleResult,
       calendarExtraWorkDays: data.calendarExtraWorkDays,
+      replaceMatrixViews: data.replaceMatrixViews,
     }),
   });
   const result = await response.json();

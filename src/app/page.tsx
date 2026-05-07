@@ -185,6 +185,9 @@ export default function ProjectScheduleSystem() {
           resources: resources.map((r: any) => mapResourceToDbPayload(r)),
           tasks: allTasksForDb.map((t: any) => mapTaskToDbPayload(t)),
           projects: projects.map((p: any) => ({ ...p })),
+          replaceMatrixViews: dataSourceMode === 'new' && config.newMode?.viewIds?.requirements2Matrix
+            ? [config.newMode.viewIds.requirements2Matrix]
+            : [],
         });
       } catch (dbError) {
         console.warn('[飞书加载] 数据库同步失败，已回落本地缓存模式:', dbError);
