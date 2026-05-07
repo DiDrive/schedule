@@ -137,6 +137,34 @@ export default function ProjectScheduleSystem() {
       }
 
       const { resources, projects, tasks } = result.data;
+      let matrixTasks: any[] = [];
+
+      // 额外拉取“需求表2矩阵视图”任务，确保新增记录进入矩阵未分配池
+      if (dataSourceMode === 'new') {
+        const matrixViewId = config.newMode?.viewIds?.requirements2Matrix;
+        const requirements2TableId = config.newMode?.tableIds?.requirements2;
+        if (matrixViewId && requirements2TableId) {
+          try {
+            const params = new URLSearchParams({
+              app_id: config.appId,
+              app_secret: config.appSecret,
+              app_token: config.newMode.appToken,
+              requirements2_table_id: requirements2TableId,
+              view_id: matrixViewId,
+            });
+            const matrixResp = await fetch(`/api/feishu/load-requirements2-view?${params.toString()}`);
+            const matrixResult = await matrixResp.json();
+            if (matrixResp.ok && matrixResult?.success && Array.isArray(matrixResult.tasks)) {
+              matrixTasks = matrixResult.tasks;
+              console.log('[Page] 矩阵视图任务加载成功:', matrixTasks.length);
+            } else {
+              console.warn('[Page] 矩阵视图任务加载失败:', matrixResult?.error || matrixResult);
+            }
+          } catch (matrixError) {
+            console.warn('[Page] 矩阵视图任务加载异常:', matrixError);
+          }
+        }
+      }
       
       setSyncMessage('正在保存数据...');
       localStorage.setItem('complex-scenario-resources', JSON.stringify(resources));
@@ -152,9 +180,10 @@ export default function ProjectScheduleSystem() {
       // 写入数据库，确保多端读取一致（失败时不阻塞飞书加载）
       let dbSyncWarning = '';
       try {
+        const allTasksForDb = [...tasks, ...matrixTasks];
         await syncAllData({
           resources: resources.map((r: any) => mapResourceToDbPayload(r)),
-          tasks: tasks.map((t: any) => mapTaskToDbPayload(t)),
+          tasks: allTasksForDb.map((t: any) => mapTaskToDbPayload(t)),
           projects: projects.map((p: any) => ({ ...p })),
         });
       } catch (dbError) {
@@ -168,7 +197,7 @@ export default function ProjectScheduleSystem() {
                           config.requirementsLoadMode === 'requirements1' ? '仅需求表1' : '仅需求表2';
 
       // 更新消息，保持 loading 状态
-      setSyncMessage(`加载完成！人员: ${resources.length}, 项目: ${projects.length}, 任务: ${tasks.length}。正在刷新页面...`);
+      setSyncMessage(`加载完成！人员: ${resources.length}, 项目: ${projects.length}, 任务: ${tasks.length}，矩阵任务: ${matrixTasks.length}。正在刷新页面...`);
       
       // 延迟刷新，让用户看到成功消息
       setTimeout(() => {
