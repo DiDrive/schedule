@@ -2167,7 +2167,8 @@ export default function ComplexScenario() {
       setTasks(prevTasks => mergeImportedTasks(prevTasks, importedScheduleTasks, 'schedule'));
       const matrixViewId = (config.newMode?.viewIds?.requirements2Matrix || '').trim();
       if (dataSourceMode === 'new' && matrixViewId) {
-        // 对当前矩阵视图做“全量替换”：飞书已删除的任务需要同步删除
+        // 对当前矩阵视图做“全量替换”：仅保留飞书当前返回的任务，
+        // 但对命中任务继续保留本地排期字段（类型、日期、负责人等）
         const incomingForView = importedMatrixTasks.filter(
           task => (task.sourceViewId || '').trim() === matrixViewId
         );
@@ -2175,7 +2176,35 @@ export default function ComplexScenario() {
           const preservedOtherViews = prevTasks.filter(
             task => (task.sourceViewId || '').trim() !== matrixViewId
           );
-          return mergeImportedTasks(preservedOtherViews, incomingForView, 'matrix_view');
+          const currentViewPrev = prevTasks.filter(
+            task => (task.sourceViewId || '').trim() === matrixViewId
+          );
+          const currentViewMap = new Map<string, Task>();
+          for (const task of currentViewPrev) {
+            currentViewMap.set(getTaskPersistKey(task), task);
+          }
+
+          const replacedCurrentView: Task[] = incomingForView.map((incomingTask): Task => {
+            const existing = currentViewMap.get(getTaskPersistKey(incomingTask));
+            if (!existing) {
+              return { ...incomingTask, taskSource: 'matrix_view' as const };
+            }
+            return {
+              ...incomingTask,
+              taskSource: 'matrix_view' as const,
+              taskType: existing.taskType ?? incomingTask.taskType,
+              startDate: existing.startDate ?? incomingTask.startDate,
+              endDate: existing.endDate ?? incomingTask.endDate,
+              deadline: existing.deadline ?? incomingTask.deadline,
+              status: existing.status ?? incomingTask.status,
+              assignedResources: existing.assignedResources?.length ? existing.assignedResources : incomingTask.assignedResources,
+              fixedResourceId: existing.fixedResourceId ?? incomingTask.fixedResourceId,
+              localSubTasks: existing.localSubTasks ?? incomingTask.localSubTasks,
+              resourceAssignments: existing.resourceAssignments ?? incomingTask.resourceAssignments,
+            };
+          });
+
+          return [...preservedOtherViews, ...replacedCurrentView];
         });
       } else if (importedMatrixTasks.length > 0) {
         setMatrixPersistedTasks(prevTasks => mergeImportedTasks(prevTasks, importedMatrixTasks, 'matrix_view'));

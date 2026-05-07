@@ -180,7 +180,44 @@ export default function ProjectScheduleSystem() {
       // 写入数据库，确保多端读取一致（失败时不阻塞飞书加载）
       let dbSyncWarning = '';
       try {
-        const allTasksForDb = [...tasks, ...matrixTasks];
+        let matrixTasksForDb = matrixTasks;
+        if (matrixTasks.length > 0) {
+          // 保留已有矩阵排期字段，避免“从飞书加载”把本地已排日期/类型清空
+          try {
+            const currentDbData = await loadAllData();
+            const existingMatrixMap = new Map<string, any>();
+            for (const dbTask of currentDbData.matrixTasks || []) {
+              const sourceViewId = String(dbTask.source_view_id || '').trim();
+              const recordId = String(dbTask.feishu_record_id || '').trim();
+              if (!sourceViewId || !recordId) continue;
+              existingMatrixMap.set(`${sourceViewId}::${recordId}`, dbTask);
+            }
+            matrixTasksForDb = matrixTasks.map((task: any) => {
+              const sourceViewId = String(task.sourceViewId || '').trim();
+              const recordId = String(task.feishuRecordId || '').trim();
+              const existing = existingMatrixMap.get(`${sourceViewId}::${recordId}`);
+              if (!existing) return task;
+              return {
+                ...task,
+                taskType: existing.task_type ?? task.taskType,
+                startDate: existing.start_date ? new Date(existing.start_date) : (task.startDate || undefined),
+                endDate: existing.end_date ? new Date(existing.end_date) : (task.endDate || undefined),
+                deadline: existing.deadline ? new Date(existing.deadline) : (task.deadline || undefined),
+                status: existing.status ?? task.status,
+                assignedResources: Array.isArray(existing.assigned_resources) && existing.assigned_resources.length > 0
+                  ? existing.assigned_resources
+                  : (task.assignedResources || []),
+                fixedResourceId: existing.fixed_resource_id ?? task.fixedResourceId,
+                localSubTasks: existing.local_sub_tasks ?? task.localSubTasks,
+                resourceAssignments: existing.resource_assignments ?? task.resourceAssignments,
+              };
+            });
+          } catch (mergeError) {
+            console.warn('[Page] 合并已有矩阵排期字段失败，回退直接写入:', mergeError);
+          }
+        }
+
+        const allTasksForDb = [...tasks, ...matrixTasksForDb];
         await syncAllData({
           resources: resources.map((r: any) => mapResourceToDbPayload(r)),
           tasks: allTasksForDb.map((t: any) => mapTaskToDbPayload(t)),
