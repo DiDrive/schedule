@@ -2102,8 +2102,35 @@ export default function ComplexScenario() {
         return false;
       };
 
-      const importedMatrixTasks = (tasks as Task[]).filter(isMatrixImportedTask);
+      let importedMatrixTasks = (tasks as Task[]).filter(isMatrixImportedTask);
       const importedScheduleTasks = (tasks as Task[]).filter((t) => !isMatrixImportedTask(t));
+
+      // 额外拉取“需求表2矩阵视图”数据（按视图过滤），确保新增任务能进入矩阵未分配池
+      if (dataSourceMode === 'new') {
+        const matrixViewId = config.newMode?.viewIds?.requirements2Matrix;
+        const requirements2TableId = config.newMode?.tableIds?.requirements2;
+        if (matrixViewId && requirements2TableId) {
+          try {
+            const params = new URLSearchParams({
+              app_id: config.appId,
+              app_secret: config.appSecret,
+              app_token: modeConfig.appToken,
+              requirements2_table_id: requirements2TableId,
+              view_id: matrixViewId,
+            });
+            const matrixResp = await fetch(`/api/feishu/load-requirements2-view?${params.toString()}`);
+            const matrixData = await matrixResp.json();
+            if (matrixResp.ok && matrixData?.success && Array.isArray(matrixData.tasks)) {
+              importedMatrixTasks = [...importedMatrixTasks, ...(matrixData.tasks as Task[])];
+              console.log('[Feishu Load] ✅ 额外合并矩阵视图任务:', matrixData.tasks.length);
+            } else {
+              console.warn('[Feishu Load] 矩阵视图加载失败，继续使用普通加载结果:', matrixData?.error || matrixData);
+            }
+          } catch (matrixError) {
+            console.warn('[Feishu Load] 矩阵视图加载异常，继续使用普通加载结果:', matrixError);
+          }
+        }
+      }
 
       const mergeImportedTasks = (prevTasks: Task[], incomingTasks: Task[], targetSource: 'schedule' | 'matrix_view') => {
         const taskMap = new Map<string, Task>();
