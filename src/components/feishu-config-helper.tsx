@@ -29,6 +29,9 @@ interface FeishuConfig {
       requirements2: string;
       schedules: string;
     };
+    viewIds?: {
+      requirements2Matrix?: string;
+    };
   };
   legacyMode: {
     appToken: string;
@@ -63,6 +66,9 @@ const defaultConfig: FeishuConfig = {
       requirements1: '',
       requirements2: '',
       schedules: '',
+    },
+    viewIds: {
+      requirements2Matrix: '',
     },
   },
   legacyMode: {
@@ -100,6 +106,9 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
               requirements1: parsed.newMode?.tableIds?.requirements1 || '',
               requirements2: parsed.newMode?.tableIds?.requirements2 || '',
               schedules: parsed.newMode?.tableIds?.schedules || '',
+            },
+            viewIds: {
+              requirements2Matrix: parsed.newMode?.viewIds?.requirements2Matrix || '',
             },
           },
           legacyMode: {
@@ -209,8 +218,35 @@ export default function FeishuConfigHelper({ open, onOpenChange }: FeishuConfigH
     reader.onload = (e) => {
       try {
         const importedConfig = JSON.parse(e.target?.result as string);
-        setConfig(importedConfig);
-        localStorage.setItem('feishu-config', JSON.stringify(importedConfig));
+        // 兼容旧配置，确保矩阵日历视图ID字段存在
+        const normalizedConfig: FeishuConfig = {
+          appId: importedConfig.appId || '',
+          appSecret: importedConfig.appSecret || '',
+          dataSourceMode: importedConfig.dataSourceMode || 'new',
+          newMode: {
+            appToken: importedConfig.newMode?.appToken || '',
+            tableIds: {
+              resources: importedConfig.newMode?.tableIds?.resources || '',
+              requirements1: importedConfig.newMode?.tableIds?.requirements1 || '',
+              requirements2: importedConfig.newMode?.tableIds?.requirements2 || '',
+              schedules: importedConfig.newMode?.tableIds?.schedules || '',
+            },
+            viewIds: {
+              requirements2Matrix: importedConfig.newMode?.viewIds?.requirements2Matrix || '',
+            },
+          },
+          legacyMode: {
+            appToken: importedConfig.legacyMode?.appToken || '',
+            tableIds: {
+              resources: importedConfig.legacyMode?.tableIds?.resources || '',
+              projects: importedConfig.legacyMode?.tableIds?.projects || '',
+              tasks: importedConfig.legacyMode?.tableIds?.tasks || '',
+              schedules: importedConfig.legacyMode?.tableIds?.schedules || '',
+            },
+          },
+        };
+        setConfig(normalizedConfig);
+        localStorage.setItem('feishu-config', JSON.stringify(normalizedConfig));
         alert('配置导入成功！');
       } catch (error) {
         alert('配置导入失败，请检查文件格式');
