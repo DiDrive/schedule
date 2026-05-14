@@ -189,6 +189,7 @@ interface MatrixCalendarViewProps {
   tasks: Task[];
   onTaskClick?: (task: Task) => void;
   onTaskUpdate?: (taskId: string, updates: Partial<Task>, sourceTask?: Task) => void;
+  onDeleteTask?: (taskId: string) => void;
   onViewTasksLoaded?: (viewTasks: Task[]) => void;
   feishuConfig?: {
     appId: string;
@@ -199,6 +200,9 @@ interface MatrixCalendarViewProps {
   };
   taskTypeFilter?: 'all' | '脚本' | '平面' | '后期';
   resourceFilter?: string;
+  onAddSubTask?: (subTask: Task) => void;
+  onUpdateSubTask?: (subTaskId: string, updates: Partial<Task>) => void;
+  onDeleteSubTask?: (subTaskId: string) => void;
 }
 
 // 任务详情弹窗组件
@@ -209,6 +213,10 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
   onSave,
   resources,
   projects,
+  allTasks,
+  onAddSubTask,
+  onUpdateSubTask,
+  onDeleteSubTask,
 }: {
   task: Task | null;
   open: boolean;
@@ -216,12 +224,25 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
   onSave: (taskId: string, updates: Partial<Task>) => void;
   resources: Resource[];
   projects: { id: string; name: string }[];
+  allTasks: Task[];
+  onAddSubTask: (subTask: Task) => void;
+  onUpdateSubTask: (subTaskId: string, updates: Partial<Task>) => void;
+  onDeleteSubTask: (subTaskId: string) => void;
 }) {
   const [editedTask, setEditedTask] = useState<Partial<Task>>({});
-  const [localSubTasks, setLocalSubTasks] = useState<LocalSubTask[]>([]);
   const [resourceAssignments, setResourceAssignments] = useState<ResourceAssignment[]>([]);
   const [newSubTaskName, setNewSubTaskName] = useState('');
   const [newSubTaskType, setNewSubTaskType] = useState<ResourceWorkType | 'none'>('none');
+
+  const childTasks = useMemo(() => {
+    if (!task) return [];
+    const storedSubTaskIds = (task.localSubTasks || []).map((st) => st.id).filter(Boolean);
+    if (storedSubTaskIds.length > 0) {
+      const idSet = new Set(storedSubTaskIds);
+      return allTasks.filter((t) => idSet.has(t.id));
+    }
+    return allTasks.filter(t => t.parentTaskId === task.id);
+  }, [allTasks, task]);
 
   const availableResources = useMemo(() => {
     if (!task) return resources.filter(r => r.type === 'human');
@@ -241,7 +262,6 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
     if (task) {
       // 从 task 中恢复本地数据
       const taskExt = task as ExtendedTask;
-      setLocalSubTasks(taskExt.localSubTasks || []);
       setResourceAssignments(taskExt.resourceAssignments || []);
       setEditedTask({
         name: task.name,
@@ -257,133 +277,49 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
 
   // 添加子任务
   const handleAddSubTask = useCallback((resourceId?: string) => {
-    if (!newSubTaskName.trim()) return;
+    if (!newSubTaskName.trim() || !task) return;
     
-    const newSubTask: LocalSubTask = {
+    const newSubTask: Task = {
       id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: newSubTaskName.trim(),
-      assignedResourceId: resourceId,
+      name: `${task.name}-${newSubTaskName.trim()}`,
+      assignedResources: resourceId ? [resourceId] : [],
       taskType: newSubTaskType === 'none' ? undefined : newSubTaskType,
       status: 'pending',
+      priority: task.priority,
+      estimatedHours: 0,
+      parentTaskId: task.id,
+      isSubTask: true,
+      projectId: task.projectId,
+      projectName: task.projectName,
+      taskSource: task.taskSource,
+      sourceViewId: task.sourceViewId,
     };
     
-    const updatedSubTasks = [...localSubTasks, newSubTask];
-    setLocalSubTasks(updatedSubTasks);
+    onAddSubTask(newSubTask);
     setNewSubTaskName('');
     setNewSubTaskType('none');
-    
-    // 如果子任务有负责人，同步到父任务
-    if (resourceId) {
-      const newAssignment: ResourceAssignment = {
-        resourceId,
-        source: 'subtask',
-        sourceSubTaskId: newSubTask.id,
-      };
-      setResourceAssignments(prev => {
-        // 如果该负责人已存在，不重复添加
-        if (prev.some(a => a.resourceId === resourceId)) {
-          return prev;
-        }
-        return [...prev, newAssignment];
-      });
-    }
-  }, [newSubTaskName, localSubTasks, newSubTaskType]);
+  }, [newSubTaskName, newSubTaskType, task, onAddSubTask]);
 
-  // 删除子任务
-  const handleDeleteSubTask = useCallback((subTaskId: string) => {
-    const subTaskToDelete = localSubTasks.find(st => st.id === subTaskId);
-    
-    // 删除子任务
-    const updatedSubTasks = localSubTasks.filter(st => st.id !== subTaskId);
-    setLocalSubTasks(updatedSubTasks);
-    
-    // 如果该子任务有负责人，检查是否需要从父任务中移除
-    if (subTaskToDelete?.assignedResourceId) {
-      const resourceId = subTaskToDelete.assignedResourceId;
-      
-      // 检查是否还有其他子任务使用该负责人
-      const otherSubTasksWithSameResource = updatedSubTasks.filter(
-        st => st.assignedResourceId === resourceId
-      );
-      
-      if (otherSubTasksWithSameResource.length === 0) {
-        // 没有其他子任务使用该负责人，从父任务中移除（仅移除来源为该子任务的）
-        setResourceAssignments(prev => 
-          prev.filter(a => 
-            !(a.resourceId === resourceId && a.sourceSubTaskId === subTaskId)
-          )
-        );
-      }
-    }
-  }, [localSubTasks]);
+  const handleDeleteSubTaskLocal = useCallback((subTaskId: string) => {
+    onDeleteSubTask(subTaskId);
+  }, [onDeleteSubTask]);
 
   // 切换子任务完成状态
   const handleToggleSubTaskStatus = useCallback((subTaskId: string) => {
-    setLocalSubTasks(prev => 
-      prev.map(st => 
-        st.id === subTaskId 
-          ? { ...st, status: st.status === 'completed' ? 'pending' : 'completed' }
-          : st
-      )
-    );
-  }, []);
+    const subTask = childTasks.find(st => st.id === subTaskId);
+    if (subTask) {
+      onUpdateSubTask(subTaskId, { status: subTask.status === 'completed' ? 'pending' : 'completed' });
+    }
+  }, [childTasks, onUpdateSubTask]);
 
   // 更新子任务的负责人
   const handleUpdateSubTaskResource = useCallback((subTaskId: string, newResourceId: string | undefined) => {
-    const oldSubTask = localSubTasks.find(st => st.id === subTaskId);
-    
-    // 更新子任务的负责人
-    setLocalSubTasks(prev => 
-      prev.map(st => 
-        st.id === subTaskId 
-          ? { ...st, assignedResourceId: newResourceId }
-          : st
-      )
-    );
-    
-    // 处理负责人变更逻辑
-    if (newResourceId) {
-      // 添加新负责人（如果还没有）
-      setResourceAssignments(prev => {
-        if (prev.some(a => a.resourceId === newResourceId)) {
-          return prev;
-        }
-        return [...prev, {
-          resourceId: newResourceId,
-          source: 'subtask',
-          sourceSubTaskId: subTaskId,
-        }];
-      });
-    }
-    
-    // 如果原来有负责人，需要检查是否需要移除
-    if (oldSubTask?.assignedResourceId && oldSubTask.assignedResourceId !== newResourceId) {
-      const oldResourceId = oldSubTask.assignedResourceId;
-      
-      // 检查是否还有其他子任务使用该负责人
-      const hasOtherSubTaskWithSameResource = localSubTasks.some(
-        st => st.id !== subTaskId && st.assignedResourceId === oldResourceId
-      );
-      
-      if (!hasOtherSubTaskWithSameResource) {
-        setResourceAssignments(prev => 
-          prev.filter(a => 
-            !(a.resourceId === oldResourceId && a.sourceSubTaskId === subTaskId)
-          )
-        );
-      }
-    }
-  }, [localSubTasks]);
+    onUpdateSubTask(subTaskId, { assignedResources: newResourceId ? [newResourceId] : [] });
+  }, [onUpdateSubTask]);
 
   const handleUpdateSubTaskType = useCallback((subTaskId: string, newTaskType: ResourceWorkType | undefined) => {
-    setLocalSubTasks(prev =>
-      prev.map(st =>
-        st.id === subTaskId
-          ? { ...st, taskType: newTaskType }
-          : st
-      )
-    );
-  }, []);
+    onUpdateSubTask(subTaskId, { taskType: newTaskType });
+  }, [onUpdateSubTask]);
 
   // 手动添加负责人
   const handleManualAddResource = useCallback((resourceId: string) => {
@@ -396,22 +332,41 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
     }]);
   }, [resourceAssignments]);
 
+  // 动态计算所有负责人
+  const allAssignments = useMemo(() => {
+    const map = new Map<string, ResourceAssignment>();
+    
+    // 1. 添加手动分配的负责人 (只保留 source === 'manual')
+    resourceAssignments.filter(a => a.source === 'manual').forEach(a => {
+      map.set(a.resourceId, a);
+    });
+    
+    // 2. 动态添加子任务的负责人
+    childTasks.forEach(st => {
+      st.assignedResources?.forEach(resourceId => {
+        if (!map.has(resourceId)) {
+          map.set(resourceId, {
+            resourceId,
+            source: 'subtask',
+            sourceSubTaskId: st.id
+          });
+        }
+      });
+    });
+    
+    return Array.from(map.values());
+  }, [resourceAssignments, childTasks]);
+
   // 移除负责人
   const handleRemoveResource = useCallback((resourceId: string, source: 'subtask' | 'manual') => {
     if (source === 'manual') {
       // 手动添加的负责人，直接移除
       setResourceAssignments(prev => prev.filter(a => a.resourceId !== resourceId));
     } else {
-      // 子任务来源的负责人，检查是否需要移除
-      // 如果有其他子任务使用该负责人，则不移除
-      const hasOtherSubTaskWithSameResource = localSubTasks.some(
-        st => st.assignedResourceId === resourceId
-      );
-      if (!hasOtherSubTaskWithSameResource) {
-        setResourceAssignments(prev => prev.filter(a => a.resourceId !== resourceId));
-      }
+      // 子任务来源的负责人，需要提示用户去删除子任务或更改子任务负责人
+      alert('该负责人来源于子任务，请在下方子任务列表中更改负责人或删除子任务。');
     }
-  }, [localSubTasks]);
+  }, []);
 
   const handleSave = useCallback(() => {
     if (!task) return;
@@ -420,15 +375,14 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
     const extendedTask: ExtendedTask = {
       ...task,
       ...editedTask,
-      localSubTasks,
-      resourceAssignments,
+      resourceAssignments: allAssignments,
       // 将 resourceAssignments 转换为 assignedResources 数组
-      assignedResources: resourceAssignments.map(a => a.resourceId),
+      assignedResources: allAssignments.map(a => a.resourceId),
     };
     
     onSave(task.id, extendedTask);
     onClose();
-  }, [task, editedTask, localSubTasks, resourceAssignments, onSave, onClose]);
+  }, [task, editedTask, allAssignments, onSave, onClose]);
 
   if (!task) return null;
 
@@ -528,9 +482,9 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
             <label className="text-sm font-medium">负责人</label>
             <div className="space-y-2">
               {/* 已选负责人列表 */}
-              {resourceAssignments.length > 0 && (
+              {allAssignments.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  {resourceAssignments.map(assignment => (
+                  {allAssignments.map(assignment => (
                     <Badge 
                       key={assignment.resourceId} 
                       variant="outline"
@@ -558,7 +512,7 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {availableResources
-                    .filter(r => !resourceAssignments.some(a => a.resourceId === r.id))
+                    .filter(r => !allAssignments.some(a => a.resourceId === r.id))
                     .map(resource => (
                       <SelectItem key={resource.id} value={resource.id}>
                         {resource.name}
@@ -597,10 +551,10 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
 
           {/* 子任务区域 */}
           <div className="grid gap-2 border-t pt-4">
-            <label className="text-sm font-medium">子任务（仅本地可见）</label>
+            <label className="text-sm font-medium">子任务</label>
             <div className="space-y-2">
               {/* 子任务列表 */}
-              {localSubTasks.map(subTask => (
+              {childTasks.map(subTask => (
                 <div key={subTask.id} className="flex items-center gap-2 p-2 bg-slate-50 rounded">
                   <input
                     type="checkbox"
@@ -609,10 +563,10 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
                     className="w-4 h-4"
                   />
                   <span className={`flex-1 ${subTask.status === 'completed' ? 'line-through text-gray-400' : ''}`}>
-                    {subTask.name}
+                    {subTask.name.replace(`${task.name}-`, '')}
                   </span>
                   <Select 
-                    value={subTask.assignedResourceId || 'none'} 
+                    value={subTask.assignedResources?.[0] || 'none'} 
                     onValueChange={(value) => handleUpdateSubTaskResource(subTask.id, value === 'none' ? undefined : value)}
                   >
                     <SelectTrigger className="w-28 h-7 text-xs">
@@ -620,7 +574,7 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">无</SelectItem>
-                      {availableResources.map(resource => (
+                      {resources.filter(r => r.type === 'human' && (!subTask.taskType || r.workType === subTask.taskType)).map(resource => (
                         <SelectItem key={resource.id} value={resource.id}>
                           {resource.name}
                         </SelectItem>
@@ -644,7 +598,7 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    onClick={() => handleDeleteSubTask(subTask.id)}
+                    onClick={() => handleDeleteSubTaskLocal(subTask.id)}
                     className="text-red-500 hover:text-red-700 hover:bg-red-50 px-2"
                   >
                     删除
@@ -696,6 +650,17 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
         </div>
 
         <DialogFooter>
+          {(task.isSubTask || task.parentTaskId) && (
+            <Button
+              variant="destructive"
+              onClick={() => {
+                onDeleteSubTask(task.id);
+                onClose();
+              }}
+            >
+              删除子任务
+            </Button>
+          )}
           {task.status === 'completed' ? (
             <Button variant="outline" onClick={() => {
               onSave(task.id, { ...editedTask, status: 'pending' });
@@ -764,9 +729,13 @@ function mergeViewTasksWithLocalState(viewTasks: Task[], localTasks: Task[]): Ta
       startDate: localTask.startDate,
       endDate: localTask.endDate,
       deadline: localTask.deadline,
-      status: localTask.status,
+      status: localTask.status ?? viewTask.status,
       assignedResources: localTask.assignedResources,
       fixedResourceId: localTask.fixedResourceId,
+      localSubTasks: localTask.localSubTasks,
+      resourceAssignments: localTask.resourceAssignments,
+      parentTaskId: localTask.parentTaskId,
+      isSubTask: localTask.isSubTask,
     };
   });
 
@@ -794,6 +763,10 @@ function getTaskBusinessFingerprint(task: Task): string {
 
 // 合并飞书重载数据时优先按 record，其次按业务键，最后按 id，避免重导后 id 变化导致排期丢失
 function getTaskMergeKey(task: Task): string {
+  if (task.isSubTask || task.parentTaskId) {
+    return `id:${normalizeKeyPart(task.id)}`;
+  }
+
   const recordKey = normalizeKeyPart(task.feishuRecordId);
   if (recordKey) return `record:${recordKey}`;
 
@@ -866,14 +839,22 @@ function isSameLogicalTask(a: Task, b: Task): boolean {
 // 未分配任务池组件
 const UnassignedTaskPool = memo(function UnassignedTaskPool({
   tasks,
+  totalCount,
   draggedTask,
   onTaskClick,
   getOwnerNames,
+  projects,
+  projectFilter,
+  onProjectFilterChange,
 }: {
   tasks: Task[];
+  totalCount: number;
   draggedTask: Task | null;
   onTaskClick: (task: Task) => void;
   getOwnerNames: (task: Task) => string;
+  projects: { id: string; name: string }[];
+  projectFilter: string;
+  onProjectFilterChange: (projectId: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -901,6 +882,34 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
     rafId = window.requestAnimationFrame(keepHorizontalLocked);
     return () => window.cancelAnimationFrame(rafId);
   }, [draggedTask]);
+
+  const normalizedProjectFilter = projectFilter || 'all';
+  const displayTasks = useMemo(() => {
+    if (normalizedProjectFilter === 'all') return tasks;
+    if (normalizedProjectFilter === 'none') {
+      return tasks.filter((t) => !t.projectId);
+    }
+    return tasks.filter((t) => t.projectId === normalizedProjectFilter);
+  }, [tasks, normalizedProjectFilter]);
+
+  const groupedTasks = useMemo(() => {
+    const projectMap = new Map<string, Map<string, Task[]>>();
+    for (const task of displayTasks) {
+      const projectKey = (task.projectName || '').trim() || '未指定';
+      const categoryKey = (task.category || '').trim() || '未指定类目';
+      const categoryMap = projectMap.get(projectKey) || new Map<string, Task[]>();
+      const list = categoryMap.get(categoryKey) || [];
+      list.push(task);
+      categoryMap.set(categoryKey, list);
+      projectMap.set(projectKey, categoryMap);
+    }
+
+    const projects = Array.from(projectMap.entries()).sort((a, b) => a[0].localeCompare(b[0], 'zh-CN'));
+    return projects.map(([projectName, categoryMap]) => {
+      const categories = Array.from(categoryMap.entries()).sort((a, b) => a[0].localeCompare(b[0], 'zh-CN'));
+      return { projectName, categories };
+    });
+  }, [displayTasks]);
 
   return (
     <div className="w-48 min-w-48 max-w-48 shrink-0 h-full">
@@ -931,7 +940,25 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
       {/* 固定头部 */}
       <div className="flex items-center gap-2 px-2 py-2 border-b border-slate-300 bg-slate-100 rounded-t-lg">
         <span className="text-sm font-medium text-slate-600">📋 未分配任务</span>
-        <Badge variant="secondary" className="text-xs">{tasks.length}</Badge>
+        <Badge variant="secondary" className="text-xs">{displayTasks.length}</Badge>
+        <Badge variant="outline" className="text-xs text-slate-500">总 {totalCount}</Badge>
+      </div>
+
+      <div className="px-2 py-2 border-b border-slate-200 bg-slate-50">
+        <Select value={normalizedProjectFilter} onValueChange={onProjectFilterChange}>
+          <SelectTrigger className="w-full h-8 text-xs">
+            <SelectValue placeholder="项目筛选" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部项目</SelectItem>
+            <SelectItem value="none">未指定</SelectItem>
+            {projects.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       
       {/* 可滚动的内容区域 */}
@@ -950,20 +977,39 @@ const UnassignedTaskPool = memo(function UnassignedTaskPool({
           }
         }}
       >
-        {tasks.length === 0 ? (
+        {displayTasks.length === 0 ? (
           <div className="text-center text-slate-400 text-xs py-4">
             暂无未分配任务
           </div>
         ) : (
-          tasks.map(task => (
-            <DraggableTaskCard
-              key={getTaskUniqueKey(task)}
-              task={task}
-              ownerNames={getOwnerNames(task)}
-              onClick={() => onTaskClick(task)}
-              isDragging={draggedTask?.id === task.id}
-            />
-          ))
+          groupedTasks.map(({ projectName, categories }) => {
+            const projectCount = categories.reduce((sum, [, list]) => sum + list.length, 0);
+            return (
+              <div key={projectName} className="space-y-1">
+                {normalizedProjectFilter === 'all' && (
+                  <div className="text-[11px] text-slate-500 px-1 pt-1">
+                    {projectName}（{projectCount}）
+                  </div>
+                )}
+                {categories.map(([categoryName, list]) => (
+                  <div key={`${projectName}::${categoryName}`} className="space-y-1">
+                    <div className="text-[11px] text-slate-400 px-1 pt-1">
+                      {categoryName}（{list.length}）
+                    </div>
+                    {list.map(task => (
+                      <DraggableTaskCard
+                        key={getTaskUniqueKey(task)}
+                        task={task}
+                        ownerNames={getOwnerNames(task)}
+                        onClick={() => onTaskClick(task)}
+                        isDragging={draggedTask?.id === task.id}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            );
+          })
         )}
       </div>
       
@@ -1288,22 +1334,39 @@ export function MatrixCalendarView({
   resources,
   tasks,
   onTaskUpdate,
+  onDeleteTask,
   feishuConfig,
   onViewTasksLoaded,
   taskTypeFilter = 'all',
   resourceFilter = 'all',
+  onAddSubTask,
+  onUpdateSubTask,
+  onDeleteSubTask,
 }: MatrixCalendarViewProps): React.JSX.Element {
   const calendarRootRef = useRef<HTMLDivElement | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
+  const [nameSearch, setNameSearch] = useState('');
+  const [unassignedProjectFilter, setUnassignedProjectFilter] = useState('all');
 
   // 矩阵任务以数据库持久态为主数据源
   const [viewTasks, setViewTasks] = useState<Task[]>(() => normalizeTasks(tasks));
   const [viewLoading, setViewLoading] = useState(false);
   const [viewError, setViewError] = useState<string | null>(null);
   const autoHydratedViewIdRef = useRef<string | null>(null);
+  const autoHydratedLowCountViewIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedTask) return;
+    const updated =
+      viewTasks.find((t) => t.id === selectedTask.id) ||
+      viewTasks.find((t) => isSameLogicalTask(t, selectedTask));
+    if (!updated) return;
+    if (updated === selectedTask) return;
+    setSelectedTask(updated);
+  }, [viewTasks, selectedTask]);
 
   // 延迟更新的 draggedTask，用于 UI 渲染，减少重渲染
   const deferredDraggedTask = useDeferredValue(draggedTask);
@@ -1340,8 +1403,24 @@ export function MatrixCalendarView({
 
   // 根据筛选条件过滤任务
   const filteredViewTasks = useMemo(() => {
+    const keyword = nameSearch.trim().toLowerCase();
     const normalizedViewTasks = normalizeTasks(viewTasks);
     return normalizedViewTasks.filter(task => {
+      if (task.subType && task.subType.includes('配音')) {
+        return false;
+      }
+      const projectProgress =
+        (task as any).projectProgress ??
+        (task as any).projectStatus ??
+        (task as any).progress ??
+        (task as any).cooperationStatus;
+      if (String(projectProgress || '').trim() === '已验收待打包') {
+        return false;
+      }
+      if (keyword) {
+        const name = String(task.name || '').toLowerCase();
+        if (!name.includes(keyword)) return false;
+      }
       // 任务类型筛选
       if (taskTypeFilter !== 'all' && task.taskType !== taskTypeFilter) {
         return false;
@@ -1359,7 +1438,7 @@ export function MatrixCalendarView({
       }
       return true;
     });
-  }, [viewTasks, taskTypeFilter, resourceFilter]);
+  }, [viewTasks, taskTypeFilter, resourceFilter, nameSearch]);
 
   // 内部函数：从飞书 API 加载视图数据并更新状态
   const fetchAndSetViewTasks = useCallback(async (config: NonNullable<MatrixCalendarFeishuConfig>) => {
@@ -1373,11 +1452,12 @@ export function MatrixCalendarView({
         app_token: config.appToken || '',
         requirements2_table_id: config.requirements2TableId || '',
         view_id: config.viewId || '',
+        debug: '1',
       });
 
       console.log('[矩阵日历] 正在加载视图数据...', config.viewId);
 
-      const response = await fetch(`/api/feishu/load-requirements2-view?${params}`);
+      const response = await fetch(`/api/feishu/load-requirements2-view?${params}`, { cache: 'no-store' });
       const data = await response.json();
 
       if (!response.ok) {
@@ -1385,7 +1465,7 @@ export function MatrixCalendarView({
       }
 
       if (data.success) {
-        console.log('[矩阵日历] 视图数据加载成功:', data.tasks.length, '个任务');
+        console.log('[矩阵日历] 视图数据加载成功:', data.tasks.length, '个任务', data.debug || '');
         const sourceStampedTasks: Task[] = normalizeTasks(
           (data.tasks as Task[]).map((task) => ({
             ...task,
@@ -1423,11 +1503,18 @@ export function MatrixCalendarView({
     const activeViewId = (feishuConfig?.viewId || '').trim();
     if (!activeViewId) return;
     if (viewLoading) return;
-    if (viewTasks.length > 0) return;
-    if (autoHydratedViewIdRef.current === activeViewId) return;
+    if (viewTasks.length === 0) {
+      if (autoHydratedViewIdRef.current === activeViewId) return;
+      autoHydratedViewIdRef.current = activeViewId;
+      void loadViewData();
+      return;
+    }
 
-    autoHydratedViewIdRef.current = activeViewId;
-    void loadViewData();
+    if (viewTasks.length < 60) {
+      if (autoHydratedLowCountViewIdRef.current === activeViewId) return;
+      autoHydratedLowCountViewIdRef.current = activeViewId;
+      void loadViewData();
+    }
   }, [feishuConfig?.viewId, viewTasks.length, viewLoading, loadViewData]);
 
   // 切换调休/加班日
@@ -1624,6 +1711,16 @@ export function MatrixCalendarView({
     return weeks;
   }, [currentDate]);
 
+  const visibleDateSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const week of monthWeeks) {
+      for (const day of week.days) {
+        set.add(format(day, 'yyyy-MM-dd'));
+      }
+    }
+    return set;
+  }, [monthWeeks]);
+
   // 获取项目列表（从 filteredViewTasks 生成，确保与显示的任务一致）
   const projects = useMemo(() => {
     const projectMap = new Map<string, { id: string; name: string }>();
@@ -1646,10 +1743,12 @@ export function MatrixCalendarView({
   const unassignedTasks = useMemo(() => {
     const candidates = filteredViewTasks.filter(task => {
       const taskDate = resolveTaskDate(task);
+      const inCurrentView = taskDate ? visibleDateSet.has(format(taskDate, 'yyyy-MM-dd')) : false;
       const canDisplayInMatrixGrid =
         Boolean(task.taskType) &&
         Boolean(taskDate) &&
-        Boolean(taskDate && isWorkingDay(taskDate, extraWorkDays));
+        Boolean(taskDate && isWorkingDay(taskDate, extraWorkDays)) &&
+        inCurrentView;
       // 只要该任务不能进矩阵格子，就放进未分配池
       return !canDisplayInMatrixGrid;
     });
@@ -1664,7 +1763,7 @@ export function MatrixCalendarView({
       }
     }
     return Array.from(uniqueMap.values());
-  }, [filteredViewTasks, resolveTaskDate, extraWorkDays]);
+  }, [filteredViewTasks, resolveTaskDate, extraWorkDays, visibleDateSet]);
 
   // 按日期和类型分组任务
   // 对于视图数据：有deadline的任务按deadline显示，没有日期的显示在任务池
@@ -1686,6 +1785,7 @@ export function MatrixCalendarView({
       if (!taskDate) continue;
 
       const dateKey = format(taskDate, 'yyyy-MM-dd');
+      if (!visibleDateSet.has(dateKey)) continue;
 
       // 只在工作日显示任务（考虑调休/加班日）
       if (isWorkingDay(taskDate, extraWorkDays)) {
@@ -1699,7 +1799,7 @@ export function MatrixCalendarView({
     }
 
     return grouped;
-  }, [filteredViewTasks, extraWorkDays, resolveTaskDate]);
+  }, [filteredViewTasks, extraWorkDays, resolveTaskDate, visibleDateSet]);
 
   // 拖拽开始
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -1860,14 +1960,22 @@ export function MatrixCalendarView({
           <div className="text-lg font-semibold shrink-0">
             {format(currentDate, 'yyyy年 M月', { locale: zhCN })}
           </div>
-          <div className="text-sm text-muted-foreground min-w-0 flex-1 text-right">
-            {draggedTask ? (
-              <span className="text-blue-600 font-medium block truncate">
-                🔄 正在移动: {draggedTask.name}
-              </span>
-            ) : (
-              <span className="block truncate">💡 提示: 拖拽任务卡片移动日期 | 点击休息日设为加班日</span>
-            )}
+          <div className="min-w-0 flex-1 flex flex-col items-end gap-1">
+            <Input
+              value={nameSearch}
+              onChange={(e) => setNameSearch(e.target.value)}
+              placeholder="搜索任务名称"
+              className="h-8 w-[260px]"
+            />
+            <div className="text-sm text-muted-foreground min-w-0 text-right">
+              {draggedTask ? (
+                <span className="text-blue-600 font-medium block truncate">
+                  🔄 正在移动: {draggedTask.name}
+                </span>
+              ) : (
+                <span className="block truncate">💡 提示: 拖拽任务卡片移动日期 | 点击休息日设为加班日</span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1890,9 +1998,13 @@ export function MatrixCalendarView({
           <div className="w-48 min-w-48 max-w-48 shrink-0 h-full">
             <UnassignedTaskPool
               tasks={unassignedTasks}
+              totalCount={filteredViewTasks.length}
               draggedTask={draggedTask}
               onTaskClick={handleTaskClick}
               getOwnerNames={getOwnerNames}
+              projects={projects}
+              projectFilter={unassignedProjectFilter}
+              onProjectFilterChange={setUnassignedProjectFilter}
             />
           </div>
 
@@ -1927,6 +2039,10 @@ export function MatrixCalendarView({
           onSave={handleTaskSave}
           resources={resources}
           projects={projects}
+          allTasks={viewTasks}
+          onAddSubTask={(subTask) => onAddSubTask?.(subTask)}
+          onUpdateSubTask={(subTaskId, updates) => onUpdateSubTask?.(subTaskId, updates)}
+          onDeleteSubTask={(subTaskId) => onDeleteSubTask?.(subTaskId)}
         />
       </div>
       <DragOverlay>

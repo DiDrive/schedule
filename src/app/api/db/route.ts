@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getAllData,
+  deleteTasksBatch,
   syncTasksBatch,
   syncResourcesBatch,
   setCalendarExtraWorkDays,
@@ -27,7 +28,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, tasks, resources, projects, scheduleResult, calendarExtraWorkDays, replaceMatrixViews } = body;
+    const { action, tasks, resources, projects, scheduleResult, calendarExtraWorkDays, replaceMatrixViews, replaceResources, taskIds } = body;
 
     switch (action) {
       case 'sync_tasks':
@@ -37,9 +38,14 @@ export async function POST(request: NextRequest) {
           });
         }
         break;
+      case 'delete_tasks':
+        if (Array.isArray(taskIds)) {
+          await deleteTasksBatch(taskIds);
+        }
+        break;
       case 'sync_resources':
         if (resources && Array.isArray(resources)) {
-          await syncResourcesBatch(resources);
+          await syncResourcesBatch(resources, { replaceMissing: Boolean(replaceResources) });
         }
         break;
       case 'sync_all':
@@ -49,7 +55,7 @@ export async function POST(request: NextRequest) {
           });
         }
         if (resources && Array.isArray(resources)) {
-          await syncResourcesBatch(resources);
+          await syncResourcesBatch(resources, { replaceMissing: Boolean(replaceResources) });
         }
         if (projects && Array.isArray(projects)) {
           await setProjectsData(projects);

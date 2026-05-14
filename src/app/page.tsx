@@ -222,6 +222,7 @@ export default function ProjectScheduleSystem() {
           resources: resources.map((r: any) => mapResourceToDbPayload(r)),
           tasks: allTasksForDb.map((t: any) => mapTaskToDbPayload(t)),
           projects: projects.map((p: any) => ({ ...p })),
+          replaceResources: true,
           replaceMatrixViews: dataSourceMode === 'new' && config.newMode?.viewIds?.requirements2Matrix
             ? [config.newMode.viewIds.requirements2Matrix]
             : [],

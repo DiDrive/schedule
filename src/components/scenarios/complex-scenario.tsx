@@ -39,7 +39,7 @@ import FeishuIntegrationDialog from '@/components/feishu-integration-dialog';
 import TemplateDialog from '@/components/template-dialog';
 import TaskRow from '@/components/task-row';
 import { loadFeishuConfig } from '@/lib/feishu-config';
-import { loadAllData, syncAllData, syncTasks } from '@/storage/database/db-service';
+import { deleteTasks, loadAllData, syncAllData, syncTasks } from '@/storage/database/db-service';
 
 // 辅助函数：将 Date 或字符串转换为 YYYY-MM-DD 格式
 const formatDateToInputValue = (date: Date | string | undefined): string => {
@@ -1259,9 +1259,113 @@ export default function ComplexScenario() {
       }))
       .filter(t => t.id !== taskId)
     );
+
+    setScheduleResult(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        tasks: prev.tasks
+          .map(t => ({
+            ...t,
+            dependencies: t.dependencies?.filter((d: string) => d !== taskId)
+          }))
+          .filter((t: any) => t.id !== taskId)
+      };
+    });
+
+    deleteTasks([taskId]).catch(err => console.error('[管理端] 删除任务失败:', err));
   }, []);
 
   // 处理任务更新（用于矩阵日历视图拖拽等场景）
+  // 添加子任务
+  const handleAddSubTask = useCallback((subTask: Task) => {
+    let parentForSync: Task | undefined;
+    setMatrixPersistedTasks(prev => {
+      const next = [...prev, subTask];
+      const parentId = String(subTask.parentTaskId || '').trim();
+      if (!parentId) return next;
+      const parent = next.find(t => t.id === parentId);
+      if (!parent) return next;
+      const localSubTasks = (Array.isArray(parent.localSubTasks) ? parent.localSubTasks : []) as NonNullable<Task['localSubTasks']>;
+      const nextLocalSubTasks: NonNullable<Task['localSubTasks']> = [
+        ...localSubTasks.filter(st => st.id !== subTask.id),
+        {
+          id: subTask.id,
+          name: subTask.name,
+          assignedResourceId: subTask.assignedResources?.[0],
+          taskType: subTask.taskType,
+          status: (subTask.status === 'completed' ? 'completed' : 'pending') as 'pending' | 'completed',
+        },
+      ];
+      parentForSync = { ...parent, localSubTasks: nextLocalSubTasks };
+      return next.map(t => (t.id === parentId ? parentForSync! : t));
+    });
+    syncTaskToDb(subTask).catch(err => console.error('[管理端] 同步子任务失败:', err));
+    if (parentForSync) {
+      syncTaskToDb(parentForSync).catch(err => console.error('[管理端] 同步父任务子任务列表失败:', err));
+    }
+  }, []);
+
+  // 更新子任务
+  const handleUpdateSubTask = useCallback((subTaskId: string, updates: Partial<Task>) => {
+    let subTaskForSync: Task | undefined;
+    let parentForSync: Task | undefined;
+    setMatrixPersistedTasks(prev => {
+      const next = prev.map(t => {
+        if (t.id !== subTaskId) return t;
+        subTaskForSync = { ...t, ...updates };
+        return subTaskForSync;
+      });
+
+      const parentId = String(subTaskForSync?.parentTaskId || '').trim();
+      if (!parentId) return next;
+      const parent = next.find(t => t.id === parentId);
+      if (!parent) return next;
+      const localSubTasks = (Array.isArray(parent.localSubTasks) ? parent.localSubTasks : []) as NonNullable<Task['localSubTasks']>;
+      const nextLocalSubTasks: NonNullable<Task['localSubTasks']> = [
+        ...localSubTasks.filter(st => st.id !== subTaskId),
+        {
+          id: subTaskId,
+          name: subTaskForSync?.name || '',
+          assignedResourceId: subTaskForSync?.assignedResources?.[0],
+          taskType: subTaskForSync?.taskType,
+          status: (subTaskForSync?.status === 'completed' ? 'completed' : 'pending') as 'pending' | 'completed',
+        },
+      ];
+      parentForSync = { ...parent, localSubTasks: nextLocalSubTasks };
+      return next.map(t => (t.id === parentId ? parentForSync! : t));
+    });
+    if (subTaskForSync) {
+      syncTaskToDb(subTaskForSync).catch(err => console.error('[管理端] 同步子任务更新失败:', err));
+    }
+    if (parentForSync) {
+      syncTaskToDb(parentForSync).catch(err => console.error('[管理端] 同步父任务子任务列表失败:', err));
+    }
+  }, []);
+
+  // 删除子任务
+  const handleDeleteSubTask = useCallback((subTaskId: string) => {
+    let parentForSync: Task | undefined;
+    setMatrixPersistedTasks(prev => {
+      const subTask = prev.find(t => t.id === subTaskId);
+      const parentId = String(subTask?.parentTaskId || '').trim();
+      const next = prev.filter(t => t.id !== subTaskId);
+      if (!parentId) return next;
+      const parent = next.find(t => t.id === parentId);
+      if (!parent) return next;
+      const localSubTasks = (Array.isArray(parent.localSubTasks) ? parent.localSubTasks : []) as NonNullable<Task['localSubTasks']>;
+      const nextLocalSubTasks = localSubTasks.filter(st => st.id !== subTaskId);
+      parentForSync = { ...parent, localSubTasks: nextLocalSubTasks };
+      return next.map(t => (t.id === parentId ? parentForSync! : t));
+    });
+    import('@/storage/database/db-service').then(({ deleteTasks }) => {
+      deleteTasks([subTaskId]).catch(err => console.error('[管理端] 删除子任务失败:', err));
+    });
+    if (parentForSync) {
+      syncTaskToDb(parentForSync).catch(err => console.error('[管理端] 同步父任务子任务列表失败:', err));
+    }
+  }, []);
+
   const handleTaskUpdate = useCallback((taskId: string, updates: Partial<Task>, sourceTask?: Task) => {
     const isMatrixTask =
       sourceTask?.taskSource === 'matrix_view' ||
@@ -3233,6 +3337,7 @@ export default function ComplexScenario() {
               tasks={matrixPersistedTasks}
               onTaskClick={openTaskSplitDialog}
               onTaskUpdate={handleTaskUpdate}
+              onDeleteTask={handleDeleteTask}
               onViewTasksLoaded={handleMatrixViewTasksLoaded}
               feishuConfig={feishuConfig ? {
                 appId: feishuConfig.appId,
@@ -3243,6 +3348,9 @@ export default function ComplexScenario() {
               } : undefined}
               taskTypeFilter={matrixTaskType}
               resourceFilter={matrixResource}
+              onAddSubTask={handleAddSubTask}
+              onUpdateSubTask={handleUpdateSubTask}
+              onDeleteSubTask={handleDeleteSubTask}
             />
           </CardContent>
         </Card>
@@ -3488,6 +3596,9 @@ export default function ComplexScenario() {
                       requirements2TableId: feishuConfig.newMode.tableIds.requirements2,
                       viewId: feishuConfig.newMode.viewIds?.requirements2Matrix,
                     } : undefined}
+                    onAddSubTask={handleAddSubTask}
+                    onUpdateSubTask={handleUpdateSubTask}
+                    onDeleteSubTask={handleDeleteSubTask}
                   />
                 </CardContent>
               </Card>

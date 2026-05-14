@@ -1,43 +1,45 @@
 # 本机长期稳定部署指南（Windows）
 
-适用场景：项目部署在公司内网一台 Windows 电脑，供同事长期访问。  
-项目目录：`d:\manager_vb\projects`  
+适用场景：项目部署在公司内网一台 Windows 电脑，供同事长期访问。\
+项目目录：`d:\manager_vb\projects`\
 访问地址示例：`http://192.168.110.239:5000`
 
----
+***
 
 ## 1. 一次性安装
 
-1. 安装 Node.js 20 LTS  
+1. 安装 Node.js 20 LTS
 2. 安装 pnpm
 
 ```powershell
 npm i -g pnpm
 ```
 
-3. 安装 pm2（用于守护进程、重启恢复）
+1. 安装 pm2（用于守护进程、重启恢复）
 
 ```powershell
 npm i -g pm2
 ```
 
----
+***
 
 ## 2. 环境变量（必须）
 
 在 Windows 系统环境变量中配置（用户变量或系统变量均可）：
 
-- `COZE_SUPABASE_URL`
-- `COZE_SUPABASE_ANON_KEY`
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `NEXT_PUBLIC_FEISHU_APP_ID`
-- `NEXT_PUBLIC_FEISHU_APP_SECRET`
+```env
+COZE_SUPABASE_URL=https://xxxx.supabase.co
+COZE_SUPABASE_ANON_KEY=sb_publishable_xxx
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_xxx
+NEXT_PUBLIC_FEISHU_APP_ID=cli_xxx
+NEXT_PUBLIC_FEISHU_APP_SECRET=xxxx
+```
 
 配置后必须：
 
-1. 关闭当前 PowerShell  
-2. 新开 PowerShell  
+1. 关闭当前 PowerShell
+2. 新开 PowerShell
 3. 验证变量
 
 ```powershell
@@ -45,7 +47,7 @@ echo $env:COZE_SUPABASE_URL
 echo $env:COZE_SUPABASE_ANON_KEY
 ```
 
----
+***
 
 ## 3. 首次部署
 
@@ -63,7 +65,7 @@ pnpm start
 
 浏览器验证：`http://localhost:5000`
 
----
+***
 
 ## 4. 防火墙放行 5000（内网访问）
 
@@ -75,7 +77,7 @@ netsh advfirewall firewall add rule name="Nextjs-5000" dir=in action=allow proto
 
 同事访问地址：`http://192.168.110.239:5000`
 
----
+***
 
 ## 5. PM2 长期托管（核心）
 
@@ -106,7 +108,7 @@ pm2 restart schedule-web --update-env
 
 > `--update-env` 用于加载你最新修改过的环境变量。
 
----
+***
 
 ## 6. 日常更新发布流程
 
@@ -124,7 +126,7 @@ pm2 status
 pm2 logs schedule-web --lines 100
 ```
 
----
+***
 
 ## 7. 开机自动恢复（任务计划）
 
@@ -144,21 +146,21 @@ schtasks /Run /TN "PM2-Resurrect"
 pm2 status
 ```
 
----
+***
 
 ## 8. 常见故障排查
 
 ### 8.1 同事打不开页面
 
-1. 本机先测：`http://localhost:5000`  
+1. 本机先测：`http://localhost:5000`
 2. 检查端口监听：
 
 ```powershell
 netstat -ano | findstr :5000
 ```
 
-3. 检查防火墙规则是否存在（并匹配专用网络）  
-4. 同事机器 `ping 192.168.110.239`
+1. 检查防火墙规则是否存在（并匹配专用网络）
+2. 同事机器 `ping 192.168.110.239`
 
 ### 8.2 报 Supabase 环境变量缺失
 
@@ -166,8 +168,8 @@ netstat -ano | findstr :5000
 
 处理：
 
-1. 确认环境变量已配置  
-2. 重新打开终端  
+1. 确认环境变量已配置
+2. 重新打开终端
 3. 执行：
 
 ```powershell
@@ -195,7 +197,7 @@ pm2 flush
 pm2 logs schedule-web --lines 80
 ```
 
----
+***
 
 ## 9. 可选增强（建议）
 

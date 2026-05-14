@@ -1,0 +1,26 @@
+{
+  "appId": "cli_a90ff12d93635bc4",
+  "appSecret": "n2rCClUbnOVZoOMMsBDyxfGwtZd1oFO5",
+  "dataSourceMode": "new",
+  "newMode": {
+    "appToken": "PmN4bsuumabRsssDm7JcP3Yinee",
+    "tableIds": {
+      "resources": "tblF4ZeoqkjRMpjB",
+      "requirements1": "tblU9zk2TXkezU5V",
+      "requirements2": "tbl2DmMEixMBJMlJ",
+      "schedules": "tbleMbJkqMc3APZi"
+    },
+    "viewIds": {
+      "requirements2Matrix": "vewwfBJHbZ"
+    }
+  },
+  "legacyMode": {
+    "appToken": "Y0PwbZ0fYa7gjxsPBKBcjIKHnbh",
+    "tableIds": {
+      "resources": "tbl5nksDoRhV9cMQ",
+      "projects": "tbl3Ib518pdx4TSV",
+      "tasks": "tbl2hM4xCS0tWfQ2",
+      "schedules": "tbl4rD5SrdvgMIhl"
+    }
+  }
+}

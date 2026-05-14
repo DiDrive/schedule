@@ -166,6 +166,19 @@ export async function syncTask(taskData: Record<string, unknown>) {
   if (error) throw new Error(`同步任务失败: ${error.message}`);
 }
 
+export async function deleteTasksBatch(taskIds: string[]) {
+  const ids = Array.from(new Set(taskIds.map((id) => String(id || '').trim()).filter(Boolean)));
+  if (ids.length === 0) return;
+
+  const client = getSupabaseClient();
+  const batchSize = 200;
+  for (let i = 0; i < ids.length; i += batchSize) {
+    const chunk = ids.slice(i, i + batchSize);
+    const { error } = await client.from('tasks').delete().in('id', chunk);
+    if (error) throw new Error(`删除任务失败: ${error.message}`);
+  }
+}
+
 // 批量同步任务
 export async function syncTasksBatch(
   tasks: Record<string, unknown>[],
@@ -258,6 +271,7 @@ export async function syncTasksBatch(
           .map((task) => String(task.feishu_record_id || '').trim())
           .filter(Boolean)
       );
+      if (incomingRecordIds.size === 0) continue;
 
       const { data: existingRows, error: existingError } = await client
         .from('tasks')
@@ -272,7 +286,7 @@ export async function syncTasksBatch(
         .filter((row) => {
           const recordId = String((row as { feishu_record_id?: string }).feishu_record_id || '').trim();
           // 飞书视图里不存在的记录应删除
-          return !recordId || !incomingRecordIds.has(recordId);
+          return recordId && !incomingRecordIds.has(recordId);
         })
         .map((row) => String((row as { id?: string }).id || '').trim())
         .filter(Boolean);
@@ -295,12 +309,44 @@ export async function syncTasksBatch(
 }
 
 // 批量同步资源
-export async function syncResourcesBatch(resources: Record<string, unknown>[]) {
+export async function syncResourcesBatch(
+  resources: Record<string, unknown>[],
+  options?: { replaceMissing?: boolean }
+) {
   if (resources.length === 0) return;
   
   const client = getSupabaseClient();
   const { error } = await client.from('resources').upsert(resources, { onConflict: 'id' });
   if (error) throw new Error(`批量同步资源失败: ${error.message}`);
+
+  if (!options?.replaceMissing) {
+    return;
+  }
+
+  const incomingIds = new Set(resources.map((r) => String((r as { id?: unknown }).id || '').trim()).filter(Boolean));
+  if (incomingIds.size === 0) {
+    return;
+  }
+
+  const { data: existingRows, error: existingError } = await client.from('resources').select('id');
+  if (existingError) {
+    throw new Error(`批量同步资源失败(读取现有资源): ${existingError.message}`);
+  }
+
+  const idsToDelete = (existingRows || [])
+    .map((row) => String((row as { id?: string }).id || '').trim())
+    .filter((id) => id && !incomingIds.has(id));
+
+  if (idsToDelete.length === 0) return;
+
+  const batchSize = 200;
+  for (let i = 0; i < idsToDelete.length; i += batchSize) {
+    const chunk = idsToDelete.slice(i, i + batchSize);
+    const { error: deleteError } = await client.from('resources').delete().in('id', chunk);
+    if (deleteError) {
+      throw new Error(`批量同步资源失败(删除缺失资源): ${deleteError.message}`);
+    }
+  }
 }
 
 // 设置日历配置
