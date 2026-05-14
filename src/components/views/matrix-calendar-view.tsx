@@ -144,6 +144,39 @@ function isOriginallyRestDay(date: Date): boolean {
   return false;
 }
 
+function toStartOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function countWorkingDaysInRange(start: Date, end: Date, extraWorkDays?: Set<string>): number {
+  let count = 0;
+  let current = toStartOfDay(start);
+  const endDay = toStartOfDay(end);
+  while (current <= endDay) {
+    if (isWorkingDay(current, extraWorkDays)) {
+      count += 1;
+    }
+    current = addDays(current, 1);
+  }
+  return Math.max(1, count);
+}
+
+function addWorkingDays(start: Date, daysToAdd: number, extraWorkDays?: Set<string>): Date {
+  let current = toStartOfDay(start);
+  let remaining = Math.max(0, daysToAdd);
+  while (remaining > 0) {
+    current = getNextWorkingDay(current, extraWorkDays);
+    remaining -= 1;
+  }
+  return current;
+}
+
+const SPAN_LANE_HEIGHT_PX = 35;// 任务车道高度
+const SPAN_ROW_BASE_HEIGHT_PX = 80;// 任务行基础高度
+const SPAN_ROW_PADDING_PX = 1;// 任务行内边距
+
 // 获取下一个工作日
 function getNextWorkingDay(date: Date, extraWorkDays?: Set<string>): Date {
   const result = new Date(date);
@@ -213,6 +246,7 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
   onSave,
   resources,
   projects,
+  extraWorkDays,
   allTasks,
   onAddSubTask,
   onUpdateSubTask,
@@ -224,6 +258,7 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
   onSave: (taskId: string, updates: Partial<Task>) => void;
   resources: Resource[];
   projects: { id: string; name: string }[];
+  extraWorkDays: Set<string>;
   allTasks: Task[];
   onAddSubTask: (subTask: Task) => void;
   onUpdateSubTask: (subTaskId: string, updates: Partial<Task>) => void;
@@ -268,6 +303,7 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
         description: task.description || '',
         projectId: task.projectId,
         estimatedHours: task.estimatedHours,
+        startDate: task.startDate,
         endDate: task.endDate,
         assignedResources: task.assignedResources,
         fixedResourceId: task.fixedResourceId,
@@ -371,10 +407,28 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
   const handleSave = useCallback(() => {
     if (!task) return;
     
+    let startDate = editedTask.startDate ? toStartOfDay(new Date(editedTask.startDate)) : undefined;
+    let endDate = editedTask.endDate ? toStartOfDay(new Date(editedTask.endDate)) : undefined;
+    if (startDate || endDate) {
+      if (!startDate && endDate) startDate = endDate;
+      if (!endDate && startDate) endDate = startDate;
+      if (startDate && !isWorkingDay(startDate, extraWorkDays)) {
+        startDate = getNextWorkingDay(startDate, extraWorkDays);
+      }
+      if (endDate && !isWorkingDay(endDate, extraWorkDays)) {
+        endDate = getPrevWorkingDay(endDate, extraWorkDays);
+      }
+      if (startDate && endDate && endDate < startDate) {
+        endDate = startDate;
+      }
+    }
+
     // 构建保存的数据
     const extendedTask: ExtendedTask = {
       ...task,
       ...editedTask,
+      startDate,
+      endDate,
       resourceAssignments: allAssignments,
       // 将 resourceAssignments 转换为 assignedResources 数组
       assignedResources: allAssignments.map(a => a.resourceId),
@@ -382,7 +436,7 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
     
     onSave(task.id, extendedTask);
     onClose();
-  }, [task, editedTask, allAssignments, onSave, onClose]);
+  }, [task, editedTask, allAssignments, onSave, onClose, extraWorkDays]);
 
   if (!task) return null;
 
@@ -536,17 +590,29 @@ const TaskDetailDialog = memo(function TaskDetailDialog({
             </div>
           </div>
 
-          {/* 完成日期 */}
-          <div className="grid gap-2">
-            <label className="text-sm font-medium flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              完成日期
-            </label>
-            <Input
-              type="date"
-              value={editedTask.endDate ? format(new Date(editedTask.endDate), 'yyyy-MM-dd') : ''}
-              onChange={(e) => setEditedTask({ ...editedTask, endDate: e.target.value ? new Date(e.target.value) : undefined })}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                开始日期
+              </label>
+              <Input
+                type="date"
+                value={editedTask.startDate ? format(new Date(editedTask.startDate), 'yyyy-MM-dd') : ''}
+                onChange={(e) => setEditedTask({ ...editedTask, startDate: e.target.value ? new Date(e.target.value) : undefined })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                结束日期
+              </label>
+              <Input
+                type="date"
+                value={editedTask.endDate ? format(new Date(editedTask.endDate), 'yyyy-MM-dd') : ''}
+                onChange={(e) => setEditedTask({ ...editedTask, endDate: e.target.value ? new Date(e.target.value) : undefined })}
+              />
+            </div>
           </div>
 
           {/* 子任务区域 */}
@@ -1089,23 +1155,25 @@ const DraggableTaskCard = memo(function DraggableTaskCard({
 const DroppableCell = memo(function DroppableCell({
   day,
   taskType,
-  cellTasks,
   draggedTask,
   onTaskClick,
   getOwnerNames,
   isInMonth,
   extraWorkDays,
   onToggleExtraWorkDay,
+  style,
+  className,
 }: {
   day: Date;
   taskType: ResourceWorkType;
-  cellTasks: Task[];
   draggedTask: Task | null;
   onTaskClick: (task: Task) => void;
   getOwnerNames: (task: Task) => string;
   isInMonth: boolean;
   extraWorkDays: Set<string>;
   onToggleExtraWorkDay: (date: Date) => void;
+  style?: React.CSSProperties;
+  className?: string;
 }) {
   const dateStr = format(day, 'yyyy-MM-dd');
   const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -1153,38 +1221,104 @@ const DroppableCell = memo(function DroppableCell({
     <div
       ref={setNodeRef}
       onClick={handleCellClick}
+      data-date={dateStr}
+      data-tasktype={taskType}
+      data-isworkday={isWorkDay ? '1' : '0'}
+      style={style}
       className={`
-        flex-1 min-w-24 min-h-[60px] p-1 border-r last:border-r-0 border-slate-200
+        min-w-24 min-h-[44px] p-1 border-r last:border-r-0 border-slate-200
         ${isToday && isWorkDay ? 'bg-blue-50' : ''}
         ${!isWorkDay || isExtraWorkDay ? getNonWorkingDayStyle() : ''}
         ${isDragOver ? 'bg-green-100 ring-2 ring-green-400 ring-inset' : ''}
         ${!isInMonth ? 'opacity-40' : ''}
         transition-colors
+        ${className || ''}
       `}
       title={isOriginallyRest ? (isExtraWorkDay ? '点击取消加班/调休' : '点击设置为加班/调休日') : undefined}
     >
-      <div className="space-y-1 min-h-[40px]">
-        {isWorkDay ? (
-          <>
-            {cellTasks.map(task => (
-              <DraggableTaskCard
-                key={task.id}
-                task={task}
-                ownerNames={getOwnerNames(task)}
-                onClick={() => onTaskClick(task)}
-                isDragging={draggedTask?.id === task.id}
-              />
-            ))}
-            {cellTasks.length === 0 && (
-              <div className="h-8 flex items-center justify-center text-slate-300 text-xs">-</div>
-            )}
-          </>
-        ) : (
-          <div className="h-8 flex items-center justify-center text-xs opacity-60">
-            {isHoliday ? '🏛️ 休' : '休息'}
-          </div>
-        )}
+      <div className="h-full flex items-center justify-center text-xs opacity-60 select-none">
+        {!isWorkDay && !isExtraWorkDay ? (isHoliday ? '休' : '休息') : null}
       </div>
+    </div>
+  );
+});
+
+const TaskSpanBar = memo(function TaskSpanBar({
+  task,
+  ownerNames,
+  onClick,
+  isDragging,
+  colStart,
+  colSpan,
+  row,
+  onResizeStart,
+  isPreview,
+}: {
+  task: Task;
+  ownerNames: string;
+  onClick: () => void;
+  isDragging: boolean;
+  colStart: number;
+  colSpan: number;
+  row: number;
+  onResizeStart: (task: Task, event: React.PointerEvent<HTMLDivElement>) => void;
+  isPreview: boolean;
+}) {
+  const isCompleted = task.status === 'completed';
+  const projectPrefix = task.projectName ? `【${task.projectName}】` : '';
+  const displayName = projectPrefix + task.name;
+  const tooltipLines = [
+    displayName,
+    `负责人: ${ownerNames || '-'}`,
+    `类目: ${task.category || '-'}`,
+    `细分: ${task.subType || '-'}`,
+    `语言: ${task.language || '-'}`,
+    `对接人: ${task.contactPerson || '-'}`,
+    isCompleted ? '✓ 已完成' : '拖拽移动日期 / 右侧拖拽调整结束日期',
+  ];
+
+  const { attributes, listeners, setNodeRef, isDragging: isBeingDragged } = useDraggable({
+    id: `task-${task.id}`,
+    data: {
+      task,
+      taskType: task.taskType,
+    },
+  });
+
+  const typeStyle = isCompleted ? getCompletedTypeStyle(task.taskType) : getTypeStyle(task.taskType);
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        userSelect: 'none',
+        touchAction: 'none',
+        gridColumn: `${colStart} / span ${colSpan}`,
+        gridRow: row,
+      }}
+      {...listeners}
+      {...attributes}
+      onClick={onClick}
+      className={`
+        relative h-[26px] px-2 rounded text-xs cursor-grab active:cursor-grabbing
+        border transition-all flex items-center gap-1 overflow-hidden
+        pointer-events-auto
+        ${typeStyle}
+        ${isDragging || isBeingDragged ? 'opacity-30 scale-95' : 'hover:shadow-sm'}
+        ${isPreview ? 'ring-2 ring-blue-500 ring-inset' : ''}
+      `}
+      title={tooltipLines.join('\n')}
+    >
+      <GripVertical className="h-3 w-3 text-slate-400 flex-shrink-0" />
+      <span className={`flex-1 min-w-0 block truncate ${isCompleted ? 'line-through text-slate-500' : ''}`}>{displayName}</span>
+      {isCompleted && <span className="text-green-600 font-bold">✓</span>}
+      <div
+        className="absolute right-0 top-0 h-full w-2 cursor-ew-resize"
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          onResizeStart(task, e);
+        }}
+      />
     </div>
   );
 });
@@ -1193,27 +1327,37 @@ const DroppableCell = memo(function DroppableCell({
 const WeekTable = memo(function WeekTable({
   weekNumber,
   weekDays,
-  tasksByDateAndType,
+  tasks,
   currentMonth,
   draggedTask,
   onTaskClick,
   getOwnerNames,
   extraWorkDays,
   onToggleExtraWorkDay,
+  getTaskSpanRange,
+  onResizeStart,
+  resizingTaskId,
 }: {
   weekNumber: number;
   weekDays: Date[];
-  tasksByDateAndType: Record<string, Task[]>;
+  tasks: Task[];
   currentMonth: Date;
   draggedTask: Task | null;
   onTaskClick: (task: Task) => void;
   getOwnerNames: (task: Task) => string;
   extraWorkDays: Set<string>;
   onToggleExtraWorkDay: (date: Date) => void;
+  getTaskSpanRange: (task: Task) => { start?: Date; end?: Date };
+  onResizeStart: (task: Task, event: React.PointerEvent<HTMLDivElement>) => void;
+  resizingTaskId: string | null;
 }) {
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const weekStart = weekDays[0];
   const weekEnd = weekDays[weekDays.length - 1];
+  const weekStartDate = new Date(weekStart);
+  weekStartDate.setHours(0, 0, 0, 0);
+  const weekEndDate = new Date(weekEnd);
+  weekEndDate.setHours(0, 0, 0, 0);
 
   return (
     <div className="mb-4">
@@ -1225,8 +1369,8 @@ const WeekTable = memo(function WeekTable({
       </div>
 
       <div className="border border-t-0 border-slate-300 rounded-b-lg overflow-hidden">
-        <div className="flex bg-slate-100 border-b border-slate-300">
-          <div className="w-20 min-w-20 p-2 border-r border-slate-300 text-center font-medium text-sm bg-slate-200">
+        <div className="grid grid-cols-[80px_repeat(7,minmax(96px,1fr))] bg-slate-100 border-b border-slate-300">
+          <div className="p-2 border-r border-slate-300 text-center font-medium text-sm bg-slate-200">
             类型
           </div>
           {weekDays.map((day, idx) => {
@@ -1243,7 +1387,7 @@ const WeekTable = memo(function WeekTable({
               <div
                 key={idx}
                 className={`
-                  flex-1 min-w-24 p-2 border-r last:border-r-0 border-slate-300 text-center
+                  min-w-24 p-2 border-r last:border-r-0 border-slate-300 text-center
                   ${isToday && isWorkDay ? 'bg-blue-100' : ''}
                   ${isExtraWorkDay ? 'bg-green-100' : !isWorkDay ? (isHoliday ? 'bg-red-50' : 'bg-slate-100') : ''}
                   ${!isInMonth ? 'opacity-40' : ''}
@@ -1269,34 +1413,132 @@ const WeekTable = memo(function WeekTable({
           })}
         </div>
 
-        {TASK_TYPE_CONFIG.map((taskType) => (
-          <div key={taskType.key} className="flex border-b last:border-b-0 border-slate-200">
-            <div className={`w-20 min-w-20 p-2 border-r border-slate-300 text-center font-medium text-sm ${taskType.bgColor}`}>
-              {taskType.label}
+        {TASK_TYPE_CONFIG.map((taskType) => {
+          const rowTasks = tasks.filter((t) => t.taskType === taskType.key);
+
+          const spans = rowTasks
+            .map((t) => {
+              const { start, end } = getTaskSpanRange(t);
+              if (!start || !end) return null;
+              const startDate = toStartOfDay(start);
+              const endDate = toStartOfDay(end);
+              if (endDate < weekStartDate || startDate > weekEndDate) return null;
+
+              const dayIndices: number[] = [];
+              for (let i = 0; i < weekDays.length; i++) {
+                const day = toStartOfDay(weekDays[i]);
+                if (day < startDate || day > endDate) continue;
+                if (!isWorkingDay(day, extraWorkDays)) continue;
+                dayIndices.push(i);
+              }
+              if (dayIndices.length === 0) return null;
+
+              const segments: Array<{ startIdx: number; endIdx: number }> = [];
+              let segStart = dayIndices[0];
+              let prev = segStart;
+              for (let i = 1; i < dayIndices.length; i++) {
+                const idx = dayIndices[i];
+                if (idx === prev + 1) {
+                  prev = idx;
+                  continue;
+                }
+                segments.push({ startIdx: segStart, endIdx: prev });
+                segStart = idx;
+                prev = idx;
+              }
+              segments.push({ startIdx: segStart, endIdx: prev });
+
+              return {
+                task: t,
+                spanStart: segments[0].startIdx,
+                spanEnd: segments[segments.length - 1].endIdx,
+                segments,
+              };
+            })
+            .filter(Boolean) as Array<{ task: Task; spanStart: number; spanEnd: number; segments: Array<{ startIdx: number; endIdx: number }> }>;
+
+          spans.sort((a, b) => (a.spanStart - b.spanStart) || (a.spanEnd - b.spanEnd) || a.task.id.localeCompare(b.task.id));
+
+          const laneEnds: number[] = [];
+          const laidOut = spans.map((span) => {
+            let lane = 0;
+            while (lane < laneEnds.length) {
+              if (span.spanStart > laneEnds[lane]) break;
+              lane++;
+            }
+            if (lane === laneEnds.length) {
+              laneEnds.push(span.spanEnd);
+            } else {
+              laneEnds[lane] = span.spanEnd;
+            }
+            return { ...span, lane };
+          });
+
+          const laneCount = laneEnds.length || 1;
+          const minLaneCount = Math.max(1, Math.ceil((SPAN_ROW_BASE_HEIGHT_PX - SPAN_ROW_PADDING_PX) / SPAN_LANE_HEIGHT_PX));
+          const displayLaneCount = Math.max(laneCount, minLaneCount);
+
+          return (
+            <div
+              key={taskType.key}
+              className="grid grid-cols-[80px_repeat(7,minmax(96px,1fr))] border-b last:border-b-0 border-slate-200"
+              style={{ minHeight: Math.max(SPAN_ROW_BASE_HEIGHT_PX, displayLaneCount * SPAN_LANE_HEIGHT_PX + SPAN_ROW_PADDING_PX) }}
+            >
+              <div className={`p-2 border-r border-slate-300 text-center font-medium text-sm ${taskType.bgColor}`}>
+                {taskType.label}
+              </div>
+
+              <div className="col-span-7">
+                <div
+                  className="grid"
+                  style={{
+                    gridTemplateColumns: 'repeat(7, minmax(96px, 1fr))',
+                    gridTemplateRows: `repeat(${displayLaneCount}, ${SPAN_LANE_HEIGHT_PX}px)`,
+                  }}
+                >
+                  {weekDays.map((day, dayIdx) => {
+                    const isInMonth = isSameMonth(day, currentMonth);
+                    return (
+                      <DroppableCell
+                        key={dayIdx}
+                        day={day}
+                        taskType={taskType.key}
+                        draggedTask={draggedTask}
+                        onTaskClick={onTaskClick}
+                        getOwnerNames={getOwnerNames}
+                        isInMonth={isInMonth}
+                        extraWorkDays={extraWorkDays}
+                        onToggleExtraWorkDay={onToggleExtraWorkDay}
+                        style={{
+                          gridColumn: dayIdx + 1,
+                          gridRow: `1 / span ${displayLaneCount}`,
+                        }}
+                        className="h-full"
+                      />
+                    );
+                  })}
+
+                  {laidOut.flatMap(({ task, segments, lane }) =>
+                    segments.map((seg, idx) => (
+                      <TaskSpanBar
+                        key={`${task.id}-${idx}`}
+                        task={task}
+                        ownerNames={getOwnerNames(task)}
+                        onClick={() => onTaskClick(task)}
+                        isDragging={draggedTask?.id === task.id}
+                        colStart={seg.startIdx + 1}
+                        colSpan={seg.endIdx - seg.startIdx + 1}
+                        row={lane + 1}
+                        onResizeStart={onResizeStart}
+                        isPreview={resizingTaskId === task.id}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
-
-            {weekDays.map((day, dayIdx) => {
-              const dateKey = format(day, 'yyyy-MM-dd');
-              const cellTasks = tasksByDateAndType[`${dateKey}-${taskType.key}`] || [];
-              const isInMonth = isSameMonth(day, currentMonth);
-
-              return (
-                <DroppableCell
-                  key={dayIdx}
-                  day={day}
-                  taskType={taskType.key}
-                  cellTasks={cellTasks}
-                  draggedTask={draggedTask}
-                  onTaskClick={onTaskClick}
-                  getOwnerNames={getOwnerNames}
-                  isInMonth={isInMonth}
-                  extraWorkDays={extraWorkDays}
-                  onToggleExtraWorkDay={onToggleExtraWorkDay}
-                />
-              );
-            })}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1344,12 +1586,20 @@ export function MatrixCalendarView({
   onDeleteSubTask,
 }: MatrixCalendarViewProps): React.JSX.Element {
   const calendarRootRef = useRef<HTMLDivElement | null>(null);
+  const calendarScrollRef = useRef<HTMLDivElement | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
   const [nameSearch, setNameSearch] = useState('');
   const [unassignedProjectFilter, setUnassignedProjectFilter] = useState('all');
+  const [resizingTaskId, setResizingTaskId] = useState<string | null>(null);
+  const resizingTaskRef = useRef<Task | null>(null);
+  const [resizePreviewEndDate, setResizePreviewEndDate] = useState<Date | null>(null);
+  const resizePreviewEndRef = useRef<Date | null>(null);
+  useEffect(() => {
+    resizePreviewEndRef.current = resizePreviewEndDate;
+  }, [resizePreviewEndDate]);
 
   // 矩阵任务以数据库持久态为主数据源
   const [viewTasks, setViewTasks] = useState<Task[]>(() => normalizeTasks(tasks));
@@ -1439,6 +1689,16 @@ export function MatrixCalendarView({
       return true;
     });
   }, [viewTasks, taskTypeFilter, resourceFilter, nameSearch]);
+
+  const getTaskSpanRange = useCallback((task: Task): { start?: Date; end?: Date } => {
+    const start = task.startDate ? new Date(task.startDate) : (task.endDate ? new Date(task.endDate) : (task.deadline ? new Date(task.deadline) : undefined));
+    const endBase = task.endDate ? new Date(task.endDate) : (task.startDate ? new Date(task.startDate) : (task.deadline ? new Date(task.deadline) : undefined));
+    const end = resizingTaskId === task.id && resizePreviewEndDate ? new Date(resizePreviewEndDate) : endBase;
+    if (!start || !end) return { start, end };
+    const s = toStartOfDay(start);
+    const e = toStartOfDay(end);
+    return e < s ? { start: e, end: e } : { start: s, end: e };
+  }, [resizingTaskId, resizePreviewEndDate]);
 
   // 内部函数：从飞书 API 加载视图数据并更新状态
   const fetchAndSetViewTasks = useCallback(async (config: NonNullable<MatrixCalendarFeishuConfig>) => {
@@ -1742,15 +2002,12 @@ export function MatrixCalendarView({
   // 获取所有未分配类型的任务（用于任务池）- 使用视图数据
   const unassignedTasks = useMemo(() => {
     const candidates = filteredViewTasks.filter(task => {
-      const taskDate = resolveTaskDate(task);
-      const inCurrentView = taskDate ? visibleDateSet.has(format(taskDate, 'yyyy-MM-dd')) : false;
-      const canDisplayInMatrixGrid =
-        Boolean(task.taskType) &&
-        Boolean(taskDate) &&
-        Boolean(taskDate && isWorkingDay(taskDate, extraWorkDays)) &&
-        inCurrentView;
-      // 只要该任务不能进矩阵格子，就放进未分配池
-      return !canDisplayInMatrixGrid;
+      if (!task.taskType) return true;
+      const { start, end } = getTaskSpanRange(task);
+      if (!start || !end) return true;
+      if (!isWorkingDay(start, extraWorkDays)) return true;
+      if (!isWorkingDay(end, extraWorkDays)) return true;
+      return false;
     });
 
     // 未排期栏使用精确键去重，避免“同名同月”误杀
@@ -1763,43 +2020,67 @@ export function MatrixCalendarView({
       }
     }
     return Array.from(uniqueMap.values());
-  }, [filteredViewTasks, resolveTaskDate, extraWorkDays, visibleDateSet]);
+  }, [filteredViewTasks, extraWorkDays, getTaskSpanRange]);
 
-  // 按日期和类型分组任务
-  // 对于视图数据：有deadline的任务按deadline显示，没有日期的显示在任务池
-  const tasksByDateAndType = useMemo(() => {
-    const grouped: Record<string, Task[]> = Object.create(null);
-    const addedKeys = new Set<string>();
+  const handleResizeStart = useCallback((task: Task, event: React.PointerEvent<HTMLDivElement>) => {
+    if (!task.taskType) return;
+    const { start, end } = getTaskSpanRange(task);
+    if (!start || !end) return;
+    resizingTaskRef.current = task;
+    setResizingTaskId(task.id);
+    setResizePreviewEndDate(end);
 
-    for (let i = 0; i < filteredViewTasks.length; i++) {
-      const task = filteredViewTasks[i];
-      const taskKey = getTaskUniqueKey(task);
-      if (addedKeys.has(taskKey)) continue;
+    const pointerId = event.pointerId;
+    (event.currentTarget as HTMLDivElement).setPointerCapture(pointerId);
 
-      // 未分配类型的任务不显示在任何类型行，它们会在任务池中显示
-      if (!task.taskType) continue;
-
-      // 确定任务日期：优先使用 endDate/startDate，否则使用 deadline
-      const taskDate = resolveTaskDate(task);
-
-      if (!taskDate) continue;
-
-      const dateKey = format(taskDate, 'yyyy-MM-dd');
-      if (!visibleDateSet.has(dateKey)) continue;
-
-      // 只在工作日显示任务（考虑调休/加班日）
-      if (isWorkingDay(taskDate, extraWorkDays)) {
-        const key = dateKey + '-' + task.taskType;
-        if (!grouped[key]) {
-          grouped[key] = [];
+    const handleMove = (e: PointerEvent) => {
+      const elements = document.elementsFromPoint(e.clientX, e.clientY) as HTMLElement[];
+      const cell = elements.find((node) => node?.closest?.('[data-date][data-tasktype]'))?.closest?.('[data-date][data-tasktype]') as HTMLElement | null;
+      if (calendarScrollRef.current) {
+        const rect = calendarScrollRef.current.getBoundingClientRect();
+        const edge = 48;
+        if (e.clientY < rect.top + edge) {
+          calendarScrollRef.current.scrollBy({ top: -24, behavior: 'auto' });
+        } else if (e.clientY > rect.bottom - edge) {
+          calendarScrollRef.current.scrollBy({ top: 24, behavior: 'auto' });
         }
-        grouped[key].push(task);
-        addedKeys.add(taskKey);
       }
-    }
+      if (!cell) return;
+      const dateStr = cell.dataset.date;
+      if (!dateStr) return;
+      let date = toStartOfDay(new Date(dateStr));
+      if (!isWorkingDay(date, extraWorkDays)) {
+        date = getPrevWorkingDay(date, extraWorkDays);
+      }
+      const startDay = toStartOfDay(start);
+      if (date < startDay) {
+        date = startDay;
+      }
+      setResizePreviewEndDate(date);
+    };
 
-    return grouped;
-  }, [filteredViewTasks, extraWorkDays, resolveTaskDate, visibleDateSet]);
+    const handleUp = () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      const taskForCommit = resizingTaskRef.current;
+      const endDate = resizePreviewEndRef.current;
+      setResizingTaskId(null);
+      resizingTaskRef.current = null;
+      setResizePreviewEndDate(null);
+      if (!taskForCommit || !endDate) return;
+      const { start: committedStart } = getTaskSpanRange(taskForCommit);
+      if (!committedStart) return;
+      const updates: Partial<Task> = {
+        startDate: committedStart,
+        endDate: endDate,
+      };
+      setViewTasks(prev => normalizeTasks(prev.map(t => (t.id === taskForCommit.id ? { ...t, ...updates } : t))));
+      onTaskUpdate?.(taskForCommit.id, updates, taskForCommit);
+    };
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+  }, [extraWorkDays, getTaskSpanRange, onTaskUpdate]);
 
   // 拖拽开始
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -1827,19 +2108,17 @@ export function MatrixCalendarView({
       return;
     }
 
-    // 如果拖拽到任务池，清除类型
+    // 如果拖拽到任务池，清除类型和日期
     if (overData.isTaskPool) {
-      if (currentDraggedTask.taskType) {
-        const draggedTaskKey = getTaskUniqueKey(currentDraggedTask);
-        // 直接更新 viewTasks
-        setViewTasks(prev => normalizeTasks(prev.map(t => {
-          if (!isSameLogicalTask(t, currentDraggedTask) && getTaskUniqueKey(t) !== draggedTaskKey) return t;
-          return { ...t, taskType: undefined };
-        })));
-        // 同时通知父组件
-        if (onTaskUpdate) {
-          onTaskUpdate(currentDraggedTask.id, { taskType: undefined }, currentDraggedTask);
-        }
+      const draggedTaskKey = getTaskUniqueKey(currentDraggedTask);
+      // 直接更新 viewTasks
+      setViewTasks(prev => normalizeTasks(prev.map(t => {
+        if (!isSameLogicalTask(t, currentDraggedTask) && getTaskUniqueKey(t) !== draggedTaskKey) return t;
+        return { ...t, taskType: undefined, startDate: undefined, endDate: undefined };
+      })));
+      // 同时通知父组件
+      if (onTaskUpdate) {
+        onTaskUpdate(currentDraggedTask.id, { taskType: undefined, startDate: undefined, endDate: undefined }, currentDraggedTask);
       }
       return;
     }
@@ -1855,9 +2134,13 @@ export function MatrixCalendarView({
       finalTargetDate = getNextWorkingDay(finalTargetDate, extraWorkDays);
     }
 
-    // 简化逻辑：只需要设置 endDate（完成日期）
+    const { start: existingStart, end: existingEnd } = getTaskSpanRange(currentDraggedTask);
+    const duration = existingStart && existingEnd ? countWorkingDaysInRange(existingStart, existingEnd, extraWorkDays) : 1;
+    const startDate = finalTargetDate;
+    const endDate = addWorkingDays(startDate, duration - 1, extraWorkDays);
     const updates: Partial<Task> = {
-      endDate: finalTargetDate,
+      startDate,
+      endDate,
     };
 
     // 如果任务没有类型，拖拽后自动设置类型
@@ -1865,7 +2148,7 @@ export function MatrixCalendarView({
       updates.taskType = targetTaskType;
     }
 
-    console.log('[矩阵日历] 拖拽设置完成日期:', currentDraggedTask.name, '->', format(finalTargetDate, 'yyyy-MM-dd'));
+    console.log('[矩阵日历] 拖拽设置起止日期:', currentDraggedTask.name, '->', format(startDate, 'yyyy-MM-dd'), '~', format(endDate, 'yyyy-MM-dd'));
 
     // 直接更新 viewTasks（立即反映在日历上）
     setViewTasks(prev => normalizeTasks(prev.map(t => {
@@ -1877,7 +2160,7 @@ export function MatrixCalendarView({
     if (onTaskUpdate) {
       onTaskUpdate(currentDraggedTask.id, updates, currentDraggedTask);
     }
-  }, [onTaskUpdate, extraWorkDays]);
+  }, [onTaskUpdate, extraWorkDays, getTaskSpanRange]);
 
   // 拖拽取消
   const handleDragCancel = useCallback(() => {
@@ -2010,19 +2293,22 @@ export function MatrixCalendarView({
 
           {/* 右侧周表格 */}
           <div className="h-full min-w-0 flex-1">
-            <div className="h-full overflow-y-auto overflow-x-hidden">
+            <div ref={calendarScrollRef} className="h-full overflow-y-auto overflow-x-hidden">
               {monthWeeks.map((week) => (
                 <WeekTable
                   key={week.weekNumber}
                   weekNumber={week.weekNumber}
                   weekDays={week.days}
-                  tasksByDateAndType={tasksByDateAndType}
+                  tasks={filteredViewTasks}
                   currentMonth={currentDate}
                   draggedTask={deferredDraggedTask}
                   onTaskClick={handleTaskClick}
                   getOwnerNames={getOwnerNames}
                   extraWorkDays={extraWorkDays}
                   onToggleExtraWorkDay={toggleExtraWorkDay}
+                  getTaskSpanRange={getTaskSpanRange}
+                  onResizeStart={handleResizeStart}
+                  resizingTaskId={resizingTaskId}
                 />
               ))}
             </div>
@@ -2039,6 +2325,7 @@ export function MatrixCalendarView({
           onSave={handleTaskSave}
           resources={resources}
           projects={projects}
+          extraWorkDays={extraWorkDays}
           allTasks={viewTasks}
           onAddSubTask={(subTask) => onAddSubTask?.(subTask)}
           onUpdateSubTask={(subTaskId, updates) => onUpdateSubTask?.(subTaskId, updates)}

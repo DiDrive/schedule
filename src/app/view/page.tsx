@@ -56,6 +56,60 @@ function isWorkingDay(date: Date, extraWorkDays?: Set<string>): boolean {
   return true;
 }
 
+function toStartOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function addDays(date: Date, amount: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + amount);
+  return d;
+}
+
+function countWorkingDaysInRange(start: Date, end: Date, extraWorkDays?: Set<string>): number {
+  let count = 0;
+  let current = toStartOfDay(start);
+  const endDay = toStartOfDay(end);
+  while (current <= endDay) {
+    if (isWorkingDay(current, extraWorkDays)) {
+      count += 1;
+    }
+    current = addDays(current, 1);
+  }
+  return Math.max(1, count);
+}
+
+function getNextWorkingDay(date: Date, extraWorkDays?: Set<string>): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() + 1);
+  while (!isWorkingDay(result, extraWorkDays)) {
+    result.setDate(result.getDate() + 1);
+  }
+  return result;
+}
+
+function addWorkingDays(start: Date, daysToAdd: number, extraWorkDays?: Set<string>): Date {
+  let current = toStartOfDay(start);
+  let remaining = Math.max(0, daysToAdd);
+  while (remaining > 0) {
+    current = getNextWorkingDay(current, extraWorkDays);
+    remaining -= 1;
+  }
+  return current;
+}
+
+function getTaskSpanRange(task: Task): { start?: Date; end?: Date } {
+  const start = task.startDate ? new Date(task.startDate) : (task.endDate ? new Date(task.endDate) : (task.deadline ? new Date(task.deadline) : undefined));
+  const end = task.endDate ? new Date(task.endDate) : (task.startDate ? new Date(task.startDate) : (task.deadline ? new Date(task.deadline) : undefined));
+  return { start, end };
+}
+
+const SPAN_LANE_HEIGHT_PX = 35;// 任务车道高度
+const SPAN_ROW_BASE_HEIGHT_PX = 80;// 任务行基础高度
+const SPAN_ROW_PADDING_PX = 1;// 任务行内边距
+
 function normalizeKeyPart(value?: string): string {
   return (value || '').trim().toLowerCase();
 }
@@ -139,15 +193,20 @@ function NavButton({
   );
 }
 
-// 任务卡片（只读，无拖拽）
-const ReadonlyTaskCard = memo(function ReadonlyTaskCard({
+const ReadonlyTaskSpanBar = memo(function ReadonlyTaskSpanBar({
   task,
   ownerNames,
   onClick,
+  colStart,
+  colSpan,
+  row,
 }: {
   task: Task;
   ownerNames: string;
   onClick: () => void;
+  colStart: number;
+  colSpan: number;
+  row: number;
 }) {
   const getTypeStyle = () => {
     switch (task.taskType) {
@@ -164,26 +223,35 @@ const ReadonlyTaskCard = memo(function ReadonlyTaskCard({
 
   const isCompleted = task.status === 'completed';
   const projectPrefix = task.projectName ? `【${task.projectName}】` : '';
+  const displayName = projectPrefix + task.name;
   const tooltipLines = [
-    `${projectPrefix}${task.name}`,
+    displayName,
     `负责人: ${ownerNames || '-'}`,
     `类目: ${task.category || '-'}`,
-    `语言: ${task.language || '-'}`,
     `细分: ${task.subType || '-'}`,
-    '点击查看详情',
+    `语言: ${task.language || '-'}`,
+    `对接人: ${task.contactPerson || '-'}`,
+    isCompleted ? '✓ 已完成' : '点击查看详情',
   ];
 
   return (
     <div
+      style={{
+        gridColumn: `${colStart} / span ${colSpan}`,
+        gridRow: row,
+      }}
       onClick={onClick}
       className={`
-        px-1 py-0.5 rounded text-xs border cursor-pointer
+        relative h-7 px-1 rounded text-xs cursor-pointer
+        border transition-all flex items-center gap-1 overflow-hidden
+        pointer-events-auto
         ${getTypeStyle()}
-        ${isCompleted ? 'opacity-60 line-through' : 'hover:shadow-sm'}
+        hover:shadow-sm
       `}
       title={tooltipLines.join('\n')}
     >
-      <span className="truncate block">{task.name}</span>
+      <span className={`flex-1 min-w-0 block truncate ${isCompleted ? 'line-through text-slate-500 opacity-60' : ''}`}>{displayName}</span>
+      {isCompleted && <span className="text-green-600 font-bold">✓</span>}
     </div>
   );
 });
@@ -620,58 +688,140 @@ export default function ViewPage() {
                   </div>
 
                   {/* 每周内容 */}
-                  {TASK_TYPE_CONFIG.map((taskType) => (
-                    <div key={taskType.key} className="flex border-b last:border-b-0 border-slate-200">
-                      <div className={`w-20 min-w-20 p-2 border-r border-slate-300 text-center font-medium text-sm ${taskType.bgColor}`}>
-                        {taskType.label}
-                      </div>
+                  {TASK_TYPE_CONFIG.map((taskType) => {
+                    const rowTasks = filteredTasks.filter((t) => t.taskType === taskType.key);
+                    const weekStartDate = toStartOfDay(week.days[0]);
+                    const weekEndDate = toStartOfDay(week.days[week.days.length - 1]);
 
-                      {week.days.map((day, dayIdx) => {
-                        const dateKey = format(day, 'yyyy-MM-dd');
-                        const cellTasks = tasksByDateAndType[`${dateKey}-${taskType.key}`] || [];
-                        const isInMonth = isSameMonth(day, currentDate);
-                        const isToday = isSameDay(day, new Date());
-                        const isWorkDay = isWorkingDay(day, extraWorkDays);
+                    const spans = rowTasks
+                      .map((t) => {
+                        const { start, end } = getTaskSpanRange(t);
+                        if (!start || !end) return null;
+                        const startDate = toStartOfDay(start);
+                        const endDate = toStartOfDay(end);
+                        if (endDate < weekStartDate || startDate > weekEndDate) return null;
 
-                        return (
+                        const dayIndices: number[] = [];
+                        for (let i = 0; i < week.days.length; i++) {
+                          const day = toStartOfDay(week.days[i]);
+                          if (day < startDate || day > endDate) continue;
+                          if (!isWorkingDay(day, extraWorkDays)) continue;
+                          dayIndices.push(i);
+                        }
+                        if (dayIndices.length === 0) return null;
+
+                        const segments: Array<{ startIdx: number; endIdx: number }> = [];
+                        let segStart = dayIndices[0];
+                        let prev = segStart;
+                        for (let i = 1; i < dayIndices.length; i++) {
+                          const idx = dayIndices[i];
+                          if (idx === prev + 1) {
+                            prev = idx;
+                            continue;
+                          }
+                          segments.push({ startIdx: segStart, endIdx: prev });
+                          segStart = idx;
+                          prev = idx;
+                        }
+                        segments.push({ startIdx: segStart, endIdx: prev });
+
+                        return {
+                          task: t,
+                          segments,
+                          spanStart: dayIndices[0],
+                          spanEnd: dayIndices[dayIndices.length - 1],
+                        };
+                      })
+                      .filter((s): s is NonNullable<typeof s> => s !== null)
+                      .sort((a, b) => {
+                        if (a.spanStart !== b.spanStart) return a.spanStart - b.spanStart;
+                        return (b.spanEnd - b.spanStart) - (a.spanEnd - a.spanStart);
+                      });
+
+                    const laneEnds: number[] = [];
+                    const laidOut = spans.map((span) => {
+                      let lane = 0;
+                      while (lane < laneEnds.length) {
+                        if (span.spanStart > laneEnds[lane]) break;
+                        lane++;
+                      }
+                      if (lane === laneEnds.length) {
+                        laneEnds.push(span.spanEnd);
+                      } else {
+                        laneEnds[lane] = span.spanEnd;
+                      }
+                      return { ...span, lane };
+                    });
+
+                    const laneCount = laneEnds.length || 1;
+                    const minLaneCount = Math.max(1, Math.ceil((SPAN_ROW_BASE_HEIGHT_PX - SPAN_ROW_PADDING_PX) / SPAN_LANE_HEIGHT_PX));
+                    const displayLaneCount = Math.max(laneCount, minLaneCount);
+
+                    return (
+                      <div
+                        key={taskType.key}
+                        className="grid grid-cols-[80px_repeat(7,minmax(96px,1fr))] border-b last:border-b-0 border-slate-200"
+                        style={{ minHeight: Math.max(SPAN_ROW_BASE_HEIGHT_PX, displayLaneCount * SPAN_LANE_HEIGHT_PX + SPAN_ROW_PADDING_PX) }}
+                      >
+                        <div className={`p-2 border-r border-slate-300 text-center font-medium text-sm ${taskType.bgColor}`}>
+                          {taskType.label}
+                        </div>
+
+                        <div className="col-span-7">
                           <div
-                            key={dayIdx}
-                            className={`
-                              flex-1 min-w-24 min-h-[80px] p-1 border-r last:border-r-0 border-slate-300
-                              ${isToday ? 'bg-blue-50' : !isWorkDay ? 'bg-slate-50' : ''}
-                              ${!isInMonth ? 'opacity-40' : ''}
-                            `}
+                            className="grid"
+                            style={{
+                              gridTemplateColumns: 'repeat(7, minmax(96px, 1fr))',
+                              gridTemplateRows: `repeat(${displayLaneCount}, ${SPAN_LANE_HEIGHT_PX}px)`,
+                            }}
                           >
-                            <div className="space-y-1">
-                              {cellTasks.slice(0, 3).map((task) => (
-                                <ReadonlyTaskCard
-                                  key={task.id}
+                            {week.days.map((day, dayIdx) => {
+                              const isInMonth = isSameMonth(day, currentDate);
+                              const isToday = isSameDay(day, new Date());
+                              const isWorkDay = isWorkingDay(day, extraWorkDays);
+                              return (
+                                <div
+                                  key={dayIdx}
+                                  style={{
+                                    gridColumn: dayIdx + 1,
+                                    gridRow: `1 / span ${displayLaneCount}`,
+                                  }}
+                                  className={`
+                                    min-w-24 p-1 border-r last:border-r-0 border-slate-300
+                                    ${isToday ? 'bg-blue-50' : !isWorkDay ? 'bg-slate-50' : ''}
+                                    ${!isInMonth ? 'opacity-40' : ''}
+                                  `}
+                                >
+                                  {!isWorkDay && (
+                                    <div className="h-full w-full flex items-center justify-center text-xs opacity-60 text-slate-400">
+                                      休息
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+
+                            {laidOut.flatMap(({ task, segments, lane }) =>
+                              segments.map((seg, idx) => (
+                                <ReadonlyTaskSpanBar
+                                  key={`${task.id}-${idx}`}
                                   task={task}
                                   ownerNames={getTaskOwnerNames(task)}
                                   onClick={() => {
                                     setSelectedTask(task);
                                     setTaskDialogOpen(true);
                                   }}
+                                  colStart={seg.startIdx + 1}
+                                  colSpan={seg.endIdx - seg.startIdx + 1}
+                                  row={lane + 1}
                                 />
-                              ))}
-                              {cellTasks.length > 3 && (
-                                <button
-                                  type="button"
-                                  className="w-full text-xs text-blue-600 text-center hover:underline"
-                                  onClick={() => openOverflowDialog(
-                                    cellTasks,
-                                    `${format(day, 'M月d日')} · ${taskType.label}`
-                                  )}
-                                >
-                                  +{cellTasks.length - 3} 更多
-                                </button>
-                              )}
-                            </div>
+                              ))
+                            )}
                           </div>
-                        );
-                      })}
-                    </div>
-                  ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ))}
               {tableMode === 'resource' && monthWeeks.map((week) => (
@@ -691,56 +841,135 @@ export default function ViewPage() {
                     })}
                   </div>
 
-                  {displayResources.map((resource) => (
-                    <div key={resource.id} className="flex border-b last:border-b-0 border-slate-200">
-                      <div className="w-24 min-w-24 p-2 border-r border-slate-300 text-center font-medium text-sm bg-amber-50 truncate" title={resource.name}>
-                        {resource.name}
-                      </div>
-                      {week.days.map((day, dayIdx) => {
-                        const dateKey = format(day, 'yyyy-MM-dd');
-                        const cellTasks = tasksByDateAndResource[`${dateKey}-${resource.id}`] || [];
-                        const isInMonth = isSameMonth(day, currentDate);
-                        const isToday = isSameDay(day, new Date());
-                        const isWorkDay = isWorkingDay(day, extraWorkDays);
-                        return (
+                  {displayResources.map((resource) => {
+                    const rowTasks = tasksForResourceMatrix.filter((t) => t.assignedResources?.includes(resource.id));
+                    const weekStartDate = toStartOfDay(week.days[0]);
+                    const weekEndDate = toStartOfDay(week.days[week.days.length - 1]);
+
+                    const spans = rowTasks
+                      .map((t) => {
+                        const { start, end } = getTaskSpanRange(t);
+                        if (!start || !end) return null;
+                        const startDate = toStartOfDay(start);
+                        const endDate = toStartOfDay(end);
+                        if (endDate < weekStartDate || startDate > weekEndDate) return null;
+
+                        const dayIndices: number[] = [];
+                        for (let i = 0; i < week.days.length; i++) {
+                          const day = toStartOfDay(week.days[i]);
+                          if (day < startDate || day > endDate) continue;
+                          if (!isWorkingDay(day, extraWorkDays)) continue;
+                          dayIndices.push(i);
+                        }
+                        if (dayIndices.length === 0) return null;
+
+                        const segments: Array<{ startIdx: number; endIdx: number }> = [];
+                        let segStart = dayIndices[0];
+                        let prev = segStart;
+                        for (let i = 1; i < dayIndices.length; i++) {
+                          const idx = dayIndices[i];
+                          if (idx === prev + 1) {
+                            prev = idx;
+                            continue;
+                          }
+                          segments.push({ startIdx: segStart, endIdx: prev });
+                          segStart = idx;
+                          prev = idx;
+                        }
+                        segments.push({ startIdx: segStart, endIdx: prev });
+
+                        return {
+                          task: t,
+                          segments,
+                          spanStart: dayIndices[0],
+                          spanEnd: dayIndices[dayIndices.length - 1],
+                        };
+                      })
+                      .filter((s): s is NonNullable<typeof s> => s !== null)
+                      .sort((a, b) => {
+                        if (a.spanStart !== b.spanStart) return a.spanStart - b.spanStart;
+                        return (b.spanEnd - b.spanStart) - (a.spanEnd - a.spanStart);
+                      });
+
+                    const laneEnds: number[] = [];
+                    const laidOut = spans.map((span) => {
+                      let lane = 0;
+                      while (lane < laneEnds.length) {
+                        if (span.spanStart > laneEnds[lane]) break;
+                        lane++;
+                      }
+                      if (lane === laneEnds.length) {
+                        laneEnds.push(span.spanEnd);
+                      } else {
+                        laneEnds[lane] = span.spanEnd;
+                      }
+                      return { ...span, lane };
+                    });
+
+                    const laneCount = laneEnds.length || 1;
+                    const minLaneCount = Math.max(1, Math.ceil((SPAN_ROW_BASE_HEIGHT_PX - SPAN_ROW_PADDING_PX) / SPAN_LANE_HEIGHT_PX));
+                    const displayLaneCount = Math.max(laneCount, minLaneCount);
+
+                    return (
+                      <div key={resource.id} className="grid grid-cols-[96px_repeat(7,minmax(96px,1fr))] border-b last:border-b-0 border-slate-200" style={{ minHeight: Math.max(SPAN_ROW_BASE_HEIGHT_PX, displayLaneCount * SPAN_LANE_HEIGHT_PX + SPAN_ROW_PADDING_PX) }}>
+                        <div className="p-2 border-r border-slate-300 text-center font-medium text-sm bg-amber-50 truncate" title={resource.name}>
+                          {resource.name}
+                        </div>
+                        <div className="col-span-7">
                           <div
-                            key={dayIdx}
-                            className={`
-                              flex-1 min-w-24 min-h-[80px] p-1 border-r last:border-r-0 border-slate-300
-                              ${isToday ? 'bg-blue-50' : !isWorkDay ? 'bg-slate-50' : ''}
-                              ${!isInMonth ? 'opacity-40' : ''}
-                            `}
+                            className="grid"
+                            style={{
+                              gridTemplateColumns: 'repeat(7, minmax(96px, 1fr))',
+                              gridTemplateRows: `repeat(${displayLaneCount}, ${SPAN_LANE_HEIGHT_PX}px)`,
+                            }}
                           >
-                            <div className="space-y-1">
-                              {cellTasks.slice(0, 3).map((task) => (
-                                <ReadonlyTaskCard
-                                  key={`${task.id}-${resource.id}`}
+                            {week.days.map((day, dayIdx) => {
+                              const isInMonth = isSameMonth(day, currentDate);
+                              const isToday = isSameDay(day, new Date());
+                              const isWorkDay = isWorkingDay(day, extraWorkDays);
+                              return (
+                                <div
+                                  key={dayIdx}
+                                  style={{
+                                    gridColumn: dayIdx + 1,
+                                    gridRow: `1 / span ${displayLaneCount}`,
+                                  }}
+                                  className={`
+                                    min-w-24 p-1 border-r last:border-r-0 border-slate-300
+                                    ${isToday ? 'bg-blue-50' : !isWorkDay ? 'bg-slate-50' : ''}
+                                    ${!isInMonth ? 'opacity-40' : ''}
+                                  `}
+                                >
+                                  {!isWorkDay && (
+                                    <div className="h-full w-full flex items-center justify-center text-xs opacity-60 text-slate-400">
+                                      休息
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+
+                            {laidOut.flatMap(({ task, segments, lane }) =>
+                              segments.map((seg, idx) => (
+                                <ReadonlyTaskSpanBar
+                                  key={`${task.id}-${idx}`}
                                   task={task}
                                   ownerNames={getTaskOwnerNames(task)}
                                   onClick={() => {
                                     setSelectedTask(task);
                                     setTaskDialogOpen(true);
                                   }}
+                                  colStart={seg.startIdx + 1}
+                                  colSpan={seg.endIdx - seg.startIdx + 1}
+                                  row={lane + 1}
                                 />
-                              ))}
-                              {cellTasks.length > 3 && (
-                                <button
-                                  type="button"
-                                  className="w-full text-xs text-blue-600 text-center hover:underline"
-                                  onClick={() => openOverflowDialog(
-                                    cellTasks,
-                                    `${format(day, 'M月d日')} · ${resource.name}`
-                                  )}
-                                >
-                                  +{cellTasks.length - 3} 更多
-                                </button>
-                              )}
-                            </div>
+                              ))
+                            )}
                           </div>
-                        );
-                      })}
-                    </div>
-                  ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ))}
             </div>
