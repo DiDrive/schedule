@@ -175,7 +175,7 @@ function addWorkingDays(start: Date, daysToAdd: number, extraWorkDays?: Set<stri
 
 const SPAN_LANE_HEIGHT_PX = 35;// 任务车道高度
 const SPAN_ROW_BASE_HEIGHT_PX = 80;// 任务行基础高度
-const SPAN_ROW_PADDING_PX = 1;// 任务行内边距
+const SPAN_ROW_PADDING_PX = 0;// 任务行内边距
 
 // 获取下一个工作日
 function getNextWorkingDay(date: Date, extraWorkDays?: Set<string>): Date {

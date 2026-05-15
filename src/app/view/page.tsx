@@ -108,7 +108,7 @@ function getTaskSpanRange(task: Task): { start?: Date; end?: Date } {
 
 const SPAN_LANE_HEIGHT_PX = 35;// 任务车道高度
 const SPAN_ROW_BASE_HEIGHT_PX = 80;// 任务行基础高度
-const SPAN_ROW_PADDING_PX = 1;// 任务行内边距
+const SPAN_ROW_PADDING_PX = 0;// 任务行内边距，用于调整任务行与任务车道的间距
 
 function normalizeKeyPart(value?: string): string {
   return (value || '').trim().toLowerCase();

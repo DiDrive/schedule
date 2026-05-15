@@ -56,6 +56,9 @@ git pull origin main
 # 新建并切换到功能分支（把 xxx 改成你的任务名）
 git checkout -b feature/xxx
 
+# 切换到功能分支
+git checkout feature/xxx
+
 # 查看当前分支
 git branch --show-current
 
@@ -122,7 +125,9 @@ git push
 ```bash
 git checkout main
 git pull origin main
-git checkout -b feature/xxx
+git checkout -b feature/xxx #没有这个分支时才新建
+git checkout feature/xxx #有这个分支时直接切换到它
+
 
 # 开发...
 git add .

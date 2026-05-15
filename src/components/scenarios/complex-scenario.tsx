@@ -410,6 +410,8 @@ export default function ComplexScenario() {
   
   // 主栏目导航：排期管理 / 矩阵日历
   const [mainView, setMainView] = useState<'schedule' | 'matrix'>('schedule');
+  const [focusMatrixView, setFocusMatrixView] = useState(false);
+  const prevMainViewRef = useRef<'schedule' | 'matrix'>('schedule');
   
   // 矩阵日历独立筛选状态
   const [matrixTaskType, setMatrixTaskType] = useState<'all' | '脚本' | '平面' | '后期'>('all');
@@ -2886,8 +2888,127 @@ export default function ComplexScenario() {
         </CardContent>
       </Card>
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-lg w-fit">
+          <Button
+            variant={mainView === 'schedule' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => {
+              setMainView('schedule');
+              prevMainViewRef.current = 'schedule';
+            }}
+            className="gap-2"
+            disabled={focusMatrixView}
+          >
+            <GitBranch className="h-4 w-4" />
+            排期管理
+          </Button>
+          <Button
+            variant={mainView === 'matrix' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => {
+              setMainView('matrix');
+              prevMainViewRef.current = 'matrix';
+            }}
+            className="gap-2"
+          >
+            <Grid3X3 className="h-4 w-4" />
+            矩阵日历
+          </Button>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setFocusMatrixView((prev) => {
+              if (!prev) {
+                prevMainViewRef.current = mainView;
+                setMainView('matrix');
+                return true;
+              }
+              setMainView(prevMainViewRef.current || 'schedule');
+              return false;
+            });
+          }}
+        >
+          {focusMatrixView ? '显示管理栏目' : '隐藏管理栏目'}
+        </Button>
+      </div>
+
+      {mainView === 'matrix' && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>矩阵日历视图</CardTitle>
+                <CardDescription>
+                  需求表2筛选视图数据（无需排期）
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-600">任务类型：</span>
+                  <Select value={matrixTaskType} onValueChange={(v: any) => setMatrixTaskType(v)}>
+                    <SelectTrigger className="w-[120px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部</SelectItem>
+                      <SelectItem value="脚本">脚本</SelectItem>
+                      <SelectItem value="平面">平面</SelectItem>
+                      <SelectItem value="后期">后期</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-600">人员：</span>
+                  <Select value={matrixResource} onValueChange={setMatrixResource}>
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部人员</SelectItem>
+                      {sharedResources
+                        .filter(r => r.type === 'human')
+                        .map(resource => (
+                          <SelectItem key={resource.id} value={resource.id}>
+                            {resource.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 h-[calc(100vh-220px)] min-h-[640px] overflow-x-hidden">
+            <MatrixCalendarView
+              scheduledTasks={filteredTasks}
+              resources={sharedResources}
+              tasks={matrixPersistedTasks}
+              onTaskClick={openTaskSplitDialog}
+              onTaskUpdate={handleTaskUpdate}
+              onDeleteTask={handleDeleteTask}
+              onViewTasksLoaded={handleMatrixViewTasksLoaded}
+              feishuConfig={feishuConfig ? {
+                appId: feishuConfig.appId,
+                appSecret: feishuConfig.appSecret,
+                appToken: feishuConfig.newMode.appToken,
+                requirements2TableId: feishuConfig.newMode.tableIds.requirements2,
+                viewId: feishuConfig.newMode.viewIds?.requirements2Matrix,
+              } : undefined}
+              taskTypeFilter={matrixTaskType}
+              resourceFilter={matrixResource}
+              onAddSubTask={handleAddSubTask}
+              onUpdateSubTask={handleUpdateSubTask}
+              onDeleteSubTask={handleDeleteSubTask}
+            />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Projects Overview */}
-      <Card>
+      {!focusMatrixView && <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -2997,11 +3118,11 @@ export default function ComplexScenario() {
             </Table>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
 
       {/* Task Type Tabs */}
-      <Tabs value={activeTaskType} onValueChange={handleSetActiveTaskType} className="mb-4">
+      {!focusMatrixView && <Tabs value={activeTaskType} onValueChange={handleSetActiveTaskType} className="mb-4">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="all">
             全部 ({taskTypeStats.all})
@@ -3019,10 +3140,10 @@ export default function ComplexScenario() {
             物料 ({taskTypeStats.wuliao})
           </TabsTrigger>
         </TabsList>
-      </Tabs>
+      </Tabs>}
 
       {/* Action Bar */}
-      <div className="flex items-center justify-between mb-4">
+      {!focusMatrixView && <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="gap-1">
             <Users className="h-3 w-3" />
@@ -3100,10 +3221,10 @@ export default function ComplexScenario() {
             </Button>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Task Management Card */}
-      <Card>
+      {!focusMatrixView && <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -3255,109 +3376,10 @@ export default function ComplexScenario() {
             </div>
           )}
         </CardContent>
-      </Card>
-
-      {/* 主栏目导航 */}
-      <div className="mb-6">
-        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-lg w-fit">
-          <Button
-            variant={mainView === 'schedule' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setMainView('schedule')}
-            className="gap-2"
-          >
-            <GitBranch className="h-4 w-4" />
-            排期管理
-          </Button>
-          <Button
-            variant={mainView === 'matrix' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setMainView('matrix')}
-            className="gap-2"
-          >
-            <Grid3X3 className="h-4 w-4" />
-            矩阵日历
-          </Button>
-        </div>
-      </div>
-
-      {/* 矩阵日历视图 */}
-      {mainView === 'matrix' && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>矩阵日历视图</CardTitle>
-                <CardDescription>
-                  需求表2筛选视图数据（无需排期）
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-4">
-                {/* 任务类型筛选 */}
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-600">任务类型：</span>
-                  <Select value={matrixTaskType} onValueChange={(v: any) => setMatrixTaskType(v)}>
-                    <SelectTrigger className="w-[120px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部</SelectItem>
-                      <SelectItem value="脚本">脚本</SelectItem>
-                      <SelectItem value="平面">平面</SelectItem>
-                      <SelectItem value="后期">后期</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {/* 人员筛选 */}
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-600">人员：</span>
-                  <Select value={matrixResource} onValueChange={setMatrixResource}>
-                    <SelectTrigger className="w-[150px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部人员</SelectItem>
-                      {sharedResources
-                        .filter(r => r.type === 'human')
-                        .map(resource => (
-                          <SelectItem key={resource.id} value={resource.id}>
-                            {resource.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-4 h-[calc(100vh-220px)] min-h-[640px] overflow-x-hidden">
-            <MatrixCalendarView
-              scheduledTasks={filteredTasks}
-              resources={sharedResources}
-              tasks={matrixPersistedTasks}
-              onTaskClick={openTaskSplitDialog}
-              onTaskUpdate={handleTaskUpdate}
-              onDeleteTask={handleDeleteTask}
-              onViewTasksLoaded={handleMatrixViewTasksLoaded}
-              feishuConfig={feishuConfig ? {
-                appId: feishuConfig.appId,
-                appSecret: feishuConfig.appSecret,
-                appToken: feishuConfig.newMode.appToken,
-                requirements2TableId: feishuConfig.newMode.tableIds.requirements2,
-                viewId: feishuConfig.newMode.viewIds?.requirements2Matrix,
-              } : undefined}
-              taskTypeFilter={matrixTaskType}
-              resourceFilter={matrixResource}
-              onAddSubTask={handleAddSubTask}
-              onUpdateSubTask={handleUpdateSubTask}
-              onDeleteSubTask={handleDeleteSubTask}
-            />
-          </CardContent>
-        </Card>
-      )}
+      </Card>}
 
       {/* 排期管理视图 - 甘特图和日历 */}
-      {mainView === 'schedule' && scheduleResult && (
+      {!focusMatrixView && mainView === 'schedule' && scheduleResult && (
         <Tabs value={activeProject} onValueChange={handleSetActiveProject} className="space-y-4">
           <TabsList className="flex flex-wrap h-auto gap-2 bg-transparent p-0">
             <TabsTrigger 
